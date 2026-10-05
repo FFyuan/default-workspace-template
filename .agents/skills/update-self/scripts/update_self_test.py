@@ -2370,8 +2370,8 @@ def test_plan_apply_does_not_mistake_nested_paths_for_manifests(path: str) -> No
         "system/apps/system_interface/frontend/vite.config.ts",
         "system/apps/system_interface/frontend/tsconfig.json",
         "system/apps/system_interface/frontend/public/logo.svg",
-        # The chat's, the Getting Started app's and the Files app's frontends and the library all compile into a
-        # bundle; so does the tooling every build reads.
+        # Every other frontend and the library compile into a bundle too; so does the tooling every
+        # build reads.
         "system/apps/chat/frontend/src/index.ts",
         "system/apps/chat/frontend/chat.html",
         "system/apps/getting_started/frontend/src/index.ts",

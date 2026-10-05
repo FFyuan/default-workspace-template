@@ -2359,7 +2359,7 @@ def test_a_message_from_the_minds_chrome_reaches_the_app_that_registered_its_typ
 
 
 # Files (``system/apps/files``): dufs over a folder of the test's own, with the Files frontend's build, registered as
-# the ``files`` app. The workspace image installs dufs; elsewhere these tests skip. The build is the npm workspace's.
+# the ``files`` app. The workspace image installs dufs; elsewhere these tests skip.
 _FILES_APP_NAME = "files"
 _FILES_ASSETS_DIRECTORY = Path(__file__).resolve().parents[3] / "files" / "static"
 _DUFS_BINARY = shutil.which("dufs")

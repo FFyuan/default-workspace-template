@@ -1,0 +1,1 @@
+The shared icon set gains the glyphs Files draws its chrome with: layout-grid, list, columns, arrow-left, arrow-right, arrow-up, plus, upload, ellipsis, folder, house, hard-drive, inbox, file-text, file-plus, copy, and save.

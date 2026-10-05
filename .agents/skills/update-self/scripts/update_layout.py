@@ -38,7 +38,7 @@ GETTING_STARTED_DIR = "system/apps/getting_started"
 
 GETTING_STARTED_FRONTEND_DIR = f"{GETTING_STARTED_DIR}/frontend"
 
-# The Files app: the fourth frontend, whose bundle dufs serves as its --assets directory.
+# The Files app, whose bundle dufs serves as its --assets directory.
 FILES_DIR = "system/apps/files"
 
 FILES_FRONTEND_DIR = f"{FILES_DIR}/frontend"
@@ -73,7 +73,7 @@ FRONTEND_TOOLING_PATHS = frozenset(
     }
 )
 
-# Every directory whose change re-emits a bundle: the four frontends and the library they share.
+# Every directory whose change re-emits a bundle: each frontend and the library they share.
 FRONTEND_SOURCE_DIRS = (
     FRONTEND_DIR,
     CHAT_FRONTEND_DIR,
