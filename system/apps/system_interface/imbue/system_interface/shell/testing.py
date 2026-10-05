@@ -162,7 +162,7 @@ BUILTIN_SHORTCUT_APPS_WITH_CHAT: Final[tuple[str, ...]] = ("chat", *BUILTIN_SHOR
 
 def builtin_rows_toml_before_chat() -> tuple[str, ...]:
     """The rows of the built-in apps that register before the chat, shaped as their manifests make them: the shell
-    (internal), Getting Started, the file viewer, the browser, and the terminal."""
+    (internal), Getting Started, Files, the browser, and the terminal."""
     return (
         registry_row_toml("system_interface", "http://localhost:8000", is_internal=True, is_critical=True),
         registry_row_toml(
@@ -175,10 +175,10 @@ def builtin_rows_toml_before_chat() -> tuple[str, ...]:
         registry_row_toml(
             "files",
             TEST_FILES_URL,
-            display_name="File Viewer",
+            display_name="Files",
             launcher_rank=20,
             default_shortcut=("new", "new"),
-            launch_paths=[("new", "File Viewer", "/home/user/workspace/")],
+            launch_paths=[("new", "Files", "/home/user/workspace/")],
         ),
         registry_row_toml(
             "browser",

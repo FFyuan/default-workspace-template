@@ -27,7 +27,7 @@ from app_manifest.testing import write_repo_file
 def _full_manifest_data() -> dict[str, object]:
     return {
         "name": "files",
-        "display_name": "File Viewer",
+        "display_name": "Files",
         "icon": "icon.svg",
         "critical": False,
         "stop_when_no_windows": True,
@@ -38,7 +38,7 @@ def _full_manifest_data() -> dict[str, object]:
         "launch_paths": [
             {
                 "id": "new",
-                "label": "New File Viewer",
+                "label": "Files",
                 "path": "/",
                 "params": [{"name": "path", "label": "Path", "required": False}],
                 "text_param": "path",
@@ -54,7 +54,7 @@ def test_full_manifest_round_trips_every_field() -> None:
     manifest = AppManifest.model_validate(_full_manifest_data())
 
     assert manifest.name == "files"
-    assert manifest.display_name == "File Viewer"
+    assert manifest.display_name == "Files"
     assert manifest.icon == "icon.svg"
     assert manifest.priority == "files"
     assert manifest.program == "files"

@@ -2,7 +2,7 @@
 
 The agent harness UI: live conversations with mngr-managed agents, one page per
 chat, rendered inside a window's iframe at the chat's own registered origin. It
-is an app of the workspace like the terminal or the file viewer (the desktop
+is an app of the workspace like the terminal or Files (the desktop
 interface, `docs/system/blueprint/desktop-interface/`): the shell knows it only
 through its manifest (`app.toml`), its registry row, and the browser-side
 contract; everything about chats lives in this app's own pages and routes.

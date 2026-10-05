@@ -68,9 +68,17 @@ export const IconView: m.Component<ViewAttrs> = {
             ...entryAttrs(app, entry, entries, "icons"),
           },
           [
-            m("div", { class: "flex h-16 w-16 items-center justify-center" }, m(FileIcon, { entry, size: 64, thumbnail: true })),
+            m(
+              "div",
+              { class: "flex h-16 w-16 items-center justify-center" },
+              m(FileIcon, { entry, size: 64, thumbnail: true }),
+            ),
             isRenaming
-              ? m(RenameField, { app, multiline: true, extraClass: "resize-none text-center text-(length:--font-size-row) leading-tight" })
+              ? m(RenameField, {
+                  app,
+                  multiline: true,
+                  extraClass: "resize-none text-center text-(length:--font-size-row) leading-tight",
+                })
               : m(
                   "div.files-name",
                   {
@@ -79,7 +87,9 @@ export const IconView: m.Component<ViewAttrs> = {
                   },
                   displayName(app, entry),
                 ),
-            app.isNarrow ? m("div", { class: "absolute top-0.5 right-0.5" }, m(EntryMenuButton, { app, entry })) : null,
+            app.isNarrow
+              ? m("div", { class: "absolute top-0.5 right-0.5" }, m(EntryMenuButton, { app, entry }))
+              : null,
           ],
         );
       }),
@@ -190,7 +200,11 @@ export const ListView: m.Component<ViewAttrs> = {
                 where === "" || isRenaming ? null : m("span", { class: "truncate text-faint" }, where),
               ]),
               m("div", { class: "truncate text-secondary" }, formatModified(entry.mtime, now)),
-              m("div", { class: "truncate text-right text-secondary tabular-nums" }, entry.isFolder ? "--" : formatSize(entry.size)),
+              m(
+                "div",
+                { class: "truncate text-right text-secondary tabular-nums" },
+                entry.isFolder ? "--" : formatSize(entry.size),
+              ),
               m("div", { class: "truncate text-secondary" }, kindLabelOf(entry.name, entry.isFolder)),
             ],
           );

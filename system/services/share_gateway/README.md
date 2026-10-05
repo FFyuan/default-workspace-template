@@ -161,9 +161,9 @@ their own registered origin (`chat-<rand>.<domain>`), framed by the shell, so a
 workspace-level grant admits the chat origin directly and a `[services.chat]`
 grant narrows a visitor to it. A visitor holding only a per-app grant reaches
 that app's origin and nothing else -- not the shell, so not the tabs the shell
-arranges; the origin's own pages (a chat at `/<agent-id>`, the file viewer's
+arranges; the origin's own pages (a chat at `/<agent-id>`, the Files app's
 listing) are what they see, and a `[services.files]` grant admits only the
-file viewer. Nothing here is configured per app: caddy re-renders its routes
+Files app. Nothing here is configured per app: caddy re-renders its routes
 from the registry, so the chat origin (like every app's) is claimed and routed
 as soon as the app registers.
 

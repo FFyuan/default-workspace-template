@@ -176,7 +176,5 @@ export function sourcesFromDrop(dataTransfer: DataTransfer): Promise<UploadSourc
   if (entries.length === 0 || entries.some((entry) => entry === null)) {
     return Promise.resolve(sourcesFromFileList(dataTransfer.files));
   }
-  return Promise.all(entries.map((entry) => sourcesFromEntry(entry as FileSystemEntry, ""))).then((all) =>
-    all.flat(),
-  );
+  return Promise.all(entries.map((entry) => sourcesFromEntry(entry as FileSystemEntry, ""))).then((all) => all.flat());
 }

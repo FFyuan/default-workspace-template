@@ -1,112 +1,105 @@
 # files
 
-The workspace's file viewer: the `files` app of the desktop's launcher,
+Files: the workspace's file browser, the `files` app of the desktop's launcher,
 supervised as the `files` program declared in
 `system/supervisord.conf.d/files.conf`. There is no Python package here: the
 program line registers `app.toml` and the dufs port 8300 through
 `system/scripts/forward_port.py`, then runs
-`dufs --allow-all --bind 127.0.0.1 --port 8300 --assets system/apps/files/assets /`.
+`dufs --allow-all --bind 127.0.0.1 --port 8300 --assets system/apps/files/static /`.
 
 The server is [dufs](https://github.com/sigoden/dufs), a single static binary
 installed at image build by `system/scripts/install_dufs.sh` (version and
 per-arch sha256 pinned there). It serves the container's filesystem root, so a
-viewer opened at the workspace can walk up to anything the workspace user can
+window opened at the workspace can walk up to anything the workspace user can
 read; it is bound to loopback with all operations enabled (browse, preview,
 upload, rename, delete): the workspace origin is what gates access, exactly as
 for every other registered app.
 
-## Opening a folder
+## The frontend
+
+`frontend/` is a Mithril app on the shared `system/libs/workspace_ui` library,
+one package of the npm workspace at `system/package.json`. Its vite build writes
+`static/` (gitignored), the directory dufs is handed as `--assets`. dufs serves
+that one `index.html` for every folder and every file page, filling in the
+page's data (base64 JSON in `#index-data`: a folder's listing, or the facts of
+the file a `?view` / `?edit` page is for) and the prefix it serves the bundle
+under (`__ASSETS_PREFIX__`). Everything else goes over dufs's HTTP API, which
+`frontend/src/models/dufs.ts` wraps: `?json` lists a folder, `?q=` searches
+under it, `?zip` archives it, PUT writes, MKCOL makes a folder, MOVE renames,
+DELETE removes. dufs serves its assets directory flat and reads `index.html`
+once at startup, so the bundle keeps fixed names (`index.js`, `index.css`) and
+the page asks for them with a per-build `?v=` stamp.
+
+A folder window has a sidebar of places (Workspace, Documents, Uploads, and the
+Computer, each shown when it exists), a toolbar (back and forward, the path,
+search, the view switcher, Add, and the view options), the folder, and a status
+line. The folder is laid out as icons (image files as thumbnails), a list with
+sortable columns, or columns that open to the right as folders are chosen and
+end in a preview of the file chosen. The layout, the sort order, and whether
+"system files" (dotted names) show are kept in the browser's localStorage and
+shared by every window.
+
+- Click selects, Cmd/Ctrl-click toggles, Shift-click extends; a double-click (or
+  Enter) opens. F2 renames in place, Delete deletes after a confirmation,
+  Cmd/Ctrl+A selects everything, Cmd/Alt+Up goes up a folder, Cmd+[ and Cmd+]
+  go back and forward, and typing a name jumps to it.
+- Right-click on an entry offers Open, Open in New Window (a folder), Edit (a
+  text file), Download (a folder as a zip), Rename, Copy Path, and Delete,
+  ahead of the workspace's own element-menu rows; right-click on a folder's
+  background offers New Folder, New File, Upload Files, and Upload Folder,
+  which the Add button offers too.
+- Files dragged in from outside upload into the folder under the pointer (a
+  folder's tile or row, a column, a place, a path segment) or else the folder
+  on show, folders included; entries dragged onto a folder move into it. An
+  upload whose name is taken asks whether to replace it or keep both. Uploads
+  show their progress in a panel at the bottom right.
+
+Under 700px of the frame's own width the window lays itself out for a phone:
+no sidebar or column view, a two-row toolbar, one tap opens, and every entry
+carries a "..." button with its menu.
+
+## Opening a folder or a file
 
 The manifest's one launch path is `/home/user/workspace/` with an optional `path`
 param (an absolute path, since dufs serves the filesystem root), so a plain launch
-opens the workspace folder and the shell opens a file viewer window at
+opens the workspace folder and the shell opens a Files window at
 `/home/user/workspace/?path=<folder>` when asked for one (`layout.py open files
---path /home/user/workspace/data/notes/` is the same thing). dufs ignores the query; the vendored frontend
-takes the frame to the folder itself (see below) and then reports that folder as
-its location, so the window's stored path follows and a reload reopens the
-folder.
+--path /home/user/workspace/data/notes/` is the same thing). The page shows that
+folder in place and reports it as its location (`shell:location`,
+desktop-interface contracts.md section 7), as it does after every move, so the
+window's stored path follows, a reload reopens the folder, and the window is
+titled after it.
 
-## The vendored frontend
+Framed by the shell, opening a file opens its `?view` page in a Files window of
+its own, and Edit its `?edit` page, each through the app contract's `shell:open`
+with `ifPresent: "focus"`, so a window already on that page is raised instead of
+a second one opening. On a phone, or outside the workspace, the page opens in
+place. A view page draws images, video, audio, and PDFs in the browser's own
+viewers and text as text; an edit page is a text editor that saves with Save or
+Cmd/Ctrl+S. Both lead back to the folder and offer Download, Rename, Copy Path,
+and Delete.
 
-Beyond the manifest (`app.toml`) and its icon (`icon.svg`), this directory
-holds `assets/`: a vendored copy of dufs's own frontend (its `assets/`
-directory at the pinned release, served via `--assets`), carrying six
-workspace patches -- a toolbox toggle that hides "system files" (any path
-whose name, or any segment of a search result's path, starts with `.`) by
-default, with the choice kept in the browser's localStorage; the `?path=`
-redirect (a rooted path on this origin, honoured before anything renders); a
-location beacon that posts the path being viewed and the name of the folder or
-file shown one hop up
-(`window.parent.postMessage({type: "shell:location", path, title})`, the message
-of desktop-interface contracts.md section 7; the title is the last segment of the
-path shown, or `Files` at the served root) on each page load, so the workspace
-shell can reopen a file-viewer window where it was looking and title it after
-what it shows; file links that open in workspace windows; an Edit button on a
-file's view page; and a phone layout (below). Hiding is purely client-side: the
-server lists everything, so flipping the toggle needs no reload and direct
-navigation into dotted paths keeps working. The patched blocks are marked with
-`minds patch` comments in `assets/index.js` / the `.toggle-hidden-files` and
-`.edit-file` controls in `assets/index.html`.
+`frontend/public/404.html` is Files' own "not found" page, copied into the
+build as-is: dufs serves a `404.html` found in its `--assets` directory, with
+status 404, for every path that does not exist (it answers a client it takes
+for a script, such as curl, with a bare "Not Found" instead). dufs fills in no
+placeholders there, so the page reads the path asked for from its own address,
+names it, links the nearest folder above it that exists (asking each folder's
+`?json` listing, whose `dir_exists` says whether it is there), and posts the
+location beacon, titled after the missing name.
 
-The phone layout (`docs/system/blueprint/desktop-interface/plan-phone-interface.md`,
-"The file viewer") takes over under 700px of the frame's own width, live across a
-resize: the table and toolbox give way to a header (up, the folder's name, search,
-and a kebab holding the toolbox verbs), a scrollable breadcrumb strip that dufs's
-search bar replaces while searching, sort keys, and one row per entry (octicon,
-name, and "<mtime> · <size>" beneath) whose kebab opens a sheet of the table's
-actions. A tapped file opens in place, on its edit page (its view page where the
-table offers no Edit), rather than in a window of its own as a click in the table
-does (below); the editor page gets a Save button and the file's kebab, and a
-view page the kebab with its Edit control. It is all in
-its own `assets/phone.js` and `assets/phone.css`, included by the two
-`minds patch` lines in `assets/index.html`. It drives dufs's own state and
-functions (`DATA`, `PARAMS`, `movePath`, `deletePath`, `saveChange`, the toolbox
-controls' handlers, the breadcrumb and search bar dufs built) and wraps `ready()`
-rather than editing it, so re-applying it after a dufs bump is those two lines;
-its test then checks that the names it leans on still behave.
-
-A folder in a listing opens in place, as dufs ships it. A file does not: framed by
-the shell, a click on a file's name in the table opens the file's `?view` page (dufs's
-read-only view: text as source, PDFs, images, audio and video embedded, anything
-else offered as a download) in a file-viewer window of its own, and the Edit
-button opens its `?edit` page, each through the app contract's `shell:open`
-with `ifPresent: "focus"` (contracts.md section 7), so a window already on that
-page is raised instead of a second one opening. A modified or middle click does
-the same. dufs renders these anchors with `target="_blank"`, which inside the
-desktop would open a bare browser window; the patch cancels the click and asks
-the shell instead, and leaves the anchors as they are, so opened on its own in a
-browser tab the viewer behaves as dufs ships it. A file's view page offers Edit
-wherever the listing would (uploads and deletes allowed), and it takes that same
-page, and so its window, to the edit page.
-
-`assets/404.html` is the File Viewer's own "not found" page, not part of dufs's
-frontend, so re-vendoring leaves it alone: dufs serves a `404.html` found in its
-`--assets` directory, with status 404, for every path that does not exist (it
-answers a client it takes for a script, such as curl, with a bare "Not Found"
-instead). dufs serves it as it is, with no placeholders filled in, so the page
-reads the path asked for from its own address, names it, links the nearest
-folder above it that exists (asking each folder's `?json` listing, whose
-`dir_exists` says whether it is there), and posts the location beacon, titled
-after the missing name.
-
-When `install_dufs.sh` bumps the pinned dufs version, re-vendor `assets/` from
-the new tag and re-apply the marked patches -- the vendored frontend and the
-binary must come from the same release, since dufs's HTML placeholders and
-listing JSON are version-coupled.
-
-dufs serves the js/css/favicon with a year-long immutable cache under a path
-that encodes only ITS version, so a change to the vendored assets is invisible
-to any browser that has already loaded the viewer. `index.html` (which dufs
-serves no-cache) therefore references the assets with a `?v=minds-N` query:
-bump that revision in every asset URL (the favicon, `index.css`, `index.js`,
-`phone.css` and `phone.js`) whenever anything under `assets/` changes, patch or
-re-vendor alike.
+When `install_dufs.sh` bumps the pinned dufs version, check the placeholders,
+the listing JSON, and the verbs `models/dufs.ts` relies on against the new
+release.
 
 ## Tests
 
 `system/test_app_manifests.py` checks the manifest against the program line, and
-`system/test_supervisord_layout.py` the program block. `test_phone_layout.py`
-(marked `browser`) serves `assets/` from a stand-in for dufs (`conftest.py`) and
-drives the phone layout in Chromium: rows, the sheets' actions reaching dufs's
-handlers (the page's `fetch` is stubbed and the requests dufs makes are
-asserted), sort, search, and the table at a desktop width.
+`system/test_supervisord_layout.py` the program block. The frontend's own
+vitest suites sit beside its sources (`npm test` at `system/`).
+`test_files_app.py` (marked `browser`) serves the build from a stand-in for
+dufs (`conftest.py`, over a temporary folder) and drives the app in Chromium:
+the three views, selection, rename, delete, new folders, uploads by picker and
+by drop, search, the phone layout, and the file pages. The shell's
+`test_e2e.py` runs the real dufs, where installed, to check that files open in
+workspace windows.

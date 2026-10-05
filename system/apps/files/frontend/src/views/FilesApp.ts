@@ -90,7 +90,10 @@ function Sidebar(): m.Component<{ app: FilesController }> {
               }`,
               onclick: () => model.navigate(place.path),
             },
-            [m.trust(icon(PLACE_ICONS[place.key] ?? "folder", { size: 15, className: "shrink-0" })), m("span", place.label)],
+            [
+              m.trust(icon(PLACE_ICONS[place.key] ?? "folder", { size: 15, className: "shrink-0" })),
+              m("span", place.label),
+            ],
           ),
         ),
       ]);
@@ -164,7 +167,8 @@ function SearchField(): m.Component<{ app: FilesController }> {
             placeholder: "Search",
             value: query,
             "aria-label": "Search this folder",
-            class: "min-w-0 flex-1 bg-transparent text-(length:--font-size-row) text-primary outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden",
+            class:
+              "min-w-0 flex-1 bg-transparent text-(length:--font-size-row) text-primary outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden",
             oninput: (event: InputEvent) => model.setSearchQuery((event.target as HTMLInputElement).value),
             onkeydown: (event: KeyboardEvent) => {
               if (event.key === "Escape") {
@@ -255,7 +259,11 @@ function Toolbar(): m.Component<{ app: FilesController }> {
       ]);
       const viewSwitch = m(
         "div.files-view-switch",
-        { role: "group", "aria-label": "View", class: "flex shrink-0 items-center gap-0.5 rounded-lg bg-fill-hover p-0.5" },
+        {
+          role: "group",
+          "aria-label": "View",
+          class: "flex shrink-0 items-center gap-0.5 rounded-lg bg-fill-hover p-0.5",
+        },
         modes.map((view) =>
           iconButton(
             `View as ${view.label}`,
@@ -279,24 +287,30 @@ function Toolbar(): m.Component<{ app: FilesController }> {
         addMenu.view(menuRowsOf(app.folderActions(model.folder).reverse())),
       ]);
       const options = m("div", { class: "flex shrink-0" }, [
-        iconButton("View options", "ellipsis", { "data-action": "options", ...optionsMenu.triggerAttrs() }, { tooltip: false }),
+        iconButton(
+          "View options",
+          "ellipsis",
+          { "data-action": "options", ...optionsMenu.triggerAttrs() },
+          { tooltip: false },
+        ),
         optionsMenu.view(optionRows),
       ]);
       if (app.isNarrow) {
         // A phone has no room for one row: where you are and what to add on top, finding and arranging below.
-        return m("header.files-toolbar", { class: "flex shrink-0 flex-col gap-2 border-b border-default bg-surface px-3 py-2" }, [
-          m("div", { class: "flex items-center gap-1" }, [history, m(Breadcrumb, { app }), add, options]),
-          m("div", { class: "flex items-center gap-2" }, [m(SearchField, { app }), viewSwitch]),
-        ]);
+        return m(
+          "header.files-toolbar",
+          { class: "flex shrink-0 flex-col gap-2 border-b border-default bg-surface px-3 py-2" },
+          [
+            m("div", { class: "flex items-center gap-1" }, [history, m(Breadcrumb, { app }), add, options]),
+            m("div", { class: "flex items-center gap-2" }, [m(SearchField, { app }), viewSwitch]),
+          ],
+        );
       }
-      return m("header.files-toolbar", { class: "flex h-12 shrink-0 items-center gap-2 border-b border-default bg-surface px-3" }, [
-        history,
-        m(Breadcrumb, { app }),
-        m(SearchField, { app }),
-        viewSwitch,
-        add,
-        options,
-      ]);
+      return m(
+        "header.files-toolbar",
+        { class: "flex h-12 shrink-0 items-center gap-2 border-b border-default bg-surface px-3" },
+        [history, m(Breadcrumb, { app }), m(SearchField, { app }), viewSwitch, add, options],
+      );
     },
   };
 }
@@ -329,16 +343,22 @@ function FolderBody(): m.Component<{ app: FilesController }> {
       } else if (entries.length === 0) {
         empty = message(
           "This folder is empty",
-          app.isNarrow ? "Tap Add to put something here." : "Drop files here, or use Add to upload or create something.",
+          app.isNarrow
+            ? "Tap Add to put something here."
+            : "Drop files here, or use Add to upload or create something.",
         );
       }
       return m("div", { class: "min-h-full" }, [
         search === null
           ? null
-          : m("div.files-search-header", { class: "flex items-center gap-2 px-5 pt-3 pb-1 type-helper text-secondary" }, [
-              m("span", `Results in ${segmentsOf(search.folder).pop() ?? "Computer"}`),
-              search.status === "searching" && entries.length > 0 ? m("div.spinner.spinner--sm") : null,
-            ]),
+          : m(
+              "div.files-search-header",
+              { class: "flex items-center gap-2 px-5 pt-3 pb-1 type-helper text-secondary" },
+              [
+                m("span", `Results in ${segmentsOf(search.folder).pop() ?? "Computer"}`),
+                search.status === "searching" && entries.length > 0 ? m("div.spinner.spinner--sm") : null,
+              ],
+            ),
         // Results come from all through the folder, so they show as a list, which says where each one is.
         empty ?? (mode === "icons" && search === null ? m(IconView, { app, entries }) : m(ListView, { app, entries })),
       ]);
@@ -360,12 +380,18 @@ function StatusBar(): m.Component<{ app: FilesController }> {
   return {
     view({ attrs: { app } }) {
       const model = app.model;
-      const shown = model.viewMode === "columns" && model.search === null ? model.visibleEntries(model.folder) : model.shownEntries();
+      const shown =
+        model.viewMode === "columns" && model.search === null
+          ? model.visibleEntries(model.folder)
+          : model.shownEntries();
       const selected = model.selection.length;
-      const text = selected > 0 ? `${selected} of ${formatItemCount(shown.length)} selected` : formatItemCount(shown.length);
+      const text =
+        selected > 0 ? `${selected} of ${formatItemCount(shown.length)} selected` : formatItemCount(shown.length);
       return m(
         "footer.files-status",
-        { class: "flex h-7 shrink-0 items-center gap-3 border-t border-default bg-surface px-4 type-helper text-faint" },
+        {
+          class: "flex h-7 shrink-0 items-center gap-3 border-t border-default bg-surface px-4 type-helper text-faint",
+        },
         [m("span.files-status-text", text)],
       );
     },
@@ -401,31 +427,53 @@ function UploadPanel(): m.Component<{ app: FilesController }> {
             ]),
             busy
               ? m(Button, { sm: true, variant: "ghost", onclick: () => uploads.cancelAll() }, "Cancel")
-              : m(Button, { sm: true, variant: "ghost", "data-action": "dismiss-uploads", onclick: () => uploads.clearFinished() }, "Done"),
+              : m(
+                  Button,
+                  {
+                    sm: true,
+                    variant: "ghost",
+                    "data-action": "dismiss-uploads",
+                    onclick: () => uploads.clearFinished(),
+                  },
+                  "Done",
+                ),
           ]),
-          m("div", { class: "mx-3 mb-2 h-1 overflow-hidden rounded-full bg-fill-hover" },
-            m("div", { class: `h-full rounded-full ${failed > 0 && !busy ? "bg-danger" : "bg-accent"}`, style: `width:${percent}%` }),
+          m(
+            "div",
+            { class: "mx-3 mb-2 h-1 overflow-hidden rounded-full bg-fill-hover" },
+            m("div", {
+              class: `h-full rounded-full ${failed > 0 && !busy ? "bg-danger" : "bg-accent"}`,
+              style: `width:${percent}%`,
+            }),
           ),
           m(
             "ul",
             { class: "m-0 max-h-[180px] list-none overflow-y-auto border-t border-subtle p-0 py-1" },
             uploads.items.map((item) =>
-              m("li.files-upload", { key: item.id, "data-status": item.status, class: "flex items-center gap-2 px-3 py-1 type-helper" }, [
-                m("span", { class: "min-w-0 flex-1 truncate text-primary", title: item.error ?? item.name }, item.name),
-                m(
-                  "span",
-                  { class: `shrink-0 ${item.status === "failed" ? "text-danger" : "text-faint"}` },
-                  item.status === "uploading"
-                    ? `${Math.round((item.loaded / Math.max(item.file.size, 1)) * 100)}%`
-                    : item.status === "done"
-                      ? m.trust(icon("check", { size: 13, className: "text-success" }))
-                      : item.status === "failed"
-                        ? "Failed"
-                        : item.status === "canceled"
-                          ? "Canceled"
-                          : "Waiting",
-                ),
-              ]),
+              m(
+                "li.files-upload",
+                { key: item.id, "data-status": item.status, class: "flex items-center gap-2 px-3 py-1 type-helper" },
+                [
+                  m(
+                    "span",
+                    { class: "min-w-0 flex-1 truncate text-primary", title: item.error ?? item.name },
+                    item.name,
+                  ),
+                  m(
+                    "span",
+                    { class: `shrink-0 ${item.status === "failed" ? "text-danger" : "text-faint"}` },
+                    item.status === "uploading"
+                      ? `${Math.round((item.loaded / Math.max(item.file.size, 1)) * 100)}%`
+                      : item.status === "done"
+                        ? m.trust(icon("check", { size: 13, className: "text-success" }))
+                        : item.status === "failed"
+                          ? "Failed"
+                          : item.status === "canceled"
+                            ? "Canceled"
+                            : "Waiting",
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -450,7 +498,12 @@ function Notice(): m.Component<{ app: FilesController }> {
           m("span", { class: "min-w-0 flex-1" }, notice),
           m(
             "button",
-            { type: "button", "aria-label": "Dismiss", class: "cursor-pointer text-white/70 hover:text-white", onclick: () => app.model.dismissNotice() },
+            {
+              type: "button",
+              "aria-label": "Dismiss",
+              class: "cursor-pointer text-white/70 hover:text-white",
+              onclick: () => app.model.dismissNotice(),
+            },
             m.trust(icon("close", { size: 14 })),
           ),
         ],

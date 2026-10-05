@@ -150,7 +150,10 @@ export class FilesModel {
   ) {
     this.folder = folder;
     this.preferences = loadPreferences(host.storage);
-    this.uploads = new UploadQueue({ redraw: () => host.redraw(), onUploaded: (target) => this.scheduleRefresh(target) });
+    this.uploads = new UploadQueue({
+      redraw: () => host.redraw(),
+      onUploaded: (target) => this.scheduleRefresh(target),
+    });
     if (initial !== undefined) {
       this.folders.set(folder, { status: "ready", exists: initial.exists, entries: initial.entries, error: null });
     }
@@ -508,7 +511,8 @@ export class FilesModel {
     for (const path of moving) {
       const target = childPath(folder, nameOf(path), isFolderPath(path));
       try {
-        if (await dufs.exists(target)) throw new Error(`${nameOf(folder)} already has an item named "${nameOf(path)}".`);
+        if (await dufs.exists(target))
+          throw new Error(`${nameOf(folder)} already has an item named "${nameOf(path)}".`);
         await dufs.movePath(path, target);
       } catch (error) {
         failures.push(messageOf(error));

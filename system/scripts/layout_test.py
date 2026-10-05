@@ -316,7 +316,7 @@ def test_desktops_and_list_read_the_inventory_document(fake_shell: Any, capsys: 
             "display_name": "Files",
             "internal": False,
             "is_running": True,
-            "launch_paths": [{"id": "new", "label": "New File Viewer", "path": "/", "params": []}],
+            "launch_paths": [{"id": "new", "label": "Files", "path": "/", "params": []}],
             "default_shortcut": {"launch": "new", "mode": "focus"},
         },
         {"name": "owner-exec", "internal": True, "is_running": True, "launch_paths": []},

@@ -90,7 +90,7 @@ export function downloadUrlOf(path: string, isFolder: boolean): string {
 }
 
 async function failureOf(response: Response, what: string): Promise<DufsError> {
-  let detail = "";
+  let detail: string;
   try {
     detail = (await response.text()).trim();
   } catch {

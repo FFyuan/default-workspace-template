@@ -45,7 +45,8 @@ function arrowOrder(app: FilesController): { order: Entry[]; at: number } {
 function moveTo(app: FilesController, entry: Entry | undefined, extend: boolean, order: readonly Entry[]): void {
   if (entry === undefined) return;
   app.revealSelection = true;
-  if (app.viewMode === "columns" && app.model.search === null) app.model.selectInColumn(entry, extend ? "extend" : "only");
+  if (app.viewMode === "columns" && app.model.search === null)
+    app.model.selectInColumn(entry, extend ? "extend" : "only");
   else app.model.select(entry.path, extend ? "extend" : "only", order);
 }
 
@@ -117,7 +118,11 @@ export function handleKeydown(app: FilesController, event: KeyboardEvent): void 
     void model.createFolder();
     return;
   }
-  if ((command && event.key === "ArrowDown") || (command && event.key.toLowerCase() === "o") || event.key === "Enter") {
+  if (
+    (command && event.key === "ArrowDown") ||
+    (command && event.key.toLowerCase() === "o") ||
+    event.key === "Enter"
+  ) {
     const selected = model.selectedEntries();
     if (selected.length !== 1) return;
     handled();

@@ -416,7 +416,7 @@ def test_parse_supervisord_ports_reads_the_forward_port_call() -> None:
 # the app's name is the program's. Alongside it, a --name call with its flags in
 # the other order, and a registration line in a comment that names no port.
 _MANIFEST_SUPERVISORD_SNIPPET = """
-# The file viewer registers its manifest via forward_port.py, then execs dufs.
+# The Files app registers its manifest via forward_port.py, then execs dufs.
 [program:files]
 command=python3 system/services/oom_priority/bin/oom_tag_service.py files bash -c "python3 system/scripts/forward_port.py --manifest system/apps/files/app.toml --url http://localhost:8300 && exec dufs --port 8300"
 

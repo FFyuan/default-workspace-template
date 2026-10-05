@@ -36,7 +36,8 @@ function contextRowsOf(groups: readonly (readonly FilesAction[])[]): ContextMenu
   for (const group of groups) {
     if (group.length === 0) continue;
     if (rows.length > 0) rows.push({ kind: "divider" });
-    for (const action of group) rows.push({ kind: "action", key: action.key, label: action.label, onSelect: action.run });
+    for (const action of group)
+      rows.push({ kind: "action", key: action.key, label: action.label, onSelect: action.run });
   }
   return rows;
 }
@@ -95,7 +96,8 @@ function bootstrap(): void {
         return contextRowsOf(app.entryActions(entries));
       }
       const surface = target.element.closest(`[${FOLDER_SURFACE_ATTR}]`);
-      if (surface !== null) return contextRowsOf(app.folderActions(surface.getAttribute(FOLDER_SURFACE_ATTR) ?? folder));
+      if (surface !== null)
+        return contextRowsOf(app.folderActions(surface.getAttribute(FOLDER_SURFACE_ATTR) ?? folder));
       return [];
     },
   });

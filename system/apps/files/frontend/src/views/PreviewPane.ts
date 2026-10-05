@@ -58,7 +58,12 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
           class: "max-h-[240px] max-w-full rounded-md object-contain shadow-raised",
         });
       } else if (preview === "video") {
-        picture = m("video", { src: url, controls: true, preload: "metadata", class: "max-h-[240px] w-full rounded-md" });
+        picture = m("video", {
+          src: url,
+          controls: true,
+          preload: "metadata",
+          class: "max-h-[240px] w-full rounded-md",
+        });
       } else if (preview === "audio") {
         picture = [m(FileIcon, { entry, size: 112 }), m("audio", { src: url, controls: true, class: "w-full" })];
       } else if (snippet?.text !== null && snippet?.text !== undefined) {
@@ -76,13 +81,21 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
       return m("div.files-preview", { class: "flex flex-col items-center gap-3 p-4" }, [
         m("div", { class: "flex min-h-[140px] w-full flex-col items-center justify-center gap-3" }, picture),
         m("div", { class: "w-full text-center type-label break-words text-primary" }, entry.name),
-        m("div", { class: "type-helper text-secondary" }, `${kindLabelOf(entry.name, false)} · ${formatSize(entry.size)}`),
+        m(
+          "div",
+          { class: "type-helper text-secondary" },
+          `${kindLabelOf(entry.name, false)} · ${formatSize(entry.size)}`,
+        ),
         m("dl", { class: "grid w-full grid-cols-[auto_1fr] gap-x-3 gap-y-1 type-helper" }, [
           m("dt", { class: "text-faint" }, "Modified"),
           m("dd", { class: "m-0 text-right text-secondary" }, formatModified(entry.mtime)),
         ]),
         m("div", { class: "flex w-full gap-2" }, [
-          m(Button, { sm: true, extra: "flex-1", "data-preview-action": "open", onclick: () => app.model.open(entry) }, "Open"),
+          m(
+            Button,
+            { sm: true, extra: "flex-1", "data-preview-action": "open", onclick: () => app.model.open(entry) },
+            "Open",
+          ),
           m(
             Button,
             { sm: true, extra: "flex-1", "data-preview-action": "download", onclick: () => app.download([entry]) },

@@ -133,7 +133,15 @@ function body(page: FilePageModel): m.Children {
   const centred = "flex h-full items-center justify-center overflow-auto bg-page p-6";
   switch (preview) {
     case "image":
-      return m("div", { class: centred }, m("img.files-file-image", { src: url, alt: name, class: "max-h-full max-w-full object-contain shadow-raised" }));
+      return m(
+        "div",
+        { class: centred },
+        m("img.files-file-image", {
+          src: url,
+          alt: name,
+          class: "max-h-full max-w-full object-contain shadow-raised",
+        }),
+      );
     case "video":
       return m("div", { class: centred }, m("video", { src: url, controls: true, class: "max-h-full max-w-full" }));
     case "audio":
@@ -215,7 +223,8 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
             "a.files-file-folder",
             {
               href: dufs.urlOf(folder),
-              class: "flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-(length:--font-size-row) text-secondary hover:bg-fill-hover hover:text-primary",
+              class:
+                "flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-(length:--font-size-row) text-secondary hover:bg-fill-hover hover:text-primary",
               ...hoverTooltipAttrs("Show in folder"),
             },
             [m.trust(icon("chevron-left", { size: 14 })), titleOf(folder)],
@@ -231,7 +240,11 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
             ? [
                 m(
                   "a",
-                  { href: dufs.pageUrlOf(path, "view"), class: buttonClass("ghost", { sm: true }), "data-action": "done" },
+                  {
+                    href: dufs.pageUrlOf(path, "view"),
+                    class: buttonClass("ghost", { sm: true }),
+                    "data-action": "done",
+                  },
                   "Done",
                 ),
                 m(
@@ -249,7 +262,11 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
             : canEdit
               ? m(
                   "a.edit-file",
-                  { href: dufs.pageUrlOf(path, "edit"), class: buttonClass("secondary", { sm: true }), "data-action": "edit" },
+                  {
+                    href: dufs.pageUrlOf(path, "edit"),
+                    class: buttonClass("secondary", { sm: true }),
+                    "data-action": "edit",
+                  },
                   [m.trust(icon("edit", { size: 14 })), "Edit"],
                 )
               : null,
@@ -266,7 +283,14 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
                 onSelect: () => void navigator.clipboard.writeText(path).catch(() => undefined),
               },
               { kind: "divider" },
-              { kind: "action", key: "delete", label: "Delete", icon: "trash", tone: "danger", onSelect: () => void page.delete() },
+              {
+                kind: "action",
+                key: "delete",
+                label: "Delete",
+                icon: "trash",
+                tone: "danger",
+                onSelect: () => void page.delete(),
+              },
             ]),
           ]),
         ]),

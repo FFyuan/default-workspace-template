@@ -159,7 +159,12 @@ export class FilesController {
     const single = entries.length === 1 ? entries[0] : null;
     const opening: FilesAction[] = [];
     if (single !== null) {
-      opening.push({ key: "open", label: "Open", icon: single.isFolder ? "folder" : "file", run: () => model.open(single) });
+      opening.push({
+        key: "open",
+        label: "Open",
+        icon: single.isFolder ? "folder" : "file",
+        run: () => model.open(single),
+      });
       if (single.isFolder && this.connection.isFramed && !this.isNarrow) {
         opening.push({
           key: "open-new-window",
