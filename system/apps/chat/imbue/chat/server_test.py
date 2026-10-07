@@ -340,7 +340,6 @@ def test_get_events_with_session_files(client: FlaskClient, app: Flask, tmp_path
     claude_config_dir = tmp_path / "claude_config"
     agent_state_dir = _track_claude_agent(app, "agent-123", "test-agent", claude_config_dir)
 
-    # Create a session file
     projects_dir = claude_config_dir / "projects" / "hash123"
     projects_dir.mkdir(parents=True)
 
@@ -373,7 +372,6 @@ def test_get_events_with_session_files(client: FlaskClient, app: Flask, tmp_path
         + "\n"
     )
 
-    # Write session history
     (agent_state_dir / "claude_session_id_history").write_text(f"{session_id}\n")
 
     response = client.get("/api/chats/agent-123/events")
@@ -2869,7 +2867,6 @@ def test_the_chat_settings_refuse_a_turn_limit_below_one_and_an_unknown_mode(cli
 def test_a_chats_idle_compaction_defaults_to_the_workspaces_and_is_replaced_whole(
     tmp_path: Path, true_binary: str
 ) -> None:
-    """A chat with no setting of its own reads as a new chat would start; a write is the chat's from then on."""
     agent_manager = AgentManager.build(WebSocketBroadcaster(), chat_files_root=tmp_path, mngr_binary=true_binary)
     agent_manager.note_agent_list_known()
     app = create_application(build_test_state(agent_manager=agent_manager))
@@ -3297,14 +3294,6 @@ def test_stop_rejects_is_primary_agent(client: FlaskClient, app: Flask) -> None:
     assert services_agent.id in agent_manager._agents
 
 
-# Agent file serving (markdown images + download links)
-#
-# An agent writes a file and references its absolute on-disk path in markdown;
-# the catch-all serves that file -- images inline so they render, any other file
-# as a download. These exercise the catch-all dispatch end to end via the Flask
-# test client.
-
-
 def test_serves_the_built_bundle_from_its_static_assets(tmp_path: Path) -> None:
     """The chat document links its hashed assets under ``/assets/``; the app serves them itself."""
     static = tmp_path / "static"
@@ -3577,9 +3566,6 @@ def test_websocket_replays_the_provisional_chats_before_the_agent_list(
     assert second["type"] == "chats_updated"
 
 
-# A chat that has run on two agents: one transcript, read across both segments
-
-
 def _write_claude_session(claude_config_dir: Path, session_id: str, events: list[dict[str, Any]]) -> None:
     projects_dir = claude_config_dir / "projects" / "hash123"
     projects_dir.mkdir(parents=True, exist_ok=True)
@@ -3684,9 +3670,6 @@ def test_a_two_member_chats_subagent_reads_resolve_by_member(client: FlaskClient
     assert archived.get_json() == {"events": [], "metadata": None}
     assert stranger.status_code == 404
     assert stranger.get_json()["detail"] == f"Chat '{first}' has no agent 'agent-stranger'"
-
-
-# The handoff routes.
 
 
 def _recording_app(tmp_path: Path) -> tuple[Flask, Path]:
@@ -3991,9 +3974,6 @@ def test_the_event_fan_out_is_keyed_by_chat(app: Flask, tmp_path: Path) -> None:
     )
 
 
-# The intake (post-launch-paths plan sections 3.5 and 3.6)
-
-
 def _intake(client: FlaskClient, **fields: object) -> Any:
     return client.post("/api/chats/intake", json=fields)
 
@@ -4286,9 +4266,6 @@ def test_intake_apply_for_a_chat_destroyed_meanwhile_is_not_found(
     assert client.get(f"/api/chats/intakes/{token}").status_code == 404
 
 
-# Compaction status: the composer's /compact, the stop button, and the compacted event's cause.
-
-
 def _manager_with_known_agents() -> tuple[AgentManager, RecordingMngrMessenger]:
     messenger = RecordingMngrMessenger()
     manager = AgentManager.build(WebSocketBroadcaster(), messenger=messenger)
@@ -4425,7 +4402,7 @@ def test_a_compact_command_sent_from_a_codex_composer_shows_no_compaction(tmp_pa
 
 
 def _claude_stop_with_no_open_turn(tmp_path: Path) -> tuple[AgentInfo, Path]:
-    """A claude agent with an active chord binding and no turn in flight, returned with its state dir."""
+    """A claude agent with an active chord binding and no turn in flight."""
     state_dir, config_dir = _claude_tap_dirs(tmp_path)
     (state_dir / "active").unlink()
     agent_info = _agent_info(agent_id=f"agent-{uuid4().hex}", agent_state_dir=state_dir, claude_config_dir=config_dir)
@@ -4525,7 +4502,6 @@ def test_a_live_compacted_event_reaches_the_stream_and_later_reads_with_its_caus
         with session_file.open("a") as handle:
             handle.write(json.dumps(_compact_summary_record(f"uuid-{uuid4().hex}", _utc_iso_now())) + "\n")
 
-        # The running watcher picks the line up (a file event, or its one-second poll at worst).
         streamed = stream.get(timeout=10.0)
         assert streamed is not None
         assert streamed["content"] == "Context was compacted"
