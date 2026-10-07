@@ -123,7 +123,9 @@ from imbue.chat.testing import observer_holding_the_lock
 from imbue.chat.testing import read_create_defaults_type
 from imbue.chat.testing import seed_agent_state
 from imbue.chat.testing import seed_failed_chat
+from imbue.chat.testing import utc_iso_seconds_ago
 from imbue.chat.testing import wait_until_true
+from imbue.chat.testing import write_compacting_marker
 from imbue.chat.testing import write_recording_mngr_binary
 from imbue.chat.testing import write_summary_for_request
 from imbue.chat.ws_broadcaster import WebSocketBroadcaster
@@ -5334,24 +5336,11 @@ def _tracked_compaction_agent(
     return agent_id, state_dir
 
 
-def _iso_seconds_ago(seconds: float) -> str:
-    return datetime.fromtimestamp(time.time() - seconds, tz=timezone.utc).isoformat()
-
-
-def _write_compacting_marker(state_dir: Path, trigger: str | None, started_seconds_ago: float = 2.0) -> Path:
-    payload: dict[str, str] = {"started_at": _iso_seconds_ago(started_seconds_ago)}
-    if trigger is not None:
-        payload["trigger"] = trigger
-    marker = state_dir / COMPACTING_MARKER_FILENAME
-    marker.write_text(json.dumps(payload))
-    return marker
-
-
 def _compacted_event(seconds_ago: float = 1.0) -> dict[str, Any]:
     return {
         "type": "user_message",
         "event_id": f"evt-{uuid4().hex}",
-        "timestamp": _iso_seconds_ago(seconds_ago),
+        "timestamp": utc_iso_seconds_ago(seconds_ago),
         "role": "system",
         "content": "Context was compacted",
         "display": DisplayKind.STATUS,
@@ -5381,7 +5370,7 @@ def test_a_fresh_compacting_marker_wins_over_thinking_and_tool_running(
     agent_manager.update_session_events(agent_id, [{"type": "user_message", "content": "go"}])
     assert _activity_of(agent_manager, agent_id) == ActivityState.THINKING
 
-    marker = _write_compacting_marker(state_dir, "auto")
+    marker = write_compacting_marker(state_dir, "auto")
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
     assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
 
@@ -5463,7 +5452,7 @@ def test_a_stale_compacting_marker_is_ignored_and_logged_once(
 ) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
     agent_manager.update_session_events(agent_id, [{"type": "user_message", "content": "go"}])
-    _write_compacting_marker(state_dir, "manual", started_seconds_ago=PENDING_COMPACTION_TIMEOUT_SECONDS + 60)
+    write_compacting_marker(state_dir, "manual", started_seconds_ago=PENDING_COMPACTION_TIMEOUT_SECONDS + 60)
 
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
@@ -5486,7 +5475,7 @@ def test_a_compacting_marker_without_a_readable_time_counts_by_its_mtime(
 
 def test_a_dead_lifecycle_wins_over_a_compacting_marker(agent_manager: AgentManager, tmp_path: Path) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path, state="STOPPED")
-    _write_compacting_marker(state_dir, "auto")
+    write_compacting_marker(state_dir, "auto")
     agent_manager.note_compaction_requested(agent_id, CompactionCause.MANUAL, time.monotonic())
 
     assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
@@ -5499,7 +5488,7 @@ def test_a_compacted_event_ends_the_pending_compaction_and_carries_its_cause(
     agent_manager.note_compaction_requested(agent_id, CompactionCause.IDLE, time.monotonic() - 5.0)
     listener = broadcaster.register()
     event = _compacted_event()
-    other_event = {"type": "assistant_message", "timestamp": _iso_seconds_ago(0.5), "tool_calls": []}
+    other_event = {"type": "assistant_message", "timestamp": utc_iso_seconds_ago(0.5), "tool_calls": []}
 
     agent_manager.stamp_compaction_events(_compaction_agent_info(agent_manager, agent_id), [event, other_event])
 
@@ -5532,7 +5521,7 @@ def test_the_compacted_event_names_the_cause_the_marker_and_the_chats_request_gi
     expected_cause: str,
 ) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
-    marker = _write_compacting_marker(state_dir, marker_trigger, started_seconds_ago=3.0)
+    marker = write_compacting_marker(state_dir, marker_trigger, started_seconds_ago=3.0)
     if pending_cause is not None:
         agent_manager.note_compaction_requested(agent_id, pending_cause, time.monotonic() - 4.0)
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
@@ -5565,7 +5554,7 @@ def test_a_compacted_event_the_chat_holds_no_cause_for_reads_last_compaction_jso
 ) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
     (state_dir / LAST_COMPACTION_FILENAME).write_text(
-        json.dumps({"trigger": record_trigger, "ended_at": _iso_seconds_ago(record_seconds_ago)})
+        json.dumps({"trigger": record_trigger, "ended_at": utc_iso_seconds_ago(record_seconds_ago)})
     )
     event = _compacted_event()
 
@@ -5595,7 +5584,7 @@ def test_last_compaction_json_written_after_the_request_ends_it_before_the_event
     assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
 
     (state_dir / LAST_COMPACTION_FILENAME).write_text(
-        json.dumps({"trigger": "manual", "ended_at": _iso_seconds_ago(0.0)})
+        json.dumps({"trigger": "manual", "ended_at": utc_iso_seconds_ago(0.0)})
     )
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
 
@@ -5618,7 +5607,7 @@ def test_the_compacting_marker_poller_recomputes_when_the_marker_appears_and_goe
     agent_manager._compacting_marker_poller.poll_once()
     listener = broadcaster.register()
 
-    marker = _write_compacting_marker(state_dir, "manual")
+    marker = write_compacting_marker(state_dir, "manual")
     agent_manager._compacting_marker_poller.poll_once()
     assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
     appeared = _last_chats_updated(_drain(listener))
@@ -5638,7 +5627,7 @@ def test_an_interrupt_clears_the_compacting_marker_and_the_pending_request(
     agent_manager: AgentManager, tmp_path: Path, loguru_records: list[str]
 ) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
-    marker = _write_compacting_marker(state_dir, "manual")
+    marker = write_compacting_marker(state_dir, "manual")
     agent_manager.note_compaction_requested(agent_id, CompactionCause.MANUAL, time.monotonic())
     assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
     agent_info = _compaction_agent_info(agent_manager, agent_id)
@@ -5724,7 +5713,7 @@ def test_a_sweep_compaction_stamped_after_the_managers_memory_is_gone_still_read
     first_manager.note_compaction_requested(agent_id, CompactionCause.IDLE, time.monotonic() - 20.0)
     # The sweep sends /compact as a manual command, so mngr's record says manual.
     (state_dir / LAST_COMPACTION_FILENAME).write_text(
-        json.dumps({"trigger": "manual", "ended_at": _iso_seconds_ago(2.0)})
+        json.dumps({"trigger": "manual", "ended_at": utc_iso_seconds_ago(2.0)})
     )
 
     # The chat app restarted: a new manager, which never saw the request, reads the event.
@@ -5747,7 +5736,7 @@ def test_a_compaction_request_from_before_the_window_does_not_name_a_later_compa
         time.time() - PENDING_COMPACTION_TIMEOUT_SECONDS - 60,
     )
     (state_dir / LAST_COMPACTION_FILENAME).write_text(
-        json.dumps({"trigger": "manual", "ended_at": _iso_seconds_ago(2.0)})
+        json.dumps({"trigger": "manual", "ended_at": utc_iso_seconds_ago(2.0)})
     )
     event = _compacted_event(seconds_ago=1.0)
 
@@ -5761,7 +5750,7 @@ def test_a_compact_typed_in_the_terminal_reads_manual_and_logs_no_finish(
 ) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
     (state_dir / LAST_COMPACTION_FILENAME).write_text(
-        json.dumps({"trigger": "manual", "ended_at": _iso_seconds_ago(2.0)})
+        json.dumps({"trigger": "manual", "ended_at": utc_iso_seconds_ago(2.0)})
     )
     event = _compacted_event(seconds_ago=1.0)
 
@@ -5795,13 +5784,13 @@ def test_is_compaction_in_flight_reads_a_fresh_marker_or_a_live_request(
     agent_info = _compaction_agent_info(agent_manager, agent_id)
     assert not agent_manager.is_compaction_in_flight(agent_info)
 
-    stale_marker = _write_compacting_marker(
+    stale_marker = write_compacting_marker(
         state_dir, "manual", started_seconds_ago=PENDING_COMPACTION_TIMEOUT_SECONDS + 5
     )
     assert not agent_manager.is_compaction_in_flight(agent_info)
 
     stale_marker.unlink()
-    _write_compacting_marker(state_dir, "manual")
+    write_compacting_marker(state_dir, "manual")
     assert agent_manager.is_compaction_in_flight(agent_info)
 
     (state_dir / COMPACTING_MARKER_FILENAME).unlink()
@@ -5813,10 +5802,10 @@ def test_a_new_stale_marker_after_an_earlier_one_is_logged_again(
     agent_manager: AgentManager, tmp_path: Path, loguru_records: list[str]
 ) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
-    _write_compacting_marker(state_dir, "manual", started_seconds_ago=PENDING_COMPACTION_TIMEOUT_SECONDS + 60)
+    write_compacting_marker(state_dir, "manual", started_seconds_ago=PENDING_COMPACTION_TIMEOUT_SECONDS + 60)
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
 
-    _write_compacting_marker(state_dir, "manual", started_seconds_ago=PENDING_COMPACTION_TIMEOUT_SECONDS + 30)
+    write_compacting_marker(state_dir, "manual", started_seconds_ago=PENDING_COMPACTION_TIMEOUT_SECONDS + 30)
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
     agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
 
@@ -5828,7 +5817,7 @@ def test_a_compacting_marker_dated_in_the_future_goes_stale_by_its_file_time(
     agent_manager: AgentManager, tmp_path: Path
 ) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
-    marker = _write_compacting_marker(state_dir, "manual", started_seconds_ago=-3600.0)
+    marker = write_compacting_marker(state_dir, "manual", started_seconds_ago=-3600.0)
     # The file was written long ago; only the time recorded in it is skewed into the future.
     written_at = time.time() - PENDING_COMPACTION_TIMEOUT_SECONDS - 60
     os.utime(marker, (written_at, written_at))
