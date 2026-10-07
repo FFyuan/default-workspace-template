@@ -1073,7 +1073,6 @@ describe("the combo card", () => {
     expect(options.map((option) => option.textContent)).toEqual(["Off", "Auto", "On"]);
     // The workspace's setting is the one lit, not the chat's own mode.
     expect(options.map((option) => option.getAttribute("aria-checked"))).toEqual(["false", "true", "false"]);
-    expect(row.querySelector("[data-selected]")?.getAttribute("data-fast-mode-default")).toBe("auto");
     expect(options.every((option) => !option.disabled)).toBe(true);
 
     // Away from the chat's mode...
@@ -1082,7 +1081,7 @@ describe("the combo card", () => {
     chatSettingsState.settings = { ...DEFAULT_CHAT_SETTINGS, fast_mode_default: "off" };
     render();
     expect(
-      document.querySelector("[data-fast-mode-default][data-selected]")?.getAttribute("data-fast-mode-default"),
+      document.querySelector('[data-fast-mode-default][aria-checked="true"]')?.getAttribute("data-fast-mode-default"),
     ).toBe("off");
     // ...back again, and to the chat's mode.
     click('[data-fast-mode-default="auto"]');
@@ -1108,7 +1107,6 @@ describe("the combo card", () => {
     expect(options).toHaveLength(3);
     expect(options.every((option) => option.disabled)).toBe(true);
     expect(options.every((option) => option.getAttribute("aria-checked") === "false")).toBe(true);
-    expect(document.querySelector("[data-fast-mode-default][data-selected]")).toBeNull();
     click('[data-fast-mode-default="on"]');
     expect(settingsWrites).toEqual([]);
     expect(chatSettingsState.loads).toBeGreaterThan(0);
@@ -1190,7 +1188,6 @@ describe("the combo card", () => {
     expect(options.map((option) => option.getAttribute("data-autocompact-default"))).toEqual(["on", "off"]);
     expect(options.map((option) => option.textContent)).toEqual(["On", "Off"]);
     expect(options.map((option) => option.getAttribute("aria-checked"))).toEqual(["true", "false"]);
-    expect(row.querySelector("[data-selected]")?.getAttribute("data-autocompact-default")).toBe("on");
 
     // Off for new chats while this chat stays on...
     click('[data-autocompact-default="off"]');
