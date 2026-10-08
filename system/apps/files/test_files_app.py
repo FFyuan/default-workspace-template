@@ -68,6 +68,11 @@ def test_columns_open_to_the_right_and_end_in_a_preview_of_the_chosen_file(
     expect(page.locator(".files-preview-text")).to_have_text('print("hi")\n')
     expect(page).to_have_url(page.url.split("/projects")[0] + "/projects/app/")
 
+    heights = page.locator(".files-column .files-row").evaluate_all(
+        "rows => [...new Set(rows.map(row => row.getBoundingClientRect().height))]"
+    )
+    assert heights == [22]
+
     page.keyboard.press("ArrowLeft")
     expect(_entry(page, "/projects/app/")).to_have_attribute("aria-selected", "true")
     expect(page.locator(".files-preview")).to_have_count(0)

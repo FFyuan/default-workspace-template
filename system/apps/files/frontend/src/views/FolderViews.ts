@@ -243,13 +243,13 @@ function columnBody(app: FilesController, state: FolderState | undefined, entrie
       "div.files-row",
       {
         key: entry.path,
-        class: `mx-1 flex h-7 cursor-default items-center gap-2 rounded-md px-2 text-(length:--font-size-row) ${highlight}`,
+        class: `mx-1 flex h-[22px] shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-(length:--font-size-row) ${highlight}`,
         ...entryAttrs(app, entry, entries, "column"),
       },
       [
         m(FileIcon, { entry, size: 18 }),
         isRenaming
-          ? m(RenameField, { app, extraClass: "h-6" })
+          ? m(RenameField, { app, extraClass: "h-5" })
           : m("span.files-name", { class: "min-w-0 flex-1 truncate text-primary" }, entry.name),
         entry.isFolder ? m.trust(icon("chevron-right", { size: 14, className: "shrink-0 text-faint" })) : null,
       ],
