@@ -193,19 +193,6 @@ def test_an_entry_dragged_onto_a_folder_moves_into_it(
     assert (files_root / "projects" / "README.md").read_text() == "# hello\n"
 
 
-def test_search_lists_matches_from_all_through_the_folder(
-    open_files_page: OpenFilesPage,
-) -> None:
-    page = open_files_page("/")
-    page.locator(".files-search-input").fill("main")
-    expect(page.locator(".files-search-header")).to_contain_text("Results in Computer")
-    expect(page.locator("[data-entry-path]")).to_have_count(1)
-    expect(_entry(page, "/projects/app/main.py")).to_contain_text("projects/app")
-
-    page.keyboard.press("Escape")
-    expect(page.locator(".files-search-header")).to_have_count(0)
-
-
 def test_a_path_param_opens_that_folder(open_files_page: OpenFilesPage) -> None:
     page = open_files_page("/?path=/projects/app/")
     expect(_entry(page, "/projects/app/main.py")).to_be_visible()

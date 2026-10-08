@@ -1,6 +1,6 @@
 /**
- * A Files window on a folder: history and the places down the side, the toolbar (where you are, search, how the folder
- * is laid out, and what can be added to it), the folder itself, and a status line. Files dropped anywhere on it go
+ * A Files window on a folder: history and the shortcuts down the side, the toolbar (where you are, how the folder is
+ * laid out, and what can be added to it), the folder itself, and a status line. Files dropped anywhere on it go
  * into the folder under the pointer; entries dragged onto a folder move into it.
  */
 
@@ -12,7 +12,7 @@ import { icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
 
 import { formatItemCount, formatSize } from "../models/format";
-import type { Place } from "../models/FilesModel";
+import type { Shortcut } from "../models/FilesModel";
 import type { SortKey, ViewMode } from "../models/preferences";
 import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
 import { isFileDrag, sourcesFromDrop } from "../models/uploads";
@@ -21,11 +21,9 @@ import { menuRowsOf, type FilesController } from "./FilesController";
 import { ColumnView, IconView, ListView } from "./FolderViews";
 import { handleKeydown } from "./keyboard";
 
-const PLACE_ICONS: Record<string, IconName> = {
+const SHORTCUT_ICONS: Record<string, IconName> = {
   workspace: "house",
-  documents: "file-text",
   uploads: "inbox",
-  computer: "hard-drive",
 };
 
 const VIEW_MODES: readonly { mode: ViewMode; label: string; icon: IconName }[] = [
@@ -66,9 +64,9 @@ function Sidebar(): m.Component<{ app: FilesController }> {
   return {
     view({ attrs: { app } }) {
       const model = app.model;
-      // The place the folder is in, the deepest one when places nest.
-      const current = [...model.places]
-        .filter((place) => isWithin(model.folder, place.path))
+      // The shortcut the folder is under, the deepest one when shortcuts nest.
+      const current = [...model.shortcuts]
+        .filter((shortcut) => isWithin(model.folder, shortcut.path))
         .sort((a, b) => b.path.length - a.path.length)[0];
       // Back and forward head the sidebar, level with the toolbar, which leaves the toolbar its width for the path.
       const history = m("div.files-history", { class: "flex h-12 shrink-0 items-center gap-0.5 px-2" }, [
@@ -89,28 +87,28 @@ function Sidebar(): m.Component<{ app: FilesController }> {
         [
           history,
           m("div", { class: "flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2 pb-3" }, [
-            m("div", { class: "px-2 pb-1 type-section text-faint" }, "Places"),
-            model.places.map((place: Place) =>
+            m("div", { class: "px-2 pb-1 type-section text-faint" }, "Shortcuts"),
+            model.shortcuts.map((shortcut: Shortcut) =>
               m(
-                "button.files-place",
+                "button.files-shortcut",
                 {
-                  key: place.key,
+                  key: shortcut.key,
                   type: "button",
-                  "data-place": place.key,
-                  [DROP_FOLDER_ATTR]: place.path,
-                  "aria-current": current?.key === place.key ? "true" : undefined,
+                  "data-shortcut": shortcut.key,
+                  [DROP_FOLDER_ATTR]: shortcut.path,
+                  "aria-current": current?.key === shortcut.key ? "true" : undefined,
                   class: `flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
-                    model.dropTarget === place.path
+                    model.dropTarget === shortcut.path
                       ? "bg-accent-light outline-2 -outline-offset-2 outline-accent"
-                      : current?.key === place.key
+                      : current?.key === shortcut.key
                         ? "bg-fill-active text-primary"
                         : "text-secondary hover:bg-fill-hover hover:text-primary"
                   }`,
-                  onclick: () => model.navigate(place.path),
+                  onclick: () => model.navigate(shortcut.path),
                 },
                 [
-                  m.trust(icon(PLACE_ICONS[place.key] ?? "folder", { size: 15, className: "shrink-0" })),
-                  m("span", { class: "truncate" }, place.label),
+                  m.trust(icon(SHORTCUT_ICONS[shortcut.key] ?? "folder", { size: 15, className: "shrink-0" })),
+                  m("span", { class: "truncate" }, shortcut.label),
                 ],
               ),
             ),
@@ -170,51 +168,6 @@ function Breadcrumb(): m.Component<{ app: FilesController }> {
   };
 }
 
-function SearchField(): m.Component<{ app: FilesController }> {
-  return {
-    view({ attrs: { app } }) {
-      const model = app.model;
-      const query = model.search?.query ?? "";
-      return m(
-        "label.files-search",
-        {
-          class: `flex h-[28px] items-center gap-1.5 rounded-md border border-default bg-surface px-2 text-secondary focus-within:border-accent ${app.isNarrow ? "min-w-0 flex-1" : "w-[200px]"}`,
-        },
-        [
-          m.trust(icon("search", { size: 14, className: "shrink-0" })),
-          m("input.files-search-input", {
-            type: "search",
-            placeholder: "Search",
-            value: query,
-            "aria-label": "Search this folder",
-            class:
-              "min-w-0 flex-1 bg-transparent text-(length:--font-size-row) text-primary outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden",
-            oninput: (event: InputEvent) => model.setSearchQuery((event.target as HTMLInputElement).value),
-            onkeydown: (event: KeyboardEvent) => {
-              if (event.key === "Escape") {
-                model.setSearchQuery("");
-                (event.target as HTMLInputElement).blur();
-              }
-            },
-          }),
-          query === ""
-            ? null
-            : m(
-                "button",
-                {
-                  type: "button",
-                  "aria-label": "Clear search",
-                  class: "flex shrink-0 cursor-pointer text-faint hover:text-primary",
-                  onclick: () => model.setSearchQuery(""),
-                },
-                m.trust(icon("close", { size: 13 })),
-              ),
-        ],
-      );
-    },
-  };
-}
-
 function Toolbar(): m.Component<{ app: FilesController }> {
   let addMenu: Menu | null = null;
   let optionsMenu: Menu | null = null;
@@ -265,33 +218,36 @@ function Toolbar(): m.Component<{ app: FilesController }> {
         },
       ];
       const modes = VIEW_MODES.filter((view) => !(app.isNarrow && view.mode === "columns"));
+      // A light outline around the whole switch, and the chosen view a solid grey inside it.
       const viewSwitch = m(
         "div.files-view-switch",
         {
           role: "group",
           "aria-label": "View",
-          class: "flex shrink-0 items-center gap-0.5 rounded-lg bg-fill-hover p-0.5",
+          class: "flex shrink-0 items-center gap-0.5 rounded-lg border border-default p-0.5",
         },
-        modes.map((view) =>
-          iconButton(
-            `View as ${view.label}`,
-            view.icon,
+        modes.map((view) => {
+          const isChosen = app.viewMode === view.mode;
+          return m(
+            "button",
             {
               key: view.mode,
+              type: "button",
+              "aria-label": `View as ${view.label}`,
               "data-view-mode": view.mode,
-              "aria-pressed": app.viewMode === view.mode ? "true" : "false",
+              "aria-pressed": isChosen ? "true" : "false",
+              class: `flex h-6 w-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-(--dur-base) ${
+                isChosen ? "bg-fill-active text-primary" : "text-secondary hover:bg-fill-hover hover:text-primary"
+              }`,
+              ...hoverTooltipAttrs(`View as ${view.label}`),
               onclick: () => model.setViewMode(view.mode),
             },
-            { selected: app.viewMode === view.mode },
-          ),
-        ),
+            m.trust(icon(view.icon, { size: 15 })),
+          );
+        }),
       );
       const add = m("div", { class: "flex shrink-0" }, [
-        m(
-          Button,
-          { variant: "primary", sm: true, "data-action": "add", "aria-label": "Add", ...addMenu.triggerAttrs() },
-          [m.trust(icon("plus", { size: 15 })), app.isNarrow ? null : "Add"],
-        ),
+        iconButton("Add", "plus", { "data-action": "add", ...addMenu.triggerAttrs() }, { tooltip: false }),
         addMenu.view(menuRowsOf(app.folderActions(model.folder).reverse())),
       ]);
       const options = m("div", { class: "flex shrink-0" }, [
@@ -303,21 +259,10 @@ function Toolbar(): m.Component<{ app: FilesController }> {
         ),
         optionsMenu.view(optionRows),
       ]);
-      if (app.isNarrow) {
-        // A phone has no room for one row: where you are and what to add on top, finding and arranging below.
-        return m(
-          "header.files-toolbar",
-          { class: "flex shrink-0 flex-col gap-2 border-b border-default bg-surface px-3 py-2" },
-          [
-            m("div", { class: "flex items-center gap-1" }, [m(Breadcrumb, { app }), add, options]),
-            m("div", { class: "flex items-center gap-2" }, [m(SearchField, { app }), viewSwitch]),
-          ],
-        );
-      }
       return m(
         "header.files-toolbar",
-        { class: "flex h-12 shrink-0 items-center gap-2 border-b border-default bg-surface px-3" },
-        [m(Breadcrumb, { app }), m(SearchField, { app }), viewSwitch, add, options],
+        { class: "flex h-12 shrink-0 items-center gap-1 border-b border-default bg-surface px-3" },
+        [m(Breadcrumb, { app }), viewSwitch, add, options],
       );
     },
   };
@@ -351,9 +296,7 @@ function FolderBody(): m.Component<{ app: FilesController }> {
       } else if (entries.length === 0) {
         empty = message(
           "This folder is empty",
-          app.isNarrow
-            ? "Tap Add to put something here."
-            : "Drop files here, or use Add to upload or create something.",
+          app.isNarrow ? "Tap + to put something here." : "Drop files here, or use + to upload or create something.",
         );
       }
       return m("div", { class: "min-h-full" }, [

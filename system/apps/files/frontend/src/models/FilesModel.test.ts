@@ -82,7 +82,7 @@ describe("arranging a folder", () => {
     expect(compareEntries(fileEntry(HOME, "file 2"), fileEntry(HOME, "file 10"), sort)).toBeLessThan(0);
   });
 
-  it("lays columns from the place the folder is in", () => {
+  it("lays columns from the shortcut the folder is under", () => {
     const { model } = harness();
     model.folder = "/home/user/workspace/data/notes/";
     expect(model.columnFolders()).toEqual([

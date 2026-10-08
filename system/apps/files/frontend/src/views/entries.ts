@@ -19,7 +19,7 @@ export const ENTRY_DRAG_TYPE = "application/x-files-paths";
 
 /** Marks an element as standing for an entry; the context menu and the keyboard find entries by it. */
 export const ENTRY_PATH_ATTR = "data-entry-path";
-/** Marks an element a drop lands in: a folder's tile or row, a column, a place. */
+/** Marks an element a drop lands in: a folder's tile or row, a column, a shortcut. */
 export const DROP_FOLDER_ATTR = "data-drop-folder";
 /** Marks a folder's background, whose menu is the folder's own verbs. */
 export const FOLDER_SURFACE_ATTR = "data-folder-surface";

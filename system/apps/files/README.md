@@ -31,9 +31,12 @@ once at startup, so the bundle keeps fixed names (`index.js`, `index.css`) and
 the page asks for them with a per-build `?v=` stamp.
 
 A folder window has a sidebar, always shown, headed by back and forward and
-listing the places (Workspace, Documents, Uploads, and the Computer, each shown
-when it exists); a toolbar (the path, search, the view switcher, Add, and the
-view options); the folder; and a status line. The folder is laid out as icons (image files as thumbnails), a list with
+listing the shortcuts (Workspace and Uploads, each shown when it exists); a
+toolbar (the path, the view switcher, the + button, and the view options); the
+folder; and a status line. The model can still search a folder (dufs's `?q=`),
+but the toolbar offers no search field for now.
+
+The folder is laid out as icons (image files as thumbnails), a list with
 sortable columns, or columns that open to the right as folders are chosen and
 end in a preview of the file chosen. The layout, the sort order, and whether
 "system files" (dotted names) show are kept in the browser's localStorage and
@@ -47,15 +50,15 @@ shared by every window.
   text file), Download (a folder as a zip), Rename, Copy Path, and Delete,
   ahead of the workspace's own element-menu rows; right-click on a folder's
   background offers New Folder, New File, Upload Files, and Upload Folder,
-  which the Add button offers too.
+  which the + button offers too.
 - Files dragged in from outside upload into the folder under the pointer (a
-  folder's tile or row, a column, a place, a path segment) or else the folder
+  folder's tile or row, a column, a shortcut, a path segment) or else the folder
   on show, folders included; entries dragged onto a folder move into it. An
   upload whose name is taken asks whether to replace it or keep both. Uploads
   show their progress in a panel at the bottom right.
 
 Under 700px of the frame's own width the window lays itself out for a phone: a
-narrower sidebar, no column view, a two-row toolbar, one tap opens, and every
+narrower sidebar, no column view, one tap opens, and every
 entry carries a "..." button with its menu.
 
 ## Opening a folder or a file
@@ -100,6 +103,6 @@ vitest suites sit beside its sources (`npm test` at `system/`).
 `test_files_app.py` (marked `browser`) serves the build from a stand-in for
 dufs (`conftest.py`, over a temporary folder) and drives the app in Chromium:
 the three views, selection, rename, delete, new folders, uploads by picker and
-by drop, search, the phone layout, and the file pages. The shell's
+by drop, the phone layout, and the file pages. The shell's
 `test_e2e.py` runs the real dufs, where installed, to check that files open in
 workspace windows.

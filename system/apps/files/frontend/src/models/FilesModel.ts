@@ -25,18 +25,16 @@ import { UploadQueue, type UploadSource } from "./uploads";
 
 export const WORKSPACE = "/home/user/workspace/";
 
-export interface Place {
+export interface Shortcut {
   key: string;
   label: string;
   path: string;
 }
 
-/** The sidebar's places, shown when they exist. The Computer (the filesystem root) is always there. */
-export const PLACES: readonly Place[] = [
+/** The sidebar's shortcuts, shown when they exist. */
+export const SHORTCUTS: readonly Shortcut[] = [
   { key: "workspace", label: "Workspace", path: WORKSPACE },
-  { key: "documents", label: "Documents", path: `${WORKSPACE}data/documents/` },
   { key: "uploads", label: "Uploads", path: `${WORKSPACE}data/uploads/` },
-  { key: "computer", label: "Computer", path: ROOT },
 ];
 
 export interface FolderState {
@@ -131,8 +129,8 @@ export class FilesModel {
   notice: string | null = null;
   /** The folder a drag is over. */
   dropTarget: string | null = null;
-  /** The places found on this machine. */
-  places: Place[] = PLACES.filter((place) => place.path === ROOT);
+  /** The shortcuts found on this machine. */
+  shortcuts: Shortcut[] = [];
   historyIndex = 0;
   historyLength = 1;
   readonly uploads: UploadQueue;
@@ -159,11 +157,11 @@ export class FilesModel {
     }
   }
 
-  /** Fetch what the window needs to draw: the folder (unless it came with the page), its columns, the places. */
+  /** Fetch what the window needs to draw: the folder (unless it came with the page), its columns, the shortcuts. */
   start(): void {
     if (!this.folders.has(this.folder)) void this.load(this.folder);
     this.loadColumns();
-    void this.findPlaces();
+    void this.findShortcuts();
   }
 
   // Reading
@@ -191,11 +189,12 @@ export class FilesModel {
     return shown.sort((a, b) => compareEntries(a, b, this.preferences.sort));
   }
 
-  /** The folders the column view lays side by side: from the place the folder is in down to the folder. */
+  /** The folders the column view lays side by side: from the shortcut the folder is under (else the root) down to the folder. */
   columnFolders(): string[] {
     const root =
-      PLACES.filter((place) => isWithin(this.folder, place.path)).sort((a, b) => b.path.length - a.path.length)[0]
-        ?.path ?? ROOT;
+      SHORTCUTS.filter((shortcut) => isWithin(this.folder, shortcut.path)).sort(
+        (a, b) => b.path.length - a.path.length,
+      )[0]?.path ?? ROOT;
     return ancestorsOf(this.folder).filter((folder) => isWithin(folder, root));
   }
 
@@ -625,18 +624,17 @@ export class FilesModel {
     }
   }
 
-  private async findPlaces(): Promise<void> {
+  private async findShortcuts(): Promise<void> {
     const found = await Promise.all(
-      PLACES.map(async (place) => {
-        if (place.path === ROOT) return true;
+      SHORTCUTS.map(async (shortcut) => {
         try {
-          return (await dufs.listFolder(place.path)).exists;
+          return (await dufs.listFolder(shortcut.path)).exists;
         } catch {
           return false;
         }
       }),
     );
-    this.places = PLACES.filter((_, index) => found[index]);
+    this.shortcuts = SHORTCUTS.filter((_, index) => found[index]);
     this.host.redraw();
   }
 }
