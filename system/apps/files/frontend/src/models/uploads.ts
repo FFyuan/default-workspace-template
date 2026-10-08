@@ -34,14 +34,19 @@ export interface UploadQueueHost {
 /** How many files go up at once. */
 const CONCURRENCY = 3;
 
+/** How long a finished batch stays on show, so the check marks are seen before the panel goes. A failure keeps it up. */
+export const FINISHED_LINGER_MS = 2500;
+
 export class UploadQueue {
   items: UploadItem[] = [];
   private nextId = 1;
   private readonly running = new Map<number, Upload>();
+  private clearTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly host: UploadQueueHost) {}
 
   add(folder: string, sources: readonly UploadSource[]): void {
+    this.cancelClear();
     for (const source of sources) {
       this.items.push({
         id: this.nextId++,
@@ -88,6 +93,7 @@ export class UploadQueue {
 
   /** Forget everything that is no longer moving. */
   clearFinished(): void {
+    this.cancelClear();
     this.items = this.items.filter((item) => item.status === "queued" || item.status === "uploading");
     this.host.redraw();
   }
@@ -120,8 +126,21 @@ export class UploadQueue {
       .finally(() => {
         this.running.delete(item.id);
         this.pump();
+        this.scheduleClear();
         this.host.redraw();
       });
+  }
+
+  /** Once everything has gone up cleanly, put the panel away after a moment. */
+  private scheduleClear(): void {
+    if (this.isBusy || this.items.some((item) => item.status === "failed")) return;
+    this.cancelClear();
+    this.clearTimer = setTimeout(() => this.clearFinished(), FINISHED_LINGER_MS);
+  }
+
+  private cancelClear(): void {
+    if (this.clearTimer !== null) clearTimeout(this.clearTimer);
+    this.clearTimer = null;
   }
 }
 

@@ -8,7 +8,7 @@ The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files a
 
 - Right-click an item for Open, Open in New Window, Edit, Download (folders as a zip), Rename, Copy Path, and Delete; right-click empty space, or use +, for New Folder, New File, Upload Files, and Upload Folder.
 
-- Drag files or folders in from your computer to upload them into the folder under the pointer, with progress shown as they go; a name already there asks whether to replace it or keep both. Drag items onto a folder to move them.
+- Drag files or folders in from your computer to upload them into the folder under the pointer, with progress shown as they go (the panel tidies itself away once they are done); a name already there asks whether to replace it or keep both. Drag items onto a folder to move them.
 
 - A file's page previews pictures, video, audio, and PDFs, shows text, and edits it with Save or Cmd/Ctrl+S; it also offers Download, Rename, Copy Path, and Delete.
 

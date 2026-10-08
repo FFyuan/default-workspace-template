@@ -65,7 +65,8 @@ shared by every window.
   folder's tile or row, a column, a shortcut, a path segment) or else the folder
   on show, folders included; entries dragged onto a folder move into it. An
   upload whose name is taken asks whether to replace it or keep both. Uploads
-  show their progress in a panel at the bottom right.
+  show their progress in a panel at the bottom right, which goes away a moment
+  after the last one lands and stays up when one failed.
 
 Under 700px of the frame's own width the window lays itself out for a phone:
 the sidebar floats over the folder from a button at the toolbar's start, there

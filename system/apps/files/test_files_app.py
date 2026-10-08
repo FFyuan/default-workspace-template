@@ -235,6 +235,7 @@ def test_files_dropped_on_a_folder_upload_into_it(
     )
     expect(page.locator(".files-uploads-summary")).to_have_text("Uploaded 1 item")
     assert (files_root / "projects" / "dropped.txt").read_text() == "dropped"
+    expect(page.locator(".files-uploads")).to_have_count(0)
 
 
 def test_an_entry_dragged_onto_a_folder_moves_into_it(
