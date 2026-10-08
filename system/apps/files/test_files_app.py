@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Locator
+from playwright.sync_api import Page
+from playwright.sync_api import expect
 
 pytestmark = [pytest.mark.browser, pytest.mark.timeout(60)]
 

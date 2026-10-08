@@ -13,13 +13,19 @@ import http.server
 import json
 import shutil
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, quote, unquote, urlsplit
+from urllib.parse import parse_qs
+from urllib.parse import quote
+from urllib.parse import unquote
+from urllib.parse import urlsplit
 
 import pytest
-from playwright.sync_api import Browser, BrowserContext, Page
+from playwright.sync_api import Browser
+from playwright.sync_api import BrowserContext
+from playwright.sync_api import Page
 
 STATIC_DIRECTORY = Path(__file__).parent / "static"
 ASSETS_PREFIX = "/__dufs_v0.46.0__/"
