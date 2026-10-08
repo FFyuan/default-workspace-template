@@ -32,7 +32,6 @@ def test_a_folder_shows_its_entries_as_icons_folders_first_with_system_files_hid
     page = open_files_page("/")
     expect(page.locator(".files-tile")).to_have_count(4)
     assert _shown_paths(page) == ["/photos/", "/projects/", "/notes.txt", "/README.md"]
-    expect(page.locator(".files-status-text")).to_have_text("4 items")
 
     page.locator('[data-action="options"]').click()
     page.locator('[data-menu-row="show-hidden"]').click()
@@ -74,7 +73,7 @@ def test_columns_open_to_the_right_and_end_in_a_preview_of_the_chosen_file(
     expect(page.locator(".files-preview")).to_have_count(0)
 
 
-def test_double_clicking_a_folder_opens_it_and_back_returns(
+def test_double_clicking_a_folder_opens_it_and_the_history_keys_return(
     open_files_page: OpenFilesPage,
 ) -> None:
     page = open_files_page("/")
@@ -82,11 +81,50 @@ def test_double_clicking_a_folder_opens_it_and_back_returns(
     expect(_entry(page, "/projects/app/")).to_be_visible()
     assert page.url.endswith("/projects/")
 
-    page.locator('[data-action="back"]').click()
+    page.keyboard.press("ControlOrMeta+BracketLeft")
     expect(_entry(page, "/projects/")).to_be_visible()
     assert page.url.endswith("/")
-    page.locator('[data-action="forward"]').click()
+    page.keyboard.press("ControlOrMeta+BracketRight")
     expect(_entry(page, "/projects/app/")).to_be_visible()
+
+
+def test_the_sidebar_lists_the_shortcuts_and_the_connected_folders(
+    open_files_page: OpenFilesPage, files_root: Path
+) -> None:
+    workspace = files_root / "home" / "user" / "workspace"
+    (workspace / "data" / "uploads").mkdir(parents=True)
+    notes = files_root / "home" / "user" / "synced_folders" / "host-mac" / "Users" / "kim" / "notes"
+    notes.mkdir(parents=True)
+    (notes / "todo.md").write_text("- call\n")
+    page = open_files_page("/home/user/workspace/")
+
+    rows = page.locator("[data-sidebar-row]")
+    expect(rows).to_have_text(["Workspace", "Uploads", "notes"])
+    expect(page.locator('[data-sidebar-row="shortcut:workspace"]')).to_have_attribute("aria-current", "true")
+    expect(page.locator('[data-sidebar-row^="connected:"]')).to_have_attribute("title", "/Users/kim/notes/")
+
+    page.locator('[data-sidebar-row^="connected:"]').click()
+    expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()
+
+
+def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
+    open_files_page: OpenFilesPage,
+) -> None:
+    page = open_files_page("/")
+    expect(page.locator(".files-connected-empty")).to_have_text("None yet")
+    sidebar = page.locator(".files-sidebar")
+    start = sidebar.bounding_box()
+    assert start is not None and round(start["width"]) == 188
+
+    handle = page.locator(".files-sidebar-resize").bounding_box()
+    assert handle is not None
+    page.mouse.move(handle["x"] + handle["width"] / 2, handle["y"] + 200)
+    page.mouse.down()
+    page.mouse.move(handle["x"] + handle["width"] / 2 + 60, handle["y"] + 200, steps=4)
+    page.mouse.up()
+    resized = sidebar.bounding_box()
+    assert resized is not None and round(resized["width"]) == 248
+    assert page.evaluate("localStorage.getItem('files-sidebar-width')") == "248"
 
 
 def test_f2_renames_an_entry_in_place_and_refuses_a_slash(
@@ -204,8 +242,11 @@ def test_a_phone_lists_entries_and_opens_one_with_a_tap(
     open_files_page: OpenFilesPage,
 ) -> None:
     page = open_files_page("/", *PHONE)
+    expect(page.locator(".files-sidebar")).to_have_count(0)
+    page.locator('[data-action="sidebar"]').click()
     expect(page.locator(".files-sidebar")).to_be_visible()
-    expect(page.locator('.files-sidebar [data-action="back"]')).to_be_visible()
+    page.locator(".files-sidebar-scrim").click(position={"x": 380, "y": 400})
+    expect(page.locator(".files-sidebar")).to_have_count(0)
     expect(page.locator('[data-view-mode="columns"]')).to_have_count(0)
     page.locator('[data-view-mode="list"]').click()
     expect(page.locator(".files-entry-menu-button")).to_have_count(4)

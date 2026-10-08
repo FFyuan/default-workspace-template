@@ -93,6 +93,22 @@ describe("arranging a folder", () => {
     model.folder = "/etc/ssh/";
     expect(model.columnFolders()).toEqual(["/", "/etc/", "/etc/ssh/"]);
   });
+
+  it("keeps the columns' start when drilling into a folder that is also a shortcut, and restarts from the sidebar", () => {
+    const { model } = harness();
+    model.navigate("/home/user/workspace/", { startColumns: true });
+    model.navigate("/home/user/workspace/data/");
+    model.navigate("/home/user/workspace/data/uploads/");
+    expect(model.columnFolders()).toEqual([
+      "/home/user/workspace/",
+      "/home/user/workspace/data/",
+      "/home/user/workspace/data/uploads/",
+    ]);
+    model.navigate("/home/user/workspace/data/uploads/", { startColumns: true });
+    expect(model.columnFolders()).toEqual(["/home/user/workspace/data/uploads/"]);
+    model.navigate("/etc/");
+    expect(model.columnFolders()).toEqual(["/", "/etc/"]);
+  });
 });
 
 describe("selecting", () => {

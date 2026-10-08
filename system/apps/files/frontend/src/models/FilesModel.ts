@@ -20,8 +20,16 @@ import {
   parentOf,
   uniqueName,
 } from "./paths";
-import { loadPreferences, savePreferences, type Preferences, type SortOrder, type ViewMode } from "./preferences";
+import {
+  clampSidebarWidth,
+  loadPreferences,
+  savePreferences,
+  type Preferences,
+  type SortOrder,
+  type ViewMode,
+} from "./preferences";
 import { UploadQueue, type UploadSource } from "./uploads";
+import { findConnectedFolders, type ConnectedFolder } from "./connectedFolders";
 
 export const WORKSPACE = "/home/user/workspace/";
 
@@ -129,8 +137,13 @@ export class FilesModel {
   notice: string | null = null;
   /** The folder a drag is over. */
   dropTarget: string | null = null;
+  /** Where the column view starts. It holds while the folder stays under it, so drilling into a folder that is
+   *  also a shortcut keeps the columns already open to its left. */
+  private columnRoot: string | null = null;
   /** The shortcuts found on this machine. */
   shortcuts: Shortcut[] = [];
+  /** The folders from the user's computers that are synced into this workspace. */
+  connectedFolders: ConnectedFolder[] = [];
   historyIndex = 0;
   historyLength = 1;
   readonly uploads: UploadQueue;
@@ -157,11 +170,12 @@ export class FilesModel {
     }
   }
 
-  /** Fetch what the window needs to draw: the folder (unless it came with the page), its columns, the shortcuts. */
+  /** Fetch what the window needs to draw: the folder (unless it came with the page), its columns, the sidebar. */
   start(): void {
     if (!this.folders.has(this.folder)) void this.load(this.folder);
     this.loadColumns();
     void this.findShortcuts();
+    void this.findConnectedFolders();
   }
 
   // Reading
@@ -189,13 +203,27 @@ export class FilesModel {
     return shown.sort((a, b) => compareEntries(a, b, this.preferences.sort));
   }
 
-  /** The folders the column view lays side by side: from the shortcut the folder is under (else the root) down to the folder. */
+  /** The folders the column view lays side by side: from where the columns start down to the folder. */
   columnFolders(): string[] {
     const root =
-      SHORTCUTS.filter((shortcut) => isWithin(this.folder, shortcut.path)).sort(
-        (a, b) => b.path.length - a.path.length,
-      )[0]?.path ?? ROOT;
+      this.columnRoot !== null && isWithin(this.folder, this.columnRoot) ? this.columnRoot : this.rootFor(this.folder);
     return ancestorsOf(this.folder).filter((folder) => isWithin(folder, root));
+  }
+
+  /** Where columns showing `folder` start afresh: the shortcut or connected folder it is under, else the root. */
+  private rootFor(folder: string): string {
+    return (
+      [...SHORTCUTS, ...this.connectedFolders]
+        .filter((candidate) => isWithin(folder, candidate.path))
+        .sort((a, b) => b.path.length - a.path.length)[0]?.path ?? ROOT
+    );
+  }
+
+  /** Keep the columns' start while `folder` is under it; start afresh when it is not, or when asked to. */
+  private settleColumnRoot(folder: string, startAfresh: boolean): void {
+    if (startAfresh || this.columnRoot === null || !isWithin(folder, this.columnRoot)) {
+      this.columnRoot = this.rootFor(folder);
+    }
   }
 
   entryFor(path: string): Entry | undefined {
@@ -224,9 +252,12 @@ export class FilesModel {
 
   // Moving around
 
-  navigate(folder: string, options: { select?: string[]; history?: HistoryMode } = {}): void {
+  /** Show `folder`. `startColumns` begins the column view afresh there, as a jump from the sidebar does. */
+  navigate(folder: string, options: { select?: string[]; history?: HistoryMode; startColumns?: boolean } = {}): void {
     const target = isFolderPath(folder) ? folder : `${folder}/`;
     const mode = options.history ?? "push";
+    this.settleColumnRoot(this.folder, false);
+    this.settleColumnRoot(target, options.startColumns === true);
     this.folder = target;
     this.selection = options.select ?? [];
     this.anchor = this.selection[0] ?? null;
@@ -244,6 +275,7 @@ export class FilesModel {
 
   /** The browser moved through its history (back, forward) to `folder`. */
   restore(folder: string, index: number): void {
+    this.settleColumnRoot(folder, false);
     this.folder = folder;
     this.historyIndex = index;
     this.selection = [];
@@ -335,6 +367,17 @@ export class FilesModel {
   sortBy(key: SortOrder["key"]): void {
     const current = this.preferences.sort;
     this.setSort(current.key === key ? { key, descending: !current.descending } : { key, descending: false });
+  }
+
+  /** Resize the sidebar; `persist` false while a drag is under way, true when it lands. */
+  setSidebarWidth(width: number, persist: boolean): void {
+    const sidebarWidth = clampSidebarWidth(width);
+    if (persist) {
+      this.updatePreferences({ sidebarWidth });
+      return;
+    }
+    this.preferences = { ...this.preferences, sidebarWidth };
+    this.host.redraw();
   }
 
   toggleHidden(): void {
@@ -635,6 +678,15 @@ export class FilesModel {
       }),
     );
     this.shortcuts = SHORTCUTS.filter((_, index) => found[index]);
+    this.host.redraw();
+  }
+
+  private async findConnectedFolders(): Promise<void> {
+    try {
+      this.connectedFolders = await findConnectedFolders((folder) => dufs.listFolder(folder));
+    } catch {
+      this.connectedFolders = [];
+    }
     this.host.redraw();
   }
 }

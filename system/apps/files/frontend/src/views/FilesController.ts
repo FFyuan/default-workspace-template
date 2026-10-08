@@ -54,6 +54,8 @@ export class FilesController {
   isNarrow: boolean;
   /** Set when the keyboard moved the selection, so the next draw scrolls it into view. */
   revealSelection = false;
+  /** On a small screen, whether the sidebar is floated open over the folder. */
+  isSidebarOpen = false;
 
   constructor(
     folder: string,

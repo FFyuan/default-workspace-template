@@ -30,11 +30,21 @@ DELETE removes. dufs serves its assets directory flat and reads `index.html`
 once at startup, so the bundle keeps fixed names (`index.js`, `index.css`) and
 the page asks for them with a per-build `?v=` stamp.
 
-A folder window has a sidebar, always shown, headed by back and forward and
-listing the shortcuts (Workspace and Uploads, each shown when it exists); a
-toolbar (the path, the view switcher, the + button, and the view options); the
-folder; and a status line. The model can still search a folder (dufs's `?q=`),
-but the toolbar offers no search field for now.
+A folder window has a sidebar, a toolbar (the path, the view switcher, the +
+button, and the view options), and the folder. The sidebar lists Shortcuts
+(Workspace and Uploads, each shown when it exists) and Connected folders: the
+folders Imbue Studio syncs into the workspace from the user's computers, under
+`~/synced_folders/<device id>/<path on that computer>` (the file-sharing
+skill). Nothing records which folder along that path is the one shared, so
+`models/connectedFolders.ts` reads it off the tree: the path runs down through
+folders holding a single folder and nothing else, and the shared folder is
+where that stops. Its width is dragged from its edge (double-click puts it
+back) and kept with the other preferences. Jumping to a sidebar row starts the
+column view afresh there; drilling down into a folder that happens to be a
+shortcut keeps the columns already open. There are no back and forward
+buttons (Cmd/Ctrl+[ and ] still move through the history), and the model can
+still search a folder (dufs's `?q=`), but the toolbar offers no search field
+for now.
 
 The folder is laid out as icons (image files as thumbnails), a list with
 sortable columns, or columns that open to the right as folders are chosen and
@@ -57,8 +67,9 @@ shared by every window.
   upload whose name is taken asks whether to replace it or keep both. Uploads
   show their progress in a panel at the bottom right.
 
-Under 700px of the frame's own width the window lays itself out for a phone: a
-narrower sidebar, no column view, one tap opens, and every
+Under 700px of the frame's own width the window lays itself out for a phone:
+the sidebar floats over the folder from a button at the toolbar's start, there
+is no column view, one tap opens, and every
 entry carries a "..." button with its menu.
 
 ## Opening a folder or a file
@@ -103,6 +114,7 @@ vitest suites sit beside its sources (`npm test` at `system/`).
 `test_files_app.py` (marked `browser`) serves the build from a stand-in for
 dufs (`conftest.py`, over a temporary folder) and drives the app in Chromium:
 the three views, selection, rename, delete, new folders, uploads by picker and
-by drop, the phone layout, and the file pages. The shell's
+by drop, the sidebar's rows and resizing, the phone layout, and the file
+pages. The shell's
 `test_e2e.py` runs the real dufs, where installed, to check that files open in
 workspace windows.

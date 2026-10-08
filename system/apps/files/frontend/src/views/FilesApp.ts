@@ -1,6 +1,7 @@
 /**
- * A Files window on a folder: history and the shortcuts down the side, the toolbar (where you are, how the folder is
- * laid out, and what can be added to it), the folder itself, and a status line. Files dropped anywhere on it go
+ * A Files window on a folder: the shortcuts and connected folders down the side (a resizable sidebar, floated over the
+ * folder on a small screen), the toolbar (where you are, how the folder is laid out, and what can be added to it), and
+ * the folder itself. Files dropped anywhere on it go
  * into the folder under the pointer; entries dragged onto a folder move into it.
  */
 
@@ -12,6 +13,7 @@ import { icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
 
 import { formatItemCount, formatSize } from "../models/format";
+import { DEFAULT_PREFERENCES } from "../models/preferences";
 import type { Shortcut } from "../models/FilesModel";
 import type { SortKey, ViewMode } from "../models/preferences";
 import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
@@ -60,59 +62,135 @@ function iconButton(
 
 // Sidebar
 
-function Sidebar(): m.Component<{ app: FilesController }> {
+const CONNECTED_FOLDERS_INFO =
+  "Folders on your computer that Imbue Studio keeps in sync with this workspace. Ask your agent to connect one.";
+
+interface SidebarRow {
+  key: string;
+  label: string;
+  path: string;
+  icon: IconName;
+  title?: string;
+}
+
+function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): m.Vnode {
+  const model = app.model;
+  return m(
+    "button.files-sidebar-row",
+    {
+      key: row.key,
+      type: "button",
+      "data-sidebar-row": row.key,
+      [DROP_FOLDER_ATTR]: row.path,
+      title: row.title,
+      "aria-current": isCurrent ? "true" : undefined,
+      class: `flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
+        model.dropTarget === row.path
+          ? "bg-accent-light outline-2 -outline-offset-2 outline-accent"
+          : isCurrent
+            ? "bg-fill-active text-primary"
+            : "text-secondary hover:bg-fill-hover hover:text-primary"
+      }`,
+      onclick: () => {
+        model.navigate(row.path, { startColumns: true });
+        app.isSidebarOpen = false;
+      },
+    },
+    [m.trust(icon(row.icon, { size: 15, className: "shrink-0" })), m("span", { class: "truncate" }, row.label)],
+  );
+}
+
+function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
+  return m(
+    "div.files-sidebar-heading",
+    { class: "flex items-center gap-1 px-2 pt-3 pb-1 type-helper font-medium text-faint" },
+    [m("span", { class: "min-w-0 flex-1 truncate" }, label), extra],
+  );
+}
+
+/** The handle on the sidebar's edge: dragging it sets the width, a double-click puts the default back. */
+function resizeHandle(app: FilesController): m.Vnode {
+  const model = app.model;
+  return m("div.files-sidebar-resize", {
+    role: "separator",
+    "aria-orientation": "vertical",
+    "aria-label": "Resize sidebar",
+    class: "absolute inset-y-0 -right-1 z-(--z-content) w-2 cursor-col-resize",
+    onpointerdown: (event: PointerEvent) => {
+      event.preventDefault();
+      const handle = event.currentTarget as HTMLElement;
+      handle.setPointerCapture(event.pointerId);
+      const startX = event.clientX;
+      const startWidth = model.preferences.sidebarWidth;
+      const widthAt = (moveEvent: PointerEvent): number => startWidth + moveEvent.clientX - startX;
+      const onMove = (moveEvent: PointerEvent): void => model.setSidebarWidth(widthAt(moveEvent), false);
+      const onUp = (upEvent: PointerEvent): void => {
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        model.setSidebarWidth(widthAt(upEvent), true);
+      };
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+    },
+    ondblclick: () => model.setSidebarWidth(DEFAULT_PREFERENCES.sidebarWidth, true),
+  });
+}
+
+function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
   return {
-    view({ attrs: { app } }) {
+    view({ attrs: { app, floating } }) {
       const model = app.model;
-      // The shortcut the folder is under, the deepest one when shortcuts nest.
-      const current = [...model.shortcuts]
-        .filter((shortcut) => isWithin(model.folder, shortcut.path))
-        .sort((a, b) => b.path.length - a.path.length)[0];
-      // Back and forward head the sidebar, level with the toolbar, which leaves the toolbar its width for the path.
-      const history = m("div.files-history", { class: "flex h-12 shrink-0 items-center gap-0.5 px-2" }, [
-        iconButton("Back", "arrow-left", {
-          "data-action": "back",
-          disabled: !model.canGoBack,
-          onclick: () => window.history.back(),
-        }),
-        iconButton("Forward", "arrow-right", {
-          "data-action": "forward",
-          disabled: !model.canGoForward,
-          onclick: () => window.history.forward(),
-        }),
-      ]);
+      // The row the folder is under, the deepest one when rows nest.
+      const rows: SidebarRow[] = [
+        ...model.shortcuts.map((shortcut: Shortcut) => ({
+          key: `shortcut:${shortcut.key}`,
+          label: shortcut.label,
+          path: shortcut.path,
+          icon: SHORTCUT_ICONS[shortcut.key] ?? ("folder" as IconName),
+        })),
+        ...model.connectedFolders.map((folder) => ({
+          key: `connected:${folder.path}`,
+          label: folder.label,
+          path: folder.path,
+          icon: "folder" as IconName,
+          title: folder.sourcePath,
+        })),
+      ];
+      const current = rows
+        .filter((row) => isWithin(model.folder, row.path))
+        .sort((a, b) => b.path.length - a.path.length)[0]?.key;
+      const shortcutRows = rows.filter((row) => row.key.startsWith("shortcut:"));
+      const connectedRows = rows.filter((row) => row.key.startsWith("connected:"));
       return m(
         "nav.files-sidebar",
-        { class: `flex shrink-0 flex-col bg-sidebar ${app.isNarrow ? "w-[136px]" : "w-[176px]"}` },
+        {
+          class: `flex shrink-0 flex-col bg-sidebar ${
+            floating ? "fixed inset-y-0 left-0 z-(--z-overlay) max-w-[85vw] shadow-overlay" : "relative"
+          }`,
+          style: `width:${model.preferences.sidebarWidth}px`,
+        },
         [
-          history,
-          m("div", { class: "flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2 pb-3" }, [
-            m("div", { class: "px-2 pb-1 type-section text-faint" }, "Shortcuts"),
-            model.shortcuts.map((shortcut: Shortcut) =>
+          m("div", { class: "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-1 pb-3" }, [
+            sectionHeading("Shortcuts"),
+            shortcutRows.map((row) => sidebarRow(app, row, row.key === current)),
+            sectionHeading(
+              "Connected folders",
               m(
-                "button.files-shortcut",
+                "span.files-connected-info",
                 {
-                  key: shortcut.key,
-                  type: "button",
-                  "data-shortcut": shortcut.key,
-                  [DROP_FOLDER_ATTR]: shortcut.path,
-                  "aria-current": current?.key === shortcut.key ? "true" : undefined,
-                  class: `flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
-                    model.dropTarget === shortcut.path
-                      ? "bg-accent-light outline-2 -outline-offset-2 outline-accent"
-                      : current?.key === shortcut.key
-                        ? "bg-fill-active text-primary"
-                        : "text-secondary hover:bg-fill-hover hover:text-primary"
-                  }`,
-                  onclick: () => model.navigate(shortcut.path),
+                  tabindex: 0,
+                  "aria-label": CONNECTED_FOLDERS_INFO,
+                  class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
+                  ...hoverTooltipAttrs(CONNECTED_FOLDERS_INFO, "right"),
                 },
-                [
-                  m.trust(icon(SHORTCUT_ICONS[shortcut.key] ?? "folder", { size: 15, className: "shrink-0" })),
-                  m("span", { class: "truncate" }, shortcut.label),
-                ],
+                m.trust(icon("info", { size: 13 })),
               ),
             ),
+            connectedRows.length === 0
+              ? m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, "None yet")
+              : connectedRows.map((row) => sidebarRow(app, row, row.key === current)),
           ]),
+          resizeHandle(app),
         ],
       );
     },
@@ -262,7 +340,18 @@ function Toolbar(): m.Component<{ app: FilesController }> {
       return m(
         "header.files-toolbar",
         { class: "flex h-12 shrink-0 items-center gap-1 border-b border-default bg-surface px-3" },
-        [m(Breadcrumb, { app }), viewSwitch, add, options],
+        [
+          app.isNarrow
+            ? iconButton("Show sidebar", "panel-left", {
+                "data-action": "sidebar",
+                onclick: () => (app.isSidebarOpen = true),
+              })
+            : null,
+          m(Breadcrumb, { app }),
+          viewSwitch,
+          add,
+          options,
+        ],
       );
     },
   };
@@ -326,28 +415,6 @@ function message(title: string, detail: string, retry?: () => void): m.Vnode {
 }
 
 // The status line, the uploads, the notices
-
-function StatusBar(): m.Component<{ app: FilesController }> {
-  return {
-    view({ attrs: { app } }) {
-      const model = app.model;
-      const shown =
-        model.viewMode === "columns" && model.search === null
-          ? model.visibleEntries(model.folder)
-          : model.shownEntries();
-      const selected = model.selection.length;
-      const text =
-        selected > 0 ? `${selected} of ${formatItemCount(shown.length)} selected` : formatItemCount(shown.length);
-      return m(
-        "footer.files-status",
-        {
-          class: "flex h-7 shrink-0 items-center gap-3 border-t border-default bg-surface px-4 type-helper text-faint",
-        },
-        [m("span.files-status-text", text)],
-      );
-    },
-  };
-}
 
 function UploadPanel(): m.Component<{ app: FilesController }> {
   return {
@@ -547,8 +614,8 @@ export function FilesApp(): m.Component<{ app: FilesController }> {
       const model = app.model;
       const fileDropOnFolder = model.dropTarget !== null && model.dropTarget === model.folder;
       return m("div.files-app", { class: "flex h-screen min-h-0 bg-surface text-primary" }, [
-        m(Sidebar, { app }),
-        m("div", { class: "flex min-w-0 flex-1 flex-col border-l border-default" }, [
+        app.isNarrow ? null : m(Sidebar, { app, floating: false }),
+        m("div", { class: `flex min-w-0 flex-1 flex-col ${app.isNarrow ? "" : "border-l border-default"}` }, [
           m(Toolbar, { app }),
           m(
             "main.files-folder",
@@ -563,8 +630,17 @@ export function FilesApp(): m.Component<{ app: FilesController }> {
             },
             m(FolderBody, { app }),
           ),
-          m(StatusBar, { app }),
         ]),
+        // A small screen keeps the sidebar out of the way and floats it over the folder when asked for.
+        app.isNarrow && app.isSidebarOpen
+          ? [
+              m("div.files-sidebar-scrim", {
+                class: "fixed inset-0 z-(--z-overlay) bg-black/20",
+                onclick: () => (app.isSidebarOpen = false),
+              }),
+              m(Sidebar, { app, floating: true }),
+            ]
+          : null,
         m(UploadPanel, { app }),
         m(Notice, { app }),
         app.dialogs.view(),
