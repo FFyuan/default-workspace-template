@@ -32,7 +32,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   viewMode: "icons",
   sort: { key: "name", descending: false },
   showHidden: false,
-  sidebarWidth: 188,
+  sidebarWidth: 208,
 };
 
 export function clampSidebarWidth(width: number): number {

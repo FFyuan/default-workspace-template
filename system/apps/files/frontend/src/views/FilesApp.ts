@@ -103,7 +103,7 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
 function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
   return m(
     "div.files-sidebar-heading",
-    { class: "flex items-center gap-1 px-2 pt-3 pb-1 type-helper font-medium text-faint" },
+    { class: "flex items-center gap-1 px-2 pt-3 pb-1 type-section text-faint" },
     [m("span", { class: "min-w-0 flex-1 truncate" }, label), extra],
   );
 }
@@ -181,7 +181,7 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
                   tabindex: 0,
                   "aria-label": CONNECTED_FOLDERS_INFO,
                   class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
-                  ...hoverTooltipAttrs(CONNECTED_FOLDERS_INFO, "right"),
+                  ...hoverTooltipAttrs(CONNECTED_FOLDERS_INFO, "right", { maxWidth: 220 }),
                 },
                 m.trust(icon("info", { size: 13 })),
               ),

@@ -129,7 +129,7 @@ def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
     expect(page.locator(".files-connected-empty")).to_have_text("None yet")
     sidebar = page.locator(".files-sidebar")
     start = sidebar.bounding_box()
-    assert start is not None and round(start["width"]) == 188
+    assert start is not None and round(start["width"]) == 208
 
     handle = page.locator(".files-sidebar-resize").bounding_box()
     assert handle is not None
@@ -138,8 +138,8 @@ def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
     page.mouse.move(handle["x"] + handle["width"] / 2 + 60, handle["y"] + 200, steps=4)
     page.mouse.up()
     resized = sidebar.bounding_box()
-    assert resized is not None and round(resized["width"]) == 248
-    assert page.evaluate("localStorage.getItem('files-sidebar-width')") == "248"
+    assert resized is not None and round(resized["width"]) == 268
+    assert page.evaluate("localStorage.getItem('files-sidebar-width')") == "268"
 
 
 def test_f2_renames_an_entry_in_place_and_refuses_a_slash(
