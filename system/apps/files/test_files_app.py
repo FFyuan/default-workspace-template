@@ -93,18 +93,33 @@ def test_the_sidebar_lists_the_shortcuts_and_the_connected_folders(
 ) -> None:
     workspace = files_root / "home" / "user" / "workspace"
     (workspace / "data" / "uploads").mkdir(parents=True)
-    notes = files_root / "home" / "user" / "synced_folders" / "host-mac" / "Users" / "kim" / "notes"
+    notes = (
+        files_root
+        / "home"
+        / "user"
+        / "synced_folders"
+        / "host-mac"
+        / "Users"
+        / "kim"
+        / "notes"
+    )
     notes.mkdir(parents=True)
     (notes / "todo.md").write_text("- call\n")
     page = open_files_page("/home/user/workspace/")
 
     rows = page.locator("[data-sidebar-row]")
     expect(rows).to_have_text(["Workspace", "Uploads", "notes"])
-    expect(page.locator('[data-sidebar-row="shortcut:workspace"]')).to_have_attribute("aria-current", "true")
-    expect(page.locator('[data-sidebar-row^="connected:"]')).to_have_attribute("title", "/Users/kim/notes/")
+    expect(page.locator('[data-sidebar-row="shortcut:workspace"]')).to_have_attribute(
+        "aria-current", "true"
+    )
+    expect(page.locator('[data-sidebar-row^="connected:"]')).to_have_attribute(
+        "title", "/Users/kim/notes/"
+    )
 
     page.locator('[data-sidebar-row^="connected:"]').click()
-    expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()
+    expect(
+        _entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")
+    ).to_be_visible()
 
 
 def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
