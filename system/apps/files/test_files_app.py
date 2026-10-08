@@ -309,6 +309,8 @@ def test_deleting_a_file_from_its_page_leaves_the_window_saying_so(
     page.locator('[data-action="more"]').click()
     page.locator('[data-menu-row="delete"]').click()
     page.locator('[data-dialog-action="confirm"]').click()
-    expect(page.locator(".files-file-deleted")).to_contain_text('"README.md" was deleted')
+    expect(page.locator(".files-file-deleted")).to_contain_text(
+        '"README.md" was deleted'
+    )
     assert page.url.endswith("/README.md?view")
     assert not (files_root / "README.md").exists()
