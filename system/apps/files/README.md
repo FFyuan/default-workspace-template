@@ -67,8 +67,8 @@ and folder shared from the user's computers, each with a glyph for how it
 reaches the workspace (two arrows: synced both ways; one arrow: synced one way;
 a cloud: opened live), a lock when it is read-only, and a warning in place of
 the first when its copy has fallen behind; the row's tooltip says it in words.
-A synced share opens at its copy, the others live. The + beside the heading
-offers "Connect local files or folders", a dialog for the path, the access, and
+A synced share opens at its copy, the others live. The list ends in "Connect
+local files or folders", which opens a dialog for the path, the access, and
 whether to keep a synced copy, which asks the computer and then watches for the
 approval. The sidebar's width is dragged from its edge (double-click puts it
 back) and kept with the other preferences. Jumping to a sidebar row starts the

@@ -100,6 +100,7 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     notes_copy = files_root / "home/user/synced_folders/host-mac/Users/kim/notes"
     notes_copy.mkdir(parents=True)
     (notes_copy / "todo.md").write_text("- call\n")
+    (files_root / "home/user/synced_folders/host-mac/Users/kim/Brand Fonts").mkdir(parents=True)
     connections.listed = {
         "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}],
         "shares": [
@@ -149,15 +150,20 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]').click()
     expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()
+    expect(page.locator(".files-crumb")).to_have_text(["Kims-Mac.local", "notes"])
+
+    page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').click()
+    expect(page.locator(".files-stuck-sync")).to_contain_text("Not synced yet from Kims-Mac.local")
+    page.locator('[data-view-mode="columns"]').click()
+    expect(page.locator(".files-column .files-stuck-sync")).to_contain_text("Not synced yet")
 
 
-def test_the_plus_beside_connected_asks_the_computer_to_share_something(
+def test_the_connect_entry_asks_the_computer_to_share_something(
     open_files_page: OpenFilesPage, connections: Any
 ) -> None:
     connections.listed = {"devices": [{"id": "host-mac", "name": "Kims-Mac.local"}], "shares": []}
     page = open_files_page("/")
     page.locator('[data-action="connect"]').click()
-    page.locator('[data-menu-row="connect-local"]').click()
     dialog = page.locator('[data-dialog="connect"]')
     expect(dialog).to_contain_text("From Kims-Mac.local")
     page.locator(".files-connect-path").fill("~/Projects/site")
@@ -175,7 +181,8 @@ def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
     open_files_page: OpenFilesPage,
 ) -> None:
     page = open_files_page("/")
-    expect(page.locator(".files-connected-empty")).to_have_text("None yet")
+    expect(page.locator(".files-sidebar [data-sidebar-row^='share:']")).to_have_count(0)
+    expect(page.locator('[data-action="connect"]')).to_have_text("Connect local files or folders…")
     sidebar = page.locator(".files-sidebar")
     start = sidebar.bounding_box()
     assert start is not None and round(start["width"]) == 208

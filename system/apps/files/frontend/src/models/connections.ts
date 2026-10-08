@@ -71,6 +71,23 @@ export function describeShare(share: Share, deviceName: string): string {
   }
 }
 
+/** The share a folder is in (its copy or its live view), the deepest one when shares nest. */
+export function shareAt(connections: Connections | null, folder: string): Share | undefined {
+  return (connections?.shares ?? [])
+    .filter((share) => share.kind !== "file" && folder.startsWith(targetOf(share)))
+    .sort((a, b) => targetOf(b).length - targetOf(a).length)[0];
+}
+
+/** What to tell someone looking inside a copy that has fallen behind its computer, or null when it has not. */
+export function stuckSyncOf(share: Share | undefined, deviceName: string): { title: string; detail: string } | null {
+  if (share === undefined || share.sync_state !== "behind") return null;
+  return {
+    title: `Not synced yet from ${deviceName}`,
+    detail:
+      "Your computer has files here that haven't arrived. The sync may be stuck: check it in Imbue Studio on your computer, or connect this folder again.",
+  };
+}
+
 /** A warning about a share, or null when there is nothing to warn of. */
 export function shareProblemOf(share: Share): string | null {
   if (share.sync_state === "behind") return "This copy hasn't caught up with your computer. The sync may be stuck.";

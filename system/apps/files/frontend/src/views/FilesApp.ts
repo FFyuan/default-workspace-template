@@ -20,7 +20,9 @@ import {
   deviceNameOf,
   labelOf,
   modeOf,
+  shareAt,
   shareProblemOf,
+  stuckSyncOf,
   targetOf,
   type Connections,
   type Share,
@@ -193,14 +195,7 @@ function resizeHandle(app: FilesController): m.Vnode {
 }
 
 function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
-  let connectMenu: Menu | null = null;
   return {
-    oninit() {
-      connectMenu = createMenu({ placement: "below", align: "end", minWidth: 240, extraClass: "files-connect-menu" });
-    },
-    onremove() {
-      connectMenu?.dispose();
-    },
     view({ attrs: { app, floating } }) {
       const model = app.model;
       const connections = model.connections;
@@ -220,8 +215,9 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
       if (shareRows.length > 0) {
         connectedBody = shareRows.map((row) => sidebarRow(app, row, row.key === current));
       } else {
-        const empty = model.connectionsError ?? (connections === null ? "Looking…" : "None yet");
-        connectedBody = m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, empty);
+        const empty = model.connectionsError ?? (connections === null ? "Looking…" : null);
+        connectedBody =
+          empty === null ? null : m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, empty);
       }
       return m(
         "nav.files-sidebar",
@@ -246,32 +242,25 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
                 },
                 m.trust(icon("info", { size: 13 })),
               ),
-              connectMenu === null
-                ? null
-                : m("span", { class: "flex shrink-0" }, [
-                    m(
-                      "button.files-connect",
-                      {
-                        type: "button",
-                        "aria-label": "Connect",
-                        "data-action": "connect",
-                        class: "flex shrink-0 cursor-pointer rounded text-faint hover:text-primary",
-                        ...connectMenu.triggerAttrs(),
-                      },
-                      m.trust(icon("plus", { size: 14 })),
-                    ),
-                    connectMenu.view([
-                      {
-                        kind: "action",
-                        key: "connect-local",
-                        label: "Connect local files or folders…",
-                        icon: "folder-plus",
-                        onSelect: () => void app.connectLocal(),
-                      },
-                    ]),
-                  ]),
             ]),
             connectedBody,
+            m(
+              "button.files-connect",
+              {
+                type: "button",
+                "data-action": "connect",
+                class:
+                  "flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) text-faint hover:bg-fill-hover hover:text-primary",
+                onclick: () => {
+                  app.isSidebarOpen = false;
+                  void app.connectLocal();
+                },
+              },
+              [
+                m.trust(icon("plus", { size: 15, className: "shrink-0" })),
+                m("span", { class: "truncate" }, "Connect local files or folders…"),
+              ],
+            ),
           ]),
           resizeHandle(app),
         ],
@@ -287,12 +276,10 @@ interface Crumb {
   path: string;
 }
 
-/** The path as the bar shows it. A shared item opened live starts at the computer's name and the share, since
- *  nothing above the share can be read from here. */
+/** The path as the bar shows it. Inside a share it starts at the computer's name and the share: above a live one
+ *  nothing can be read from here, and above a copy are only the workspace's own folders for it. */
 export function crumbsOf(folder: string, connections: Connections | null): Crumb[] {
-  const share = (connections?.shares ?? [])
-    .filter((candidate) => candidate.synced_copy === null && isWithin(folder, targetOf(candidate)))
-    .sort((a, b) => b.path.length - a.path.length)[0];
+  const share = shareAt(connections, folder);
   if (share !== undefined && connections !== null) {
     const root = targetOf(share);
     const below = segmentsOf(folder.slice(root.length));
@@ -474,6 +461,12 @@ function FolderBody(): m.Component<{ app: FilesController }> {
       const state = model.folderState(model.folder);
       const entries = model.shownEntries();
       const search = model.search;
+      const connections = model.connections;
+      const share = shareAt(connections, model.folder);
+      const stuck =
+        share === undefined || connections === null
+          ? null
+          : stuckSyncOf(share, deviceNameOf(connections, share.device));
       let empty: m.Children = null;
       if (search !== null) {
         if (search.status === "error") empty = message("Search failed", search.error ?? "");
@@ -488,6 +481,8 @@ function FolderBody(): m.Component<{ app: FilesController }> {
         empty = message("Couldn't open this folder", state.error ?? "", () => void model.load(model.folder));
       } else if (!state.exists) {
         empty = message("This folder doesn't exist", "It may have been moved or deleted.");
+      } else if (stuck !== null && entries.length === 0) {
+        empty = m("div.files-stuck-sync", { role: "status" }, message(stuck.title, stuck.detail));
       } else if (entries.length === 0) {
         empty = message(
           "This folder is empty",
@@ -495,6 +490,7 @@ function FolderBody(): m.Component<{ app: FilesController }> {
         );
       }
       return m("div", { class: "min-h-full" }, [
+        stuck !== null && entries.length > 0 ? stuckBanner(stuck) : null,
         search === null
           ? null
           : m(
@@ -510,6 +506,24 @@ function FolderBody(): m.Component<{ app: FilesController }> {
       ]);
     },
   };
+}
+
+/** A strip above a copy's entries saying it has fallen behind its computer. */
+export function stuckBanner(stuck: { title: string; detail: string }): m.Vnode {
+  return m(
+    "div.files-stuck-sync",
+    {
+      role: "status",
+      class: "mx-3 mt-3 flex items-start gap-2 rounded-lg bg-warning-surface/50 px-3 py-2 type-helper",
+    },
+    [
+      m.trust(icon("triangle-alert", { size: 14, className: "mt-0.5 shrink-0 text-warning" })),
+      m("div", [
+        m("div", { class: "font-medium text-primary" }, stuck.title),
+        m("div", { class: "text-secondary" }, stuck.detail),
+      ]),
+    ],
+  );
 }
 
 function message(title: string, detail: string, retry?: () => void): m.Vnode {

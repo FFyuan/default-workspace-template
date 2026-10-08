@@ -17,6 +17,7 @@ import { DROP_FOLDER_ATTR, EntryMenuButton, FOLDER_SURFACE_ATTR, RenameField, en
 import { FileIcon } from "./FileIcon";
 import type { FilesController } from "./FilesController";
 import { PreviewPane } from "./PreviewPane";
+import { deviceNameOf, shareAt, stuckSyncOf } from "../models/connections";
 
 interface ViewAttrs {
   app: FilesController;
@@ -216,7 +217,12 @@ export const ListView: m.Component<ViewAttrs> = {
 
 // Columns
 
-function columnBody(app: FilesController, state: FolderState | undefined, entries: readonly Entry[]): m.Children {
+function columnBody(
+  app: FilesController,
+  folder: string,
+  state: FolderState | undefined,
+  entries: readonly Entry[],
+): m.Children {
   if (state === undefined || (state.status === "loading" && entries.length === 0)) {
     return m("div", { class: "flex justify-center py-6" }, m("div.spinner"));
   }
@@ -224,6 +230,21 @@ function columnBody(app: FilesController, state: FolderState | undefined, entrie
     return m("div", { class: "px-3 py-4 type-helper text-danger" }, state.error);
   }
   if (entries.length === 0) {
+    const connections = app.model.connections;
+    const share = shareAt(connections, folder);
+    const stuck =
+      share === undefined || connections === null ? null : stuckSyncOf(share, deviceNameOf(connections, share.device));
+    if (stuck !== null) {
+      return m(
+        "div.files-stuck-sync",
+        { role: "status", class: "flex flex-col gap-1 px-3 py-4 text-center type-helper" },
+        [
+          m.trust(icon("triangle-alert", { size: 16, className: "mx-auto text-warning" })),
+          m("div", { class: "font-medium text-primary" }, stuck.title),
+          m("div", { class: "text-secondary" }, stuck.detail),
+        ],
+      );
+    }
     return m("div", { class: "px-3 py-4 text-center type-helper text-faint" }, "Empty");
   }
   const model = app.model;
@@ -294,7 +315,7 @@ export function ColumnView(): m.Component<{ app: FilesController }> {
                 }
               },
             },
-            columnBody(app, model.folderState(folder), model.visibleEntries(folder)),
+            columnBody(app, folder, model.folderState(folder), model.visibleEntries(folder)),
           ),
         ),
         ...(previewed === null || parentOf(previewed.path) !== model.folder
