@@ -15,6 +15,17 @@ import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/com
 import { formatItemCount, formatSize } from "../models/format";
 import { DEFAULT_PREFERENCES } from "../models/preferences";
 import type { Shortcut } from "../models/FilesModel";
+import {
+  describeShare,
+  deviceNameOf,
+  labelOf,
+  modeOf,
+  shareProblemOf,
+  targetOf,
+  type Connections,
+  type Share,
+  type ShareMode,
+} from "../models/connections";
 import type { SortKey, ViewMode } from "../models/preferences";
 import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
 import { isFileDrag, sourcesFromDrop } from "../models/uploads";
@@ -62,8 +73,8 @@ function iconButton(
 
 // Sidebar
 
-const CONNECTED_FOLDERS_INFO =
-  "Folders on your computer that Imbue Studio keeps in sync with this workspace. Ask your agent to connect one.";
+const CONNECTED_INFO =
+  "Files and folders shared from your computers. A synced one has a copy here; the rest open live from your computer while it's awake.";
 
 interface SidebarRow {
   key: string;
@@ -71,6 +82,10 @@ interface SidebarRow {
   path: string;
   icon: IconName;
   title?: string;
+  /** Glyphs after the label: how the row's item reaches the workspace, and what may be done with it. */
+  badges?: m.Children;
+  isFaint?: boolean;
+  onOpen?: () => void;
 }
 
 function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): m.Vnode {
@@ -82,22 +97,64 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
       type: "button",
       "data-sidebar-row": row.key,
       [DROP_FOLDER_ATTR]: row.path,
-      title: row.title,
       "aria-current": isCurrent ? "true" : undefined,
+      ...(row.title === undefined ? {} : hoverTooltipAttrs(row.title, "right", { maxWidth: 260 })),
       class: `flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
         model.dropTarget === row.path
           ? "bg-accent-light outline-2 -outline-offset-2 outline-accent"
           : isCurrent
             ? "bg-fill-active text-primary"
-            : "text-secondary hover:bg-fill-hover hover:text-primary"
+            : row.isFaint === true
+              ? "text-faint hover:bg-fill-hover hover:text-secondary"
+              : "text-secondary hover:bg-fill-hover hover:text-primary"
       }`,
       onclick: () => {
-        model.navigate(row.path, { startColumns: true });
+        if (row.onOpen !== undefined) row.onOpen();
+        else model.navigate(row.path, { startColumns: true });
         app.isSidebarOpen = false;
       },
     },
-    [m.trust(icon(row.icon, { size: 15, className: "shrink-0" })), m("span", { class: "truncate" }, row.label)],
+    [
+      m.trust(icon(row.icon, { size: 15, className: "shrink-0" })),
+      m("span", { class: "min-w-0 flex-1 truncate" }, row.label),
+      row.badges ?? null,
+    ],
   );
+}
+
+function badge(name: IconName, extra = "text-faint"): m.Vnode {
+  return m(
+    "span.files-share-badge",
+    { "data-badge": name, class: `flex shrink-0 ${extra}` },
+    m.trust(icon(name, { size: 12 })),
+  );
+}
+
+const MODE_ICONS: Record<ShareMode, IconName> = {
+  "two-way": "refresh",
+  "one-way": "arrow-down",
+  live: "cloud",
+};
+
+function shareRow(app: FilesController, connections: Connections, share: Share): SidebarRow {
+  const target = targetOf(share);
+  const problem = shareProblemOf(share);
+  const description = describeShare(share, deviceNameOf(connections, share.device));
+  return {
+    key: `share:${share.device}:${share.path}`,
+    label: labelOf(share),
+    path: target,
+    icon: share.kind === "file" ? "file" : "folder",
+    title: problem === null ? description : `${problem} ${description}`,
+    isFaint: !share.is_reachable && share.synced_copy === null,
+    badges: [
+      problem !== null && share.sync_state === "behind"
+        ? badge("triangle-alert", "text-warning")
+        : badge(MODE_ICONS[modeOf(share)]),
+      share.access === "read" ? badge("lock") : null,
+    ],
+    onOpen: share.kind === "file" ? () => app.openPage(target, "view") : undefined,
+  };
 }
 
 function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
@@ -136,30 +193,36 @@ function resizeHandle(app: FilesController): m.Vnode {
 }
 
 function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
+  let connectMenu: Menu | null = null;
   return {
+    oninit() {
+      connectMenu = createMenu({ placement: "below", align: "end", minWidth: 240, extraClass: "files-connect-menu" });
+    },
+    onremove() {
+      connectMenu?.dispose();
+    },
     view({ attrs: { app, floating } }) {
       const model = app.model;
+      const connections = model.connections;
+      const shortcutRows: SidebarRow[] = model.shortcuts.map((shortcut: Shortcut) => ({
+        key: `shortcut:${shortcut.key}`,
+        label: shortcut.label,
+        path: shortcut.path,
+        icon: SHORTCUT_ICONS[shortcut.key] ?? ("folder" as IconName),
+      }));
+      const shareRows: SidebarRow[] =
+        connections === null ? [] : connections.shares.map((share) => shareRow(app, connections, share));
       // The row the folder is under, the deepest one when rows nest.
-      const rows: SidebarRow[] = [
-        ...model.shortcuts.map((shortcut: Shortcut) => ({
-          key: `shortcut:${shortcut.key}`,
-          label: shortcut.label,
-          path: shortcut.path,
-          icon: SHORTCUT_ICONS[shortcut.key] ?? ("folder" as IconName),
-        })),
-        ...model.connectedFolders.map((folder) => ({
-          key: `connected:${folder.path}`,
-          label: folder.label,
-          path: folder.path,
-          icon: "folder" as IconName,
-          title: folder.sourcePath,
-        })),
-      ];
-      const current = rows
+      const current = [...shortcutRows, ...shareRows]
         .filter((row) => isWithin(model.folder, row.path))
         .sort((a, b) => b.path.length - a.path.length)[0]?.key;
-      const shortcutRows = rows.filter((row) => row.key.startsWith("shortcut:"));
-      const connectedRows = rows.filter((row) => row.key.startsWith("connected:"));
+      let connectedBody: m.Children;
+      if (shareRows.length > 0) {
+        connectedBody = shareRows.map((row) => sidebarRow(app, row, row.key === current));
+      } else {
+        const empty = model.connectionsError ?? (connections === null ? "Looking…" : "None yet");
+        connectedBody = m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, empty);
+      }
       return m(
         "nav.files-sidebar",
         {
@@ -172,22 +235,43 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
           m("div", { class: "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-1 pb-3" }, [
             sectionHeading("Shortcuts"),
             shortcutRows.map((row) => sidebarRow(app, row, row.key === current)),
-            sectionHeading(
-              "Connected folders",
+            sectionHeading("Connected", [
               m(
                 "span.files-connected-info",
                 {
                   tabindex: 0,
-                  "aria-label": CONNECTED_FOLDERS_INFO,
+                  "aria-label": CONNECTED_INFO,
                   class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
-                  ...hoverTooltipAttrs(CONNECTED_FOLDERS_INFO, "right", { maxWidth: 220 }),
+                  ...hoverTooltipAttrs(CONNECTED_INFO, "right", { maxWidth: 220 }),
                 },
                 m.trust(icon("info", { size: 13 })),
               ),
-            ),
-            connectedRows.length === 0
-              ? m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, "None yet")
-              : connectedRows.map((row) => sidebarRow(app, row, row.key === current)),
+              connectMenu === null
+                ? null
+                : m("span", { class: "flex shrink-0" }, [
+                    m(
+                      "button.files-connect",
+                      {
+                        type: "button",
+                        "aria-label": "Connect",
+                        "data-action": "connect",
+                        class: "flex shrink-0 cursor-pointer rounded text-faint hover:text-primary",
+                        ...connectMenu.triggerAttrs(),
+                      },
+                      m.trust(icon("plus", { size: 14 })),
+                    ),
+                    connectMenu.view([
+                      {
+                        kind: "action",
+                        key: "connect-local",
+                        label: "Connect local files or folders…",
+                        icon: "folder-plus",
+                        onSelect: () => void app.connectLocal(),
+                      },
+                    ]),
+                  ]),
+            ]),
+            connectedBody,
           ]),
           resizeHandle(app),
         ],
@@ -197,6 +281,32 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
 }
 
 // Toolbar
+
+interface Crumb {
+  label: string;
+  path: string;
+}
+
+/** The path as the bar shows it. A shared item opened live starts at the computer's name and the share, since
+ *  nothing above the share can be read from here. */
+export function crumbsOf(folder: string, connections: Connections | null): Crumb[] {
+  const share = (connections?.shares ?? [])
+    .filter((candidate) => candidate.synced_copy === null && isWithin(folder, targetOf(candidate)))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+  if (share !== undefined && connections !== null) {
+    const root = targetOf(share);
+    const below = segmentsOf(folder.slice(root.length));
+    return [
+      { label: deviceNameOf(connections, share.device), path: root },
+      { label: labelOf(share), path: root },
+      ...below.map((segment, index) => ({ label: segment, path: `${root}${below.slice(0, index + 1).join("/")}/` })),
+    ];
+  }
+  const segments = segmentsOf(folder);
+  return [{ label: "Computer", path: "/" }].concat(
+    segments.map((segment, index) => ({ label: segment, path: folderPathOf(segments.slice(0, index + 1)) })),
+  );
+}
 
 function Breadcrumb(): m.Component<{ app: FilesController }> {
   return {
@@ -208,16 +318,13 @@ function Breadcrumb(): m.Component<{ app: FilesController }> {
     },
     view({ attrs: { app } }) {
       const model = app.model;
-      const segments = segmentsOf(model.folder);
-      const crumbs = [{ label: "Computer", path: "/" }].concat(
-        segments.map((segment, index) => ({ label: segment, path: folderPathOf(segments.slice(0, index + 1)) })),
-      );
+      const crumbs = crumbsOf(model.folder, model.connections);
       return m(
         "div.files-breadcrumb",
         { class: "flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none]" },
         crumbs.map((crumb, index) => {
           const isLast = index === crumbs.length - 1;
-          return m.fragment({ key: crumb.path }, [
+          return m.fragment({ key: `${index}:${crumb.path}` }, [
             index === 0 ? null : m.trust(icon("chevron-right", { size: 12, className: "shrink-0 text-faint" })),
             m(
               "button.files-crumb",

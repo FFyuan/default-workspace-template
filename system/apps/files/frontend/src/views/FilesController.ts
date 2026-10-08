@@ -14,7 +14,12 @@ import { FilesModel, type HistoryMode } from "../models/FilesModel";
 import { isTextLike } from "../models/fileKinds";
 import { decodePathname, titleOf } from "../models/paths";
 import { sourcesFromFileList } from "../models/uploads";
+import { requestConnection } from "../models/connections";
 import { Dialogs } from "./dialogs";
+
+/** After asking to connect something, how often and how long the list is read again for the approval. */
+const CONNECTION_POLL_MS = 3000;
+const CONNECTION_POLLS = 40;
 
 /** Below this width the window lays itself out for a phone: one tap opens, and there is no column view. */
 export const NARROW_QUERY = "(max-width: 700px)";
@@ -89,6 +94,8 @@ export class FilesController {
       this.reportLocation(this.model.folder);
     });
     this.reportLocation(folder);
+    // Shares change on the user's computer: read them again whenever the window comes back to the front.
+    win.addEventListener("focus", () => void this.model.loadConnections());
   }
 
   /** The column view needs room for at least a couple of columns. */
@@ -139,6 +146,26 @@ export class FilesController {
       await this.win.navigator.clipboard.writeText(paths.join("\n"));
     } catch {
       this.model.showNotice("Couldn't copy to the clipboard.");
+    }
+  }
+
+  /** Ask the user what to connect, then ask their computer: Imbue Studio shows its sharing dialog there. The list
+   *  is read again for a while after, so an approval shows up without a reload. */
+  async connectLocal(): Promise<void> {
+    const ask = await this.dialogs.askConnection(this.model.connections?.devices ?? []);
+    if (ask === null) return;
+    try {
+      await requestConnection(ask);
+    } catch (error) {
+      this.model.showNotice(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    this.model.showNotice("Approve it in Imbue Studio on your computer.");
+    for (let attempt = 0; attempt < CONNECTION_POLLS; attempt += 1) {
+      await new Promise((resolve) => this.win.setTimeout(resolve, CONNECTION_POLL_MS));
+      const before = this.model.connections?.shares.length ?? 0;
+      await this.model.loadConnections();
+      if ((this.model.connections?.shares.length ?? 0) !== before) return;
     }
   }
 

@@ -2,10 +2,11 @@
 
 Files: the workspace's file browser, the `files` app of the desktop's launcher,
 supervised as the `files` program declared in
-`system/supervisord.conf.d/files.conf`. There is no Python package here: the
-program line registers `app.toml` and the dufs port 8300 through
-`system/scripts/forward_port.py`, then runs
-`dufs --allow-all --bind 127.0.0.1 --port 8300 --assets system/apps/files/static /`.
+`system/supervisord.conf.d/files.conf`, which runs the `files-app` entry point of
+this package (`src/files_app`). It starts dufs on loopback port 8301
+(`dufs --allow-all --bind 127.0.0.1 --port 8301 --assets system/apps/files/static /`),
+serves the Files server in front of it on the app's port 8300, and registers
+`app.toml`.
 
 The server is [dufs](https://github.com/sigoden/dufs), a single static binary
 installed at image build by `system/scripts/install_dufs.sh` (version and
@@ -15,11 +16,40 @@ read; it is bound to loopback with all operations enabled (browse, preview,
 upload, rename, delete): the workspace origin is what gates access, exactly as
 for every other registered app.
 
+## The Files server
+
+`server.py` relays every request to dufs and answers three things dufs cannot:
+
+- `/__files/api/connections`: GET lists what the user has shared with the
+  workspace from their computers, POST asks for more. Both go through the
+  latchkey gateway (`gateway.py`), whose address and credentials every
+  supervised program inherits. A share is a file-sharing permission the
+  workspace holds (`minds-file-server-read-<path>`, and `-write-` beside it when
+  changes are allowed); `connections.py` reads them per device, notes whether
+  Imbue Studio keeps a synced copy at `~/synced_folders/<device id>/<path>`
+  (two-way with write access, one-way with read), and, since the workspace
+  learns nothing from the sync itself, compares the copy's names with the
+  computer's to say when a copy has fallen behind. A request is a
+  `file-sharing` permission request from the workspace's main agent
+  (`MNGR_AGENT_ID`); Imbue Studio shows its sharing dialog on the computer.
+- `/__remote/<device id>/<path>`: a share with no copy here, read live from the
+  computer's file server over WebDAV and answered in dufs's own shape (a page,
+  `?json`, the bytes, PUT, DELETE, MKCOL), so the frontend browses it like any
+  folder. Renaming is not offered there (the computer's file server has no
+  MOVE). The file server's paths carry no device id (the permissions match
+  `/minds-api-proxy/api/v1/files/<path>`); the device goes in the
+  `X-Latchkey-Device` header.
+- Every answer's `Content-Disposition` is made ASCII-safe. dufs names a file in
+  it as it is, and a name with a character outside Latin-1 (the narrow space
+  macOS puts in screenshot names) makes the forwarder between the workspace and
+  the browser answer with an error in place of the file.
+
 ## The frontend
 
 `frontend/` is a Mithril app on the shared `system/libs/workspace_ui` library,
 one package of the npm workspace at `system/package.json`. Its vite build writes
-`static/` (gitignored), the directory dufs is handed as `--assets`. dufs serves
+`static/` (gitignored), the directory dufs is handed as `--assets`, and which the
+Files server fills for shared items' pages. dufs serves
 that one `index.html` for every folder and every file page, filling in the
 page's data (base64 JSON in `#index-data`: a folder's listing, or the facts of
 the file a `?view` / `?edit` page is for) and the prefix it serves the bundle
@@ -32,13 +62,15 @@ the page asks for them with a per-build `?v=` stamp.
 
 A folder window has a sidebar, a toolbar (the path, the view switcher, the +
 button, and the view options), and the folder. The sidebar lists Shortcuts
-(Workspace and Uploads, each shown when it exists) and Connected folders: the
-folders Imbue Studio syncs into the workspace from the user's computers, under
-`~/synced_folders/<device id>/<path on that computer>` (the file-sharing
-skill). Nothing records which folder along that path is the one shared, so
-`models/connectedFolders.ts` reads it off the tree: the path runs down through
-folders holding a single folder and nothing else, and the shared folder is
-where that stops. Its width is dragged from its edge (double-click puts it
+(Workspace and Uploads, each shown when it exists) and Connected: every file
+and folder shared from the user's computers, each with a glyph for how it
+reaches the workspace (two arrows: synced both ways; one arrow: synced one way;
+a cloud: opened live), a lock when it is read-only, and a warning in place of
+the first when its copy has fallen behind; the row's tooltip says it in words.
+A synced share opens at its copy, the others live. The + beside the heading
+offers "Connect local files or folders", a dialog for the path, the access, and
+whether to keep a synced copy, which asks the computer and then watches for the
+approval. The sidebar's width is dragged from its edge (double-click puts it
 back) and kept with the other preferences. Jumping to a sidebar row starts the
 column view afresh there; drilling down into a folder that happens to be a
 shortcut keeps the columns already open. There are no back and forward
@@ -111,7 +143,9 @@ release.
 ## Tests
 
 `system/test_app_manifests.py` checks the manifest against the program line, and
-`system/test_supervisord_layout.py` the program block. The frontend's own
+`system/test_supervisord_layout.py` the program block. `src/files_app/server_test.py`
+drives the Files server against an in-memory dufs and gateway (`testing.py`'s
+`FakeComputer` answers as a computer's file server does). The frontend's own
 vitest suites sit beside its sources (`npm test` at `system/`).
 `test_files_app.py` (marked `browser`) serves the build from a stand-in for
 dufs (`conftest.py`, over a temporary folder) and drives the app in Chromium:

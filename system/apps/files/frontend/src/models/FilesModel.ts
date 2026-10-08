@@ -29,7 +29,7 @@ import {
   type ViewMode,
 } from "./preferences";
 import { UploadQueue, type UploadSource } from "./uploads";
-import { findConnectedFolders, type ConnectedFolder } from "./connectedFolders";
+import { fetchConnections, targetOf, type Connections } from "./connections";
 
 export const WORKSPACE = "/home/user/workspace/";
 
@@ -142,8 +142,9 @@ export class FilesModel {
   private columnRoot: string | null = null;
   /** The shortcuts found on this machine. */
   shortcuts: Shortcut[] = [];
-  /** The folders from the user's computers that are synced into this workspace. */
-  connectedFolders: ConnectedFolder[] = [];
+  /** What the user has shared from their computers; null until it has been read. */
+  connections: Connections | null = null;
+  connectionsError: string | null = null;
   historyIndex = 0;
   historyLength = 1;
   readonly uploads: UploadQueue;
@@ -175,7 +176,7 @@ export class FilesModel {
     if (!this.folders.has(this.folder)) void this.load(this.folder);
     this.loadColumns();
     void this.findShortcuts();
-    void this.findConnectedFolders();
+    void this.loadConnections();
   }
 
   // Reading
@@ -213,10 +214,15 @@ export class FilesModel {
   /** Where columns showing `folder` start afresh: the shortcut or connected folder it is under, else the root. */
   private rootFor(folder: string): string {
     return (
-      [...SHORTCUTS, ...this.connectedFolders]
-        .filter((candidate) => isWithin(folder, candidate.path))
-        .sort((a, b) => b.path.length - a.path.length)[0]?.path ?? ROOT
+      [...SHORTCUTS.map((shortcut) => shortcut.path), ...this.connectedFolderPaths()]
+        .filter((candidate) => isWithin(folder, candidate))
+        .sort((a, b) => b.length - a.length)[0] ?? ROOT
     );
+  }
+
+  /** Where each shared folder is opened: its synced copy, or its live view. */
+  connectedFolderPaths(): string[] {
+    return (this.connections?.shares ?? []).filter((share) => share.kind !== "file").map(targetOf);
   }
 
   /** Keep the columns' start while `folder` is under it; start afresh when it is not, or when asked to. */
@@ -681,11 +687,13 @@ export class FilesModel {
     this.host.redraw();
   }
 
-  private async findConnectedFolders(): Promise<void> {
+  /** Read what is shared from the user's computers again. */
+  async loadConnections(): Promise<void> {
     try {
-      this.connectedFolders = await findConnectedFolders((folder) => dufs.listFolder(folder));
-    } catch {
-      this.connectedFolders = [];
+      this.connections = await fetchConnections();
+      this.connectionsError = null;
+    } catch (error) {
+      this.connectionsError = messageOf(error);
     }
     this.host.redraw();
   }

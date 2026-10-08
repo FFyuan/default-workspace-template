@@ -79,6 +79,7 @@ COPY system/libs/github_sync/pyproject.toml /home/user/workspace/system/libs/git
 COPY system/apps/system_interface/pyproject.toml /home/user/workspace/system/apps/system_interface/pyproject.toml
 COPY system/apps/chat/pyproject.toml /home/user/workspace/system/apps/chat/pyproject.toml
 COPY system/apps/getting_started/pyproject.toml /home/user/workspace/system/apps/getting_started/pyproject.toml
+COPY system/apps/files/pyproject.toml /home/user/workspace/system/apps/files/pyproject.toml
 
 # Frontend npm manifests (the workspace root's lockfile + package.json, and each member's
 # package.json) -- install needs only these.

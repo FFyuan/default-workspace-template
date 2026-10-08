@@ -5,6 +5,7 @@ Every change a test makes goes through the app's own controls and is read back o
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 from playwright.sync_api import Locator, Page, expect
@@ -21,9 +22,7 @@ def _entry(page: Page, path: str) -> Locator:
 
 
 def _shown_paths(page: Page) -> list[str]:
-    return page.locator("[data-entry-path]").evaluate_all(
-        "els => els.map(el => el.dataset.entryPath)"
-    )
+    return page.locator("[data-entry-path]").evaluate_all("els => els.map(el => el.dataset.entryPath)")
 
 
 def test_a_folder_shows_its_entries_as_icons_folders_first_with_system_files_hidden(
@@ -46,9 +45,7 @@ def test_the_list_sorts_by_its_column_headers(open_files_page: OpenFilesPage) ->
     assert _shown_paths(page) == ["/photos/", "/projects/", "/notes.txt", "/README.md"]
 
     page.locator('[data-sort="name"]').click()
-    expect(page.locator('[data-sort="name"]')).to_have_attribute(
-        "aria-sort", "descending"
-    )
+    expect(page.locator('[data-sort="name"]')).to_have_attribute("aria-sort", "descending")
     assert _shown_paths(page) == ["/projects/", "/photos/", "/README.md", "/notes.txt"]
 
     page.locator('[data-sort="size"]').click()
@@ -93,38 +90,83 @@ def test_double_clicking_a_folder_opens_it_and_the_history_keys_return(
     expect(_entry(page, "/projects/app/")).to_be_visible()
 
 
-def test_the_sidebar_lists_the_shortcuts_and_the_connected_folders(
-    open_files_page: OpenFilesPage, files_root: Path
+def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the_workspace(
+    open_files_page: OpenFilesPage, files_root: Path, connections: Any
 ) -> None:
     workspace = files_root / "home" / "user" / "workspace"
     (workspace / "data" / "uploads").mkdir(parents=True)
-    notes = (
-        files_root
-        / "home"
-        / "user"
-        / "synced_folders"
-        / "host-mac"
-        / "Users"
-        / "kim"
-        / "notes"
-    )
-    notes.mkdir(parents=True)
-    (notes / "todo.md").write_text("- call\n")
+    notes_copy = files_root / "home/user/synced_folders/host-mac/Users/kim/notes"
+    notes_copy.mkdir(parents=True)
+    (notes_copy / "todo.md").write_text("- call\n")
+    connections.listed = {
+        "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}],
+        "shares": [
+            {
+                "device": "host-mac",
+                "path": "/Users/kim/notes",
+                "access": "write",
+                "kind": "folder",
+                "is_reachable": True,
+                "synced_copy": "/home/user/synced_folders/host-mac/Users/kim/notes/",
+                "sync_state": "current",
+            },
+            {
+                "device": "host-mac",
+                "path": "/Users/kim/Brand Fonts",
+                "access": "read",
+                "kind": "folder",
+                "is_reachable": True,
+                "synced_copy": "/home/user/synced_folders/host-mac/Users/kim/Brand Fonts/",
+                "sync_state": "behind",
+            },
+            {
+                "device": "host-mac",
+                "path": "/Users/kim/photo.png",
+                "access": "read",
+                "kind": "file",
+                "is_reachable": True,
+                "synced_copy": None,
+                "sync_state": None,
+            },
+        ],
+    }
     page = open_files_page("/home/user/workspace/")
 
-    rows = page.locator("[data-sidebar-row]")
-    expect(rows).to_have_text(["Workspace", "Uploads", "notes"])
-    expect(page.locator('[data-sidebar-row="shortcut:workspace"]')).to_have_attribute(
-        "aria-current", "true"
+    expect(page.locator("[data-sidebar-row]")).to_have_text(
+        ["Workspace", "Uploads", "notes", "Brand Fonts", "photo.png"]
     )
-    expect(page.locator('[data-sidebar-row^="connected:"]')).to_have_attribute(
-        "title", "/Users/kim/notes/"
-    )
+    expect(page.locator('[data-sidebar-row="shortcut:workspace"]')).to_have_attribute("aria-current", "true")
 
-    page.locator('[data-sidebar-row^="connected:"]').click()
-    expect(
-        _entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")
-    ).to_be_visible()
+    def badges(path: str) -> list[str]:
+        row = page.locator(f'[data-sidebar-row="share:host-mac:{path}"]')
+        return row.locator("[data-badge]").evaluate_all("els => els.map(el => el.dataset.badge)")
+
+    assert badges("/Users/kim/notes") == ["refresh"]
+    assert badges("/Users/kim/Brand Fonts") == ["triangle-alert", "lock"]
+    assert badges("/Users/kim/photo.png") == ["cloud", "lock"]
+
+    page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]').click()
+    expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()
+
+
+def test_the_plus_beside_connected_asks_the_computer_to_share_something(
+    open_files_page: OpenFilesPage, connections: Any
+) -> None:
+    connections.listed = {"devices": [{"id": "host-mac", "name": "Kims-Mac.local"}], "shares": []}
+    page = open_files_page("/")
+    page.locator('[data-action="connect"]').click()
+    page.locator('[data-menu-row="connect-local"]').click()
+    dialog = page.locator('[data-dialog="connect"]')
+    expect(dialog).to_contain_text("From Kims-Mac.local")
+    page.locator(".files-connect-path").fill("~/Projects/site")
+    page.locator('input[value="write"]').check()
+    page.locator(".files-connect-sync").uncheck()
+    page.locator('[data-dialog-action="connect"]').click()
+
+    expect(page.locator(".files-notice")).to_contain_text("Approve it in Imbue Studio")
+    assert connections.requests == [
+        {"device": "host-mac", "path": "~/Projects/site", "access": "write", "sync": False}
+    ]
 
 
 def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
@@ -147,9 +189,7 @@ def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
     assert page.evaluate("localStorage.getItem('files-sidebar-width')") == "268"
 
 
-def test_f2_renames_an_entry_in_place_and_refuses_a_slash(
-    open_files_page: OpenFilesPage, files_root: Path
-) -> None:
+def test_f2_renames_an_entry_in_place_and_refuses_a_slash(open_files_page: OpenFilesPage, files_root: Path) -> None:
     page = open_files_page("/")
     _entry(page, "/notes.txt").click()
     page.keyboard.press("F2")
@@ -157,9 +197,7 @@ def test_f2_renames_an_entry_in_place_and_refuses_a_slash(
     expect(field).to_be_focused()
     page.keyboard.type("a/b")
     page.keyboard.press("Enter")
-    expect(page.locator(".files-rename-error")).to_have_text(
-        'A name can\'t contain "/".'
-    )
+    expect(page.locator(".files-rename-error")).to_have_text('A name can\'t contain "/".')
 
     field.fill("journal.txt")
     page.keyboard.press("Enter")
@@ -174,18 +212,14 @@ def test_delete_from_the_entry_menu_asks_first_and_removes_the_file(
     page = open_files_page("/")
     _entry(page, "/README.md").click(button="right")
     page.locator('[data-menu-row="delete"]').click()
-    expect(page.locator('[data-dialog="delete"]')).to_contain_text(
-        'Delete "README.md"?'
-    )
+    expect(page.locator('[data-dialog="delete"]')).to_contain_text('Delete "README.md"?')
     page.locator('[data-dialog-action="confirm"]').click()
 
     expect(_entry(page, "/README.md")).to_have_count(0)
     assert not (files_root / "README.md").exists()
 
 
-def test_add_makes_a_new_folder_and_names_it(
-    open_files_page: OpenFilesPage, files_root: Path
-) -> None:
+def test_add_makes_a_new_folder_and_names_it(open_files_page: OpenFilesPage, files_root: Path) -> None:
     page = open_files_page("/")
     page.locator('[data-action="add"]').click()
     page.locator('[data-menu-row="new-folder"]').click()
@@ -205,9 +239,7 @@ def test_uploads_land_in_the_folder_and_a_taken_name_can_keep_both(
     with page.expect_file_chooser() as chooser:
         page.locator('[data-action="add"]').click()
         page.locator('[data-menu-row="upload-files"]').click()
-    chooser.value.set_files(
-        [{"name": "notes.txt", "mimeType": "text/plain", "buffer": b"uploaded"}]
-    )
+    chooser.value.set_files([{"name": "notes.txt", "mimeType": "text/plain", "buffer": b"uploaded"}])
     expect(_entry(page, "/photos/notes.txt")).to_be_visible()
     expect(page.locator(".files-uploads-summary")).to_have_text("Uploaded 1 item")
     assert (files_root / "photos" / "notes.txt").read_text() == "uploaded"
@@ -215,18 +247,14 @@ def test_uploads_land_in_the_folder_and_a_taken_name_can_keep_both(
     with page.expect_file_chooser() as chooser:
         page.locator('[data-action="add"]').click()
         page.locator('[data-menu-row="upload-files"]').click()
-    chooser.value.set_files(
-        [{"name": "notes.txt", "mimeType": "text/plain", "buffer": b"again"}]
-    )
+    chooser.value.set_files([{"name": "notes.txt", "mimeType": "text/plain", "buffer": b"again"}])
     page.locator('[data-dialog-action="keep-both"]').click()
     expect(_entry(page, "/photos/notes 2.txt")).to_be_visible()
     assert (files_root / "photos" / "notes.txt").read_text() == "uploaded"
     assert (files_root / "photos" / "notes 2.txt").read_text() == "again"
 
 
-def test_files_dropped_on_a_folder_upload_into_it(
-    open_files_page: OpenFilesPage, files_root: Path
-) -> None:
+def test_files_dropped_on_a_folder_upload_into_it(open_files_page: OpenFilesPage, files_root: Path) -> None:
     page = open_files_page("/")
     page.evaluate(
         """() => {
@@ -243,9 +271,7 @@ def test_files_dropped_on_a_folder_upload_into_it(
     expect(page.locator(".files-uploads")).to_have_count(0)
 
 
-def test_an_entry_dragged_onto_a_folder_moves_into_it(
-    open_files_page: OpenFilesPage, files_root: Path
-) -> None:
+def test_an_entry_dragged_onto_a_folder_moves_into_it(open_files_page: OpenFilesPage, files_root: Path) -> None:
     page = open_files_page("/")
     _entry(page, "/README.md").drag_to(_entry(page, "/projects/"))
     expect(_entry(page, "/README.md")).to_have_count(0)
@@ -276,14 +302,10 @@ def test_a_phone_lists_entries_and_opens_one_with_a_tap(
     expect(_entry(page, "/projects/app/")).to_be_visible()
     _entry(page, "/projects/app/").click()
     _entry(page, "/projects/app/main.py").click()
-    expect(page).to_have_url(
-        page.url.split("/projects")[0] + "/projects/app/main.py?view"
-    )
+    expect(page).to_have_url(page.url.split("/projects")[0] + "/projects/app/main.py?view")
 
 
-def test_a_text_file_is_edited_and_saved_from_its_page(
-    open_files_page: OpenFilesPage, files_root: Path
-) -> None:
+def test_a_text_file_is_edited_and_saved_from_its_page(open_files_page: OpenFilesPage, files_root: Path) -> None:
     page = open_files_page("/notes.txt?view")
     editor = page.locator(".files-editor")
     expect(editor).to_have_value("first line\nsecond line\n")
@@ -314,8 +336,6 @@ def test_deleting_a_file_from_its_page_leaves_the_window_saying_so(
     page.locator('[data-action="more"]').click()
     page.locator('[data-menu-row="delete"]').click()
     page.locator('[data-dialog-action="confirm"]').click()
-    expect(page.locator(".files-file-deleted")).to_contain_text(
-        '"README.md" was deleted'
-    )
+    expect(page.locator(".files-file-deleted")).to_contain_text('"README.md" was deleted')
     assert page.url.endswith("/README.md?view")
     assert not (files_root / "README.md").exists()

@@ -1,10 +1,11 @@
-"""A stand-in for dufs over a temporary folder, serving the Files build, for Files' browser tests.
+"""A stand-in for the Files server over a temporary folder, serving the Files build, for Files' browser tests.
 
 It answers what `dufs --allow-all --assets static/ <root>` answers, as far as the frontend asks: a folder's page and a
 file's `?view` / `?edit` page are `static/index.html` with dufs's two placeholders filled (the page data
 base64-encoded, as dufs 0.46 encodes it), `?json` is a folder's listing, `?q=` a search under it, a file's plain GET
 its bytes (a `Range` honoured), the build is served under dufs's assets prefix, and PUT, MKCOL, MOVE, and DELETE
-change the folder for real, so a test reads the outcome off the disk.
+change the folder for real, so a test reads the outcome off the disk. ``/__files/api/connections`` answers with
+what a test puts in the ``connections`` fixture and records what is asked of it.
 """
 
 import base64
@@ -58,7 +59,15 @@ def _is_text(path: Path) -> bool:
     return True
 
 
-def _make_handler(root: Path) -> type[http.server.BaseHTTPRequestHandler]:
+class Connections:
+    """What the stand-in says is shared from the user's computers, and the requests for more it was sent."""
+
+    def __init__(self) -> None:
+        self.listed: dict[str, Any] = {"devices": [], "shares": []}
+        self.requests: list[dict[str, Any]] = []
+
+
+def _make_handler(root: Path, connections: Connections) -> type[http.server.BaseHTTPRequestHandler]:
     def on_disk(url_path: str) -> Path:
         return root / unquote(url_path).lstrip("/")
 
@@ -83,11 +92,7 @@ def _make_handler(root: Path) -> type[http.server.BaseHTTPRequestHandler]:
                 if needle in found.name.lower()
             ]
         else:
-            paths = (
-                [_path_item(child, child.name) for child in sorted(target.iterdir())]
-                if target.is_dir()
-                else []
-            )
+            paths = [_path_item(child, child.name) for child in sorted(target.iterdir())] if target.is_dir() else []
         return {
             **common,
             "kind": "Index",
@@ -100,6 +105,9 @@ def _make_handler(root: Path) -> type[http.server.BaseHTTPRequestHandler]:
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             url = urlsplit(self.path)
+            if url.path == "/__files/api/connections":
+                self._send(200, json.dumps(connections.listed).encode(), "application/json")
+                return
             query = parse_qs(url.query, keep_blank_values=True)
             if url.path.startswith(ASSETS_PREFIX):
                 asset = STATIC_DIRECTORY / url.path.removeprefix(ASSETS_PREFIX)
@@ -130,9 +138,7 @@ def _make_handler(root: Path) -> type[http.server.BaseHTTPRequestHandler]:
                     _CONTENT_TYPES[".html"],
                 )
                 return
-            data = base64.b64encode(
-                json.dumps(page_data(url.path, query)).encode()
-            ).decode()
+            data = base64.b64encode(json.dumps(page_data(url.path, query)).encode()).decode()
             page = (
                 (STATIC_DIRECTORY / "index.html")
                 .read_text()
@@ -148,6 +154,11 @@ def _make_handler(root: Path) -> type[http.server.BaseHTTPRequestHandler]:
             self.send_response(200 if found else 404)
             self.send_header("Content-Length", "0")
             self.end_headers()
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length") or 0)
+            connections.requests.append(json.loads(self.rfile.read(length)))
+            self._send(200, b'{"requested": true}', "application/json")
 
         def do_PUT(self) -> None:
             target = on_disk(urlsplit(self.path).path)
@@ -218,13 +229,16 @@ def files_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def files_origin(files_root: Path) -> Iterator[str]:
+def connections() -> Connections:
+    return Connections()
+
+
+@pytest.fixture
+def files_origin(files_root: Path, connections: Connections) -> Iterator[str]:
     """The origin of a running dufs stand-in over `files_root`."""
     if not (STATIC_DIRECTORY / "index.html").is_file():
         pytest.fail("Files is not built: run `npm run build` at system/ first")
-    server = http.server.ThreadingHTTPServer(
-        ("127.0.0.1", 0), _make_handler(files_root)
-    )
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _make_handler(files_root, connections))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -239,16 +253,12 @@ OpenFilesPage = Callable[..., Page]
 
 
 @pytest.fixture
-def open_files_page(
-    module_browser: Browser, files_origin: str
-) -> Iterator[OpenFilesPage]:
+def open_files_page(module_browser: Browser, files_origin: str) -> Iterator[OpenFilesPage]:
     """Open a path of the stand-in in a fresh page, desktop-sized unless a size is given. Times render in UTC."""
     contexts: list[BrowserContext] = []
 
     def open_page(path: str, width: int = 1200, height: int = 760) -> Page:
-        context = module_browser.new_context(
-            viewport={"width": width, "height": height}, timezone_id="UTC"
-        )
+        context = module_browser.new_context(viewport={"width": width, "height": height}, timezone_id="UTC")
         contexts.append(context)
         page = context.new_page()
         page.goto(files_origin + quote(path, safe="/?=&"))

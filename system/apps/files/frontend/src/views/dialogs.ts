@@ -12,6 +12,8 @@ import { MODAL_MESSAGE_CLASS, Modal } from "@imbue/workspace-ui/src/components/M
 import type { Entry } from "../models/dufs";
 import type { ConflictChoice } from "../models/FilesModel";
 import { invalidNameReason, stemLength } from "../models/paths";
+import type { ConnectionRequest, Device } from "../models/connections";
+import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 
 type Dialog =
   | { kind: "delete"; entries: readonly Entry[]; resolve: (confirmed: boolean) => void }
@@ -22,6 +24,12 @@ type Dialog =
       draft: string;
       error: string | null;
       resolve: (name: string | null) => void;
+    }
+  | {
+      kind: "connect";
+      devices: readonly Device[];
+      draft: ConnectionRequest;
+      resolve: (ask: ConnectionRequest | null) => void;
     };
 
 /** How many names a dialog lists before it says "and N more". */
@@ -52,6 +60,12 @@ export class Dialogs {
     return new Promise((resolve) => this.show({ kind: "rename", name, draft: name, error: null, resolve }));
   }
 
+  /** Ask what to connect from which computer; null when the user backs out. */
+  askConnection(devices: readonly Device[]): Promise<ConnectionRequest | null> {
+    const draft: ConnectionRequest = { device: devices[0]?.id ?? "", path: "~/", access: "read", sync: true };
+    return new Promise((resolve) => this.show({ kind: "connect", devices, draft, resolve }));
+  }
+
   private show(dialog: Dialog): void {
     this.dismiss();
     this.current = dialog;
@@ -65,6 +79,7 @@ export class Dialogs {
     this.current = null;
     if (dialog.kind === "delete") dialog.resolve(false);
     else if (dialog.kind === "replace") dialog.resolve("cancel");
+    else if (dialog.kind === "connect") dialog.resolve(null);
     else dialog.resolve(null);
   }
 
@@ -149,6 +164,7 @@ export class Dialogs {
         ],
       );
     }
+    if (dialog.kind === "connect") return this.connectView(dialog);
     const submit = (): void => {
       const name = dialog.draft.trim();
       const problem = invalidNameReason(name);
@@ -189,6 +205,103 @@ export class Dialogs {
           },
         }),
         m("p.type-helper.mb-2.min-h-4.text-danger", dialog.error ?? ""),
+      ],
+    );
+  }
+
+  private connectView(dialog: Extract<Dialog, { kind: "connect" }>): m.Children {
+    const dismiss = (): void => this.dismiss();
+    const draft = dialog.draft;
+    const choice = (value: "read" | "write", label: string, detail: string): m.Vnode =>
+      m(
+        "label.files-connect-access",
+        {
+          class: `flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 ${
+            draft.access === value ? "border-accent bg-accent-light" : "border-default hover:bg-fill-hover"
+          }`,
+        },
+        [
+          m("input", {
+            type: "radio",
+            name: "files-connect-access",
+            value,
+            checked: draft.access === value,
+            class: "mt-1",
+            onchange: () => (draft.access = value),
+          }),
+          m("span", [
+            m("span", { class: "block type-body text-primary" }, label),
+            m("span", { class: "type-helper text-faint" }, detail),
+          ]),
+        ],
+      );
+    const device = dialog.devices.find((candidate) => candidate.id === draft.device);
+    return m(
+      Modal,
+      {
+        title: "Connect from your computer",
+        onDismiss: dismiss,
+        onEscape: dismiss,
+        width: 440,
+        card: { "data-dialog": "connect" },
+        actions: [
+          m(Button, { onclick: dismiss }, "Cancel"),
+          m(
+            Button,
+            {
+              variant: "primary",
+              "data-dialog-action": "connect",
+              disabled: draft.device === "",
+              onclick: () => this.answer(() => dialog.resolve({ ...draft, path: draft.path.trim() || "~" })),
+            },
+            "Ask on my computer",
+          ),
+        ],
+      },
+      [
+        dialog.devices.length === 0
+          ? m("p", { class: MODAL_MESSAGE_CLASS }, "None of your computers is connected to Imbue Studio right now.")
+          : dialog.devices.length === 1
+            ? m("p", { class: "mb-3 type-helper text-secondary" }, `From ${device?.name ?? "your computer"}`)
+            : m("div", { class: "mb-3" }, [
+                m(Dropdown<string>(), {
+                  options: dialog.devices.map((candidate) => ({ value: candidate.id, label: candidate.name })),
+                  value: draft.device,
+                  placeholder: "Pick a computer",
+                  "aria-label": "Computer",
+                  onSelect: (value: string) => (draft.device = value),
+                }),
+              ]),
+        m("label", { class: "mb-1 block type-helper font-medium text-secondary" }, "File or folder"),
+        m("input.files-connect-path", {
+          class: inputClass({ mono: true }),
+          value: draft.path,
+          placeholder: "~/Documents/Project",
+          "aria-label": "File or folder",
+          oncreate: ({ dom }: { dom: Element }) => (dom as HTMLInputElement).focus(),
+          oninput: (event: InputEvent) => (draft.path = (event.target as HTMLInputElement).value),
+        }),
+        m("p", { class: "mt-1 mb-3 type-helper text-faint" }, "You can change it in Imbue Studio before you approve."),
+        m("div", { class: "mb-3 flex flex-col gap-2" }, [
+          choice("read", "Read only", "Files here can see it but not change it."),
+          choice("write", "Read and change", "Changes made here reach your computer."),
+        ]),
+        m("label", { class: "mb-4 flex cursor-pointer items-start gap-2 type-body text-primary" }, [
+          m("input.files-connect-sync", {
+            type: "checkbox",
+            checked: draft.sync,
+            class: "mt-1",
+            onchange: (event: Event) => (draft.sync = (event.target as HTMLInputElement).checked),
+          }),
+          m("span", [
+            "Keep a synced copy here",
+            m(
+              "span",
+              { class: "block type-helper text-faint" },
+              "Folders only. Without one, it opens live from your computer while it's awake.",
+            ),
+          ]),
+        ]),
       ],
     );
   }

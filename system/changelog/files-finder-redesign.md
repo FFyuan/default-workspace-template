@@ -1,6 +1,8 @@
 The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files app instead of a directory listing.
 
-- A resizable sidebar with Shortcuts (Workspace, Uploads) and Connected folders (the folders synced from your computer), and a toolbar with the path, a view switcher, a + button, and view options.
+- A resizable sidebar with Shortcuts (Workspace, Uploads) and Connected: every file and folder shared from your computers, marked as synced both ways, synced one way, or opened live, with a lock when it is read-only and a warning when its copy has fallen behind. The + beside it connects more from your computer through Imbue Studio's sharing dialog. A toolbar with the path, a view switcher, a + button, and view options.
+
+- Files has a small server of its own in front of dufs, which reads the shares through the latchkey gateway, opens unsynced ones live from your computer, and keeps file names with unusual characters (like the narrow space in macOS screenshot names) from breaking their preview.
 
 - Three views: icons (images as thumbnails), a list with Name, Date Modified, Size, and Kind columns that sort, and columns that open to the right as folders are chosen and end in a preview of the chosen file. The view, the sort order, and whether system files show are remembered.
 
