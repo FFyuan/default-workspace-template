@@ -10,6 +10,6 @@ The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files a
 
 - Drag files or folders in from your computer to upload them into the folder under the pointer, with progress shown as they go (the panel tidies itself away once they are done); a name already there asks whether to replace it or keep both. Drag items onto a folder to move them.
 
-- A file's page previews pictures, video, audio, and PDFs, shows text, and edits it with Save or Cmd/Ctrl+S; it also offers Download, Rename, Copy Path, and Delete.
+- A file opens in a window of its own, to be closed when you are done: it previews pictures, video, audio, and PDFs, shows text, and edits it (the Edit icon beside Download) with Save or Cmd/Ctrl+S; it also offers Rename, Copy Path, and Delete.
 
 - On a phone-sized window the sidebar floats over the folder from a toolbar button, the column view steps aside, a tap opens, and each item has a "..." menu.

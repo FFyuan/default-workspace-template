@@ -101,11 +101,10 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
 }
 
 function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
-  return m(
-    "div.files-sidebar-heading",
-    { class: "flex items-center gap-1 px-2 pt-3 pb-1 type-section text-faint" },
-    [m("span", { class: "min-w-0 flex-1 truncate" }, label), extra],
-  );
+  return m("div.files-sidebar-heading", { class: "flex items-center gap-1 px-2 pt-3 pb-1 type-section text-faint" }, [
+    m("span", { class: "min-w-0 flex-1 truncate" }, label),
+    extra,
+  ]);
 }
 
 /** The handle on the sidebar's edge: dragging it sets the width, a double-click puts the default back. */

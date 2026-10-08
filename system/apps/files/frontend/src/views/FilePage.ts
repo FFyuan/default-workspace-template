@@ -1,6 +1,7 @@
 /**
  * A file's own page: `?view` shows it (a picture, a player, a PDF, or its text), `?edit` opens its text in an editor
- * that saves back with Cmd/Ctrl+S. The header leads back to the folder and carries what can be done to the file.
+ * that saves back with Cmd/Ctrl+S. It is a window of its own, closed when done with, so the header names the file and
+ * carries what can be done to it, with no way off to the folder.
  */
 
 import m from "mithril";
@@ -13,7 +14,7 @@ import { createMenu, type Menu } from "@imbue/workspace-ui/src/components/menu";
 import * as dufs from "../models/dufs";
 import { isTextLike, previewKindOf } from "../models/fileKinds";
 import { formatSize } from "../models/format";
-import { childPath, nameOf, parentOf, titleOf } from "../models/paths";
+import { childPath, nameOf, parentOf } from "../models/paths";
 import { Dialogs } from "./dialogs";
 import { FileIcon } from "./FileIcon";
 
@@ -31,6 +32,7 @@ export class FilePageModel {
   draft = "";
   isSaving = false;
   notice: string | null = null;
+  isDeleted = false;
   size: number | null = null;
   readonly dialogs = new Dialogs();
 
@@ -107,7 +109,9 @@ export class FilePageModel {
       m.redraw();
       return;
     }
-    window.location.replace(dufs.urlOf(parentOf(path) ?? "/"));
+    // The window shows this one file, so with it gone there is nothing left to show here but the fact.
+    this.isDeleted = true;
+    m.redraw();
   }
 }
 
@@ -131,6 +135,12 @@ function body(page: FilePageModel): m.Children {
   const url = dufs.urlOf(path);
   const preview = previewKindOf(name, page.options.isText);
   const centred = "flex h-full items-center justify-center overflow-auto bg-page p-6";
+  if (page.isDeleted) {
+    return m("div.files-file-deleted", { class: `${centred} flex-col gap-1 text-center` }, [
+      m("div", { class: "type-label text-secondary" }, `"${name}" was deleted`),
+      m("div", { class: "type-helper text-faint" }, "You can close this window."),
+    ]);
+  }
   switch (preview) {
     case "image":
       return m(
@@ -214,22 +224,10 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
       if (menu === null) return null;
       const { path, page: kind } = page.options;
       const name = nameOf(path);
-      const folder = parentOf(path) ?? "/";
       // dufs calls any small file that decodes as text editable; Edit is offered only on one that reads as text.
       const canEdit = page.showsText && page.text.status === "ready" && isTextLike(name);
       return m("div.files-file-page", { class: "flex h-screen min-h-0 flex-col bg-surface text-primary" }, [
         m("header.files-toolbar", { class: "flex h-12 shrink-0 items-center gap-2 border-b border-default px-3" }, [
-          m(
-            "a.files-file-folder",
-            {
-              href: dufs.urlOf(folder),
-              class:
-                "flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-(length:--font-size-row) text-secondary hover:bg-fill-hover hover:text-primary",
-              ...hoverTooltipAttrs("Show in folder"),
-            },
-            [m.trust(icon("chevron-left", { size: 14 })), titleOf(folder)],
-          ),
-          m.trust(icon("chevron-right", { size: 12, className: "shrink-0 text-faint" })),
           m("div", { class: "flex min-w-0 flex-1 items-center gap-2" }, [
             m(FileIcon, { entry: { name, path, isFolder: false, isSymlink: false, size: 0, mtime: 0 }, size: 20 }),
             m("span.files-file-name", { class: "truncate text-(length:--font-size-row) font-semibold" }, name),
@@ -264,10 +262,12 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
                   "a.edit-file",
                   {
                     href: dufs.pageUrlOf(path, "edit"),
-                    class: buttonClass("secondary", { sm: true }),
+                    class: buttonClass("ghost", { icon: true, sm: true }),
+                    "aria-label": "Edit",
                     "data-action": "edit",
+                    ...hoverTooltipAttrs("Edit"),
                   },
-                  [m.trust(icon("edit", { size: 14 })), "Edit"],
+                  m.trust(icon("edit", { size: 16 })),
                 )
               : null,
           headerButton("Download", "download", { "data-action": "download", onclick: () => downloadFile(path) }),

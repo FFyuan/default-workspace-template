@@ -283,6 +283,7 @@ def test_a_text_file_is_edited_and_saved_from_its_page(
     editor = page.locator(".files-editor")
     expect(editor).to_have_value("first line\nsecond line\n")
     expect(editor).to_have_attribute("readonly", "")
+    expect(page.locator(".files-file-folder")).to_have_count(0)
 
     page.locator(".edit-file").click()
     expect(page.locator('[data-action="save"]')).to_be_disabled()
@@ -299,3 +300,15 @@ def test_an_image_page_draws_the_image(open_files_page: OpenFilesPage) -> None:
     expect(image).to_be_visible()
     assert image.evaluate("img => img.naturalWidth") == 1
     expect(page.locator(".edit-file")).to_have_count(0)
+
+
+def test_deleting_a_file_from_its_page_leaves_the_window_saying_so(
+    open_files_page: OpenFilesPage, files_root: Path
+) -> None:
+    page = open_files_page("/README.md?view")
+    page.locator('[data-action="more"]').click()
+    page.locator('[data-menu-row="delete"]').click()
+    page.locator('[data-dialog-action="confirm"]').click()
+    expect(page.locator(".files-file-deleted")).to_contain_text('"README.md" was deleted')
+    assert page.url.endswith("/README.md?view")
+    assert not (files_root / "README.md").exists()

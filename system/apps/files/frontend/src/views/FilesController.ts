@@ -112,10 +112,10 @@ export class FilesController {
     this.reportLocation(folder);
   }
 
-  /** A file's page: in a window of its own beside this one, or in place on a phone or outside the workspace. */
+  /** A file's page, in a window of its own that is closed when done with; in place only outside the workspace. */
   openPage(path: string, page: "view" | "edit"): void {
     const url = pageUrlOf(path, page);
-    if (this.connection.isFramed && !this.isNarrow) this.connection.openPath(url, "focus");
+    if (this.connection.isFramed) this.connection.openPath(url, "focus");
     else this.win.location.assign(url);
   }
 
