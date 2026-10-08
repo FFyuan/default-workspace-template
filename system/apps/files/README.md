@@ -30,10 +30,10 @@ DELETE removes. dufs serves its assets directory flat and reads `index.html`
 once at startup, so the bundle keeps fixed names (`index.js`, `index.css`) and
 the page asks for them with a per-build `?v=` stamp.
 
-A folder window has a sidebar of places (Workspace, Documents, Uploads, and the
-Computer, each shown when it exists), a toolbar (back and forward, the path,
-search, the view switcher, Add, and the view options), the folder, and a status
-line. The folder is laid out as icons (image files as thumbnails), a list with
+A folder window has a sidebar, always shown, headed by back and forward and
+listing the places (Workspace, Documents, Uploads, and the Computer, each shown
+when it exists); a toolbar (the path, search, the view switcher, Add, and the
+view options); the folder; and a status line. The folder is laid out as icons (image files as thumbnails), a list with
 sortable columns, or columns that open to the right as folders are chosen and
 end in a preview of the file chosen. The layout, the sort order, and whether
 "system files" (dotted names) show are kept in the browser's localStorage and
@@ -54,9 +54,9 @@ shared by every window.
   upload whose name is taken asks whether to replace it or keep both. Uploads
   show their progress in a panel at the bottom right.
 
-Under 700px of the frame's own width the window lays itself out for a phone:
-no sidebar or column view, a two-row toolbar, one tap opens, and every entry
-carries a "..." button with its menu.
+Under 700px of the frame's own width the window lays itself out for a phone: a
+narrower sidebar, no column view, a two-row toolbar, one tap opens, and every
+entry carries a "..." button with its menu.
 
 ## Opening a folder or a file
 

@@ -1,6 +1,6 @@
 The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files app instead of a directory listing.
 
-- A sidebar of places (Workspace, Documents, Uploads, Computer), a toolbar with back and forward, the path, search, a view switcher, an Add button, and view options, and a status line.
+- A sidebar, always shown, with back and forward at its top and the places (Workspace, Documents, Uploads, Computer) below; a toolbar with the path, search, a view switcher, an Add button, and view options; and a status line.
 
 - Three views: icons (images as thumbnails), a list with Name, Date Modified, Size, and Kind columns that sort, and columns that open to the right as folders are chosen and end in a preview of the chosen file. The view, the sort order, and whether system files show are remembered.
 
@@ -12,4 +12,4 @@ The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files a
 
 - A file's page previews pictures, video, audio, and PDFs, shows text, and edits it with Save or Cmd/Ctrl+S; it also offers Download, Rename, Copy Path, and Delete.
 
-- On a phone-sized window the sidebar and column view step aside, the toolbar takes two rows, a tap opens, and each item has a "..." menu.
+- On a phone-sized window the sidebar narrows, the column view steps aside, the toolbar takes two rows, a tap opens, and each item has a "..." menu.

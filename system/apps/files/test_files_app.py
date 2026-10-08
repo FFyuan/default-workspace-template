@@ -217,7 +217,8 @@ def test_a_phone_lists_entries_and_opens_one_with_a_tap(
     open_files_page: OpenFilesPage,
 ) -> None:
     page = open_files_page("/", *PHONE)
-    expect(page.locator(".files-sidebar")).to_have_count(0)
+    expect(page.locator(".files-sidebar")).to_be_visible()
+    expect(page.locator('.files-sidebar [data-action="back"]')).to_be_visible()
     expect(page.locator('[data-view-mode="columns"]')).to_have_count(0)
     page.locator('[data-view-mode="list"]').click()
     expect(page.locator(".files-entry-menu-button")).to_have_count(4)

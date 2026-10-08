@@ -1,5 +1,5 @@
 /**
- * A Files window on a folder: the places down the side, the toolbar (history, where you are, search, how the folder
+ * A Files window on a folder: history and the places down the side, the toolbar (where you are, search, how the folder
  * is laid out, and what can be added to it), the folder itself, and a status line. Files dropped anywhere on it go
  * into the folder under the pointer; entries dragged onto a folder move into it.
  */
@@ -70,33 +70,53 @@ function Sidebar(): m.Component<{ app: FilesController }> {
       const current = [...model.places]
         .filter((place) => isWithin(model.folder, place.path))
         .sort((a, b) => b.path.length - a.path.length)[0];
-      return m("nav.files-sidebar", { class: "flex w-[176px] shrink-0 flex-col gap-0.5 bg-sidebar px-2 py-3" }, [
-        m("div", { class: "px-2 pb-1 type-section text-faint" }, "Places"),
-        model.places.map((place: Place) =>
-          m(
-            "button.files-place",
-            {
-              key: place.key,
-              type: "button",
-              "data-place": place.key,
-              [DROP_FOLDER_ATTR]: place.path,
-              "aria-current": current?.key === place.key ? "true" : undefined,
-              class: `flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
-                model.dropTarget === place.path
-                  ? "bg-accent-light outline-2 -outline-offset-2 outline-accent"
-                  : current?.key === place.key
-                    ? "bg-fill-active text-primary"
-                    : "text-secondary hover:bg-fill-hover hover:text-primary"
-              }`,
-              onclick: () => model.navigate(place.path),
-            },
-            [
-              m.trust(icon(PLACE_ICONS[place.key] ?? "folder", { size: 15, className: "shrink-0" })),
-              m("span", place.label),
-            ],
-          ),
-        ),
+      // Back and forward head the sidebar, level with the toolbar, which leaves the toolbar its width for the path.
+      const history = m("div.files-history", { class: "flex h-12 shrink-0 items-center gap-0.5 px-2" }, [
+        iconButton("Back", "arrow-left", {
+          "data-action": "back",
+          disabled: !model.canGoBack,
+          onclick: () => window.history.back(),
+        }),
+        iconButton("Forward", "arrow-right", {
+          "data-action": "forward",
+          disabled: !model.canGoForward,
+          onclick: () => window.history.forward(),
+        }),
       ]);
+      return m(
+        "nav.files-sidebar",
+        { class: `flex shrink-0 flex-col bg-sidebar ${app.isNarrow ? "w-[136px]" : "w-[176px]"}` },
+        [
+          history,
+          m("div", { class: "flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2 pb-3" }, [
+            m("div", { class: "px-2 pb-1 type-section text-faint" }, "Places"),
+            model.places.map((place: Place) =>
+              m(
+                "button.files-place",
+                {
+                  key: place.key,
+                  type: "button",
+                  "data-place": place.key,
+                  [DROP_FOLDER_ATTR]: place.path,
+                  "aria-current": current?.key === place.key ? "true" : undefined,
+                  class: `flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
+                    model.dropTarget === place.path
+                      ? "bg-accent-light outline-2 -outline-offset-2 outline-accent"
+                      : current?.key === place.key
+                        ? "bg-fill-active text-primary"
+                        : "text-secondary hover:bg-fill-hover hover:text-primary"
+                  }`,
+                  onclick: () => model.navigate(place.path),
+                },
+                [
+                  m.trust(icon(PLACE_ICONS[place.key] ?? "folder", { size: 15, className: "shrink-0" })),
+                  m("span", { class: "truncate" }, place.label),
+                ],
+              ),
+            ),
+          ]),
+        ],
+      );
     },
   };
 }
@@ -245,18 +265,6 @@ function Toolbar(): m.Component<{ app: FilesController }> {
         },
       ];
       const modes = VIEW_MODES.filter((view) => !(app.isNarrow && view.mode === "columns"));
-      const history = m("div", { class: "flex shrink-0 items-center" }, [
-        iconButton("Back", "arrow-left", {
-          "data-action": "back",
-          disabled: !model.canGoBack,
-          onclick: () => window.history.back(),
-        }),
-        iconButton("Forward", "arrow-right", {
-          "data-action": "forward",
-          disabled: !model.canGoForward,
-          onclick: () => window.history.forward(),
-        }),
-      ]);
       const viewSwitch = m(
         "div.files-view-switch",
         {
@@ -301,7 +309,7 @@ function Toolbar(): m.Component<{ app: FilesController }> {
           "header.files-toolbar",
           { class: "flex shrink-0 flex-col gap-2 border-b border-default bg-surface px-3 py-2" },
           [
-            m("div", { class: "flex items-center gap-1" }, [history, m(Breadcrumb, { app }), add, options]),
+            m("div", { class: "flex items-center gap-1" }, [m(Breadcrumb, { app }), add, options]),
             m("div", { class: "flex items-center gap-2" }, [m(SearchField, { app }), viewSwitch]),
           ],
         );
@@ -309,7 +317,7 @@ function Toolbar(): m.Component<{ app: FilesController }> {
       return m(
         "header.files-toolbar",
         { class: "flex h-12 shrink-0 items-center gap-2 border-b border-default bg-surface px-3" },
-        [history, m(Breadcrumb, { app }), m(SearchField, { app }), viewSwitch, add, options],
+        [m(Breadcrumb, { app }), m(SearchField, { app }), viewSwitch, add, options],
       );
     },
   };
@@ -596,8 +604,8 @@ export function FilesApp(): m.Component<{ app: FilesController }> {
       const model = app.model;
       const fileDropOnFolder = model.dropTarget !== null && model.dropTarget === model.folder;
       return m("div.files-app", { class: "flex h-screen min-h-0 bg-surface text-primary" }, [
-        app.isNarrow ? null : m(Sidebar, { app }),
-        m("div", { class: `flex min-w-0 flex-1 flex-col ${app.isNarrow ? "" : "border-l border-default"}` }, [
+        m(Sidebar, { app }),
+        m("div", { class: "flex min-w-0 flex-1 flex-col border-l border-default" }, [
           m(Toolbar, { app }),
           m(
             "main.files-folder",
