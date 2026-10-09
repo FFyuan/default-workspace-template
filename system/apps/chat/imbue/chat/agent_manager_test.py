@@ -5984,6 +5984,21 @@ def test_a_failing_session_sweep_pass_does_not_stop_later_passes(
     assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
 
 
+def test_a_request_past_its_timeout_keeps_its_cause_while_a_fresh_marker_shows_its_compaction_running(
+    agent_manager: AgentManager, tmp_path: Path
+) -> None:
+    agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
+    write_compacting_marker(state_dir, "manual", started_seconds_ago=10.0)
+
+    agent_manager.note_compaction_requested(
+        agent_id, CompactionCause.IDLE, time.monotonic() - PENDING_COMPACTION_TIMEOUT_SECONDS - 100
+    )
+    agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
+
+    assert _snapshot_compaction_cause(agent_manager, agent_id) is CompactionCause.IDLE
+    assert agent_id in agent_manager._compaction_pending_by_agent
+
+
 def test_a_compaction_starting_before_the_sweep_reports_it_reads_idle_not_manual(
     agent_manager: AgentManager, tmp_path: Path
 ) -> None:

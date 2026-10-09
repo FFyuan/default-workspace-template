@@ -4498,18 +4498,20 @@ class AgentManager:
 
         The tracker class declares the harness's ``compacting`` marker and completion record (both
         None for a harness whose mngr plugin writes neither). Also drops a pending request that
-        expired or that a later completion record shows finished. Runs outside the lock: it reads files.
+        expired or that a later completion record shows finished; a fresh marker keeps the request,
+        whose compaction is still running. Runs outside the lock: it reads files.
         """
         now = time.time()
-        live_pending = self._expire_pending_compaction(agent_id, pending)
-        pending_cause = None if live_pending is None else live_pending[1]
         marker_filename = tracker_class.compacting_marker_filename
+        marker = None if marker_filename is None else read_compaction_signal(state_dir / marker_filename, now)
+        marker_age_seconds = None if marker is None else now - marker.written_at
+        is_marker_fresh = marker_age_seconds is not None and marker_age_seconds < PENDING_COMPACTION_TIMEOUT_SECONDS
+        live_pending = pending if is_marker_fresh else self._expire_pending_compaction(agent_id, pending)
+        pending_cause = None if live_pending is None else live_pending[1]
         if marker_filename is None:
             return _LiveCompaction(marker_cause=None, pending_cause=pending_cause)
-        marker = read_compaction_signal(state_dir / marker_filename, now)
-        if marker is not None:
-            marker_age_seconds = now - marker.written_at
-            if marker_age_seconds < PENDING_COMPACTION_TIMEOUT_SECONDS:
+        if marker is not None and marker_age_seconds is not None:
+            if is_marker_fresh:
                 requested_cause = self._sweep_cause_of(agent_id) if pending_cause is None else pending_cause
                 return _LiveCompaction(
                     marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause), pending_cause=pending_cause
