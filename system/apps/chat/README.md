@@ -517,7 +517,9 @@ Where they land depends on who started it:
 - `idle` (the sweep): after the last turn, below its reply, or appended to its
   last chip run when it ended with no reply.
 
-The event never opens a turn of its own. Either chip opens the tool chips'
+A step's calls live inside its collapsible step node, so a compaction that
+lands while a step is open does not join them: its chips follow that step's
+node as a chip row of their own. The event never opens a turn of its own. Either chip opens the tool chips'
 detail panel, titled with that chip's label and glyph: first a sentence saying
 why it ran, then, under a dashed rule, the summary in an output pane, clamped
 like a long tool output.
