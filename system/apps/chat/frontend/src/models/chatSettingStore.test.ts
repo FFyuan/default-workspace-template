@@ -139,6 +139,22 @@ describe("set", () => {
     expect(store.get("agent-1")).toEqual(TWO);
   });
 
+  it("puts back the backend's last answer when two writes in a row are refused", async () => {
+    const store = freshStore();
+    mockRequest.mockResolvedValueOnce({ state: ONE });
+    await store.ensure("agent-1");
+    let failFirstWrite: (error: Error) => void = () => undefined;
+    mockRequest.mockReturnValueOnce(new Promise((_resolve, reject) => (failFirstWrite = reject)));
+    const firstWrite = store.set("agent-1", TWO);
+
+    mockRequest.mockRejectedValueOnce(new Error("500"));
+    expect(await store.set("agent-1", ONE)).toEqual(ONE);
+    failFirstWrite(new Error("500"));
+    await firstWrite;
+
+    expect(store.get("agent-1")).toEqual(ONE);
+  });
+
   it("forgets an optimistic write to a chat it had never loaded when the backend refuses it", async () => {
     const store = freshStore();
     mockRequest.mockRejectedValueOnce(new Error("404"));

@@ -28,9 +28,9 @@ export interface ChatSettingStore<T extends object> {
   ensure: (chatId: string) => Promise<T | null>;
   /**
    * Replace the chat's setting, on the page at once and on the backend; the backend's answer is
-   * what stays. A write the backend refuses or never receives puts the previous state back. Only
-   * the chat's latest write settles what the page holds: an earlier one answering late changes
-   * nothing, and neither does a load that answers after a write.
+   * what stays. A write the backend refuses or never receives puts back the last state the backend
+   * confirmed, and resolves with it. Only the chat's latest write settles what the page holds: an
+   * earlier one answering late changes nothing, and neither does a load that answers after a write.
    */
   set: (chatId: string, next: T) => Promise<T | null>;
 }
@@ -48,6 +48,9 @@ export function createChatSettingStore<T extends object>({
   // How many writes each chat has started, so a late answer can tell whether a newer write has
   // replaced what it would set.
   const writeCountByChat = new Map<string, number>();
+  // The last state the backend answered for each chat, which a failed write falls back to: the
+  // page's own copy may still hold an earlier write's optimistic value.
+  const confirmedByChat = new Map<string, T>();
 
   function writeCount(chatId: string): number {
     return writeCountByChat.get(chatId) ?? 0;
@@ -68,6 +71,7 @@ export function createChatSettingStore<T extends object>({
       .request<{ state: T }>({ method: "GET", url: apiUrl(path), params: { chatId } })
       .then((response) => {
         if (writeCount(chatId) !== writeCountAtLoad) return get(chatId);
+        confirmedByChat.set(chatId, response.state);
         stateByChat.set(chatId, response.state);
         m.redraw();
         return response.state;
@@ -85,7 +89,6 @@ export function createChatSettingStore<T extends object>({
   }
 
   async function set(chatId: string, next: T): Promise<T | null> {
-    const previous = stateByChat.get(chatId);
     const thisWrite = writeCount(chatId) + 1;
     writeCountByChat.set(chatId, thisWrite);
     stateByChat.set(chatId, next);
@@ -97,15 +100,17 @@ export function createChatSettingStore<T extends object>({
         params: { chatId },
         body: next,
       });
+      confirmedByChat.set(chatId, response.state);
       if (writeCount(chatId) === thisWrite) stateByChat.set(chatId, response.state);
       return response.state;
     } catch (error) {
       console.warn(`Failed to save the ${description} of chat ${chatId}`, error);
+      const confirmed = confirmedByChat.get(chatId);
       if (writeCount(chatId) === thisWrite) {
-        if (previous === undefined) stateByChat.delete(chatId);
-        else stateByChat.set(chatId, previous);
+        if (confirmed === undefined) stateByChat.delete(chatId);
+        else stateByChat.set(chatId, confirmed);
       }
-      return previous ?? null;
+      return confirmed ?? null;
     } finally {
       m.redraw();
     }
