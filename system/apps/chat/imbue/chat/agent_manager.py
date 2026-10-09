@@ -1671,7 +1671,8 @@ class AgentManager:
     def get_opted_in_running_chat_agent_names(self) -> list[str]:
         """Names of the running chat agents whose chat has idle compaction on (``chat_autocompact.py``).
 
-        A chat with no setting of its own reads the workspace default.
+        A chat with no setting of its own reads the workspace default. A chat on a harness mngr
+        cannot compact is left out: it has no Auto-compact row to turn the setting off with.
         """
         with self._lock:
             chat_id_by_agent_name = {
@@ -1680,6 +1681,7 @@ class AgentManager:
                 if agent.labels.get("agent_created") != "true"
                 and agent.labels.get("is_primary") != "true"
                 and not is_lifecycle_dead(agent.state)
+                and get_harness_spec(agent.harness).supports_compaction
             }
         if not chat_id_by_agent_name:
             return []

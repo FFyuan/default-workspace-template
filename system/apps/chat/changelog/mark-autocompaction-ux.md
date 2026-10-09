@@ -6,7 +6,7 @@ Turn on idle compaction for chats, with a per-chat and per-workspace toggle, and
 
 - **`autocompact` agent label:** A chat's agents carry `autocompact=on|off`, stamped at create and handoff and rewritten by `mngr label` when the toggle changes (a stopped agent is relabeled too), so `mngr list` shows the setting. `autocompact` is a label only the app sets.
 
-- **In-process sweep:** The 60-second sweep calls the autocompact plugin's `compact_stale_agents_by_name` in process, passing only the running chats that have the toggle on. With none opted in it does no work at all (no config read, no plugin call). A failed config read or plugin call is logged as a warning, an unexpected error is logged without stopping the sweep, and a slow sweep delays the next tick and logs a warning past 30 seconds. Each compaction request and toggle change writes one `autocompact: ...` line to the chat service log.
+- **In-process sweep:** The 60-second sweep calls the autocompact plugin's `compact_stale_agents_by_name` in process, passing only the running chats that have the toggle on, on a harness mngr can compact (Claude, Codex, Pi). With none opted in it does no work at all (no config read, no plugin call). A failed config read or plugin call is logged as a warning, an unexpected error is logged without stopping the sweep, and a slow sweep delays the next tick and logs a warning past 30 seconds. Each compaction request and toggle change writes one `autocompact: ...` line to the chat service log.
 
 - **Settings and catalog for the UI:** `/api/settings` gains `autocompact_default` and `is_autocompact_notice_shown`. Each `/api/harnesses` entry gains `supports_compaction` (Claude, Codex, Pi) and `can_interrupt_compaction` (Claude only).
 

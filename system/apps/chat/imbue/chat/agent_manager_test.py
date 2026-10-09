@@ -2380,6 +2380,25 @@ def test_opted_in_chat_agents_exclude_dead_workers_primary_and_opted_out_chats(
         manager.stop()
 
 
+def test_chats_on_a_harness_mngr_cannot_compact_are_never_swept(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    manager = AgentManager.build(broadcaster, chat_files_root=tmp_path / "chats")
+    try:
+        for agent_id, harness in (
+            ("chat-claude", HarnessType.CLAUDE),
+            ("chat-antigravity", HarnessType.ANTIGRAVITY),
+            ("chat-opencode", HarnessType.OPENCODE),
+        ):
+            seed_agent_state(
+                manager, agent_id, name=f"{agent_id}-name", labels={"user_created": "true"}, harness=harness
+            )
+
+        assert manager.get_opted_in_running_chat_agent_names() == ["chat-claude-name"]
+    finally:
+        manager.stop()
+
+
 def test_with_the_default_off_only_chats_that_turned_idle_compaction_on_are_swept(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
