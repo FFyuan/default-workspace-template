@@ -384,8 +384,7 @@ HARNESS_SPECS: Final[dict[HarnessType, HarnessSpec]] = {
         ),
         supports_compaction=True,
         # The stop button presses the cancel chord (M-q, ``chat:cancel``: the action Escape takes in
-        # the Chat context) even with no turn in flight, which should cancel a compaction; a live
-        # check that it does is still owed.
+        # the Chat context) even with no turn in flight, which cancels a compaction.
         can_interrupt_compaction=True,
         is_composer_compact_forwarded=True,
     ),

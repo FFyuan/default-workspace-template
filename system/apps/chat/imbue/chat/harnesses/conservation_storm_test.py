@@ -872,8 +872,6 @@ class _AgyWorld:
         drop_turn_state(self.dir.name)
         self.turn_state = get_turn_state(self.dir.name)
 
-    # --- the simulated agy ---------------------------------------------------------------
-
     @property
     def marker(self) -> Path:
         return self.dir / ACTIVE_MARKER_FILENAME
@@ -950,8 +948,6 @@ class _AgyWorld:
         self._committed_user_turns.append(block)
         self._republish()
         return True
-
-    # --- the ops -------------------------------------------------------------------------
 
     def new_text(self) -> str:
         self._counter += 1

@@ -1,5 +1,5 @@
 /**
- * The one-time notice that idle chats now compact on their own. Shown once per workspace (the
+ * The one-time notice that idle chats compact on their own. Shown once per workspace (the
  * settings remember it) until dismissed.
  */
 

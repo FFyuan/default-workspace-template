@@ -457,8 +457,6 @@ class HandoffRunner:
                 case _ as unreachable:
                     assert_never(unreachable)
 
-    # -- draining ------------------------------------------------------------------------------
-
     def drain(self, chat_id: ChatId, handoff_id: str) -> str:
         """Return the retiring agent's queue to the composer and move on to summarizing.
 
@@ -500,8 +498,6 @@ class HandoffRunner:
                 e,
             )
         return joined_blocks(handoff.returned_block, block)
-
-    # -- summarizing ---------------------------------------------------------------------------
 
     def _summarize(self, chat_id: ChatId, handoff_id: str, record: ChatRecord, handoff: ChatHandoffRecord) -> None:
         outcome = self._summary_outcome(chat_id, handoff_id, record, handoff)
@@ -652,8 +648,6 @@ class HandoffRunner:
             raise HandoffStepError(
                 f"the handoff prompt template at {self._deps.prompt_template_path} could not be filled in: {e!r}"
             ) from e
-
-    # -- switching -----------------------------------------------------------------------------
 
     def _switch(self, chat_id: ChatId, handoff_id: str, record: ChatRecord, handoff: ChatHandoffRecord) -> None:
         """Stop, archive, and measure the retiring agent, then create the successor, set its model, and hand it
