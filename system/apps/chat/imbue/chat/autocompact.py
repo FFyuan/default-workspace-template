@@ -32,6 +32,14 @@ def _ignore_compaction_request(agent_name: str) -> None:
     pass
 
 
+def _ignore_sweep_start(agent_names: Sequence[str]) -> None:
+    pass
+
+
+def _ignore_sweep_finish() -> None:
+    pass
+
+
 def _no_harness_known(agent_name: str) -> str | None:
     return None
 
@@ -49,6 +57,8 @@ class ChatAutoCompactor:
     _list_opted_in_chat_agent_names: Callable[[], Sequence[str]]
     _compact: Callable[[Sequence[str]], Sequence[str]]
     _on_compaction_requested: Callable[[str], None]
+    _on_sweep_started: Callable[[Sequence[str]], None]
+    _on_sweep_finished: Callable[[], None]
     _harness_of_agent: Callable[[str], str | None]
     _monotonic: Callable[[], float]
     _interval_seconds: float
@@ -66,6 +76,10 @@ class ChatAutoCompactor:
         # the names it compacted.
         compact: Callable[[Sequence[str]], Sequence[str]] = _compact_stale_opted_in_agents,
         on_compaction_requested: Callable[[str], None] = _ignore_compaction_request,
+        # Bracket a plugin call with the names it was handed: the call returns only after every send,
+        # so a compaction can start, and even finish, before its request is reported.
+        on_sweep_started: Callable[[Sequence[str]], None] = _ignore_sweep_start,
+        on_sweep_finished: Callable[[], None] = _ignore_sweep_finish,
         # Only for the log line.
         harness_of_agent: Callable[[str], str | None] = _no_harness_known,
         monotonic: Callable[[], float] = time.monotonic,
@@ -77,6 +91,8 @@ class ChatAutoCompactor:
         instance._list_opted_in_chat_agent_names = list_opted_in_chat_agent_names
         instance._compact = compact
         instance._on_compaction_requested = on_compaction_requested
+        instance._on_sweep_started = on_sweep_started
+        instance._on_sweep_finished = on_sweep_finished
         instance._harness_of_agent = harness_of_agent
         instance._monotonic = monotonic
         instance._interval_seconds = interval_seconds
@@ -124,19 +140,23 @@ class ChatAutoCompactor:
         names = list(self._list_opted_in_chat_agent_names())
         if not names:
             return []
+        self._on_sweep_started(names)
         try:
-            requested = list(self._compact(names))
-        except (MngrError, OSError, ValidationError) as e:
-            logger.warning("autocompact: could not request compaction for {}: {}", ", ".join(names), e)
-            return []
-        for name in requested:
-            self._on_compaction_requested(name)
-            harness = self._harness_of_agent(name)
-            if harness is None:
-                logger.info("autocompact: requested agent={}", name)
-            else:
-                logger.info("autocompact: requested agent={} harness={}", name, harness)
-        return requested
+            try:
+                requested = list(self._compact(names))
+            except (MngrError, OSError, ValidationError) as e:
+                logger.warning("autocompact: could not request compaction for {}: {}", ", ".join(names), e)
+                return []
+            for name in requested:
+                self._on_compaction_requested(name)
+                harness = self._harness_of_agent(name)
+                if harness is None:
+                    logger.info("autocompact: requested agent={}", name)
+                else:
+                    logger.info("autocompact: requested agent={} harness={}", name, harness)
+            return requested
+        finally:
+            self._on_sweep_finished()
 
     def _run_sweep(self) -> None:
         """Background loop executing sweeps on interval until stopped."""

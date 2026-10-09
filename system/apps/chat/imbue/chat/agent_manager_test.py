@@ -5984,11 +5984,78 @@ def test_a_failing_session_sweep_pass_does_not_stop_later_passes(
     assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
 
 
+def test_a_compaction_starting_before_the_sweep_reports_it_reads_idle_not_manual(
+    agent_manager: AgentManager, tmp_path: Path
+) -> None:
+    """The sweep's pasted /compact makes the marker say manual before the plugin call returns."""
+    agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
+    agent_manager.note_sweep_started([f"agent-{agent_id}"])
+
+    marker = write_compacting_marker(state_dir, "manual")
+    agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
+    assert _snapshot_compaction_cause(agent_manager, agent_id) is CompactionCause.IDLE
+
+    agent_manager.note_sweep_compaction_requested(f"agent-{agent_id}")
+    agent_manager.note_sweep_finished()
+    assert _snapshot_compaction_cause(agent_manager, agent_id) is CompactionCause.IDLE
+
+    marker.unlink()
+    agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
+    event = _compacted_event(seconds_ago=0.0)
+    agent_manager.stamp_compaction_events(_compaction_agent_info(agent_manager, agent_id), [event])
+    assert event["compaction_cause"] == "idle"
+
+
+def test_a_marker_of_a_sweep_candidate_the_sweep_did_not_compact_reads_manual_once_it_returns(
+    agent_manager: AgentManager, tmp_path: Path
+) -> None:
+    agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
+    agent_manager.note_sweep_started([f"agent-{agent_id}"])
+    write_compacting_marker(state_dir, "manual")
+
+    agent_manager.note_sweep_finished()
+    agent_manager._recompute_activity_state(agent_id, broadcast_on_change=False)
+
+    assert _snapshot_compaction_cause(agent_manager, agent_id) is CompactionCause.MANUAL
+
+
+def test_a_sweep_request_is_dated_from_the_sweep_start(agent_manager: AgentManager, tmp_path: Path) -> None:
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path)
+    before_sweep = time.monotonic()
+    agent_manager.note_sweep_started([f"agent-{agent_id}"])
+    after_sweep_start = time.monotonic()
+
+    agent_manager.note_sweep_compaction_requested(f"agent-{agent_id}")
+
+    requested_at, cause = agent_manager._compaction_pending_by_agent[agent_id]
+    assert before_sweep <= requested_at <= after_sweep_start
+    assert cause == CompactionCause.IDLE
+
+
+def test_a_sweep_compaction_that_finished_before_the_sweep_reported_it_is_not_shown_again(
+    agent_manager: AgentManager, tmp_path: Path
+) -> None:
+    """A Codex compaction can land while a slow send of another agent holds up the plugin call."""
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=HarnessType.CODEX)
+    agent_manager.note_sweep_started([f"agent-{agent_id}"])
+    event = _compacted_event(seconds_ago=0.0)
+    agent_manager.stamp_compaction_events(_compaction_agent_info(agent_manager, agent_id), [event])
+
+    agent_manager.note_sweep_compaction_requested(f"agent-{agent_id}")
+    agent_manager.note_sweep_finished()
+
+    assert event["compaction_cause"] == "idle"
+    assert agent_id not in agent_manager._compaction_pending_by_agent
+    assert _activity_of(agent_manager, agent_id) != ActivityState.COMPACTING
+
+
 def test_the_sweep_callback_maps_the_agent_name_to_its_id_and_marks_the_compaction_idle(
     agent_manager: AgentManager, tmp_path: Path
 ) -> None:
     agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path)
     assert agent_manager._autocompactor._on_compaction_requested == agent_manager.note_sweep_compaction_requested
+    assert agent_manager._autocompactor._on_sweep_started == agent_manager.note_sweep_started
+    assert agent_manager._autocompactor._on_sweep_finished == agent_manager.note_sweep_finished
 
     agent_manager.note_sweep_compaction_requested(f"agent-{agent_id}")
     agent_manager.note_sweep_compaction_requested("a-chat-destroyed-since-the-sweep-listed-it")

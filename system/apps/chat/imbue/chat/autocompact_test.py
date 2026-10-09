@@ -68,6 +68,34 @@ def test_each_compacted_agent_is_reported_once_and_logged(loguru_records: list[s
     ]
 
 
+@pytest.mark.parametrize("is_call_failing", [False, True], ids=["call_returns", "call_fails"])
+def test_a_sweep_brackets_the_plugin_call_and_its_reports_with_its_candidates(is_call_failing: bool) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def compact(names: Sequence[str]) -> Sequence[str]:
+        calls.append(("compact", *names))
+        if is_call_failing:
+            raise MngrError("host offline")
+        return ["chat-beta"]
+
+    compactor = ChatAutoCompactor.build(
+        list_opted_in_chat_agent_names=lambda: ["chat-alpha", "chat-beta"],
+        compact=compact,
+        on_compaction_requested=lambda name: calls.append(("requested", name)),
+        on_sweep_started=lambda names: calls.append(("started", *names)),
+        on_sweep_finished=lambda: calls.append(("finished",)),
+    )
+    compactor.sweep()
+
+    reported = [] if is_call_failing else [("requested", "chat-beta")]
+    assert calls == [
+        ("started", "chat-alpha", "chat-beta"),
+        ("compact", "chat-alpha", "chat-beta"),
+        *reported,
+        ("finished",),
+    ]
+
+
 def _invalid_mode_error() -> ValidationError:
     """The pydantic error mngr's config raises for an unknown autocompact mode."""
     with pytest.raises(ValidationError) as raised:

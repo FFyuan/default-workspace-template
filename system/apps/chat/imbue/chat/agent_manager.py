@@ -987,6 +987,13 @@ class AgentManager:
     # Per agent, the recorded time of the stale ``compacting`` marker already logged, so a
     # stale marker is logged once rather than on every recompute.
     _logged_stale_compacting_marker_by_agent: dict[str, float]
+    # The candidates of the idle sweep in flight, with when it started (monotonic). The plugin call
+    # reports what it compacted only once every send returns, so until then a compaction of one of
+    # these agents is taken to be the sweep's.
+    _sweep_started_at_by_agent: dict[str, float]
+    # Per agent, when (monotonic) its latest compacted event was stamped, so a sweep request reported
+    # after its compaction already finished is not shown as a compaction still running.
+    _compaction_finished_at_by_agent: dict[str, float]
     # When each chat was last messaged from the UI, kept on disk so a restart seeds the OOM
     # prioritizer's recency ranking from real history.
     _message_stamps: MessageStampStore
@@ -1135,6 +1142,8 @@ class AgentManager:
         manager._compaction_pending_by_agent = {}
         manager._compaction_cause_by_agent = {}
         manager._logged_stale_compacting_marker_by_agent = {}
+        manager._sweep_started_at_by_agent = {}
+        manager._compaction_finished_at_by_agent = {}
         manager._message_stamps = message_stamps if message_stamps is not None else MessageStampStore(path=None)
         manager._transcript_broadcaster = None
         manager._watcher_eviction_callback = None
@@ -1175,6 +1184,8 @@ class AgentManager:
             else ChatAutoCompactor.build(
                 list_opted_in_chat_agent_names=manager.get_opted_in_running_chat_agent_names,
                 on_compaction_requested=manager.note_sweep_compaction_requested,
+                on_sweep_started=manager.note_sweep_started,
+                on_sweep_finished=manager.note_sweep_finished,
                 harness_of_agent=manager.get_harness_of_agent_named,
             )
         )
@@ -1258,6 +1269,8 @@ class AgentManager:
             self._compaction_pending_by_agent.clear()
             self._compaction_cause_by_agent.clear()
             self._logged_stale_compacting_marker_by_agent.clear()
+            self._sweep_started_at_by_agent.clear()
+            self._compaction_finished_at_by_agent.clear()
         for session in sessions:
             session.close()
 
@@ -4040,6 +4053,8 @@ class AgentManager:
             self._compaction_pending_by_agent.pop(agent_id, None)
             self._compaction_cause_by_agent.pop(agent_id, None)
             self._logged_stale_compacting_marker_by_agent.pop(agent_id, None)
+            self._sweep_started_at_by_agent.pop(agent_id, None)
+            self._compaction_finished_at_by_agent.pop(agent_id, None)
         # Reap the live backend outside the lock (codex's join blocks on its reader thread);
         # idempotent, and a re-track rebuilds it via ensure_live.
         if session is not None:
@@ -4337,21 +4352,46 @@ class AgentManager:
         except OSError as e:
             _loguru_logger.warning("Failed to record the compaction request of agent {}: {}", agent_id, e)
 
+    def note_sweep_started(self, agent_names: Sequence[str]) -> None:
+        """The idle sweep handed these agents to mngr: until it returns, a compaction of one is the sweep's."""
+        started_at = time.monotonic()
+        requested_names = set(agent_names)
+        with self._lock:
+            self._sweep_started_at_by_agent = {
+                agent.id: started_at for agent in self._agents.values() if agent.name in requested_names
+            }
+
+    def note_sweep_finished(self) -> None:
+        """The idle sweep's plugin call returned and its requests were reported."""
+        with self._lock:
+            self._sweep_started_at_by_agent = {}
+
     def note_sweep_compaction_requested(self, agent_name: str) -> None:
         """The idle sweep asked mngr to compact the agent with this name: show it as COMPACTING.
 
-        The sweep reports a request only once mngr's send has returned, which can wait out
-        mngr's slash-command confirmation window, so the request is dated that much earlier:
-        a compaction finishing inside the window still clears it.
+        The sweep reports a request only once every send has returned, so the request is dated
+        from the sweep's start (or, outside a sweep, from mngr's slash-command confirmation window
+        earlier), and a compaction that already finished meanwhile is not shown again.
         """
         with self._lock:
             agent_id = next((agent.id for agent in self._agents.values() if agent.name == agent_name), None)
+            sweep_started_at = None if agent_id is None else self._sweep_started_at_by_agent.get(agent_id)
+            finished_at = None if agent_id is None else self._compaction_finished_at_by_agent.get(agent_id)
         if agent_id is None:
             _loguru_logger.debug("Skipped the compaction status of agent {}, which is no longer tracked", agent_name)
             return
-        self.note_compaction_requested(
-            agent_id, CompactionCause.IDLE, time.monotonic() - RELAXED_CONFIRMATION_TIMEOUT_SECONDS
+        requested_at = (
+            time.monotonic() - RELAXED_CONFIRMATION_TIMEOUT_SECONDS if sweep_started_at is None else sweep_started_at
         )
+        if finished_at is not None and finished_at >= requested_at:
+            _loguru_logger.debug("Skipped the compaction status of agent {}: its compaction already finished", agent_id)
+            return
+        self.note_compaction_requested(agent_id, CompactionCause.IDLE, requested_at)
+
+    def _sweep_cause_of(self, agent_id: str) -> CompactionCause | None:
+        """IDLE while the agent is a candidate of the idle sweep in flight, else None."""
+        with self._lock:
+            return CompactionCause.IDLE if agent_id in self._sweep_started_at_by_agent else None
 
     def is_compaction_in_flight(self, agent_info: AgentInfo) -> bool:
         """Whether the agent is compacting by a fresh ``compacting`` marker or a live request of this chat."""
@@ -4412,6 +4452,7 @@ class AgentManager:
         with self._lock:
             is_pending_cleared = self._compaction_pending_by_agent.pop(agent_id, None) is not None
             is_cause_cleared = self._compaction_cause_by_agent.pop(agent_id, None) is not None
+            self._compaction_finished_at_by_agent[agent_id] = time.monotonic()
         if is_pending_cleared or is_cause_cleared:
             _loguru_logger.info(
                 "autocompact: compaction finished agent={} cause={}",
@@ -4434,6 +4475,9 @@ class AgentManager:
             return remembered_cause
         if pending is not None:
             return pending[1]
+        sweep_cause = self._sweep_cause_of(agent_info.id)
+        if sweep_cause is not None:
+            return sweep_cause
         state_dir = agent_info.agent_state_dir
         request = read_compaction_request(state_dir / COMPACTION_REQUEST_FILENAME, now)
         if request is not None:
@@ -4466,8 +4510,9 @@ class AgentManager:
         if marker is not None:
             marker_age_seconds = now - marker.written_at
             if marker_age_seconds < PENDING_COMPACTION_TIMEOUT_SECONDS:
+                requested_cause = self._sweep_cause_of(agent_id) if pending_cause is None else pending_cause
                 return _LiveCompaction(
-                    marker_cause=cause_of_compacting_marker(marker.trigger, pending_cause), pending_cause=pending_cause
+                    marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause), pending_cause=pending_cause
                 )
             self._log_stale_compacting_marker_once(agent_id, marker, marker_age_seconds)
             return _LiveCompaction(marker_cause=None, pending_cause=pending_cause)
