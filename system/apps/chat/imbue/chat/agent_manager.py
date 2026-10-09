@@ -4723,10 +4723,14 @@ class AgentManager:
                 is_active_marker_present=is_active_marker_present,
                 process_started_at=process_started_at,
             )
-            # Never over a dead lifecycle: a dead process compacts nothing.
-            compaction_cause = shown_compaction_cause(
-                live_compaction.marker_cause, live_compaction.pending_cause, new_state
+            # A request ended while the files were read (a compacted event stamped meanwhile) is over.
+            pending_cause = (
+                live_compaction.pending_cause
+                if self._compaction_pending_by_agent.get(agent_id) == pending_compaction
+                else None
             )
+            # Never over a dead lifecycle: a dead process compacts nothing.
+            compaction_cause = shown_compaction_cause(live_compaction.marker_cause, pending_cause, new_state)
             is_cause_changed = False
             if compaction_cause is not None and not is_lifecycle_dead(agent_state.state):
                 new_state = ActivityState.COMPACTING
