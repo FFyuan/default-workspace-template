@@ -111,6 +111,34 @@ describe("set", () => {
     expect(store.get("agent-1")).toEqual(ONE);
   });
 
+  it("keeps a write over a load that answers after it", async () => {
+    const store = freshStore();
+    let answerLoad: (value: { state: Setting }) => void = () => undefined;
+    mockRequest.mockReturnValueOnce(new Promise((resolve) => (answerLoad = resolve)));
+    const loading = store.ensure("agent-1");
+
+    mockRequest.mockResolvedValueOnce({ state: TWO });
+    await store.set("agent-1", TWO);
+    answerLoad({ state: ONE });
+
+    expect(await loading).toEqual(TWO);
+    expect(store.get("agent-1")).toEqual(TWO);
+  });
+
+  it("lets only the latest write settle the setting when an earlier one answers after it", async () => {
+    const store = freshStore();
+    let failFirstWrite: (error: Error) => void = () => undefined;
+    mockRequest.mockReturnValueOnce(new Promise((_resolve, reject) => (failFirstWrite = reject)));
+    const firstWrite = store.set("agent-1", ONE);
+
+    mockRequest.mockResolvedValueOnce({ state: TWO });
+    await store.set("agent-1", TWO);
+    failFirstWrite(new Error("500"));
+    await firstWrite;
+
+    expect(store.get("agent-1")).toEqual(TWO);
+  });
+
   it("forgets an optimistic write to a chat it had never loaded when the backend refuses it", async () => {
     const store = freshStore();
     mockRequest.mockRejectedValueOnce(new Error("404"));
