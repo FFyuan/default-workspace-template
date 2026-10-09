@@ -14,8 +14,9 @@
  * step decoration on stdout, which buildSections parses); there is no
  * side-channel enrichment. `isTailSettled` settles the frontier spinner on the
  * tail turn (see `isTailTurnSettled`), and `liveCompaction` places the start
- * chip of a compaction still running (see `liveCompactionOf`). The pre-login auth-error prefix is hidden here (a no-op for a
- * subagent, which never has one) so the two views stay byte-identical.
+ * chip of a compaction still running (see `liveCompactionOf`). The pre-login
+ * auth-error prefix is hidden here (a no-op for a subagent, which never has
+ * one) so the two views stay byte-identical.
  */
 
 import m from "mithril";
