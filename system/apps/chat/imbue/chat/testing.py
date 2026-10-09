@@ -223,6 +223,7 @@ class StandInAnthropicApi:
 
     def __exit__(self, *_exc: object) -> None:
         self._server.shutdown()
+        self._server.server_close()
 
     @property
     def base_url(self) -> str:
