@@ -44,12 +44,14 @@ import {
   ensureFastModeState,
   fastModeDetail,
   fastModeLabel,
+  forgetAllFastModeStates,
   getFastModeState,
 } from "../models/FastMode";
 import type { ChatAutocompactState } from "../models/Autocompact";
 import {
   autocompactLabel,
   ensureAutocompactState,
+  forgetAllAutocompactStates,
   getAutocompactState,
   setAutocompactState,
 } from "../models/Autocompact";
@@ -618,7 +620,9 @@ export function ModelProviderMenu(): m.Component<ModelProviderMenuAttrs> {
           marker: { "data-fast-mode-default": mode },
         })),
         selected: settings?.fast_mode_default ?? null,
-        onPick: (current, mode) => updateChatSettings({ ...current, fast_mode_default: mode }),
+        // A chat that never chose a mode follows the default, so the chats' copies are reloaded.
+        onPick: (current, mode) =>
+          updateChatSettings({ ...current, fast_mode_default: mode }).then(forgetAllFastModeStates),
       }),
     ];
   }
@@ -727,7 +731,9 @@ export function ModelProviderMenu(): m.Component<ModelProviderMenuAttrs> {
           marker: { "data-autocompact-default": isEnabled ? "on" : "off" },
         })),
         selected: settings?.autocompact_default ?? null,
-        onPick: (current, isEnabled) => updateChatSettings({ ...current, autocompact_default: isEnabled }),
+        // A chat that never chose follows the default, so the chats' copies are reloaded.
+        onPick: (current, isEnabled) =>
+          updateChatSettings({ ...current, autocompact_default: isEnabled }).then(forgetAllAutocompactStates),
       }),
     ];
   }

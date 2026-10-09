@@ -72,10 +72,11 @@ vi.mock("../models/ChatSettings", () => ({
 
 // The chat's fast mode as the page has it (null before the load), the loads asked for, and every
 // mode the chooser picked.
-const { fastModeState, fastModeLoads, fastModeChoices } = vi.hoisted(() => ({
+const { fastModeState, fastModeLoads, fastModeChoices, fastModeForgets } = vi.hoisted(() => ({
   fastModeState: { state: null as { mode: string; is_switched: boolean } | null },
   fastModeLoads: [] as string[],
   fastModeChoices: [] as [string, string][],
+  fastModeForgets: { count: 0 },
 }));
 // Only the backend-backed half is faked; the words the rows read are the real ones, so what
 // this asserts on is what the menu really says.
@@ -85,6 +86,9 @@ vi.mock("../models/FastMode", async (importOriginal) => ({
   ensureFastModeState: (chatId: string) => {
     fastModeLoads.push(chatId);
     return Promise.resolve(fastModeState.state);
+  },
+  forgetAllFastModeStates: () => {
+    fastModeForgets.count += 1;
   },
 }));
 vi.mock("./fast-mode-limit", () => ({
@@ -96,10 +100,11 @@ vi.mock("../models/Response", () => ({ getEventsForChat: () => [] }));
 
 // The chat's auto-compact setting as the page has it (null before the load), the loads asked for,
 // and every write the submenu made.
-const { autocompactState, autocompactLoads, autocompactWrites } = vi.hoisted(() => ({
+const { autocompactState, autocompactLoads, autocompactWrites, autocompactForgets } = vi.hoisted(() => ({
   autocompactState: { state: null as { is_enabled: boolean } | null },
   autocompactLoads: [] as string[],
   autocompactWrites: [] as [string, { is_enabled: boolean }][],
+  autocompactForgets: { count: 0 },
 }));
 vi.mock("../models/Autocompact", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../models/Autocompact")>()),
@@ -111,6 +116,9 @@ vi.mock("../models/Autocompact", async (importOriginal) => ({
   setAutocompactState: (chatId: string, next: { is_enabled: boolean }) => {
     autocompactWrites.push([chatId, next]);
     return Promise.resolve(next);
+  },
+  forgetAllAutocompactStates: () => {
+    autocompactForgets.count += 1;
   },
 }));
 
@@ -261,9 +269,11 @@ beforeEach(() => {
   fastModeState.state = { mode: "auto", is_switched: false };
   fastModeLoads.length = 0;
   fastModeChoices.length = 0;
+  fastModeForgets.count = 0;
   autocompactState.state = { is_enabled: true };
   autocompactLoads.length = 0;
   autocompactWrites.length = 0;
+  autocompactForgets.count = 0;
   picks.length = 0;
   started.length = 0;
   begun.length = 0;
@@ -1205,6 +1215,30 @@ describe("the combo card", () => {
     click('[data-autocompact-default="off"]');
     expect(settingsWrites).toHaveLength(2);
     expect(autocompactWrites).toEqual([]);
+  });
+
+  it("reloads the chats' auto-compact settings once the new-chats default is saved", async () => {
+    catalogState.catalog = catalogOf({ supports_compaction: true });
+    render();
+    click(".model-selector-trigger");
+    click('[data-menu-row="autocompact"]');
+    click('[data-autocompact-default="off"]');
+    await Promise.resolve();
+
+    expect(autocompactForgets.count).toBe(1);
+    expect(fastModeForgets.count).toBe(0);
+  });
+
+  it("reloads the chats' fast modes once the new-chats default is saved", async () => {
+    withFastModel();
+    render();
+    click(".model-selector-trigger");
+    click('[data-menu-row="fast"]');
+    click('[data-fast-mode-default="off"]');
+    await Promise.resolve();
+
+    expect(fastModeForgets.count).toBe(1);
+    expect(autocompactForgets.count).toBe(0);
   });
 
   it("asks for the chat's auto-compact setting and shows the row unresolved until it is known", () => {

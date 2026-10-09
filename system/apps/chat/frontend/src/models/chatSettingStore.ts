@@ -33,6 +33,12 @@ export interface ChatSettingStore<T extends object> {
    * earlier one answering late changes nothing, and neither does a load that answers after a write.
    */
   set: (chatId: string, next: T) => Promise<T | null>;
+  /**
+   * Drop every chat's loaded setting so the next read loads it afresh, for after a change that can
+   * alter what the backend answers for a chat that has made no choice of its own, such as a new
+   * workspace default. A load already in flight lands nowhere.
+   */
+  forgetAll: () => void;
 }
 
 export function createChatSettingStore<T extends object>({
@@ -51,6 +57,8 @@ export function createChatSettingStore<T extends object>({
   // The last state the backend answered for each chat, which a failed write falls back to: the
   // page's own copy may still hold an earlier write's optimistic value.
   const confirmedByChat = new Map<string, T>();
+  // Bumped by forgetAll, so a load that started before it does not store a stale answer.
+  let generation = 0;
 
   function writeCount(chatId: string): number {
     return writeCountByChat.get(chatId) ?? 0;
@@ -67,10 +75,11 @@ export function createChatSettingStore<T extends object>({
     if (loading !== undefined) return loading;
     if (Date.now() < (retryNotBeforeByChat.get(chatId) ?? 0)) return Promise.resolve(null);
     const writeCountAtLoad = writeCount(chatId);
-    const request = m
+    const generationAtLoad = generation;
+    const request: Promise<T | null> = m
       .request<{ state: T }>({ method: "GET", url: apiUrl(path), params: { chatId } })
       .then((response) => {
-        if (writeCount(chatId) !== writeCountAtLoad) return get(chatId);
+        if (generation !== generationAtLoad || writeCount(chatId) !== writeCountAtLoad) return get(chatId);
         confirmedByChat.set(chatId, response.state);
         stateByChat.set(chatId, response.state);
         m.redraw();
@@ -82,7 +91,7 @@ export function createChatSettingStore<T extends object>({
         return null;
       })
       .finally(() => {
-        loadingByChat.delete(chatId);
+        if (loadingByChat.get(chatId) === request) loadingByChat.delete(chatId);
       });
     loadingByChat.set(chatId, request);
     return request;
@@ -116,5 +125,14 @@ export function createChatSettingStore<T extends object>({
     }
   }
 
-  return { get, ensure, set };
+  function forgetAll(): void {
+    generation += 1;
+    stateByChat.clear();
+    confirmedByChat.clear();
+    loadingByChat.clear();
+    retryNotBeforeByChat.clear();
+    m.redraw();
+  }
+
+  return { get, ensure, set, forgetAll };
 }

@@ -19,6 +19,7 @@ export const {
   get: getFastModeState,
   ensure: ensureFastModeState,
   set: updateFastModeState,
+  forgetAll: forgetAllFastModeStates,
 } = createChatSettingStore<ChatFastModeState>({ endpoint: "fast-mode", description: "fast mode" });
 
 /** What each mode is called, everywhere one is named. */

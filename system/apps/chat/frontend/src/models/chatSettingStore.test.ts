@@ -163,3 +163,33 @@ describe("set", () => {
     expect(store.get("agent-1")).toBeNull();
   });
 });
+
+describe("forgetAll", () => {
+  it("drops every chat's loaded setting so the next read loads it afresh", async () => {
+    const store = freshStore();
+    mockRequest.mockResolvedValueOnce({ state: ONE });
+    await store.ensure("agent-1");
+
+    store.forgetAll();
+
+    expect(store.get("agent-1")).toBeNull();
+    mockRequest.mockResolvedValueOnce({ state: TWO });
+    expect(await store.ensure("agent-1")).toEqual(TWO);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a load that started before it from storing its answer", async () => {
+    const store = freshStore();
+    let answerLoad: (value: { state: Setting }) => void = () => undefined;
+    mockRequest.mockReturnValueOnce(new Promise((resolve) => (answerLoad = resolve)));
+    const staleLoad = store.ensure("agent-1");
+
+    store.forgetAll();
+    mockRequest.mockResolvedValueOnce({ state: TWO });
+    expect(await store.ensure("agent-1")).toEqual(TWO);
+    answerLoad({ state: ONE });
+    await staleLoad;
+
+    expect(store.get("agent-1")).toEqual(TWO);
+  });
+});

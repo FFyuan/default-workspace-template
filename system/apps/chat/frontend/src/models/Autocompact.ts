@@ -15,6 +15,7 @@ export const {
   get: getAutocompactState,
   ensure: ensureAutocompactState,
   set: setAutocompactState,
+  forgetAll: forgetAllAutocompactStates,
 } = createChatSettingStore<ChatAutocompactState>({ endpoint: "autocompact", description: "auto-compact setting" });
 
 /** What the setting is called in each position, everywhere one is named. */
