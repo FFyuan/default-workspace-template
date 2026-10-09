@@ -5999,6 +5999,28 @@ def test_a_request_past_its_timeout_keeps_its_cause_while_a_fresh_marker_shows_i
     assert agent_id in agent_manager._compaction_pending_by_agent
 
 
+@pytest.mark.parametrize(
+    ("last_shown_seconds_ago", "expected_cause"),
+    [
+        pytest.param(5.0, "idle", id="shown_recently"),
+        pytest.param(PENDING_COMPACTION_TIMEOUT_SECONDS + 1, None, id="shown_long_ago"),
+    ],
+)
+def test_a_remembered_cause_labels_a_compaction_only_if_it_was_shown_recently(
+    agent_manager: AgentManager, tmp_path: Path, last_shown_seconds_ago: float, expected_cause: str | None
+) -> None:
+    """An interrupt that cancelled a compaction leaves its cause behind, with no compacted event to consume it."""
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=HarnessType.CODEX)
+    with agent_manager._lock:
+        agent_manager._compaction_cause_by_agent[agent_id] = CompactionCause.IDLE
+        agent_manager._compaction_cause_seen_at_by_agent[agent_id] = time.monotonic() - last_shown_seconds_ago
+
+    event = _compacted_event(seconds_ago=0.0)
+    agent_manager.stamp_compaction_events(_compaction_agent_info(agent_manager, agent_id), [event])
+
+    assert event["compaction_cause"] == expected_cause
+
+
 def test_a_compaction_starting_before_the_sweep_reports_it_reads_idle_not_manual(
     agent_manager: AgentManager, tmp_path: Path
 ) -> None:

@@ -982,8 +982,12 @@ class AgentManager:
     _compaction_pending_by_agent: dict[str, tuple[float, CompactionCause]]
     # Per agent, the cause of the compaction last seen in progress, kept until its compacted
     # event arrives (which is stamped with it), its request expires, or the next compaction
-    # replaces it.
+    # replaces it; a compacted event uses it only while it was shown recently (see below).
     _compaction_cause_by_agent: dict[str, CompactionCause]
+    # Per agent, when (monotonic) the remembered cause above was last shown. A cause not shown for
+    # ``PENDING_COMPACTION_TIMEOUT_SECONDS`` belongs to a compaction that ended unseen (one an
+    # interrupt cancelled), so it does not label a later one.
+    _compaction_cause_seen_at_by_agent: dict[str, float]
     # Per agent, the recorded time of the stale ``compacting`` marker already logged, so a
     # stale marker is logged once rather than on every recompute.
     _logged_stale_compacting_marker_by_agent: dict[str, float]
@@ -1141,6 +1145,7 @@ class AgentManager:
         )
         manager._compaction_pending_by_agent = {}
         manager._compaction_cause_by_agent = {}
+        manager._compaction_cause_seen_at_by_agent = {}
         manager._logged_stale_compacting_marker_by_agent = {}
         manager._sweep_started_at_by_agent = {}
         manager._compaction_finished_at_by_agent = {}
@@ -1268,6 +1273,7 @@ class AgentManager:
             self._model_choice_by_agent.clear()
             self._compaction_pending_by_agent.clear()
             self._compaction_cause_by_agent.clear()
+            self._compaction_cause_seen_at_by_agent.clear()
             self._logged_stale_compacting_marker_by_agent.clear()
             self._sweep_started_at_by_agent.clear()
             self._compaction_finished_at_by_agent.clear()
@@ -4052,6 +4058,7 @@ class AgentManager:
             self._queue_busy_handler_by_agent.pop(agent_id, None)
             self._compaction_pending_by_agent.pop(agent_id, None)
             self._compaction_cause_by_agent.pop(agent_id, None)
+            self._compaction_cause_seen_at_by_agent.pop(agent_id, None)
             self._logged_stale_compacting_marker_by_agent.pop(agent_id, None)
             self._sweep_started_at_by_agent.pop(agent_id, None)
             self._compaction_finished_at_by_agent.pop(agent_id, None)
@@ -4439,7 +4446,13 @@ class AgentManager:
         now = time.time()
         with self._lock:
             pending = self._compaction_pending_by_agent.get(agent_id)
-            remembered_cause = self._compaction_cause_by_agent.get(agent_id)
+            cause_seen_at = self._compaction_cause_seen_at_by_agent.get(agent_id)
+            remembered_cause = (
+                self._compaction_cause_by_agent.get(agent_id)
+                if cause_seen_at is not None
+                and time.monotonic() - cause_seen_at < PENDING_COMPACTION_TIMEOUT_SECONDS
+                else None
+            )
         pending_requested_at = None if pending is None else _monotonic_to_epoch(pending[0], now)
         current_events = [
             event for event in compacted_events if _is_current_compaction_event(event, now, pending_requested_at)
@@ -4452,6 +4465,7 @@ class AgentManager:
         with self._lock:
             is_pending_cleared = self._compaction_pending_by_agent.pop(agent_id, None) is not None
             is_cause_cleared = self._compaction_cause_by_agent.pop(agent_id, None) is not None
+            self._compaction_cause_seen_at_by_agent.pop(agent_id, None)
             self._compaction_finished_at_by_agent[agent_id] = time.monotonic()
         if is_pending_cleared or is_cause_cleared:
             _loguru_logger.info(
@@ -4547,6 +4561,7 @@ class AgentManager:
             if self._compaction_pending_by_agent.get(agent_id) == pending:
                 del self._compaction_pending_by_agent[agent_id]
                 self._compaction_cause_by_agent.pop(agent_id, None)
+                self._compaction_cause_seen_at_by_agent.pop(agent_id, None)
         _loguru_logger.info("autocompact: compaction pending expired agent={} cause={}", agent_id, cause.value)
         return None
 
@@ -4717,6 +4732,7 @@ class AgentManager:
                 new_state = ActivityState.COMPACTING
                 is_cause_changed = self._compaction_cause_by_agent.get(agent_id) is not compaction_cause
                 self._compaction_cause_by_agent[agent_id] = compaction_cause
+                self._compaction_cause_seen_at_by_agent[agent_id] = time.monotonic()
             old_state = self._activity_state_by_agent.get(agent_id)
             # The queued-message backstop is LEVEL-triggered, not edge-triggered: an
             # IDLE agent's harness queue is about to drain, so a queued survivor while
