@@ -258,13 +258,6 @@ export function ActivityIndicator(): m.Component<ActivityIndicatorAttrs> {
         chat?.active_agent.compaction_cause ?? null,
       );
 
-      if (state === COMPACTING_STATE) {
-        cancelRelease();
-        cancelWake();
-        heldToolCaption = null;
-        return label !== null ? renderStrip(label, state) : null;
-      }
-
       const now = Date.now();
       if (state === "TOOL_RUNNING" && label !== null) {
         // Active tool -> (re)start the hold window; cancel any pending release.
