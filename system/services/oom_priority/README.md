@@ -51,12 +51,13 @@ publishes the same file for itself: the `publish_cgroup_meminfo` program
 (`bin/publish_cgroup_meminfo.py`, over `cgroup_meminfo`) reads the container's
 own cgroup v2 controller at `/sys/fs/cgroup` four times a second and writes the
 limit as MemTotal and the limit minus the usage plus the reclaimable page cache
-and slab as MemAvailable, with the same formula as the gen-2 VM. It steps aside
-under gVisor (the sandbox's cgroupfs is its own view, with no `memory.max`) and
-where the file's directory is a mount someone else writes into, and leaves no
-file while the container is uncapped (it keeps checking, since `mngr docker
-resize` can cap a running container) or on lima (no cgroup cap), so earlyoom
-logs that once and uses `/proc/meminfo` alone there. earlyoom's swap gate is
+and slab as MemAvailable, with the same formula as the gen-2 VM. It removes the
+file while the container is uncapped (and keeps checking, since `mngr docker
+resize` can cap a running container), and touches nothing where it has no
+answer: no cgroup v2 memory controller (lima's root cgroup, gVisor's own
+cgroupfs) or a counter it cannot read, so the gen-2 VM's file is never
+disturbed and earlyoom otherwise logs once and uses `/proc/meminfo` alone.
+Under gVisor it exits at once, since the VM publishes the file. earlyoom's swap gate is
 held open (`-s 100,100`): a workspace container can never swap, but under runc
 it sees the host's swap as its own, which would otherwise keep earlyoom from
 ever acting on a laptop with swap.

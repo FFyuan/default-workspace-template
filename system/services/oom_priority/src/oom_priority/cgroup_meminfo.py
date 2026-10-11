@@ -12,19 +12,20 @@ reclaim (page cache and reclaimable slab). The formula mirrors the gen-2
 publisher in mngr (``mngr_imbue_cloud/slices/gen2_scripts/guest.py``); keep the
 two in step.
 
-The publisher steps aside wherever the cgroup it can see is not the enforcing
-one. Under gVisor (``uname -r`` names it) the sandbox's cgroupfs is its own
-view and carries no ``memory.max``; on a gen-2 slice the VM publishes the file
-from outside, into the host volume mount. An uncapped container (``memory.max``
-is ``max``) and a lima VM (whose root cgroup has no ``memory.max``) leave no
-file, so earlyoom reads ``/proc/meminfo`` alone, which is the truth there.
+The file is touched only on a definite answer. A limit that reads ``max`` (an
+uncapped container) removes it, so earlyoom falls back to ``/proc/meminfo``,
+which is the truth there. A cgroup with no v2 memory controller (a lima VM's
+root cgroup, a cgroup v1 host, gVisor's own cgroupfs) and a transient read
+error both leave whatever is there alone: on a gen-2 slice that is the VM's
+file, and a stale file costs nothing, since earlyoom ignores one older than
+5 s. Under gVisor the publisher has nothing to add at all (``uname -r`` names
+it), so it reports that and the program exits.
 
 Stdlib-only (see ``paths``): run by a supervisord program under a plain
 ``python3``.
 """
 
 import os
-from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
@@ -41,12 +42,14 @@ PUBLISH_INTERVAL_SECONDS: Final[float] = 0.25
 _RECLAIMABLE_STAT_KEYS: Final[frozenset[str]] = frozenset(
     {"active_file", "inactive_file", "slab_reclaimable"}
 )
+_UNCAPPED_LIMIT: Final[str] = "max"
 
 # What one publishing round did; the publisher logs each change of outcome.
 OUTCOME_PUBLISHED: Final[str] = "published"
 OUTCOME_UNCAPPED: Final[str] = "uncapped"
+OUTCOME_NO_CONTROLLER: Final[str] = "no_controller"
+OUTCOME_UNREADABLE: Final[str] = "unreadable"
 OUTCOME_GVISOR: Final[str] = "gvisor"
-OUTCOME_OUTSIDE: Final[str] = "outside"
 
 
 def is_gvisor_kernel(kernel_release: str) -> bool:
@@ -54,19 +57,12 @@ def is_gvisor_kernel(kernel_release: str) -> bool:
     return "gvisor" in kernel_release.lower()
 
 
-def is_published_from_outside(target_path: Path) -> bool:
-    """Whether the target's directory is a mount, i.e. the gen-2 host volume the VM writes into."""
-    return os.path.ismount(target_path.parent)
-
-
-def _read_int(path: Path) -> int | None:
-    """The file's first line as an int; None when missing, unreadable, or not a number (``max``)."""
+def _read_first_line(path: Path) -> str | None:
     try:
         text = path.read_text()
     except OSError:
         return None
-    first_line = text.partition("\n")[0].strip()
-    return int(first_line) if first_line.isdigit() else None
+    return text.partition("\n")[0].strip()
 
 
 def _read_reclaimable_bytes(stat_path: Path) -> int:
@@ -82,20 +78,25 @@ def _read_reclaimable_bytes(stat_path: Path) -> int:
     return reclaimable
 
 
-def read_cgroup_memory_headroom(cgroup_dir: Path) -> tuple[int, int] | None:
-    """``(limit_bytes, available_bytes)`` for a capped cgroup; None when uncapped or unreadable.
+def read_cgroup_memory_headroom(cgroup_dir: Path) -> tuple[int, int] | str:
+    """``(limit_bytes, available_bytes)`` for a capped cgroup, else the outcome that stops the round.
 
     Available is the limit minus the usage plus the reclaimable memory, clamped
-    to ``[0, limit]``.
+    to ``[0, limit]``. The outcomes: ``OUTCOME_NO_CONTROLLER`` when there is no
+    ``memory.max`` to read, ``OUTCOME_UNCAPPED`` when it reads ``max``, and
+    ``OUTCOME_UNREADABLE`` when either counter is missing or not a number.
     """
-    limit = _read_int(cgroup_dir / "memory.max")
-    if limit is None:
-        return None
-    usage = _read_int(cgroup_dir / "memory.current")
-    if usage is None:
-        return None
+    limit_text = _read_first_line(cgroup_dir / "memory.max")
+    if limit_text is None:
+        return OUTCOME_NO_CONTROLLER
+    if limit_text == _UNCAPPED_LIMIT:
+        return OUTCOME_UNCAPPED
+    usage_text = _read_first_line(cgroup_dir / "memory.current")
+    if not limit_text.isdigit() or usage_text is None or not usage_text.isdigit():
+        return OUTCOME_UNREADABLE
+    limit = int(limit_text)
     reclaimable = _read_reclaimable_bytes(cgroup_dir / "memory.stat")
-    available = max(0, min(limit, limit - usage + reclaimable))
+    available = max(0, min(limit, limit - int(usage_text) + reclaimable))
     return limit, available
 
 
@@ -119,26 +120,20 @@ def write_replacing(target_path: Path, content: str) -> None:
 
 
 def publish_once(
-    cgroup_dir: Path,
-    target_path: Path,
-    kernel_release: str,
-    now_seconds: int,
-    is_outside: Callable[[Path], bool] = is_published_from_outside,
+    cgroup_dir: Path, target_path: Path, kernel_release: str, now_seconds: int
 ) -> str:
-    """One publishing round: write the headroom, remove a stale file, or step aside.
+    """One publishing round: write the headroom, remove the file of an uncapped container, or leave it be.
 
-    Returns the ``OUTCOME_*`` naming what happened. The file is left alone where
-    someone else owns it (gVisor, or a directory that is a mount), and removed
-    while the container is uncapped so earlyoom falls back to ``/proc/meminfo``.
+    Returns the ``OUTCOME_*`` naming what happened.
     """
     if is_gvisor_kernel(kernel_release):
         return OUTCOME_GVISOR
-    if is_outside(target_path):
-        return OUTCOME_OUTSIDE
     headroom = read_cgroup_memory_headroom(cgroup_dir)
-    if headroom is None:
+    if headroom == OUTCOME_UNCAPPED:
         target_path.unlink(missing_ok=True)
         return OUTCOME_UNCAPPED
+    if isinstance(headroom, str):
+        return headroom
     limit_bytes, available_bytes = headroom
     write_replacing(
         target_path, render_host_meminfo(limit_bytes, available_bytes, now_seconds)

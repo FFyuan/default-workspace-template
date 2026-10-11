@@ -7,9 +7,10 @@ machine while the container's cgroup OOM killer acts at the workspace's cap.
 This loop reads the container's cgroup v2 memory controller four times a second
 and writes its limit and headroom to the file earlyoom reads with
 ``--host-meminfo`` (``oom_priority.cgroup_meminfo`` has the formula and the
-cases where it steps aside: gVisor, where a gen-2 slice VM publishes the file
-from outside, and an uncapped container or a lima VM, where ``/proc/meminfo``
-is already the truth). It never exits on its own: a cap can arrive at runtime
+cases where it has no answer and leaves the file alone). Under gVisor it has
+nothing to add (a gen-2 slice VM publishes the file from outside), so it says
+so and exits 0, which the program's ``exitcodes`` treat as the end of its job.
+Everywhere else it never exits on its own: a cap can arrive at runtime
 (``mngr docker resize`` on an uncapped workspace), so an uncapped container is
 re-checked every round rather than abandoned.
 
@@ -33,8 +34,9 @@ from oom_priority import cgroup_meminfo
 _OUTCOME_DESCRIPTIONS = {
     cgroup_meminfo.OUTCOME_PUBLISHED: "publishing the cgroup's limit and headroom",
     cgroup_meminfo.OUTCOME_UNCAPPED: "no memory cap on this cgroup; nothing published",
-    cgroup_meminfo.OUTCOME_GVISOR: "running under gVisor; the host publishes the file",
-    cgroup_meminfo.OUTCOME_OUTSIDE: "the target directory is a mount; its owner publishes the file",
+    cgroup_meminfo.OUTCOME_NO_CONTROLLER: "no cgroup v2 memory controller here; nothing published",
+    cgroup_meminfo.OUTCOME_UNREADABLE: "the cgroup's memory counters cannot be read; nothing published",
+    cgroup_meminfo.OUTCOME_GVISOR: "running under gVisor; the host publishes the file, exiting",
 }
 
 
@@ -74,7 +76,7 @@ class _Publisher:
         if outcome != self.last_outcome:
             logging.info("%s (%s)", _OUTCOME_DESCRIPTIONS[outcome], self.args.target)
             self.last_outcome = outcome
-        return not self.args.once
+        return not self.args.once and outcome != cgroup_meminfo.OUTCOME_GVISOR
 
 
 def main() -> None:
