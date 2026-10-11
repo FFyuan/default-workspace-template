@@ -1,0 +1,3 @@
+Brings the account-owned remote providers template change (the `mngr/fix-provider-storage` branch, default-workspace-template PR #542) up to date with current main: the Modal create template is connection-addressed (`system-services@<host>.modal_<hex>`), the `[create_templates.modal_eval]` overlay is gone, and the aws/gcp/azure template comments name the `<backend>_<hex>` connection instances and the `imbue_cloud_<user id>` account instance. The merge keeps main's docker tmpfs sizing comment and its "Imbue Studio" wording.
+
+Ships with the mngr release that carries the `mngr/update-provider-sharing` branch (parts 1 through 4 of `specs/account-owned-providers/spec.md` rebased onto current main).
