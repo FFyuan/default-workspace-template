@@ -54,6 +54,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--once", action="store_true", help="one round, then exit (tests)"
     )
+    # The running kernel decides the gVisor case; tests name a release of their
+    # own, since the CI sandboxes themselves run under gVisor.
+    parser.add_argument("--kernel-release", default=os.uname().release)
     return parser.parse_args(argv)
 
 
@@ -62,7 +65,6 @@ class _Publisher:
 
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
-        self.kernel_release = os.uname().release
         self.last_outcome: cgroup_meminfo.PublishOutcome | None = None
 
     def run_round(self) -> bool:
@@ -70,7 +72,7 @@ class _Publisher:
         outcome = cgroup_meminfo.publish_once(
             self.args.cgroup_dir,
             self.args.target,
-            self.kernel_release,
+            self.args.kernel_release,
             int(time.time()),
         )
         if outcome != self.last_outcome:
