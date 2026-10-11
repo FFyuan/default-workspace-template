@@ -65,11 +65,11 @@ def _read_first_line(path: Path) -> str | None:
     return text.partition("\n")[0].strip()
 
 
-def _read_reclaimable_bytes(stat_path: Path) -> int:
+def _read_reclaimable_bytes(stat_path: Path) -> int | None:
     try:
         lines = stat_path.read_text().splitlines()
     except OSError:
-        return 0
+        return None
     reclaimable = 0
     for line in lines:
         key, _, value = line.partition(" ")
@@ -84,7 +84,8 @@ def read_cgroup_memory_headroom(cgroup_dir: Path) -> tuple[int, int] | str:
     Available is the limit minus the usage plus the reclaimable memory, clamped
     to ``[0, limit]``. The outcomes: ``OUTCOME_NO_CONTROLLER`` when there is no
     ``memory.max`` to read, ``OUTCOME_UNCAPPED`` when it reads ``max``, and
-    ``OUTCOME_UNREADABLE`` when either counter is missing or not a number.
+    ``OUTCOME_UNREADABLE`` when ``memory.max`` or ``memory.current`` is not a
+    number or ``memory.current`` or ``memory.stat`` cannot be read.
     """
     limit_text = _read_first_line(cgroup_dir / "memory.max")
     if limit_text is None:
@@ -94,8 +95,10 @@ def read_cgroup_memory_headroom(cgroup_dir: Path) -> tuple[int, int] | str:
     usage_text = _read_first_line(cgroup_dir / "memory.current")
     if not limit_text.isdigit() or usage_text is None or not usage_text.isdigit():
         return OUTCOME_UNREADABLE
-    limit = int(limit_text)
     reclaimable = _read_reclaimable_bytes(cgroup_dir / "memory.stat")
+    if reclaimable is None:
+        return OUTCOME_UNREADABLE
+    limit = int(limit_text)
     available = max(0, min(limit, limit - int(usage_text) + reclaimable))
     return limit, available
 

@@ -77,6 +77,14 @@ def test_the_three_ways_a_cgroup_gives_no_headroom_are_told_apart(
         cgroup_meminfo.read_cgroup_memory_headroom(tmp_path)
         == cgroup_meminfo.OUTCOME_UNREADABLE
     )
+    # memory.stat too: the gen-2 publisher skips the round rather than counting
+    # the reclaimable share as zero, and the two must stay in step.
+    (tmp_path / "memory.current").write_text("4096\n")
+    (tmp_path / "memory.stat").unlink()
+    assert (
+        cgroup_meminfo.read_cgroup_memory_headroom(tmp_path)
+        == cgroup_meminfo.OUTCOME_UNREADABLE
+    )
 
 
 def test_render_writes_the_meminfo_subset_earlyoom_reads_in_kib() -> None:
