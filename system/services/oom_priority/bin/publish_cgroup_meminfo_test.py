@@ -7,19 +7,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from oom_priority.testing import write_fake_cgroup
+
 _SCRIPT = Path(__file__).parent / "publish_cgroup_meminfo.py"
 # A plain Linux kernel: the tests pass the release explicitly because the CI
 # sandboxes themselves run under gVisor, where the script has nothing to do.
 _LINUX_RELEASE = "7.0.0-38-generic"
 _GVISOR_RELEASE = "4.19.0-gvisor"
-
-
-def _fake_cgroup(tmp_path: Path, memory_max: str, memory_current: str) -> Path:
-    cgroup_dir = tmp_path / "cgroup"
-    cgroup_dir.mkdir()
-    (cgroup_dir / "memory.max").write_text(f"{memory_max}\n")
-    (cgroup_dir / "memory.current").write_text(f"{memory_current}\n")
-    return cgroup_dir
 
 
 def _run_script(
@@ -45,8 +39,10 @@ def _run_script(
 
 
 def test_one_round_publishes_a_capped_cgroup_and_says_so_once(tmp_path: Path) -> None:
-    cgroup_dir = _fake_cgroup(tmp_path, "8589934592", "1073741824")
-    (cgroup_dir / "memory.stat").write_text("anon 1000\ninactive_file 1024\n")
+    cgroup_dir = tmp_path / "cgroup"
+    write_fake_cgroup(
+        cgroup_dir, "8589934592", "1073741824", {"anon": 1000, "inactive_file": 1024}
+    )
     target = tmp_path / "mngr-vol" / ".host-meminfo"
     result = _run_script(cgroup_dir, target, once=True)
     assert result.returncode == 0, result.stderr
@@ -58,7 +54,8 @@ def test_one_round_publishes_a_capped_cgroup_and_says_so_once(tmp_path: Path) ->
 
 
 def test_one_round_on_an_uncapped_cgroup_publishes_nothing(tmp_path: Path) -> None:
-    cgroup_dir = _fake_cgroup(tmp_path, "max", "4096")
+    cgroup_dir = tmp_path / "cgroup"
+    write_fake_cgroup(cgroup_dir, "max", "4096", {})
     target = tmp_path / "mngr-vol" / ".host-meminfo"
     result = _run_script(cgroup_dir, target, once=True)
     assert result.returncode == 0, result.stderr
@@ -69,7 +66,8 @@ def test_one_round_on_an_uncapped_cgroup_publishes_nothing(tmp_path: Path) -> No
 def test_under_gvisor_the_script_exits_cleanly_without_touching_the_file(
     tmp_path: Path,
 ) -> None:
-    cgroup_dir = _fake_cgroup(tmp_path, "8589934592", "1073741824")
+    cgroup_dir = tmp_path / "cgroup"
+    write_fake_cgroup(cgroup_dir, "8589934592", "1073741824", {})
     target = tmp_path / "mngr-vol" / ".host-meminfo"
     target.parent.mkdir()
     published_by_the_vm = (

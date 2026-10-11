@@ -2,21 +2,11 @@ import re
 from pathlib import Path
 
 from oom_priority import cgroup_meminfo
+from oom_priority.testing import write_fake_cgroup
 
 _GIB = 1024**3
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 _EARLYOOM_CONF = _REPO_ROOT / "system" / "supervisord.conf.d" / "earlyoom.conf"
-
-
-def _write_cgroup(
-    cgroup_dir: Path, limit: str, usage: str, stat_lines: dict[str, int]
-) -> None:
-    cgroup_dir.mkdir(parents=True, exist_ok=True)
-    (cgroup_dir / "memory.max").write_text(f"{limit}\n")
-    (cgroup_dir / "memory.current").write_text(f"{usage}\n")
-    (cgroup_dir / "memory.stat").write_text(
-        "".join(f"{key} {value}\n" for key, value in stat_lines.items())
-    )
 
 
 def _publish(
@@ -28,7 +18,7 @@ def _publish(
 def test_headroom_adds_reclaimable_page_cache_and_slab_to_the_free_part(
     tmp_path: Path,
 ) -> None:
-    _write_cgroup(
+    write_fake_cgroup(
         tmp_path,
         str(8 * _GIB),
         str(6 * _GIB),
@@ -45,17 +35,17 @@ def test_headroom_adds_reclaimable_page_cache_and_slab_to_the_free_part(
 
 def test_headroom_is_clamped_to_the_limit_and_to_zero(tmp_path: Path) -> None:
     # Reclaimable cache can exceed what is in use at the start of a container's life.
-    _write_cgroup(tmp_path, str(_GIB), "1024", {"inactive_file": 2 * _GIB})
+    write_fake_cgroup(tmp_path, str(_GIB), "1024", {"inactive_file": 2 * _GIB})
     assert cgroup_meminfo.read_cgroup_memory_headroom(tmp_path) == (_GIB, _GIB)
     # Usage momentarily past the limit (the kernel is mid-reclaim) reads as no headroom.
-    _write_cgroup(tmp_path, str(_GIB), str(_GIB + 4096), {})
+    write_fake_cgroup(tmp_path, str(_GIB), str(_GIB + 4096), {})
     assert cgroup_meminfo.read_cgroup_memory_headroom(tmp_path) == (_GIB, 0)
 
 
 def test_the_three_ways_a_cgroup_gives_no_headroom_are_told_apart(
     tmp_path: Path,
 ) -> None:
-    _write_cgroup(tmp_path, "max", "4096", {})
+    write_fake_cgroup(tmp_path, "max", "4096", {})
     assert (
         cgroup_meminfo.read_cgroup_memory_headroom(tmp_path)
         == cgroup_meminfo.PublishOutcome.UNCAPPED
@@ -101,7 +91,7 @@ def test_gvisor_is_named_by_the_kernel_release() -> None:
 def test_publish_writes_the_file_by_rename_into_a_directory_it_creates(
     tmp_path: Path,
 ) -> None:
-    _write_cgroup(
+    write_fake_cgroup(
         tmp_path / "cgroup", str(8 * _GIB), str(6 * _GIB), {"inactive_file": _GIB}
     )
     target = tmp_path / "mngr-vol" / ".host-meminfo"
@@ -119,7 +109,7 @@ def test_publish_writes_the_file_by_rename_into_a_directory_it_creates(
 def test_publish_removes_the_file_once_the_container_is_uncapped(
     tmp_path: Path,
 ) -> None:
-    _write_cgroup(tmp_path / "cgroup", "max", "4096", {})
+    write_fake_cgroup(tmp_path / "cgroup", "max", "4096", {})
     target = tmp_path / "mngr-vol" / ".host-meminfo"
     target.parent.mkdir()
     target.write_text("MemTotal: 1 kB\nMemAvailable: 1 kB\nTimestamp: 1\n")
@@ -144,7 +134,7 @@ def test_publish_leaves_someone_elses_file_alone_when_it_has_no_answer(
         "MemTotal: 4194304 kB\nMemAvailable: 1048576 kB\nTimestamp: 5\n"
     )
     target.write_text(published_by_the_vm)
-    _write_cgroup(tmp_path / "cgroup", str(8 * _GIB), str(6 * _GIB), {})
+    write_fake_cgroup(tmp_path / "cgroup", str(8 * _GIB), str(6 * _GIB), {})
     assert (
         _publish(tmp_path / "cgroup", target, "4.19.0-gvisor")
         == cgroup_meminfo.PublishOutcome.GVISOR
