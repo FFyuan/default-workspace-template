@@ -21,7 +21,7 @@ def _write_cgroup(
 
 def _publish(
     cgroup_dir: Path, target: Path, kernel_release: str = "7.0.0-38-generic"
-) -> str:
+) -> cgroup_meminfo.PublishOutcome:
     return cgroup_meminfo.publish_once(cgroup_dir, target, kernel_release, 1760000000)
 
 
@@ -58,24 +58,24 @@ def test_the_three_ways_a_cgroup_gives_no_headroom_are_told_apart(
     _write_cgroup(tmp_path, "max", "4096", {})
     assert (
         cgroup_meminfo.read_cgroup_memory_headroom(tmp_path)
-        == cgroup_meminfo.OUTCOME_UNCAPPED
+        == cgroup_meminfo.PublishOutcome.UNCAPPED
     )
     # A lima VM's root cgroup, a cgroup v1 host, or gVisor's own tree: no memory.max at all.
     assert (
         cgroup_meminfo.read_cgroup_memory_headroom(tmp_path / "missing")
-        == cgroup_meminfo.OUTCOME_NO_CONTROLLER
+        == cgroup_meminfo.PublishOutcome.NO_CONTROLLER
     )
     # A counter that is momentarily unreadable, or not a number.
     (tmp_path / "memory.max").write_text(f"{_GIB}\n")
     (tmp_path / "memory.current").unlink()
     assert (
         cgroup_meminfo.read_cgroup_memory_headroom(tmp_path)
-        == cgroup_meminfo.OUTCOME_UNREADABLE
+        == cgroup_meminfo.PublishOutcome.UNREADABLE
     )
     (tmp_path / "memory.current").write_text("garbage\n")
     assert (
         cgroup_meminfo.read_cgroup_memory_headroom(tmp_path)
-        == cgroup_meminfo.OUTCOME_UNREADABLE
+        == cgroup_meminfo.PublishOutcome.UNREADABLE
     )
     # memory.stat too: the gen-2 publisher skips the round rather than counting
     # the reclaimable share as zero, and the two must stay in step.
@@ -83,7 +83,7 @@ def test_the_three_ways_a_cgroup_gives_no_headroom_are_told_apart(
     (tmp_path / "memory.stat").unlink()
     assert (
         cgroup_meminfo.read_cgroup_memory_headroom(tmp_path)
-        == cgroup_meminfo.OUTCOME_UNREADABLE
+        == cgroup_meminfo.PublishOutcome.UNREADABLE
     )
 
 
@@ -105,7 +105,9 @@ def test_publish_writes_the_file_by_rename_into_a_directory_it_creates(
         tmp_path / "cgroup", str(8 * _GIB), str(6 * _GIB), {"inactive_file": _GIB}
     )
     target = tmp_path / "mngr-vol" / ".host-meminfo"
-    assert _publish(tmp_path / "cgroup", target) == cgroup_meminfo.OUTCOME_PUBLISHED
+    assert (
+        _publish(tmp_path / "cgroup", target) == cgroup_meminfo.PublishOutcome.PUBLISHED
+    )
     assert (
         target.read_text()
         == "MemTotal: 8388608 kB\nMemAvailable: 3145728 kB\nTimestamp: 1760000000\n"
@@ -121,10 +123,14 @@ def test_publish_removes_the_file_once_the_container_is_uncapped(
     target = tmp_path / "mngr-vol" / ".host-meminfo"
     target.parent.mkdir()
     target.write_text("MemTotal: 1 kB\nMemAvailable: 1 kB\nTimestamp: 1\n")
-    assert _publish(tmp_path / "cgroup", target) == cgroup_meminfo.OUTCOME_UNCAPPED
+    assert (
+        _publish(tmp_path / "cgroup", target) == cgroup_meminfo.PublishOutcome.UNCAPPED
+    )
     assert not target.exists()
     # Removing an already-absent file is fine too.
-    assert _publish(tmp_path / "cgroup", target) == cgroup_meminfo.OUTCOME_UNCAPPED
+    assert (
+        _publish(tmp_path / "cgroup", target) == cgroup_meminfo.PublishOutcome.UNCAPPED
+    )
 
 
 def test_publish_leaves_someone_elses_file_alone_when_it_has_no_answer(
@@ -141,14 +147,17 @@ def test_publish_leaves_someone_elses_file_alone_when_it_has_no_answer(
     _write_cgroup(tmp_path / "cgroup", str(8 * _GIB), str(6 * _GIB), {})
     assert (
         _publish(tmp_path / "cgroup", target, "4.19.0-gvisor")
-        == cgroup_meminfo.OUTCOME_GVISOR
+        == cgroup_meminfo.PublishOutcome.GVISOR
     )
     assert (
         _publish(tmp_path / "no-controller", target)
-        == cgroup_meminfo.OUTCOME_NO_CONTROLLER
+        == cgroup_meminfo.PublishOutcome.NO_CONTROLLER
     )
     (tmp_path / "cgroup" / "memory.current").unlink()
-    assert _publish(tmp_path / "cgroup", target) == cgroup_meminfo.OUTCOME_UNREADABLE
+    assert (
+        _publish(tmp_path / "cgroup", target)
+        == cgroup_meminfo.PublishOutcome.UNREADABLE
+    )
     assert target.read_text() == published_by_the_vm
 
 

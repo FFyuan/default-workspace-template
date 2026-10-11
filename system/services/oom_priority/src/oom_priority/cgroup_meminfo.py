@@ -25,6 +25,7 @@ Stdlib-only (see ``paths``): run by a supervisord program under a plain
 ``python3``.
 """
 
+import enum
 import os
 from pathlib import Path
 from typing import Final
@@ -44,12 +45,15 @@ _RECLAIMABLE_STAT_KEYS: Final[frozenset[str]] = frozenset(
 )
 _UNCAPPED_LIMIT: Final[str] = "max"
 
-# What one publishing round did; the publisher logs each change of outcome.
-OUTCOME_PUBLISHED: Final[str] = "published"
-OUTCOME_UNCAPPED: Final[str] = "uncapped"
-OUTCOME_NO_CONTROLLER: Final[str] = "no_controller"
-OUTCOME_UNREADABLE: Final[str] = "unreadable"
-OUTCOME_GVISOR: Final[str] = "gvisor"
+
+class PublishOutcome(enum.Enum):
+    """What one publishing round did; the publisher logs each change of outcome."""
+
+    PUBLISHED = "published"
+    UNCAPPED = "uncapped"
+    NO_CONTROLLER = "no_controller"
+    UNREADABLE = "unreadable"
+    GVISOR = "gvisor"
 
 
 def is_gvisor_kernel(kernel_release: str) -> bool:
@@ -78,26 +82,26 @@ def _read_reclaimable_bytes(stat_path: Path) -> int | None:
     return reclaimable
 
 
-def read_cgroup_memory_headroom(cgroup_dir: Path) -> tuple[int, int] | str:
+def read_cgroup_memory_headroom(cgroup_dir: Path) -> tuple[int, int] | PublishOutcome:
     """``(limit_bytes, available_bytes)`` for a capped cgroup, else the outcome that stops the round.
 
     Available is the limit minus the usage plus the reclaimable memory, clamped
-    to ``[0, limit]``. The outcomes: ``OUTCOME_NO_CONTROLLER`` when there is no
-    ``memory.max`` to read, ``OUTCOME_UNCAPPED`` when it reads ``max``, and
-    ``OUTCOME_UNREADABLE`` when ``memory.max`` or ``memory.current`` is not a
+    to ``[0, limit]``. The outcomes: ``PublishOutcome.NO_CONTROLLER`` when there is no
+    ``memory.max`` to read, ``PublishOutcome.UNCAPPED`` when it reads ``max``, and
+    ``PublishOutcome.UNREADABLE`` when ``memory.max`` or ``memory.current`` is not a
     number or ``memory.current`` or ``memory.stat`` cannot be read.
     """
     limit_text = _read_first_line(cgroup_dir / "memory.max")
     if limit_text is None:
-        return OUTCOME_NO_CONTROLLER
+        return PublishOutcome.NO_CONTROLLER
     if limit_text == _UNCAPPED_LIMIT:
-        return OUTCOME_UNCAPPED
+        return PublishOutcome.UNCAPPED
     usage_text = _read_first_line(cgroup_dir / "memory.current")
     if not limit_text.isdigit() or usage_text is None or not usage_text.isdigit():
-        return OUTCOME_UNREADABLE
+        return PublishOutcome.UNREADABLE
     reclaimable = _read_reclaimable_bytes(cgroup_dir / "memory.stat")
     if reclaimable is None:
-        return OUTCOME_UNREADABLE
+        return PublishOutcome.UNREADABLE
     limit = int(limit_text)
     available = max(0, min(limit, limit - int(usage_text) + reclaimable))
     return limit, available
@@ -124,21 +128,21 @@ def write_replacing(target_path: Path, content: str) -> None:
 
 def publish_once(
     cgroup_dir: Path, target_path: Path, kernel_release: str, now_seconds: int
-) -> str:
+) -> PublishOutcome:
     """One publishing round: write the headroom, remove the file of an uncapped container, or leave it be.
 
-    Returns the ``OUTCOME_*`` naming what happened.
+    Returns the ``PublishOutcome`` naming what happened.
     """
     if is_gvisor_kernel(kernel_release):
-        return OUTCOME_GVISOR
+        return PublishOutcome.GVISOR
     headroom = read_cgroup_memory_headroom(cgroup_dir)
-    if headroom == OUTCOME_UNCAPPED:
+    if headroom is PublishOutcome.UNCAPPED:
         target_path.unlink(missing_ok=True)
-        return OUTCOME_UNCAPPED
-    if isinstance(headroom, str):
+        return PublishOutcome.UNCAPPED
+    if isinstance(headroom, PublishOutcome):
         return headroom
     limit_bytes, available_bytes = headroom
     write_replacing(
         target_path, render_host_meminfo(limit_bytes, available_bytes, now_seconds)
     )
-    return OUTCOME_PUBLISHED
+    return PublishOutcome.PUBLISHED

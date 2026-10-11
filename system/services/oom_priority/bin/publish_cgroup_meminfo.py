@@ -32,11 +32,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from oom_priority import cgroup_meminfo
 
 _OUTCOME_DESCRIPTIONS = {
-    cgroup_meminfo.OUTCOME_PUBLISHED: "publishing the cgroup's limit and headroom",
-    cgroup_meminfo.OUTCOME_UNCAPPED: "no memory cap on this cgroup; nothing published",
-    cgroup_meminfo.OUTCOME_NO_CONTROLLER: "no cgroup v2 memory controller here; nothing published",
-    cgroup_meminfo.OUTCOME_UNREADABLE: "the cgroup's memory counters cannot be read; nothing published",
-    cgroup_meminfo.OUTCOME_GVISOR: "running under gVisor; the host publishes the file, exiting",
+    cgroup_meminfo.PublishOutcome.PUBLISHED: "publishing the cgroup's limit and headroom",
+    cgroup_meminfo.PublishOutcome.UNCAPPED: "no memory cap on this cgroup; nothing published",
+    cgroup_meminfo.PublishOutcome.NO_CONTROLLER: "no cgroup v2 memory controller here; nothing published",
+    cgroup_meminfo.PublishOutcome.UNREADABLE: "the cgroup's memory counters cannot be read; nothing published",
+    cgroup_meminfo.PublishOutcome.GVISOR: "running under gVisor; the host publishes the file, exiting",
 }
 
 
@@ -63,7 +63,7 @@ class _Publisher:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.kernel_release = os.uname().release
-        self.last_outcome: str | None = None
+        self.last_outcome: cgroup_meminfo.PublishOutcome | None = None
 
     def run_round(self) -> bool:
         """One round; False once the loop should stop (only in ``--once`` mode)."""
@@ -76,7 +76,9 @@ class _Publisher:
         if outcome != self.last_outcome:
             logging.info("%s (%s)", _OUTCOME_DESCRIPTIONS[outcome], self.args.target)
             self.last_outcome = outcome
-        return not self.args.once and outcome != cgroup_meminfo.OUTCOME_GVISOR
+        return (
+            not self.args.once and outcome is not cgroup_meminfo.PublishOutcome.GVISOR
+        )
 
 
 def main() -> None:
