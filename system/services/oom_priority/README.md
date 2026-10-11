@@ -31,9 +31,9 @@ runs with the memory cap the template's `[providers.docker]` block sets
 gVisor (runsc, the default on Linux) the container's `/proc/meminfo` reports
 that cap as MemTotal, so earlyoom's thresholds and badness scores are relative
 to the workspace's own limit and shedding starts before the cgroup OOM killer
-does. Under runc (the macOS fallback) `/proc/meminfo` still reports the whole
-machine, so earlyoom only reacts once the machine itself runs short, and a
-workspace at its cgroup limit is shed by the kernel instead. A resize while the
+does. Under runc (the macOS fallback, and the create form's default runtime)
+`/proc/meminfo` reports the whole machine, so the workspace publishes its own
+cgroup's limit and headroom for earlyoom instead (see below). A resize while the
 container runs changes the cgroup cap at once but a gVisor container's reported
 MemTotal only after a restart. A lima workspace runs directly in its VM, so
 MemTotal is the VM's own RAM (the lima create template's `--memory`,
@@ -46,8 +46,20 @@ threshold can arrive only after the cgroup has killed the whole sandbox. A
 gen-2 slice VM therefore publishes the cgroup's own limit and headroom into the
 workspace's volume, and earlyoom runs with `--host-meminfo
 /mngr-vol/.host-meminfo` (`system/supervisord.conf.d/earlyoom.conf`), acting on
-whichever of the two shows less headroom. Where nothing is published (local
-docker, lima), earlyoom logs that once and uses `/proc/meminfo` alone.
+whichever of the two shows less headroom. A local docker workspace under runc
+publishes the same file for itself: the `publish-cgroup-meminfo` program
+(`bin/publish_cgroup_meminfo.py`, over `cgroup_meminfo`) reads the container's
+own cgroup v2 controller at `/sys/fs/cgroup` four times a second and writes the
+limit as MemTotal and the limit minus the usage plus the reclaimable page cache
+and slab as MemAvailable, with the same formula as the gen-2 VM. It steps aside
+under gVisor (the sandbox's cgroupfs is its own view, with no `memory.max`) and
+where the file's directory is a mount someone else writes into, and leaves no
+file while the container is uncapped (it keeps checking, since `mngr docker
+resize` can cap a running container) or on lima (no cgroup cap), so earlyoom
+logs that once and uses `/proc/meminfo` alone there. earlyoom's swap gate is
+held open (`-s 100,100`): a workspace container can never swap, but under runc
+it sees the host's swap as its own, which would otherwise keep earlyoom from
+ever acting on a laptop with swap.
 
 - **`bands`** -- the `oom_score_adj` value per band and the helper that writes
   it. From least- to most-expendable: never-kill infrastructure (0) < built-in
@@ -68,6 +80,9 @@ docker, lima), earlyoom logs that once and uses `/proc/meminfo` alone.
   inherited default of 0 and is additionally shielded by earlyoom `--avoid`. The
   service order is a best-effort steer, not a hard guarantee -- see "Protection
   is soft" below.
+- **`cgroup_meminfo`** -- the container's own memory headroom, read from its
+  cgroup, in the form earlyoom's `--host-meminfo` takes; the
+  `publish-cgroup-meminfo` program writes it under runc.
 - **`app_registry`** -- the narrow, stdlib-only reader of the app registry the
   backstop listener uses: each registered app's `priority` band name, by the
   supervisord program that runs it.
