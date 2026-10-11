@@ -47,7 +47,7 @@ gen-2 slice VM therefore publishes the cgroup's own limit and headroom into the
 workspace's volume, and earlyoom runs with `--host-meminfo
 /mngr-vol/.host-meminfo` (`system/supervisord.conf.d/earlyoom.conf`), acting on
 whichever of the two shows less headroom. A local docker workspace under runc
-publishes the same file for itself: the `publish-cgroup-meminfo` program
+publishes the same file for itself: the `publish_cgroup_meminfo` program
 (`bin/publish_cgroup_meminfo.py`, over `cgroup_meminfo`) reads the container's
 own cgroup v2 controller at `/sys/fs/cgroup` four times a second and writes the
 limit as MemTotal and the limit minus the usage plus the reclaimable page cache
@@ -82,7 +82,7 @@ ever acting on a laptop with swap.
   is soft" below.
 - **`cgroup_meminfo`** -- the container's own memory headroom, read from its
   cgroup, in the form earlyoom's `--host-meminfo` takes; the
-  `publish-cgroup-meminfo` program writes it under runc.
+  `publish_cgroup_meminfo` program writes it under runc.
 - **`app_registry`** -- the narrow, stdlib-only reader of the app registry the
   backstop listener uses: each registered app's `priority` band name, by the
   supervisord program that runs it.

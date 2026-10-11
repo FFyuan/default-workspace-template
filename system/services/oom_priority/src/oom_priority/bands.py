@@ -352,7 +352,7 @@ _NON_SERVICE_PROGRAM_BANDS: Final[dict[str, int]] = {
     "oom-tag-backstop": PROTECTED,
     # Feeds earlyoom the container's cgroup headroom under runc; without it
     # earlyoom cannot see the workspace's cap at all.
-    "publish-cgroup-meminfo": PROTECTED,
+    "publish_cgroup_meminfo": PROTECTED,
     "env-converge": PROTECTED,
     # A one-shot (autorestart=false) that registers the VM-resident owner-exec
     # service origin and exits; shedding it mid-run would leave the registration

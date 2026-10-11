@@ -114,7 +114,7 @@ def test_supervisord_program_bands_preserve_the_shedding_order() -> None:
     assert bands.supervisord_program_band("earlyoom", {}) == bands.PROTECTED
     assert bands.supervisord_program_band("oom-tag-backstop", {}) == bands.PROTECTED
     assert (
-        bands.supervisord_program_band("publish-cgroup-meminfo", {}) == bands.PROTECTED
+        bands.supervisord_program_band("publish_cgroup_meminfo", {}) == bands.PROTECTED
     )
     assert bands.SHARED_BROWSER > bands.AGENT_SUBPROCESS
     # The `browser` program is the coordinator, not Chromium: it resolves to its
