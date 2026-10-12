@@ -1,3 +1,9 @@
-Brings the account-owned remote providers template change (the `mngr/fix-provider-storage` branch, default-workspace-template PR #542) up to date with current main: the Modal create template is connection-addressed (`system-services@<host>.modal_<hex>`), the `[create_templates.modal_eval]` overlay is gone, and the aws/gcp/azure template comments name the `<backend>_<hex>` connection instances and the `imbue_cloud_<user id>` account instance. The merge keeps main's docker tmpfs sizing comment and its "Imbue Studio" wording.
+Modal is now a minds *connection* (a `modal_<hex>` provider instance whose block minds writes into its mngr profile, carrying the user's Modal token) rather than the ambient `modal` provider using the machine's own token. Accordingly:
 
-Ships with the mngr release that carries the `mngr/update-provider-sharing` branch (parts 1 through 4 of `specs/account-owned-providers/spec.md` rebased onto current main).
+- `[create_templates.modal]` no longer declares `provider = "modal"` and no longer extends `providers.modal.*` settings: the create address selects the connection instance (as the aws/gcp/azure templates already do), and the sizing (2 CPU / 4 GB) plus the ~24h sandbox timeout that lived here now ride the connection block minds writes.
+
+- `[create_templates.modal_eval]` is gone. The eval harness shortens the sandbox lifetime through minds' `MINDS_MODAL_SANDBOX_TIMEOUT_SECONDS` override instead of a template overlay, since a template cannot name a connection instance.
+
+- The `[create_templates.aws]`, `[create_templates.gcp]`, `[create_templates.azure]`, and `[create_templates.imbue_cloud]` comments now describe the provider instances minds actually uses (`aws_<hex>`, `gcp_<hex>`, `azure_<hex>` connection instances, and `imbue_cloud_<user id>` for imbue_cloud) instead of the retired `aws-<region>` / `byo-*` / `imbue_cloud_<slug>` names.
+
+Ships with the mngr release that carries the `mngr/update-provider-sharing` branch (parts 1 through 4 of `specs/account-owned-providers/spec.md`).
