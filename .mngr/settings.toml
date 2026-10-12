@@ -790,7 +790,8 @@ extra_provision_command__extend = [
 # connection instance whose block Imbue Studio writes into its mngr profile settings
 # (mirroring the aws/gcp/azure templates). That block also carries the sizing
 # (2 CPU / 4 GB) and the ~24h sandbox timeout; the eval harness shortens the
-# timeout through Imbue Studio's MINDS_MODAL_SANDBOX_TIMEOUT_SECONDS override rather than
+# timeout per create (the Imbue Studio create request's modal_sandbox_timeout_seconds,
+# passed to mngr create as a setting override on the connection instance) rather than
 # through a template overlay, since a template cannot name a connection instance.
 [create_templates.modal]
 target_path = "/home/user/workspace/"
