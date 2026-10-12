@@ -6,4 +6,4 @@ Modal is now a minds *connection* (a `modal_<hex>` provider instance whose block
 
 - The `[create_templates.aws]`, `[create_templates.gcp]`, `[create_templates.azure]`, and `[create_templates.imbue_cloud]` comments now describe the provider instances minds actually uses (`aws_<hex>`, `gcp_<hex>`, `azure_<hex>` connection instances, and `imbue_cloud_<user id>` for imbue_cloud) instead of the retired `aws-<region>` / `byo-*` / `imbue_cloud_<slug>` names.
 
-Ships alongside minds part 3 of `specs/account-owned-providers/spec.md` (mngr PR #836).
+Ships with the mngr release that carries minds part 3 of `specs/account-owned-providers/spec.md` (the `mngr/update-provider-sharing` branch, which superseded the stacked mngr PR #836).
