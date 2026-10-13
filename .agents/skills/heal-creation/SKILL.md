@@ -22,8 +22,9 @@ two workers would each see only half of the failure.
 
 ## The type parameter
 
-Each creation in the pass has a type: `skill`, `app`, or `service`. The worker
-reads it and loads `type-<TYPE>.md`. A heal of a critical
+Each creation in the pass has a type: `skill`, `app`, `service`, or `shared` (a
+shared script or reference, handled as a skill). The worker reads it and loads
+`type-<TYPE>.md`. A heal of a critical
 app (the shell, the chat, the terminal, or an app whose manifest says
 `critical = true`) is a live edit of the served tree at your own risk: there is
 no preview, no kept rollback point, and no notice behind it, so a wrong fix
@@ -175,10 +176,12 @@ since the last hardened merge.
 
 Then merge `mngr/heal-$SLUG`, destroy the worker per `lead-proxy.md`
 (`create_worker.py destroy --name heal-$SLUG`), and go live for each creation in
-the pass, by its type: a **skill** needs nothing beyond the merge; an **app**
-wants a window refresh (`uv run --no-sync workspace-layout refresh --app
-<app-name>`); a background **service** has no window -- restart it
-(`supervisorctl restart <name>`) instead. Then close the ticket:
+the pass, by its type: a **skill** or **shared** creation needs nothing beyond
+the merge; an **app** wants a window refresh (`uv run --no-sync
+workspace-layout refresh --app <app-name>`); a background **service** has no
+window -- restart its programs (`supervisorctl restart <program>`) instead: the
+one named after the package (`host_backup` runs as `host-backup`) and any
+`<program>-<role>` ones. Then close the ticket:
 
 ```bash
 tk close "$TICKET_ID" "Healed $CREATIONS -- worker branch merged."

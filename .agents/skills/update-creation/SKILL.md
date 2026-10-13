@@ -244,12 +244,15 @@ Then merge `mngr/update-$SLUG`, destroy the worker per `lead-proxy.md`
 (`create_worker.py destroy --name update-$SLUG`), and go live for each creation
 in the pass, by its type:
 
-- **skill**: nothing beyond the merge (the worker's cross-reference sweep is part
-  of the change). If it is a built-in upstream skill, note the local drift to
-  reconcile later via `update-self` / `submit-upstream-changes`.
+- **skill** or **shared**: nothing beyond the merge (the worker's
+  cross-reference sweep is part of the change). If it is a built-in upstream
+  skill, note the local drift to reconcile later via `update-self` /
+  `submit-upstream-changes`.
 - **app**: refresh its window (`uv run --no-sync workspace-layout refresh
   --app <app-name>`).
-- **service**: it has no window -- restart it (`supervisorctl restart <name>`).
+- **service**: it has no window -- restart its programs (`supervisorctl restart
+  <program>`): the one named after the package (`host_backup` runs as
+  `host-backup`) and any `<program>-<role>` ones.
 - **a critical app**: do **not** merge or go live here -- the careful flow
   (`update-app/references/critical-app.md`) drives the live preview loop and
   the go-live through the atomic update apply. (It uses this flow for Steps 1-3
