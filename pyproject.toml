@@ -33,7 +33,6 @@ dev = [
     # build on; the root conftest.py points them at Fortress.
     "pytest-playwright>=0.4",
     "ruff>=0.4",
-    "pyright>=1.1",
     "inline-snapshot>=0.31",
     # What imbue_common.ratchet_testing needs (every project's test_ratchets.py imports it).
     "imbue-common[testing]",
@@ -188,9 +187,3 @@ exclude = ["system/vendor/tk", "system/apps/system_interface", "system/apps/chat
 
 [tool.ruff.lint]
 select = ["F", "I", "UP006", "UP007"]
-
-[tool.pyright]
-pythonVersion = "3.11"
-# apps and skills are the top-level discoverability symlinks; excluding them
-# keeps pyright from analyzing the same files twice via the symlink paths.
-exclude = ["system/vendor/tk", "system/apps/system_interface", "system/apps/chat", "apps", "skills"]
