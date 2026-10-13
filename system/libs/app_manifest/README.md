@@ -83,8 +83,11 @@ The models behind a workspace app's two descriptions:
   app's stale reference does not block every other creation's footprint).
   `compute_skill_scope` refuses a path that does not exist, because git ignores a
   pathspec that matches nothing and a mistyped path would read as "unchanged".
-  `BUILT_IN_EXCLUDES`, `APP_CONVENTIONS`, and `SKILL_CONVENTIONS` are the fixed
-  lists. Exclude matching is `pathspec` gitignore syntax; a failing git command
+  `parse_creation_spec`, `compute_creation_scope`, `compute_pass_scope`, and
+  `render_pass_scope_file` build the pass scope file behind `app-manifest
+  pass-scope`, and `split_against_creations` is the diff split both scope files
+  share. `BUILT_IN_EXCLUDES`, `APP_CONVENTIONS`, `SKILL_CONVENTIONS`, and
+  `SERVICE_CONVENTIONS` are the fixed lists. Exclude matching is `pathspec` gitignore syntax; a failing git command
   raises `ScopeComputationError` rather than reporting an empty diff.
 - `app_manifest.selection` and `app_manifest.workspace_graph`: the test
   selection behind `app-manifest select-tests` (below). `workspace_graph` reads
@@ -145,8 +148,9 @@ goes to stdout; with it, the parent directories are created.
 }
 ```
 
-- `creation.type` is `app` or `skill`; a skill's `package` and `manifest` are
-  null and its `name` is the directory's name.
+- `creation.type` is `app` or `skill` (or `service`, from `pass-scope` below); a
+  skill's `package` and `manifest` are null and its `name` is the directory's
+  name.
 - `primary` is what the creation is: the app's package directory, or the
   `--for-path` path. A directory ends in `/`.
 - `wiring` is the supervisord sections the app owns: its own
