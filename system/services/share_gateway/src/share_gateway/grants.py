@@ -27,10 +27,12 @@ Imbue Studio desktop through ``mngr exec`` -- holds the same ``flock`` on the si
 import fcntl
 import os
 import tomllib
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
+
+from share_gateway.json_values import is_json_object
 
 
 class GrantsError(ValueError):
@@ -95,13 +97,15 @@ class Grants:
 
 
 def _parse_string_list(raw: object, scope: str, key: str) -> list[str]:
-    if not isinstance(raw, list) or not all(isinstance(entry, str) for entry in raw):
-        raise GrantsError(f"grants scope {scope!r}: {key} must be a list of strings")
-    return list(raw)
+    if isinstance(raw, list):
+        strings = [entry for entry in raw if isinstance(entry, str)]
+        if len(strings) == len(raw):
+            return strings
+    raise GrantsError(f"grants scope {scope!r}: {key} must be a list of strings")
 
 
 def _parse_grant_list(raw: object, scope: str) -> GrantList:
-    if not isinstance(raw, dict):
+    if not is_json_object(raw):
         raise GrantsError(f"grants scope {scope!r} must be a table")
     return GrantList(
         users=_parse_string_list(raw.get("users", []), scope, "users"),
@@ -181,7 +185,7 @@ def grants_lock_path(grants_path: Path) -> Path:
 
 
 @contextmanager
-def locked_grants_file(grants_path: Path) -> Iterator[None]:
+def locked_grants_file(grants_path: Path) -> Generator[None, None, None]:
     """Hold the exclusive ``flock`` on the grants document's sibling lock file."""
     lock_path = grants_lock_path(grants_path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)

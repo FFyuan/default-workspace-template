@@ -110,8 +110,8 @@ entry carries a "..." button with its menu.
 The manifest's one launch path is `/home/user/workspace/` with an optional `path`
 param (an absolute path, since dufs serves the filesystem root), so a plain launch
 opens the workspace folder and the shell opens a Files window at
-`/home/user/workspace/?path=<folder>` when asked for one (`layout.py open files
---path /home/user/workspace/data/notes/` is the same thing). The page shows that
+`/home/user/workspace/?path=<folder>` when asked for one (`workspace-layout open
+files --path /home/user/workspace/data/notes/` is the same thing). The page shows that
 folder in place and reports it as its location (`shell:location`,
 desktop-interface contracts.md section 7), as it does after every move, so the
 window's stored path follows, a reload reopens the folder, and the window is
@@ -139,6 +139,17 @@ location beacon, titled after the missing name.
 When `install_dufs.sh` bumps the pinned dufs version, check the placeholders,
 the listing JSON, and the verbs `models/dufs.ts` relies on against the new
 release.
+
+## Opening a linked file or folder
+
+The manifest also registers the `open:file` message (`[[message_handlers]]`,
+desktop-interface contracts.md section 5.6), which the shell sends when a link
+to a file or folder is clicked in any app (a `file:` URL the app contract hands
+it, such as a chat's link to an absolute path). The shell shows the path's
+`?view` page in a Files window: a file's view page, or, for a folder, the folder
+itself, since Files reads `?view` on a folder as the folder. A window already on
+that file or folder, as `/a/b`, `/a/b/`, or `/a/b/?view`, is raised instead of
+opening another.
 
 ## Tests
 

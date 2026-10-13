@@ -8,7 +8,6 @@ import os
 import threading
 from collections.abc import Callable
 from collections.abc import Generator
-from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,6 +23,8 @@ from flask import Flask
 from flask.testing import FlaskClient
 from mngr_cli_contract.contract import assert_mngr_argv_valid
 from oom_priority import bands
+from pydantic import Field
+from pydantic import SecretStr
 
 from imbue.chat.accounts import INDEX_VERSION
 from imbue.chat.accounts import account_dir
@@ -43,6 +44,7 @@ from imbue.chat.chat_transcript import agent_switch_event_id
 from imbue.chat.config import Config
 from imbue.chat.event_queues import AgentEventQueues
 from imbue.chat.harnesses.claude.tap import ClaudeInterruptToComposer
+from imbue.chat.harnesses.codex.ledger import CodexMessageLedger
 from imbue.chat.harnesses.codex.ledger import ShoulderTapResult
 from imbue.chat.harnesses.codex.live_connection import CodexLiveConnection
 from imbue.chat.harnesses.codex.model import codex_models_to_options
@@ -59,6 +61,7 @@ from imbue.chat.harnesses.registry import build_shoulder_tap
 from imbue.chat.harnesses.session import FileHarnessSession
 from imbue.chat.harnesses.session import SendOutcome
 from imbue.chat.harnesses.session import SessionDeps
+from imbue.chat.latchkey_gateway import GatewayAccess
 from imbue.chat.models import AgentStateItem
 from imbue.chat.models import CreateChatRequest
 from imbue.chat.models import HandoffPhase
@@ -76,6 +79,7 @@ from imbue.chat.server import create_application
 from imbue.chat.state import ChatAppState
 from imbue.chat.state import state_of
 from imbue.chat.testing import InlineExecutor
+from imbue.chat.testing import RecordingGateway
 from imbue.chat.testing import RecordingMngrMessenger
 from imbue.chat.testing import VanishedAgentMngrMessenger
 from imbue.chat.testing import build_test_state
@@ -818,7 +822,7 @@ class _ReleasingAsEachSendEndsAgentManager(AgentManager):
     release: Callable[[], None] | None = None
 
     @contextmanager
-    def track_connecting_send(self, agent_id: str, message_id: str) -> Iterator[Callable[[], None]]:
+    def track_connecting_send(self, agent_id: str, message_id: str) -> Generator[Callable[[], None], None, None]:
         with super().track_connecting_send(agent_id, message_id) as mark_connecting:
             yield mark_connecting
         if self.release is not None:
@@ -897,42 +901,46 @@ def test_a_send_to_a_stopped_agent_reads_as_connecting_while_the_send_starts_it(
     assert connecting_pushes[-1] is False
 
 
-class _FakeCodexLedger:
+class _FakeCodexLedger(CodexMessageLedger):
     """A stand-in for the live codex ledger the endpoints reach through the agent manager."""
 
-    def __init__(
-        self,
-        *,
-        sending: bool = False,
-        tap: bool = False,
-        interrupt_block: str = "",
-        tap_status: str = "tapped",
-        tap_returned_block: str = "",
-    ) -> None:
-        self._sending = sending
-        self._tap = tap
-        self._interrupt_block = interrupt_block
-        self._tap_status = tap_status
-        self._tap_returned_block = tap_returned_block
-        self.sent: list[tuple[str, str | None]] = []
-        self.tap_calls = 0
+    client: Any = None
+    sending: bool = False
+    tap: bool = False
+    interrupt_block: str = ""
+    tap_status: str = "tapped"
+    tap_returned_block: str = ""
+    sent: list[tuple[str, str | None]] = Field(default_factory=list)
+    tap_calls: int = 0
 
     def send(self, text: str, client_id: str | None = None) -> str:
         self.sent.append((text, client_id))
         return client_id or "cid"
 
     def is_sending(self) -> bool:
-        return self._sending
+        return self.sending
 
     def is_tap_available(self) -> bool:
-        return self._tap
+        return self.tap
 
     def shoulder_tap(self) -> ShoulderTapResult:
         self.tap_calls += 1
-        return ShoulderTapResult(status=self._tap_status, returned_block=self._tap_returned_block)
+        return ShoulderTapResult(status=self.tap_status, returned_block=self.tap_returned_block)
 
     def interrupt(self) -> str:
-        return self._interrupt_block
+        return self.interrupt_block
+
+
+class _CodexSessionOverFakeLedger(CodexHarnessSession):
+    """A codex session whose live ledger is a fake (None = daemon down/starting)."""
+
+    _fake_ledger: _FakeCodexLedger | None
+
+    def ensure_live(self) -> None:
+        return None
+
+    def _live_ledger(self) -> CodexMessageLedger | None:
+        return self._fake_ledger
 
 
 def _codex_client(agent_info: AgentInfo) -> FlaskClient:
@@ -965,21 +973,22 @@ def _file_session_for(agent_info: AgentInfo, in_flight: str = "") -> FileHarness
     return file_session
 
 
-def _codex_session_over(ledger: "_FakeCodexLedger | None") -> CodexHarnessSession:
+def _codex_session_over(ledger: _FakeCodexLedger | None) -> CodexHarnessSession:
     """A codex session whose live ledger is the given fake (None = daemon down/starting)."""
-    session = CodexHarnessSession.__new__(CodexHarnessSession)
-    session.ensure_live = lambda: None
-    session._live_ledger = lambda: ledger
+    session = _CodexSessionOverFakeLedger.__new__(_CodexSessionOverFakeLedger)
+    session._fake_ledger = ledger
     return session
 
 
-def _codex_session_down_until_started(ledger: "_FakeCodexLedger") -> tuple[CodexHarnessSession, Callable[[], None]]:
+def _codex_session_down_until_started(ledger: _FakeCodexLedger) -> tuple[CodexHarnessSession, Callable[[], None]]:
     """A codex session whose daemon is down until the returned ``bring_up`` runs (a revive's start)."""
-    session = CodexHarnessSession.__new__(CodexHarnessSession)
-    session.ensure_live = lambda: None
-    live: list[_FakeCodexLedger] = []
-    session._live_ledger = lambda: live[0] if live else None
-    return session, lambda: live.append(ledger)
+    session = _CodexSessionOverFakeLedger.__new__(_CodexSessionOverFakeLedger)
+    session._fake_ledger = None
+
+    def bring_up() -> None:
+        session._fake_ledger = ledger
+
+    return session, bring_up
 
 
 def test_send_message_codex_routes_through_the_ledger(tmp_path: Path) -> None:
@@ -1689,8 +1698,21 @@ def _manager_with_capturing_prioritizer(writes: list[tuple[int, int]], pids: dic
         # No process-start marker in this fake, so the chat's idle time comes from
         # the reported presence alone -- which is what these tests are about.
         resolve_process_started_at=lambda _cid: None,
+        presence=manager._presence,
     )
     return manager
+
+
+def _presence_body(
+    state: str, instance_id: str = "page-1", is_focused: bool = False, sequence: int = 1
+) -> dict[str, Any]:
+    return {
+        "instance_id": instance_id,
+        "client_id": "client-1",
+        "state": state,
+        "is_focused": is_focused,
+        "sequence": sequence,
+    }
 
 
 def _client_with_tracked_chat(writes: list[tuple[int, int]], agent_id: str, pid: int) -> FlaskClient:
@@ -1707,7 +1729,7 @@ def test_presence_endpoint_retags_a_chat_from_the_report() -> None:
     writes: list[tuple[int, int]] = []
     client = _client_with_tracked_chat(writes, "agent-c0ffee", 4242)
 
-    response = client.post("/api/chats/agent-c0ffee/presence", json={"client_id": "client-1", "state": "visible"})
+    response = client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("visible"))
 
     assert response.status_code == 200
     assert response.get_json()["status"] == "ok"
@@ -1723,13 +1745,13 @@ def test_presence_endpoint_retags_a_chat_from_the_report() -> None:
 
 
 def test_presence_endpoint_closed_report_releases_the_chat() -> None:
-    """A ``closed`` report drops the client's presence, so the chat reads as closed again."""
+    """After a page's ``closed`` report it counts as neither open nor visible, so the chat reads as closed again."""
     writes: list[tuple[int, int]] = []
     client = _client_with_tracked_chat(writes, "agent-c0ffee", 4242)
-    client.post("/api/chats/agent-c0ffee/presence", json={"client_id": "client-1", "state": "hidden"})
+    client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("hidden"))
     open_adj = writes[-1][1]
 
-    response = client.post("/api/chats/agent-c0ffee/presence", json={"client_id": "client-1", "state": "closed"})
+    response = client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("closed", sequence=2))
 
     assert response.status_code == 200
     assert writes[-1][1] > open_adj
@@ -1742,7 +1764,7 @@ def test_presence_endpoint_rejects_a_malformed_report() -> None:
     writes: list[tuple[int, int]] = []
     client = _client_with_tracked_chat(writes, "agent-c0ffee", 4242)
 
-    response = client.post("/api/chats/agent-c0ffee/presence", json={"client_id": "client-1", "state": "gone"})
+    response = client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("gone"))
 
     assert response.status_code == 400
     assert "detail" in response.get_json()
@@ -1753,9 +1775,89 @@ def test_presence_endpoint_refuses_an_id_that_is_not_an_agent_id() -> None:
     writes: list[tuple[int, int]] = []
     client = _client_with_tracked_chat(writes, "agent-c0ffee", 4242)
 
-    response = client.post("/api/chats/not-an-agent/presence", json={"client_id": "client-1", "state": "visible"})
+    response = client.post("/api/chats/not-an-agent/presence", json=_presence_body("visible"))
 
     assert response.status_code == 404
+
+
+def test_presence_endpoint_refuses_a_report_that_names_no_page_instance() -> None:
+    writes: list[tuple[int, int]] = []
+    client = _client_with_tracked_chat(writes, "agent-c0ffee", 4242)
+
+    response = client.post(
+        "/api/chats/agent-c0ffee/presence",
+        json={"client_id": "client-1", "state": "visible", "is_focused": True, "sequence": 1},
+    )
+
+    assert response.status_code == 400
+    assert "instance_id" in response.get_json()["detail"]
+    assert writes == []
+
+
+def test_watchers_route_lists_the_pages_shown_and_focused_and_no_other() -> None:
+    client = _client_with_tracked_chat([], "agent-c0ffee", 4242)
+    client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("visible", "page-shown-blurred"))
+    client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("hidden", "page-hidden", is_focused=True))
+    assert client.get("/api/chats/agent-c0ffee/watchers").get_json() == {"watched_by": []}
+
+    client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("visible", "page-watching", is_focused=True))
+    response = client.get("/api/chats/agent-c0ffee/watchers")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"watched_by": ["page-watching"]}
+    assert client.get("/api/chats/agent-beef01/watchers").get_json() == {"watched_by": []}
+
+
+def test_watchers_route_answers_only_loopback_callers() -> None:
+    client = _client_with_tracked_chat([], "agent-c0ffee", 4242)
+
+    response = client.get("/api/chats/agent-c0ffee/watchers", environ_base={"REMOTE_ADDR": "10.0.0.7"})
+
+    assert response.status_code == 403
+
+
+def test_watchers_route_refuses_an_id_that_is_not_an_agent_id() -> None:
+    client = _client_with_tracked_chat([], "agent-c0ffee", 4242)
+
+    assert client.get("/api/chats/not-an-agent/watchers").status_code == 404
+
+
+def test_a_report_that_starts_someone_watching_marks_the_chat_read_in_the_app_once() -> None:
+    gateway = RecordingGateway(status=200)
+    with serve_app(gateway.application) as served:
+        manager = AgentManager.build(
+            WebSocketBroadcaster(),
+            imbue_studio_gateway=GatewayAccess(
+                base_url=served.http_url, password=SecretStr("gateway-password-7731"), permissions_override=None
+            ),
+        )
+        with manager._lock:
+            for agent_id in ("agent-c0ffee", "agent-beef01"):
+                manager._agents[agent_id] = AgentStateItem(
+                    id=agent_id, name=agent_id, state="RUNNING", labels={"user_created": "true"}, work_dir=None
+                )
+        client = create_application(build_test_state(agent_manager=manager)).test_client()
+        try:
+            client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("visible", "page-1"))
+            client.post(
+                "/api/chats/agent-c0ffee/presence",
+                json=_presence_body("visible", "page-1", is_focused=True, sequence=2),
+            )
+            client.post(
+                "/api/chats/agent-c0ffee/presence",
+                json=_presence_body("visible", "page-1", is_focused=True, sequence=3),
+            )
+            client.post("/api/chats/agent-c0ffee/presence", json=_presence_body("visible", "page-2", is_focused=True))
+            # The calls run one at a time in order, so once this second chat's lands nothing is left for the first.
+            client.post("/api/chats/agent-beef01/presence", json=_presence_body("visible", "page-3", is_focused=True))
+            wait_for(lambda: len(gateway.received) >= 2, timeout=15.0, error_message="the read calls never arrived")
+        finally:
+            manager._imbue_studio_notifications.shutdown()
+
+    assert [received.path for received in gateway.received] == [
+        "/minds-api-proxy/api/v1/agents/agent-c0ffee/notifications/read",
+        "/minds-api-proxy/api/v1/agents/agent-beef01/notifications/read",
+    ]
 
 
 def test_send_records_the_message_for_the_chats_recency() -> None:
@@ -3315,8 +3417,7 @@ def test_serves_non_image_file_as_download(client: FlaskClient, tmp_path: Path) 
     assert "q4-report.pdf" in disposition
     # Downloaded, not sniffed into an inline-executable type.
     assert response.headers.get("X-Content-Type-Options") == "nosniff"
-    # Cached forever like inline images; per-message ``requested_at`` keeps a new
-    # message's link URL distinct so it still fetches the current file.
+    # Cached forever like inline images.
     assert response.headers["Cache-Control"] == "public, max-age=31536000, immutable"
 
 

@@ -3,7 +3,7 @@ import shlex
 import threading
 import time
 from collections.abc import Callable
-from collections.abc import Iterator
+from collections.abc import Generator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from contextlib import contextmanager
@@ -19,6 +19,7 @@ from loguru import logger as _loguru_logger
 from oom_priority.bands import set_oom_score_adj
 from oom_priority.registry import lookup_pid_by_agent_id
 from pydantic import Field
+from workspace_layout.client import DisconnectedShell
 
 from imbue.chat.accounts import Account
 from imbue.chat.accounts import AccountError
@@ -110,6 +111,8 @@ from imbue.chat.harnesses.session import SendOutcome
 from imbue.chat.harnesses.session import SessionDeps
 from imbue.chat.harnesses.session_watcher import TranscriptReader
 from imbue.chat.harnesses.startup_readiness import is_harness_starting_up
+from imbue.chat.imbue_studio_notifications import ImbueStudioNotificationsClient
+from imbue.chat.latchkey_gateway import GatewayAccess
 from imbue.chat.message_stamps import MessageStampStore
 from imbue.chat.models import ActiveAgentSnapshot
 from imbue.chat.models import AgentCreationError
@@ -144,11 +147,11 @@ from imbue.chat.naming import first_free_numbered_name
 from imbue.chat.naming import is_minted_chat_name
 from imbue.chat.naming import is_name_conflict
 from imbue.chat.oom_prioritizer import ChatOomPrioritizer
-from imbue.chat.presence import PresenceState
+from imbue.chat.presence import PresenceReport
+from imbue.chat.presence import PresenceTracker
 from imbue.chat.primitives import ChatId
 from imbue.chat.primitives import ChatStatus
 from imbue.chat.primitives import parse_chat_ref
-from imbue.chat.shell_client import DisconnectedShell
 from imbue.chat.ws_broadcaster import WebSocketBroadcaster
 from imbue.concurrency_group.concurrency_group import ConcurrencyGroup
 from imbue.concurrency_group.errors import ConcurrencyGroupError
@@ -897,6 +900,12 @@ class AgentManager:
     # is protected while engaged and climbs past the worker band once it has been
     # left alone long enough.
     _oom_prioritizer: ChatOomPrioritizer
+    # Every chat page's presence reports: what the OOM prioritizer reads open and visible from, and
+    # who is watching a chat (a page shown and focused), which the notify path asks.
+    _presence: PresenceTracker
+    # Tells the Imbue Studio app a chat was read when it goes from unwatched to watched. Reaches the
+    # app only when ``build`` was given the gateway; the default drops every call.
+    _imbue_studio_notifications: ImbueStudioNotificationsClient
     # Runs periodic context compaction checks (mngr autocompact run) for active chats.
     _autocompactor: ChatAutoCompactor
     # Surfaces the window of a chat created from outside with an auto-open label (the Imbue
@@ -947,6 +956,7 @@ class AgentManager:
         chat_settings: ChatSettingsStore | None = None,
         autocompactor: ChatAutoCompactor | None = None,
         is_secondary: bool = False,
+        imbue_studio_gateway: GatewayAccess | None = None,
     ) -> Self:
         """Build an AgentManager with the given broadcaster.
 
@@ -969,6 +979,8 @@ class AgentManager:
         withholds the chat memory scores, the automatic context compaction, and the
         resumption of unfinished switches, all of which belong to the live chat alone, and
         refuses every switch (a handoff or a rebind), since its chat records are a scratch copy.
+        ``imbue_studio_gateway`` is how the Imbue Studio app is reached to mark a chat read when the user
+        starts watching it; the default reaches nobody.
         """
         manager = cls.__new__(cls)
         manager._broadcaster = broadcaster
@@ -1027,6 +1039,10 @@ class AgentManager:
         manager._is_agent_list_known = False
         manager._pending_permission_ids_by_agent = {}
         manager._connecting_message_ids_by_agent = {}
+        manager._presence = PresenceTracker()
+        manager._imbue_studio_notifications = ImbueStudioNotificationsClient(
+            gateway=imbue_studio_gateway, resolve_agent_id=manager.current_agent_id_of_chat
+        )
         # Built last: its ``list_chat_ids`` / ``resolve_process_started_at`` callbacks
         # read ``_agents`` / ``_lock`` / ``_host_dir``, which are set above.
         manager._oom_prioritizer = ChatOomPrioritizer(
@@ -1035,9 +1051,8 @@ class AgentManager:
             # A secondary's presence is its own windows', not the workspace's, and the scores it
             # would write are the live chat's, so it keeps an inert prioritizer.
             set_adj=None if is_secondary else set_oom_score_adj,
-            resolve_process_started_at=lambda chat_id: manager._read_agent_process_started_at(
-                manager._active_agent_id_of_chat(chat_id)
-            ),
+            resolve_process_started_at=manager._read_active_process_started_at,
+            presence=manager._presence,
         )
         manager._autocompactor = (
             autocompactor
@@ -1053,6 +1068,11 @@ class AgentManager:
         """The pid of the process a chat runs on, for the OOM prioritizer; None for a chat with no active agent."""
         active_agent_id = self._active_agent_id_of_chat(chat_id)
         return None if active_agent_id is None else lookup_pid_by_agent_id(active_agent_id)
+
+    def _read_active_process_started_at(self, chat_id: ChatId) -> float | None:
+        """When the process a chat runs on started, for the OOM prioritizer; None for a chat with no active agent."""
+        active_agent_id = self._active_agent_id_of_chat(chat_id)
+        return None if active_agent_id is None else self._read_agent_process_started_at(active_agent_id)
 
     def _active_agent_id_of_chat(self, chat_id: ChatId) -> str | None:
         """The agent a chat runs on, from its record, else the chat's own id under the own-chat rule.
@@ -1094,6 +1114,7 @@ class AgentManager:
         """Stop the follower, the session sweep, and creation threads."""
         self._shutdown_event.set()
         self._oom_prioritizer.stop()
+        self._imbue_studio_notifications.shutdown()
         self._autocompactor.stop()
         self._auto_open.stop()
         self._model_state_poller.stop()
@@ -1493,9 +1514,24 @@ class AgentManager:
                 _loguru_logger.warning("Could not restart {} after re-auth: {}", name, result.stderr.strip()[:300])
         return restarted
 
-    def record_presence(self, chat_id: ChatId, client_id: str, state: PresenceState) -> None:
-        """Feed one chat page's presence report to the OOM prioritizer (re-tags chats)."""
-        self._oom_prioritizer.record_presence(chat_id, client_id, state)
+    def record_presence(self, chat_id: ChatId, report: PresenceReport) -> None:
+        """Record one chat page's presence report: re-tags the chats, and marks the chat read in the Imbue
+        Studio app when the report is what made someone watch it."""
+        transition = self._oom_prioritizer.record_presence(chat_id, report)
+        if transition.is_newly_watched:
+            self._imbue_studio_notifications.mark_chat_read(chat_id)
+
+    def chat_watchers(self, chat_id: ChatId) -> list[str]:
+        """The page instances watching the chat now (shown and focused, recently reported)."""
+        return self._presence.watchers(chat_id)
+
+    def current_agent_id_of_chat(self, chat_id: ChatId) -> str | None:
+        """The tracked agent the chat runs on now; None for an id that names no chat, or a chat with no agent yet."""
+        with self._lock:
+            resolved = self._resolve_chat_locked(chat_id)
+            if resolved is None or resolved.active_agent_id is None:
+                return None
+            return resolved.active_agent_id if resolved.active_agent_id in self._agents else None
 
     def record_message_sent(self, chat_id: ChatId) -> None:
         """Stamp a chat as just-messaged for the OOM prioritizer's recency ranking (and on disk, for the next restart)."""
@@ -2483,7 +2519,7 @@ class AgentManager:
         self._broadcast_chats_updated()
 
     @contextmanager
-    def track_connecting_send(self, agent_id: str, message_id: str) -> Iterator[Callable[[], None]]:
+    def track_connecting_send(self, agent_id: str, message_id: str) -> Generator[Callable[[], None], None, None]:
         """Scope one send's delivery. The yielded callable marks the send as waiting for the agent to
         come up (the snapshot's ``is_connecting``); leaving the scope clears the mark."""
         try:
@@ -2824,8 +2860,9 @@ class AgentManager:
         The Imbue Studio app's onboarding continues here as the workspace's first chat: the turns become
         the chat's seed segment on disk, its record names the seed as its first member, and the
         chat is listed as a provisional chat awaiting the user's first message, with the
-        transcript on its page and a composer under it. That first send picks the account (the
-        chooser opens then) and launches the chat's first agent through ``create_chat``. The
+        transcript on its page and a composer under it. That first send launches the chat's first
+        agent on the signed-in account through ``create_chat`` (with nothing signed in, the page
+        asks for a provider in the composer's place). The
         seed survives a restart of this app because the record does; the window is opened through
         the shell like a labeled chat's, held until a client is connected.
 
@@ -4109,7 +4146,8 @@ class AgentManager:
     def _read_agent_process_started_at(self, agent_id: str) -> float | None:
         """Return the agent's process-start mtime, resolving its marker by harness.
 
-        The OOM prioritizer knows only an agent id, but the marker filename is
+        The OOM prioritizer reaches this with a chat's active agent id (through
+        ``_read_active_process_started_at``), but the marker filename is
         harness-specific (see ``_read_process_started_at``), so it comes from the
         agent's ``HarnessSpec`` -- harness identity, known as soon as the agent is
         known. This deliberately does NOT ask the agent's activity tracker: a
@@ -4120,8 +4158,8 @@ class AgentManager:
         agent itself is unknown.
         """
         # Lock-free ``dict.get`` (atomic under the GIL), matching what this method did
-        # before: it is injected as a callback into the OOM prioritizer and so can be
-        # invoked from a thread that already holds ``_lock``, which is not reentrant.
+        # before: the OOM prioritizer's callback calls it and so it can be invoked
+        # from a thread that already holds ``_lock``, which is not reentrant.
         agent_state = self._agents.get(agent_id)
         if agent_state is None:
             return None
