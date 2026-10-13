@@ -64,7 +64,10 @@ class UpdateNotice(FrozenModel):
     merge_sha: str = Field(description="The merge the apply landed")
     applied_at: float = Field(description="When the apply finished, seconds since the epoch")
     driven_by: str = Field(description="The agent (or person) that ran the apply, as it named itself")
-    apps: tuple[str, ...] = Field(description="The critical apps whose program or bundle the apply changed")
+    apps: tuple[str, ...] = Field(
+        description="The apps included in the rollback: each critical app whose program or bundle the apply "
+        "changed, and any other app whose files it changed"
+    )
     programs: tuple[str, ...] = Field(description="The supervisord programs a rollback restarts")
     needs_system_services_restart: bool = Field(
         description="Whether the diff reached the workspace's own setup, so a rollback restores the files but "
