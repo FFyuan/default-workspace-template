@@ -1967,8 +1967,8 @@ def _run_rollback(
         _finish_rollback(
             record,
             repo_root,
-            "The previous version is restored, but this update also changed how the workspace "
-            "starts, which only a restart of the workspace's system services finishes. Ask your "
+            "The previous version is restored, but this update also changed the workspace's own "
+            "setup, which only a restart of the workspace's system services finishes. Ask your "
             "agent to run "
             f"`{SERVICES_RESTART_COMMAND}`.",
         )
