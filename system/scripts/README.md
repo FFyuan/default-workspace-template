@@ -15,7 +15,10 @@ Provisioning and utility scripts:
   scripts the payload they read on stdin. See `tool-call-policies.md` for what
   each one enforces.
 - Plugin provisioning: `claude_update_plugin.sh` installs project-scoped Claude
-  plugins; `codex_update_plugin.sh` installs native code-guardian into each
+  plugins, started for each claude session by the SessionStart hook
+  `claude_session_start_background.sh`, which also runs `uv sync --all-packages`;
+  both run detached at a lower CPU priority so the session's first message does
+  not wait on them. `codex_update_plugin.sh` installs native code-guardian into each
   mngr Codex agent's isolated home, after its config is written and before
   launch. Requires code-guardian 0.6.0 or newer on the marketplace's `main`.
   Re-provisioning restores plugin enablement after mngr rewrites the config.

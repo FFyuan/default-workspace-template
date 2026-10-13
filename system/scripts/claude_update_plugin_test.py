@@ -6,9 +6,9 @@ network, so these tests put a recording ``claude`` shim on PATH instead. What th
 is the contract the callers rely on: every plugin's marketplace is registered when
 missing, every plugin is installed at *project* scope for the current directory before
 being updated, the shared plugin cache is never wiped, an install failure is reported
-on stdout (the SessionStart hook's channel into the session context) and only fails
-the run under ``--strict``, and an update failure alone is a warning rather than a
-failure. A last test keeps the script's plugin table in step with
+on stdout (whose "warning:" lines the SessionStart hook shows the next session) and
+only fails the run under ``--strict``, and an update failure alone is a warning rather
+than a failure. A last test keeps the script's plugin table in step with
 ``.claude/settings.json``, which is what actually enables the plugins.
 """
 
@@ -195,7 +195,7 @@ def test_never_wipes_the_shared_plugin_cache(tmp_path: Path) -> None:
     assert cached_skill.is_file()
 
 
-def test_install_failure_is_reported_on_stdout_and_does_not_fail_the_hook(
+def test_install_failure_is_reported_on_stdout_and_does_not_fail_a_non_strict_run(
     tmp_path: Path,
 ) -> None:
     result, calls = _run(tmp_path, fail=f"install:{_GUARDIAN}")
@@ -235,7 +235,7 @@ def test_update_failure_alone_is_a_warning_even_under_strict(tmp_path: Path) -> 
     assert f"plugin update --scope project {_GUARDIAN}" in calls
 
 
-def test_missing_claude_binary_is_a_noop_for_the_hook_but_an_error_under_strict(
+def test_missing_claude_binary_is_a_noop_for_worker_provisioning_but_an_error_under_strict(
     tmp_path: Path,
 ) -> None:
     empty_bin = tmp_path / "empty-bin"
@@ -246,7 +246,7 @@ def test_missing_claude_binary_is_a_noop_for_the_hook_but_an_error_under_strict(
         "SHIM_LOG": str(tmp_path / "unused.log"),
     }
 
-    hook_run = subprocess.run(
+    provision_run = subprocess.run(
         ["/bin/bash", str(_SCRIPT)],
         cwd=tmp_path,
         env=env,
@@ -263,8 +263,8 @@ def test_missing_claude_binary_is_a_noop_for_the_hook_but_an_error_under_strict(
         check=False,
     )
 
-    assert hook_run.returncode == 0
-    assert hook_run.stdout == ""
+    assert provision_run.returncode == 0
+    assert provision_run.stdout == ""
     assert strict_run.returncode == 1
     assert "claude is not on PATH" in strict_run.stderr
 

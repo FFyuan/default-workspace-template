@@ -9,12 +9,14 @@ set -euo pipefail
 #
 # Two callers, one contract:
 #
-#   - The SessionStart hook in .claude/settings.json runs it without --strict.
-#     A plugin installed from inside a running session is only loaded by the
-#     next session (Claude Code resolves the plugin set at startup), so the hook
-#     converges state for later sessions and never blocks the current one.
-#     Failures are reported on stdout -- SessionStart stdout is injected into
-#     the session context -- so the agent can explain why a skill is missing.
+#   - The SessionStart hook claude_session_start_background.sh starts it
+#     detached, at most every few hours per config dir and project path, with
+#     --strict so a failed install is retried by the next session. A plugin
+#     installed from inside a running session is only loaded by the next
+#     session (Claude Code resolves the plugin set at startup), so the run
+#     converges state for later sessions and never blocks the current one. Its
+#     stdout goes to a log, and the next session's hook prints the "warning:"
+#     lines from it, so the agent can explain why a skill is missing.
 #
 #   - The worker create template (.mngr/settings.toml) runs it as a provision
 #     command, BEFORE the worker's claude starts. A worker gets a single session
@@ -24,7 +26,7 @@ set -euo pipefail
 #     provision output, and the worker itself reports the missing gate.
 #
 #   --strict (exit 1 when any plugin failed to install) is for callers that
-#   would rather fail fast than run without the plugins.
+#   act on a failed install, as the SessionStart run does by retrying it.
 #
 # The cache is never wiped here. Every claude in the workspace shares one
 # config dir, so deleting plugins/cache/<marketplace> while other sessions run
@@ -67,7 +69,7 @@ fi
 
 # Non-interactive ssh so a marketplace git fetch can never hang at a host-key
 # or credential prompt, with a short connect timeout so every attempt finishes
-# within the SessionStart hook's time budget even when fully offline.
+# promptly even when fully offline.
 export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=5'
 
 # `claude plugin marketplace list` prints one "  > <name>" line per registered
