@@ -107,9 +107,12 @@ worthless: release the `editing critical app` leases you took for the apply
 `HEAD` moved, catch the worker up to it as 5b does and apply its new `done`;
 if not, apply the branch as it is. Never destroy the worker to re-dispatch,
 and never build the catch-up merge yourself: the worker's merge is the one its
-validation covers. A merge already landed and rolled back, or one that leaves
-an earlier update's rollback in place, needs a fresh worker pass off the
-current `HEAD`.
+validation covers. Another apply in flight is the same once it finishes, and
+so is an interrupted apply of a different merge once `recover` has rolled it
+back, as the refusal says: either has likely moved `HEAD`, so come back
+through 5b's fast-forward check. A merge already landed and rolled back, or
+one that leaves an earlier update's rollback in place, needs a fresh worker
+pass off the current `HEAD`.
 
 ## An interrupted apply
 
