@@ -418,7 +418,8 @@ another critical app may have applied since you branched.
    recently updated, with "Roll back" and "Everything seems good". It rolls all
    of them back together. Frontend applies include both chat and shell because
    every bundle (the shell's, the chat's, and the Getting Started app's, whose
-   owner is not critical and so is not named) is replaced; an extra app restart
+   owner is not critical and so is named only when the pass changed its own
+   files) is replaced; an extra app restart
    is acceptable. Tell the user
    the banner is at the top of the workspace and what it does. **Never confirm or roll back on the user's behalf.** Only a person
    closes it: confirming
