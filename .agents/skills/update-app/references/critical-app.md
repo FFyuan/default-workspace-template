@@ -261,7 +261,7 @@ tears everything down (the step 4 teardown) and releases the leases.
 
 Once the user approves the shape, hand the branch to a background worker that
 runs the full test and review gate. This reuses `update-creation`'s
-orchestration core (`type: app`), with two deviations: the worker is created
+orchestration core, with two deviations: the worker is created
 **at approval, on the existing branch**, and the task frames one of two handoff
 shapes.
 
