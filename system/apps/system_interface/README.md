@@ -632,7 +632,8 @@ The careful flow's apply (`update_self.py apply --keep-rollback-point`, see
 `data/.state/update-apply/last-good.json`, a record of the merge it landed, the
 copies it kept, and the apps and supervisord programs included in rollback: each critical
 app whose program or bundle the apply changed, and any other app whose files it changed,
-plus the programs of each standalone service it changed. A frontend apply includes both chat and shell (the critical bundle owners), even if only
+plus the programs of each standalone service it changed. A frontend apply includes
+both chat and shell (the critical bundle owners), even if only
 one app's source changed, because one build replaces every bundle. The shell turns that
 record into a notice only a person closes (`shell/update_notice.py`):
 one top banner beside the staleness one, naming every app the record names (or
