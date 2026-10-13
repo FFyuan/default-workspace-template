@@ -709,7 +709,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     commands.add_parser(
         "clear-claude",
-        help="Claude's SessionStart hook: remove the Claude markers.",
+        help="Claude's SessionStart hook: remove this Claude's markers and dead ones.",
     )
     return parser
 
