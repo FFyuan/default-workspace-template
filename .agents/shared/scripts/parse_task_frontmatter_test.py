@@ -403,7 +403,7 @@ body
     )
 
 
-_TWO_CREATION_PASS = """---
+_THREE_CREATION_PASS = """---
 finish_report_path: data/.tasks/harden/update-roadmap-sync/reports/report.md
 scope_file: data/.tasks/harden/update-roadmap-sync/scope.json
 diff_base: abc123
@@ -414,10 +414,11 @@ body
 """
 
 
-def test_a_pass_over_two_creations_reaches_the_worker_as_type_and_name(tmp_path: Path) -> None:
-    """What the worker's `eval` defines for a pass covering an app and a service, read
-    the way the worker reads it: one `<type>:<name>` token per creation."""
-    task = _write_task(tmp_path, _TWO_CREATION_PASS)
+def test_a_pass_over_three_creations_reaches_the_worker_as_type_and_name(tmp_path: Path) -> None:
+    """What the worker's `eval` defines for a pass covering an app, a service, and a
+    shared reference (whose name is a path), read the way the worker reads it: one
+    `<type>:<name>` token per creation."""
+    task = _write_task(tmp_path, _THREE_CREATION_PASS)
     probe = (
         f'eval "$({shlex.join([sys.executable, str(_SCRIPT), str(task)])})" && '
         'printf "%s|" "$OPERATION" "$SCOPE_FILE" && '
