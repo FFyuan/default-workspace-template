@@ -434,7 +434,11 @@ starting over.
 
    That covers what the merge brought in, your conflict resolutions, and
    anything you committed since. Do not re-run the gate over `$DIFF_BASE`:
-   what it already passed still stands.
+   what it already passed still stands. For a test that fails in this run,
+   the tree before your change ("A failing test you would change") is the
+   commit you merged, the catch-up merge's second parent, not `$DIFF_BASE`: a
+   test that fails there was already failing at the lead's `HEAD`, and one
+   absent there is your pass's own.
 5. Regenerate the scope file and report `done` again, with a `Caught up:`
    section naming the commit you merged, each conflict and how you resolved
    it, and what the re-run gate ran. Paths the merge brought in that lie
