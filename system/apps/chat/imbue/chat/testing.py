@@ -278,10 +278,12 @@ def write_background_task_marker(
     pid: int,
     description: str = "Rebuild the worker image",
     started_at: str = "2026-10-08T12:00:00+00:00",
+    source: str | None = None,
 ) -> None:
-    """Write a ``run_in_background`` marker into the chat's directory with the script's own writer."""
+    """Write a marker (``run_in_background``'s unless ``source`` names another writer) into the chat's directory
+    with the script's own writer."""
     task = reader.script.BackgroundTask(
-        source=reader.script.SOURCE_RUN_IN_BACKGROUND,
+        source=reader.script.SOURCE_RUN_IN_BACKGROUND if source is None else source,
         id=task_id,
         description=description,
         started_at=started_at,

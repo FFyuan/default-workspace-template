@@ -98,6 +98,11 @@ class BackgroundTaskReader(FrozenModel):
             for task in self.script.live_tasks_in(self.chat_dir(chat_id))
         )
 
+    def remove_claude_tasks(self, chat_id: ChatId, task_ids: tuple[str, ...]) -> None:
+        """Remove the chat's markers for these Claude tasks, which Claude has reported as over."""
+        for task_id in task_ids:
+            self.script.remove_marker(self.root, str(chat_id), self.script.SOURCE_CLAUDE, task_id)
+
 
 def load_background_task_reader(
     root: Path, script_path: Path = BACKGROUND_TASKS_SCRIPT_PATH

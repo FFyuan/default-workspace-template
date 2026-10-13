@@ -928,6 +928,9 @@ class AgentManager:
     # Per chat, its live background tasks as the poller last read them; a chat with none has no
     # entry. A non-empty entry makes the chat busy.
     _background_tasks_by_chat: dict[ChatId, tuple[BackgroundTask, ...]]
+    # Held across one marker read and the store of what it read, so a slow read cannot overwrite
+    # a newer one; separate from ``_lock`` so the file reads never hold up the rest of the manager.
+    _background_tasks_read_lock: threading.Lock
     # The chats whose agent the observe stream last reported in a running lifecycle state.
     _running_chat_ids: frozenset[ChatId]
     # When each chat was last messaged from the UI, kept on disk so a restart seeds the OOM
@@ -1064,6 +1067,7 @@ class AgentManager:
         manager._model_choice_by_agent = {}
         manager._background_tasks = background_tasks
         manager._background_tasks_by_chat = {}
+        manager._background_tasks_read_lock = threading.Lock()
         manager._running_chat_ids = frozenset()
         manager._agent_state_poller = AgentStatePoller.build(
             list_watched_paths=manager._list_watched_paths,
@@ -4171,18 +4175,38 @@ class AgentManager:
         reader = self._background_tasks
         if reader is None:
             return
-        # The markers are read (and their pids checked) outside the lock.
-        tasks = reader.live_tasks(chat_id)
-        with self._lock:
-            if self._background_tasks_by_chat.get(chat_id, ()) == tasks:
-                return
-            if tasks:
-                self._background_tasks_by_chat[chat_id] = tasks
-            else:
-                self._background_tasks_by_chat.pop(chat_id, None)
+        with self._background_tasks_read_lock:
+            tasks = reader.live_tasks(chat_id)
+            with self._lock:
+                if self._background_tasks_by_chat.get(chat_id, ()) == tasks:
+                    return
+                if tasks:
+                    self._background_tasks_by_chat[chat_id] = tasks
+                else:
+                    self._background_tasks_by_chat.pop(chat_id, None)
         if broadcast_on_change:
             self._broadcast_chats_updated()
         self._report_mid_turn_chats()
+
+    def forget_finished_tasks(self, agent_id: str, task_ids: tuple[str, ...]) -> None:
+        """Drop the markers of an agent's harness-native tasks its transcript reports as over.
+
+        Claude's Stop hook only copies the tasks still listed when a turn ends normally, so a
+        turn the user interrupts, or one that fails, would leave a finished task's marker live
+        for as long as Claude runs. Its transcript records every task's end, whatever the turn
+        then does.
+        """
+        reader = self._background_tasks
+        if reader is None:
+            return
+        with self._lock:
+            chat_id = self._chat_id_of_agent_locked(agent_id)
+        try:
+            reader.remove_claude_tasks(chat_id, task_ids)
+        except OSError as e:
+            _loguru_logger.warning("Could not remove the finished background tasks {} of {}: {}", task_ids, agent_id, e)
+            return
+        self._recompute_background_tasks(chat_id)
 
     def busy_state_of_agent(self, agent_id: str, labels: Mapping[str, str]) -> AgentBusyState:
         """Whether an agent will resume on its own, the chat it belongs to, and that chat's pending tasks.

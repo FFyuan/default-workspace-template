@@ -1,3 +1,4 @@
+import os
 import threading
 from pathlib import Path
 
@@ -183,3 +184,21 @@ def test_stop_is_idempotent_and_safe_without_start(tmp_path: Path) -> None:
     poller.start()
     poller.stop()
     poller.stop()
+
+
+def test_a_marker_renamed_within_one_mtime_tick_still_fires(tmp_path: Path) -> None:
+    """A directory's mtime is too coarse to tell two changes in one tick apart and its size need not move, so a
+    marker swapped for another between two passes is seen by the directory's entry names."""
+    markers = tmp_path / "background_tasks"
+    markers.mkdir()
+    (markers / "claude-a.json").write_text("{}")
+    changed: list[tuple[str, WatchedPathPurpose]] = []
+    poller = _build_poller_over({"agent-1": {_TASKS: markers}}, changed)
+    poller.poll_once()
+    stamp = markers.stat()
+
+    (markers / "claude-a.json").rename(markers / "claude-b.json")
+    os.utime(markers, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    poller.poll_once()
+
+    assert changed == [("agent-1", _TASKS), ("agent-1", _TASKS)]

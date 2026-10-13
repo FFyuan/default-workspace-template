@@ -46,6 +46,7 @@ from imbue.chat.agent_manager import launch_role_templates
 from imbue.chat.auto_open import AutoOpenLedger
 from imbue.chat.auto_open import AutoOpenReactor
 from imbue.chat.autocompact import ChatAutoCompactor
+from imbue.chat.background_tasks import BackgroundTask
 from imbue.chat.background_tasks import BackgroundTaskReader
 from imbue.chat.chat_fast_mode import ChatFastModeState
 from imbue.chat.chat_fast_mode import read_fast_mode_state
@@ -3543,6 +3544,78 @@ def test_a_chat_whose_runner_is_killed_reads_idle_on_the_next_poll(
     finally:
         runner.kill()
         runner.wait()
+        manager.stop()
+
+
+def test_a_claude_task_its_transcript_reports_over_stops_counting_with_no_stop_hook(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    """A turn the user interrupts, or one that fails, runs no Stop hook, so the finished task's marker would stay
+    live for as long as Claude runs. The transcript's notice of its end removes it."""
+    manager, reader = _manager_reading_tasks(broadcaster, tmp_path)
+    claude = reader.script.SOURCE_CLAUDE
+    try:
+        seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING", activity_state=ActivityState.IDLE)
+        write_background_task_marker(reader, "agent-1", "bg-done", os.getpid(), source=claude)
+        write_background_task_marker(reader, "agent-1", "bg-other", os.getpid(), source=claude)
+        manager._agent_state_poller.poll_once()
+
+        manager.forget_finished_tasks("agent-1", ("bg-done",))
+
+        (snapshot,) = manager.get_chat_snapshots()
+        assert [task.id for task in snapshot.active_agent.background_tasks] == ["bg-other"]
+        assert not (reader.chat_dir(ChatId("agent-1")) / "claude-bg-done.json").exists()
+
+        manager.forget_finished_tasks("agent-1", ("bg-other",))
+
+        (snapshot,) = manager.get_chat_snapshots()
+        assert snapshot.status is ChatStatus.IDLE
+    finally:
+        manager.stop()
+
+
+def test_a_slow_marker_read_never_overwrites_a_newer_one(broadcaster: WebSocketBroadcaster, tmp_path: Path) -> None:
+    """Two recomputes of one chat (the poller's and a turn's end) each read the markers and store what they read.
+    The read that started first must not land last with what is by then a stale answer."""
+    _, files = _manager_reading_tasks(broadcaster, tmp_path)
+    write_background_task_marker(files, "agent-1", "task-1", os.getpid())
+    stale_answer = files.live_tasks(ChatId("agent-1"))
+    first_read_started = threading.Event()
+    release_first_read = threading.Event()
+    answers = iter([stale_answer, ()])
+
+    class _SequencedReader(BackgroundTaskReader):
+        """Answers the first read late, with the markers as they were, and the second at once, with them gone."""
+
+        def live_tasks(self, chat_id: ChatId) -> tuple[BackgroundTask, ...]:
+            answer = next(answers)
+            if answer:
+                first_read_started.set()
+                release_first_read.wait(timeout=10)
+            return answer
+
+    manager = AgentManager.build(
+        broadcaster,
+        chat_files_root=tmp_path / "chats",
+        chat_record_store=InMemoryChatRecordStore(),
+        background_tasks=_SequencedReader(root=files.root, script=files.script),
+    )
+    try:
+        seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING", activity_state=ActivityState.IDLE)
+        slow = threading.Thread(target=manager._recompute_background_tasks, args=(ChatId("agent-1"),))
+        slow.start()
+        assert first_read_started.wait(timeout=10)
+        fresh = threading.Thread(target=manager._recompute_background_tasks, args=(ChatId("agent-1"),))
+        fresh.start()
+        fresh.join(timeout=0.5)
+        release_first_read.set()
+        slow.join(timeout=10)
+        fresh.join(timeout=10)
+
+        (snapshot,) = manager.get_chat_snapshots()
+        assert snapshot.status is ChatStatus.IDLE
+    finally:
+        release_first_read.set()
         manager.stop()
 
 

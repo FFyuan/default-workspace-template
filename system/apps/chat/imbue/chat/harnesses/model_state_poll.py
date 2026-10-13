@@ -9,10 +9,10 @@ it grew without bound as agents were created over the process's life.
 
 This poller is the bounded replacement: ONE thread stats every known agent's watched paths
 each interval and invokes ``on_path_changed`` only for an (agent, purpose) pair whose stamp
-(mtime + size) differs from the remembered one. Each agent watches a small set of paths keyed
-by purpose -- its ``model_state.json``, and, for a chat's active agent, the chat's
-background-task marker directory, whose mtime moves on every marker added or removed -- and
-each purpose's stamp is tracked apart, so a change to one never re-fires the other. The
+(mtime + size, and a directory's entry names) differs from the remembered one. Each agent
+watches a small set of paths keyed by purpose -- its ``model_state.json``, and, for a chat's
+active agent, the chat's background-task marker directory, whose entries change on every marker
+added or removed -- and each purpose's stamp is tracked apart, so a change to one never re-fires the other. The
 invariant is level-triggered and one sentence long: a purpose is recomputed whenever its
 path's observed stamp differs from the remembered stamp. Consequences:
 
@@ -33,6 +33,8 @@ recomputes are no-op-guarded), exactly like ``PathWatcher.on_change``.
 
 from __future__ import annotations
 
+import os
+import stat
 import threading
 from collections.abc import Callable
 from collections.abc import Mapping
@@ -48,9 +50,11 @@ from imbue.imbue_common.enums import UpperCaseStrEnum
 # its marker being written, removed, or left behind by a killed runner.
 AGENT_STATE_POLL_INTERVAL_SECONDS: Final[float] = 1.0
 
-# What "the path changed" means: a different (mtime_ns, size) pair, or a flip between
-# existing and absent (None). Content-identical rewrites re-fire harmlessly.
-_FileStamp = tuple[int, int] | None
+# What "the path changed" means: a different (mtime_ns, size, entry names) triple, or a flip
+# between existing and absent (None). A directory's names are part of it because its mtime is
+# too coarse to tell two changes within one tick apart and its size does not move; a file has
+# none. Content-identical rewrites re-fire harmlessly.
+_FileStamp = tuple[int, int, tuple[str, ...]] | None
 
 
 class WatchedPathPurpose(UpperCaseStrEnum):
@@ -141,6 +145,7 @@ class AgentStatePoller:
 def _read_file_stamp(path: Path) -> _FileStamp:
     try:
         stat_result = path.stat()
+        names = tuple(sorted(os.listdir(path))) if stat.S_ISDIR(stat_result.st_mode) else ()
     except OSError:
         return None
-    return (stat_result.st_mtime_ns, stat_result.st_size)
+    return (stat_result.st_mtime_ns, stat_result.st_size, names)
