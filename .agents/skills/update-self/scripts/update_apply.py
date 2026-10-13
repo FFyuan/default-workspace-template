@@ -1603,7 +1603,7 @@ def _touched_apps(
         {bundle.app for bundle in FRONTEND_BUNDLES} if plan.frontend else set()
     )
     reinstalled_tool_directories = {tool.directory for tool in plan.app_tools}
-    touched: list[tuple[str, str]] = []
+    touched: list[tuple[str, str | None]] = []
     for directory in sorted(apps_dir.iterdir()):
         manifest_path = directory / MANIFEST_FILENAME
         if not manifest_path.is_file():
