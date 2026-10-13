@@ -22,6 +22,7 @@ from app_manifest.scope import find_wiring_sections
 from app_manifest.scope import parse_creation_spec
 from app_manifest.scope import reference_kind_for_path
 from app_manifest.scope import render_scope_file
+from app_manifest.scope import split_against_creations
 from app_manifest.scope import with_diff_against_base
 from app_manifest.testing import NEWS_MANIFEST
 from app_manifest.testing import build_news_workspace
@@ -644,3 +645,32 @@ def test_an_app_creation_is_found_by_its_registered_name_or_scoped_by_its_direct
     assert [(wiring.path, list(wiring.sections)) for wiring in unmanifested.wiring] == [
         ("system/supervisord.conf.d/road-map.conf", ["program:road-map", "program:road-map-sync"])
     ]
+
+
+def test_a_pass_diff_counts_a_file_one_creation_excludes_when_another_owns_it(tmp_path: Path) -> None:
+    """A file is the pass's when any creation's footprint covers it and that creation does not
+    exclude it; a file outside every footprint that some creation excludes is in neither list."""
+    build_news_workspace(tmp_path)
+    digest_manifest_path = write_app_manifest(
+        tmp_path,
+        "daily_digest",
+        'name = "daily-digest"\ndisplay_name = "Daily digest"\nicon = "icon.svg"\n\n'
+        '[scope]\nexclude = ["system/apps/news/runner.py"]\n',
+        is_icon_written=True,
+    )
+    digest_scope = compute_app_scope(
+        tmp_path, digest_manifest_path, load_manifest(digest_manifest_path, repo_root=tmp_path)
+    )
+
+    inside, outside = split_against_creations(
+        [
+            RepoRelativePath("system/apps/news/runner.py"),
+            RepoRelativePath("system/apps/daily_digest/runner.py"),
+            RepoRelativePath("docs/generated/api.md"),
+            RepoRelativePath("docs/system/unrelated.md"),
+        ],
+        (_news_app_scope(tmp_path), digest_scope),
+    )
+
+    assert inside == ("system/apps/news/runner.py", "system/apps/daily_digest/runner.py")
+    assert outside == ("docs/system/unrelated.md",)
