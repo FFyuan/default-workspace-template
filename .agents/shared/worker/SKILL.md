@@ -58,7 +58,7 @@ marked **[shared]**, which live in `.agents/shared/references/`.
 |---|---|---|
 | every run | `harden-creation.md` | the universal contract: the bar, isolation, reporting, the scope file, testing/hardening, review gates, preserve-and-surface, give-up |
 | every run | `op-<OPERATION>.md` | your operation's spine: pre-work, stages, which gates fire and their `name:` values, gate report templates |
-| every run, once per type among your creations | `type-<TYPE>.md` | the creation itself: where it lives, how to run/test it in isolation, how to edit it safely |
+| every run, once per type among your creations | `type-<TYPE>.md` (`type-skill.md` for a `shared` creation) | the creation itself: where it lives, how to run/test it in isolation, how to edit it safely |
 | every run | `worker-reporting.md` **[shared]** | the report-file procedure and task-file frontmatter schema (Step 3 uses it) |
 | you reconstruct the work from the lead's session | `transcript-exploration.md` | how to find the work in the lead's transcript |
 | a creation is a `skill` | `spec-summary.md` **[shared]** | the agentskills.io layout/spec authority |
