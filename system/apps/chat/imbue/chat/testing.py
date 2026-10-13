@@ -920,6 +920,8 @@ def running_workspace(
     is_account_signed_in: bool = True,
     additional_accounts: Sequence[tuple[str, str]] = (),
     messenger: MngrMessenger | None = None,
+    # Further registry rows beside the chat's, for apps a test serves itself.
+    extra_rows: Sequence[str] = (),
 ) -> Iterator[RunningWorkspace]:
     """Serve the shell and this chat app together, the way a workspace runs them, over fakes.
 
@@ -981,6 +983,7 @@ def running_workspace(
                 "draft": {"target": "current_chat", "is_draft": "true"},
             },
         ),
+        *extra_rows,
     )
 
     with (
