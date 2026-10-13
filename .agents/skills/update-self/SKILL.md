@@ -617,11 +617,12 @@ Exit codes:
 - **`1` -- precondition; nothing changed** (dirty tree, `HEAD` moved under the
   pass, another apply in flight, this merge already landed and rolled back, or
   a merge that does not first revert an earlier update's rollback commit).
-  A dirty tree or a moved `HEAD` is the settle-and-catch-up case above: wait,
-  and come back through the fast-forward check, catching the worker up only
-  if `HEAD` moved. Another apply in flight is the same: wait for it to
-  finish, then come back through that check, since it has likely moved
-  `HEAD`. A merge that leaves a rollback in place, or one already landed and
+  A dirty tree or a moved `HEAD` is the settle-and-catch-up case above:
+  release the `editing critical app` leases you took for this apply (5b takes
+  them again right before the next one), wait, and come back through the
+  fast-forward check, catching the worker up only if `HEAD` moved. Another
+  apply in flight is the same: wait for it to finish, then come back through
+  that check, since it has likely moved `HEAD`. A merge that leaves a rollback in place, or one already landed and
   rolled back, needs a fresh worker pass off the current `HEAD`
   (`references/apply-outcomes.md`); the refusal names the commits to revert.
 
