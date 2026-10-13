@@ -233,11 +233,14 @@ class LastGoodRecord:
     landed on; ``programs`` are the supervisord programs a rollback restarts (the
     touched apps', the shell's included: each critical app whose program or bundle
     the apply changed, and any other app whose files it changed, except an app the
-    merge added, which a rollback removes) and ``apps`` the app names the shell
-    raises the notice on, an added app included. ``needs_system_services_restart``
-    says the diff reached the bootstrap or the services agent's own setup, which a
-    program restart cannot undo. ``progress`` is what a running rollback is doing
-    right now and ``outcome`` how it ended, both for the notice to show.
+    merge added, which a rollback removes; and the programs of each standalone
+    service whose files it changed, named after its package plus any
+    ``<name>-<role>`` ones) and ``apps`` the app names the shell raises the notice
+    on, an added app included. ``needs_system_services_restart`` says the diff
+    reached the bootstrap or the services agent's own setup, or a changed service
+    that has no program by those names, which a program restart cannot undo.
+    ``progress`` is what a running rollback is doing right now and ``outcome`` how
+    it ended, both for the notice to show.
     """
 
     merge_sha: str
