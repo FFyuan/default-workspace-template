@@ -159,12 +159,13 @@ came up healthy; on a non-zero exit, fix the build and re-run, and do not open
 a window on a broken boot. It refuses to boot if another pass's preview of the
 same app is up rather than hijacking it; surface that and coordinate.
 
-An ordinary app the change also touches gets its own preview from the same
-worktree, booted and opened the same way (`preview_app.py up --app <other>
---worktree "data/.tasks/critical-live/update-$SLUG"`, then `workspace-layout
-open <other>-preview`), so the user tries both sides of the change together.
-Every preview step below -- close, refresh, re-open, tear down -- applies to it
-as well.
+An ordinary app the change also touches is previewed from the same worktree as
+a sibling of the critical app's preview: add `--with <other>` to the `up`
+above, so the critical preview's copied registry names the ordinary app's
+preview rather than the live app (one booted on its own is not what the
+critical preview reaches), and open `<other>-preview` too when it has a window
+of its own, so the user tries both sides of the change together. Every preview
+step below -- close, refresh, re-open, tear down -- applies to it as well.
 
 Only once it is up, open its window:
 
