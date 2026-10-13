@@ -7,6 +7,7 @@ Run via: ``uv run pytest
 from __future__ import annotations
 
 import importlib.util
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -422,7 +423,7 @@ def test_a_pass_over_two_creations_evals_to_numbered_variables(tmp_path: Path) -
     every creation's name and type, and a scope file only where one was named."""
     task = _write_task(tmp_path, _TWO_CREATION_PASS)
     probe = (
-        f'eval "$({sys.executable} {_SCRIPT} {task})" && '
+        f'eval "$({shlex.join([sys.executable, str(_SCRIPT), str(task)])})" && '
         'printf "%s|" "$OPERATION" "$CREATION_COUNT" '
         '"$CREATION_1_NAME" "$CREATION_1_TYPE" "$CREATION_1_SCOPE_FILE" '
         '"$CREATION_2_NAME" "$CREATION_2_TYPE" "${CREATION_2_SCOPE_FILE-unset}"'
