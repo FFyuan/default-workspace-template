@@ -240,9 +240,9 @@ On `done`, first run the merge-time checks in
 [`.agents/shared/references/harden-contention.md`](../../shared/references/harden-contention.md):
 wait out any foreground editing lease on an app or service in the pass,
 confirm the branch is still fresh (no creation's footprint has changed since
-the worker branched), and never hand-resolve a conflicted merge -- a stale or conflicted
-pass is discarded and superseded by one new pass covering everything since the
-last hardened merge.
+the worker branched), and never hand-resolve a conflicted merge -- a stale or
+conflicted pass is discarded and superseded by one new pass covering everything
+since the last hardened merge.
 
 Then merge `mngr/update-$SLUG`, destroy the worker per `lead-proxy.md`
 (`create_worker.py destroy --name update-$SLUG`), and go live for each creation

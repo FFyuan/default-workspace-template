@@ -27,8 +27,9 @@ Each creation in the pass has a `type`: `skill` (the default), `app`, or
 app (the shell, the chat, the terminal, or an app whose manifest says
 `critical = true`) is a live edit of the served tree at your own risk: there is
 no preview, no kept rollback point, and no notice behind it, so a wrong fix
-takes the user's surface down with nothing to undo it but your next edit. The safe path is `update-app`'s careful flow
-(`references/critical-app.md`); take it whenever the fix can wait for a preview.
+takes the user's surface down with nothing to undo it but your next edit. The
+safe path is `update-app`'s careful flow (`references/critical-app.md`); take
+it whenever the fix can wait for a preview.
 
 ## When NOT to heal
 
@@ -172,17 +173,16 @@ On `done`, first run the merge-time checks in
 [`.agents/shared/references/harden-contention.md`](../../shared/references/harden-contention.md):
 wait out any foreground editing lease on an app or service in the pass,
 confirm the branch is still fresh (no creation's footprint has changed since
-the worker branched), and never hand-resolve a conflicted merge -- a stale or conflicted
-pass is discarded and superseded by one new pass covering everything since the
-last hardened merge.
+the worker branched), and never hand-resolve a conflicted merge -- a stale or
+conflicted pass is discarded and superseded by one new pass covering everything
+since the last hardened merge.
 
 Then merge `mngr/heal-$SLUG`, destroy the worker per `lead-proxy.md`
 (`create_worker.py destroy --name heal-$SLUG`), and go live for each creation in
-the pass, by its type: a **skill** needs
-nothing beyond the merge; an **app** wants a window refresh (`uv run --no-sync
-workspace-layout refresh --app <app-name>`); a background **service** has no
-window -- restart it (`supervisorctl restart <name>`) instead. Then close the
-ticket:
+the pass, by its type: a **skill** needs nothing beyond the merge; an **app**
+wants a window refresh (`uv run --no-sync workspace-layout refresh --app
+<app-name>`); a background **service** has no window -- restart it
+(`supervisorctl restart <name>`) instead. Then close the ticket:
 
 ```bash
 tk close "$TICKET_ID" "Healed $CREATIONS -- worker branch merged."

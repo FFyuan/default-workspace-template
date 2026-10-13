@@ -415,14 +415,12 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
 3. **The notice is the user's.** After a successful apply, one banner across
    the top of the workspace names every app included in the rollback (each
    critical app the apply touched, and any other app whose files the pass
-   changed):
-   recently updated, with "Roll back" and "Everything seems good". It rolls all
-   of them back together. Frontend applies include both chat and shell because
-   every bundle (the shell's, the chat's, and the Getting Started app's, whose
-   owner is not critical and so is named only when the pass changed its own
-   files) is replaced; an extra app restart
-   is acceptable. Tell the user
-   the banner is at the top of the workspace and what it does. **Never confirm or roll back on the user's behalf.** Only a person
+   changed): recently updated, with "Roll back" and "Everything seems good". It
+   rolls all of them back together. Frontend applies include both chat and
+   shell because every bundle (the shell's, the chat's, and the Getting Started
+   app's, whose owner is not critical and so is named only when the pass
+   changed its own files) is replaced; an extra app restart is acceptable.
+   Tell the user the banner is at the top of the workspace and what it does. **Never confirm or roll back on the user's behalf.** Only a person
    closes it: confirming
    discards the kept snapshots, rolling back restores them and restarts only the
    touched programs, and the outcome shows in the notice (and stays in its
