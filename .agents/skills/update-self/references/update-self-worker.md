@@ -413,7 +413,8 @@ changed (and no global-dep bump with a user-created dependent) **and** you
 authored no in-branch edits of your own (a mirror edit from 4a is merge work
 even though `classify-merge` cannot see it; Step 1's rollback reverts are not,
 as git made them or with a `both added` file taken at the target's version,
-when `git diff <merge-sha> HEAD` is empty). **Otherwise run
+when `git diff <merge-sha> HEAD` is empty, or after a §7 catch-up the diff to
+your tip before the first catch-up merge). **Otherwise run
 the real gates**,
 scoped to every file whose merged content differs from the target release; 4b's
 suites run is their test gate, so select tests again only over what you commit
