@@ -341,8 +341,9 @@ tear the preview down and decide with them whether to re-brief the worker.
 ## 4. Go live: freshness-check, apply, tear down
 
 With the worker `done` (and any final preview approved), land the change. Your
-leases from step 1 keep other passes off the apps you touched, but a pass on
-another critical app may have applied since you branched.
+leases from step 1 keep other passes off the critical apps you touched, but a
+pass on another critical app may have applied since you branched, and an
+ordinary app in the pass holds no lease, so another chat may have changed it.
 
 1. **Freshness check.** The branch is mergeable only if nothing the apps you
    hold leases on are built from (each one's package, the shared library, the
