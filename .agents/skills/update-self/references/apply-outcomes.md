@@ -145,7 +145,7 @@ the worker's catch-up merge or a commit on top of it, and reverting a catch-up
 merge with `-m 1` takes out the workspace's own commits instead of the update:
 
 ```bash
-git log --first-parent -1 --format=%H --fixed-strings \
+git log --first-parent --merges -1 --format=%H --fixed-strings \
     --grep "update-self: merge upstream template"
 ```
 
