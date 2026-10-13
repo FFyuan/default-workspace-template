@@ -28,8 +28,8 @@ process has a marker in ``data/.apps/chat/background_tasks/<chat-id>/`` naming t
 chat app reads to show the chat as waiting on a background task rather than done. The marker goes
 once the report is delivered or given up on, and a marker whose runner has died is ignored.
 ``system/scripts/background_tasks.py`` reads them, and pins this script's copy of their layout to
-its own. Waiting on a nested ``claude -p``? Start it through this script, not through the Bash
-tool's background flag: only this script's marker is out of reach of the nested Claude's hooks.
+its own. Each run's marker is named for its task directory and its runner's pid, so two runs
+sharing a ``--task-dir`` each keep their own.
 
 ``--keep-host-awake`` touches the caller's agent activity file every minute while the command
 runs, so mngr's idle mode does not stop the host under it. It matters only where idle mode is on,

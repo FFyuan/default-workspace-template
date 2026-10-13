@@ -212,10 +212,12 @@ its chat is **busy**, and the chat's status says so: **`background`**, distinct 
   even with tasks pending; the strip shows the activity line and, beneath it, the wait.
 - **The backend decides it** (`active_agent.is_busy` and `active_agent.background_tasks` on the
   snapshot); the frontend renders the wait it is given and decides nothing.
-- **A wait ends exactly:** when the task's marker goes (its report delivered or given up) or its
-  writer's process dies, the chat returns to `idle` within one poll of the state poller.
-- **The wait belongs to the chat, not the agent:** a switch to another agent keeps it, and the
-  report's turn runs on the successor.
+- **A wait ends exactly:** when the task's marker goes (its report delivered or given up, or, for
+  a Claude task, its end in the transcript's `<task-notification>`) or its writer's process dies,
+  the chat returns to `idle` within one poll of the state poller.
+- **The wait belongs to the chat, not the agent:** a switch to another agent keeps the runner's
+  commands, and their report's turn runs on the successor; the retiring agent's own tasks end
+  with it, and the successor is told so.
 
 ---
 
