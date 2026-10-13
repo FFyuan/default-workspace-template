@@ -464,14 +464,14 @@ and hold the harden pass until you are sure the user is satisfied. A single
 larger-scope change this gate is the *working* result, not just the mock,
 exactly as `build-app`'s Step 5 gates on the working site.)
 
-- **A change you and the user discussed and applied live, or repeatable
-  work you did by hand** -> invoke `update-creation` once for the whole
-  change, listing every creation it touched: each app as `app:<name>`, each
-  background service as `service:<package>`, and any skill the same change
-  edited as `skill:<name>`. Two apps changed to work together are one pass with one worker,
-  never one per app. It opens a tracking ticket, dispatches the generic
-  harden worker to verify/test the change on its own branch, proxies the
-  gates, merges, and refreshes each window on go-live.
+- **A change you and the user discussed and applied live, or repeatable work you
+  did by hand** -> invoke `update-creation` once for the whole change, listing
+  every creation it touched: each app as `app:<name>`, each background service
+  as `service:<package>`, and any skill the same change edited as
+  `skill:<name>`. Two apps changed to work together are one pass with one
+  worker, never one per app. It opens a tracking ticket, dispatches the generic
+  harden worker to verify/test the change on its own branch, proxies the gates,
+  merges, and refreshes each window on go-live.
 - **The service errored or produced a wrong result and you worked around
   it** -> invoke `heal-creation` at turn-end instead, again once, covering
   every creation the failure spans (`app:<name>`, or `service:<package>` for

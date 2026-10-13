@@ -61,16 +61,16 @@ exploratory work is NOT an update candidate.
 Each creation in the pass has a type: `skill`, `app`, `service`, or `shared` (a
 shared script or reference, handled as a skill). It drives where the worker
 looks (`type-<TYPE>.md`) and that creation's **go-live** (Step 4): skill or
-shared → cross-reference sweep is part of the edit, nothing else; app →
-refresh the window (a background service has no window -- restart it instead).
-A critical app (the shell, the chat, the terminal, or an app whose manifest
-says `critical = true`) is an `app:` creation too, but it reaches this flow only from
+shared → cross-reference sweep is part of the edit, nothing else; app → refresh
+the window (a background service has no window -- restart it instead). A
+critical app (the shell, the chat, the terminal, or an app whose manifest says
+`critical = true`) is an `app:` creation too, but it reaches this flow only from
 `update-app`'s careful flow (`references/critical-app.md`), which calls into
 Steps 1-3 for the orchestration core, creates the worker at approval on the
-branch the lead already built up, and owns the go-live through the atomic
-update apply. When a change touches a critical app, the **whole change** takes
-that flow: every other creation it touched is edited on the same branch, rides
-the same pass, and lands through the same apply.
+branch the lead already built up, and owns the go-live through the atomic update
+apply. When a change touches a critical app, the **whole change** takes that
+flow: every other creation it touched is edited on the same branch, rides the
+same pass, and lands through the same apply.
 
 ## Conventions
 

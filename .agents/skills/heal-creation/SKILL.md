@@ -24,13 +24,12 @@ two workers would each see only half of the failure.
 
 Each creation in the pass has a type: `skill`, `app`, `service`, or `shared` (a
 shared script or reference, handled as a skill). The worker reads it and loads
-`type-<TYPE>.md`. A heal of a critical
-app (the shell, the chat, the terminal, or an app whose manifest says
-`critical = true`) is a live edit of the served tree at your own risk: there is
-no preview, no kept rollback point, and no notice behind it, so a wrong fix
-takes the user's surface down with nothing to undo it but your next edit. The
-safe path is `update-app`'s careful flow (`references/critical-app.md`); take
-it whenever the fix can wait for a preview.
+`type-<TYPE>.md`. A heal of a critical app (the shell, the chat, the terminal,
+or an app whose manifest says `critical = true`) is a live edit of the served
+tree at your own risk: there is no preview, no kept rollback point, and no
+notice behind it, so a wrong fix takes the user's surface down with nothing to
+undo it but your next edit. The safe path is `update-app`'s careful flow
+(`references/critical-app.md`); take it whenever the fix can wait for a preview.
 
 ## When NOT to heal
 
@@ -79,14 +78,14 @@ tk start "$TICKET_ID"
 
 Frontmatter carries `operation: heal`, `creations` (`$CREATIONS`), the worker
 reporting fields (per `.agents/shared/references/worker-reporting.md`),
-`scope_file` (where the worker writes the pass's computed footprint at the
-start of its run -- you name the path, the worker creates the file), and
-`diff_base` (your `HEAD` at dispatch: the fix does not exist yet, so the
-worker's own commits are the whole diff). The worker's test gate also selects
-its suites from what changed since `diff_base`. The body describes the failure and anchors the worker's search
-with verbatim quotes (the user's request, the failing command or error, any tool
-output that exposed the misbehavior). Without anchors the worker scans the wrong
-region of your transcript.
+`scope_file` (where the worker writes the pass's computed footprint at the start
+of its run -- you name the path, the worker creates the file), and `diff_base`
+(your `HEAD` at dispatch: the fix does not exist yet, so the worker's own
+commits are the whole diff). The worker's test gate also selects its suites from
+what changed since `diff_base`. The body describes the failure and anchors the
+worker's search with verbatim quotes (the user's request, the failing command or
+error, any tool output that exposed the misbehavior). Without anchors the worker
+scans the wrong region of your transcript.
 
 ```bash
 cat > data/.tasks/harden/heal-$SLUG/task.md << TASK_EOF

@@ -192,15 +192,15 @@ every creation one change touched:
 Each `--creation` is `app:<registered name or package directory>`,
 `skill:<directory under .agents/skills>`, `service:<package under
 system/services>`, or `shared:<path under .agents/shared>` (a shared script or
-reference, scoped as `--for-path` scopes it). The file is `{"creations": [...], "diff": ...}`: one entry
-per creation, each the scope `footprint` writes with its `diff` null, and one
-`diff` for the pass, whose `inside_footprint` is every changed file some
-creation's footprint accounts for (and that creation does not exclude) and
-whose `outside_footprint` is every changed file none does. A service has
-`type` `service`, its directory as `primary`, and as `wiring` the program named
-after its package (`host_backup` runs as `host-backup`) and every
-`<name>-<role>` one; an app directory with no `app.toml` yet is scoped the same
-way.
+reference, scoped as `--for-path` scopes it). The file is
+`{"creations": [...], "diff": ...}`: one entry per creation, each the scope
+`footprint` writes with its `diff` null, and one `diff` for the pass, whose
+`inside_footprint` is every changed file some creation's footprint accounts
+for (and that creation does not exclude) and whose `outside_footprint` is
+every changed file none does. A service has `type` `service`, its directory as
+`primary`, and as `wiring` the program named after its package (`host_backup`
+runs as `host-backup`) and every `<name>-<role>` one; an app directory with no
+`app.toml` yet is scoped the same way.
 
 `app-manifest references --for-path <path>` prints one JSON object per line
 (`app`, `manifest`, `path`, `note`) for every app whose manifest claims that

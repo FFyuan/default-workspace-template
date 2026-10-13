@@ -160,10 +160,11 @@ BODY_EOF
 } > data/.tasks/harden/crystallize-$NAME/task.md
 ```
 
-Set `creations: app:<app name>` (and adjust the body to point at the already-built lib)
-when invoked by `build-app`. Fill in the real `## What was done` and
-`## Anchors` -- do not leave the placeholders. If frontmatter sets
-`source_artifacts_dir`, Step 4 pushes that directory to the worker too.
+Set `creations: app:<app name>` (and adjust the body to point at the
+already-built lib) when invoked by `build-app`. Fill in the real
+`## What was done` and `## Anchors` -- do not leave the placeholders. If
+frontmatter sets `source_artifacts_dir`, Step 4 pushes that directory to the
+worker too.
 
 ## Step 4: Launch the worker
 
