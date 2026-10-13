@@ -110,7 +110,8 @@ or a provisional milestone merge:
    `update-app/references/critical-app.md` step 4, which applies this same
    check over each leased app's `system/apps/<package>/` together with
    `system/libs/workspace_ui/`, `system/libs/workspace_layout/`, `system/package.json`,
-   `system/package-lock.json`, and every file the pass branch changes. Empty output means fresh: merge normally. Any output means the base moved under
+   `system/package-lock.json`, each other creation in the pass at its own
+   paths, and every file the pass branch changes. Empty output means fresh: merge normally. Any output means the base moved under
    the worker: the pass is stale -- do not merge; supersede it (below).
 
    No shared *authored* file remains in that footprint -- a creation's
@@ -129,8 +130,8 @@ or a provisional milestone merge:
    a pass this check calls fresh, and conflicts with nothing. Widening the
    footprint to cover it would not do: every shared-library commit would then
    stale every pass in flight, which is the serialization the split exists to
-   remove. So read a green result as "nothing this creation owns moved", not
-   as "this pass is still valid".
+   remove. So read a green result as "nothing the pass's creations own moved",
+   not as "this pass is still valid".
 
    `uv.lock` is deliberately NOT in the footprint. It is derived, every
    creation's scaffold regenerates it, and `.gitattributes` marks it
