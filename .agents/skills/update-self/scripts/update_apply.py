@@ -1403,7 +1403,9 @@ def apply_update(
                     applied_at=now(),
                     driven_by=marker.dri_agent,
                     snapshots=list(marker.snapshots),
-                    programs=sorted({program for _, program in touched}),
+                    programs=sorted(
+                        {program for _, program in touched if program is not None}
+                    ),
                     apps=[name for name, _ in touched],
                     needs_system_services_restart=_needs_system_services_restart(
                         plan, [path for _, path in name_status]
@@ -1577,7 +1579,7 @@ def _touched_apps(
     plan: ApplyPlan,
     name_status: Sequence[tuple[str, str]],
     repo_root: Path,
-) -> list[tuple[str, str]]:
+) -> list[tuple[str, str | None]]:
     """The apps included in this apply's rollback: ``(name, program)``.
 
     Read off the merged tree's manifests: any app is touched when a changed path is
@@ -1589,9 +1591,11 @@ def _touched_apps(
     anything the shell's process runs changed. A frontend apply replaces every bundle,
     so include each critical owner even if that app's source was unchanged. An extra
     restart is acceptable; rollback targeting does not need to compare installed and
-    kept source stamps.
+    kept source stamps. An app the merge added has no program once a rollback removes
+    it, so it is named with ``None`` for its program: nothing to restart or wait on.
     """
     paths = [path for _, path in name_status]
+    added_paths = {path for status, path in name_status if status.startswith("A")}
     apps_dir = repo_root / APPS_DIR
     if not apps_dir.is_dir():
         return []
@@ -1621,6 +1625,9 @@ def _touched_apps(
             )
         )
         if not is_touched:
+            continue
+        if f"{app_directory}/{MANIFEST_FILENAME}" in added_paths:
+            touched.append((name, None))
             continue
         program = manifest.get("program")
         touched.append(

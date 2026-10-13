@@ -8092,15 +8092,19 @@ def test_the_record_names_every_app_the_apply_touched(
 ) -> None:
     """A shared-library change rebuilds every bundle, so each critical bundle owner is touched;
     a change under any app's directory touches that app, critical or not, since the rollback
-    reverts its source too; a non-critical bundle owner whose source did not change is not."""
+    reverts its source too; a non-critical bundle owner whose source did not change is not.
+    An app the merge added is named, but a rollback removes it, so it has no program to
+    restart or wait on."""
     _write_openable_app(apply_repo, "chat")
     _write_openable_app(apply_repo, "terminal")
     _write_openable_app(apply_repo, "roadmap", is_critical=False, program="roadmap-web")
     _write_openable_app(apply_repo, "getting_started", is_critical=False)
+    _write_openable_app(apply_repo, "notes", is_critical=False)
     _write_registry(apply_repo, {"chat": _CHAT_ROW_URL, "terminal": _TERMINAL_ROW_URL})
     runner = _apply_runner(
         "M\tsystem/libs/workspace_ui/src/origin.ts\nM\tsystem/apps/terminal/src/terminal_app/main.py\n"
-        "M\tsystem/apps/roadmap/src/roadmap/main.py\n",
+        "M\tsystem/apps/roadmap/src/roadmap/main.py\nA\tsystem/apps/notes/app.toml\n"
+        "A\tsystem/apps/notes/src/notes/main.py\n",
         apply_repo,
     )
 
@@ -8108,7 +8112,7 @@ def test_the_record_names_every_app_the_apply_touched(
 
     record = _rollback_point(apply_repo)
     assert record is not None
-    assert record.apps == ["chat", "roadmap", "system_interface", "terminal"]
+    assert record.apps == ["chat", "notes", "roadmap", "system_interface", "terminal"]
     assert record.programs == ["chat", "roadmap-web", "system_interface", "terminal"]
 
 
