@@ -30,11 +30,16 @@ All three must hold:
    guide's §7) is not an edit of yours: what it brings in is the workspace's
    own work, so after one the diff runs to your tip before the *first*
    catch-up merge (§7's `$PRE` names the newest round's, which already holds
-   the earlier rounds' incoming work):
+   the earlier rounds' incoming work). Only this pass's catch-ups count: a
+   retry's `<merge-sha>` is an earlier attempt's, whose own catch-ups landed
+   after it, so the search starts at the workspace commit the newest catch-up
+   merged:
 
    ```bash
+   LAST=$(git log --first-parent --merges -1 --format=%H --fixed-strings \
+       --grep "Catch up to the workspace's latest work")
    FIRST=$(git log --first-parent --merges --format=%H --fixed-strings \
-       --grep "Catch up to the workspace's latest work" "<merge-sha>..HEAD" | tail -n 1)
+       --grep "Catch up to the workspace's latest work" "$LAST^2..HEAD" | tail -n 1)
    git diff <merge-sha> "$FIRST^1"
    ```
 
