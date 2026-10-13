@@ -156,8 +156,15 @@ def read_compaction_request(path: Path, now: float) -> CompactionRequest | None:
 
 @pure
 def is_compact_command(text: str) -> bool:
-    """Whether composer text is the ``/compact`` command mngr's Claude harness forwards, bare or with instructions."""
+    """Whether composer text is the ``/compact`` command, bare or with instructions."""
     return text == COMPACT_COMMAND or text.startswith(f"{COMPACT_COMMAND} ")
+
+
+@pure
+def compact_command_instructions(text: str) -> str | None:
+    """The instructions a ``/compact`` command carries after the command, or None for a bare one."""
+    instructions = text.removeprefix(COMPACT_COMMAND).strip()
+    return instructions or None
 
 
 @pure
@@ -165,21 +172,19 @@ def shown_compaction_cause(
     marker_cause: CompactionCause | None,
     pending_cause: CompactionCause | None,
     derived_state: ActivityState,
-    has_compacting_marker: bool,
+    is_compaction_run_as_turn: bool,
 ) -> CompactionCause | None:
     """The cause of the compaction a chat shows, or None when it shows its turn state instead.
 
     A live marker always shows (Claude's own auto-compaction runs mid-turn). The chat's own
     request shows only over an idle agent: a /compact queued behind a running turn waits for it.
-    The exception is the sweep's request on a harness with no ``compacting`` marker (Codex, Pi):
-    the sweep asks only an idle agent, and such a harness reports the compaction itself as a turn,
-    so the request is the only sign of the compaction it started.
+    The exception is a harness that runs its compaction as a turn (Codex): the chat asks it to
+    compact only while it is idle (the sweep, or a composer /compact requested from mngr), so the
+    turn that follows is the compaction, and the request is the only sign of what it is.
     """
     if marker_cause is not None:
         return marker_cause
-    if derived_state == ActivityState.IDLE:
-        return pending_cause
-    if pending_cause == CompactionCause.IDLE and not has_compacting_marker:
+    if derived_state == ActivityState.IDLE or is_compaction_run_as_turn:
         return pending_cause
     return None
 

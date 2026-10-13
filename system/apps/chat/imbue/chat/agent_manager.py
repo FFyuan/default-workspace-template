@@ -63,6 +63,7 @@ from imbue.chat.chat_handoffs import created_chat_agent_labels
 from imbue.chat.chat_handoffs import deliver_held_send
 from imbue.chat.chat_handoffs import failure_notice
 from imbue.chat.chat_handoffs import has_user_turn
+from imbue.chat.chat_handoffs import is_genuine_user_turn
 from imbue.chat.chat_handoffs import mngr_failure_reason
 from imbue.chat.chat_rebinds import RebindCancelledError
 from imbue.chat.chat_rebinds import RebindDeps
@@ -570,6 +571,21 @@ def _is_current_compaction_event(event: dict[str, Any], now: float, pending_requ
     if now - event_at > PENDING_COMPACTION_TIMEOUT_SECONDS:
         return False
     return pending_requested_at is None or event_at >= pending_requested_at
+
+
+@pure
+def _has_user_turn_since(events: list[dict[str, Any]], since: float) -> bool:
+    """Whether one of the events is a user turn timestamped at or after ``since`` (epoch seconds).
+
+    A turn with no readable timestamp does not count: it could be an old one replayed.
+    """
+    for event in events:
+        if not is_genuine_user_turn(event):
+            continue
+        event_at = parse_iso_timestamp_to_epoch(event.get("timestamp"))
+        if event_at is not None and event_at >= since:
+            return True
+    return False
 
 
 @pure
@@ -2718,6 +2734,10 @@ class AgentManager:
         """
         return self._messenger.press_key_chord_to_agent(agent_id, key, self.get_agent_matches_by_id(str(agent_id)))
 
+    def request_agent_compaction(self, agent_id: AgentId, instructions: str | None) -> None:
+        """Have mngr compact the agent now, as the idle sweep does. Raises ``SendFailedError`` when it cannot."""
+        self._messenger.request_compaction(agent_id, instructions)
+
     def remove_agent(self, agent_id: str) -> None:
         """Remove an agent from the tracked state and broadcast the update.
 
@@ -4734,7 +4754,7 @@ class AgentManager:
                 live_compaction.marker_cause,
                 pending_cause,
                 new_state,
-                has_compacting_marker=tracker.compacting_marker_filename is not None,
+                is_compaction_run_as_turn=tracker.is_compaction_run_as_turn,
             )
             is_cause_changed = False
             if compaction_cause is not None and not is_lifecycle_dead(agent_state.state):
@@ -4815,6 +4835,7 @@ class AgentManager:
         No-op for agents not being tracked for activity (e.g. remote agents, or
         stale callbacks for an agent that was just destroyed).
         """
+        is_pending_compaction_ended = self._end_pending_compaction_by_a_later_turn(agent_id, events)
         with self._lock:
             if agent_id not in self._activity_tracked_agents:
                 return
@@ -4827,10 +4848,36 @@ class AgentManager:
         # A filed request or its verdict flips the chat's ``attention`` status whether or not the
         # activity state moved, and the rail's status dot is drawn from these snapshots alone; the
         # recompute's own broadcast is skipped then so the batch announces itself once.
-        if is_activity_changed:
+        if is_activity_changed or is_pending_compaction_ended:
             self._recompute_activity_state(agent_id, broadcast_on_change=not is_permission_state_changed)
         if is_permission_state_changed:
             self._broadcast_chats_updated()
+
+    def _end_pending_compaction_by_a_later_turn(self, agent_id: str, events: list[dict[str, Any]]) -> bool:
+        """End the agent's pending compaction request when one of ``events`` is a user turn begun after it.
+
+        Only on a harness that keeps no ``compacting`` marker and compacts outside any turn (pi):
+        it runs no turn while it compacts, so its compaction is over, or it refused it (pi reports
+        a refusal nowhere the chat can read). Returns whether a request was ended.
+        """
+        with self._lock:
+            tracker = self._activity_tracker_by_agent.get(agent_id)
+            pending = self._compaction_pending_by_agent.get(agent_id)
+        if tracker is None or pending is None:
+            return False
+        if tracker.compacting_marker_filename is not None or tracker.is_compaction_run_as_turn:
+            return False
+        requested_at, cause = pending
+        if not _has_user_turn_since(events, _monotonic_to_epoch(requested_at, time.time())):
+            return False
+        with self._lock:
+            if self._compaction_pending_by_agent.get(agent_id) != pending:
+                return False
+            del self._compaction_pending_by_agent[agent_id]
+            self._compaction_cause_by_agent.pop(agent_id, None)
+            self._compaction_cause_seen_at_by_agent.pop(agent_id, None)
+        _loguru_logger.info("autocompact: compaction pending ended by a turn agent={} cause={}", agent_id, cause.value)
+        return True
 
     def _fold_pending_permissions_locked(self, agent_id: str, events: list[dict[str, Any]]) -> bool:
         """Fold a batch of events into the agent's pending permission requests; True when the set changed.

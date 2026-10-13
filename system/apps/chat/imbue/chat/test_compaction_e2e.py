@@ -27,6 +27,7 @@ from playwright.sync_api import Locator
 from playwright.sync_api import Page
 from playwright.sync_api import expect
 
+from imbue.chat.activity_state import ActivityState
 from imbue.chat.activity_state import CompactionCause
 from imbue.chat.auto_open import chat_root_path
 from imbue.chat.chat_autocompact import AUTOCOMPACT_FILENAME
@@ -36,6 +37,7 @@ from imbue.chat.harnesses.harness_type import HarnessType
 from imbue.chat.primitives import ChatId
 from imbue.chat.testing import FIXTURE_AGENT_ID
 from imbue.chat.testing import FIXTURE_AGENT_NAME
+from imbue.chat.testing import RecordingMngrMessenger
 from imbue.chat.testing import RunningWorkspace
 from imbue.chat.testing import compact_summary_record
 from imbue.chat.testing import get_json
@@ -122,9 +124,13 @@ _QUEUED_SESSION_EVENTS: list[dict[str, Any]] = [
 
 @contextmanager
 def _compaction_workspace(
-    tmp_path: Path, session_events: Sequence[Mapping[str, Any]] | None = None
+    tmp_path: Path,
+    session_events: Sequence[Mapping[str, Any]] | None = None,
+    messenger: RecordingMngrMessenger | None = None,
 ) -> Iterator[RunningWorkspace]:
-    with running_workspace(tmp_path, find_free_port(), find_free_port(), session_events=session_events) as server:
+    with running_workspace(
+        tmp_path, find_free_port(), find_free_port(), session_events=session_events, messenger=messenger
+    ) as server:
         poller = server.chat_state.agent_manager._compacting_marker_poller
         poller.start()
         try:
@@ -434,6 +440,169 @@ def test_the_start_chip_follows_the_last_reply_while_an_idle_compaction_runs(
     expect(started.locator(".tool-chip-label")).to_have_text(_STARTED_LABEL_BY_CAUSE["idle"], timeout=15000)
     expect(reply.locator("xpath=following-sibling::*[1]").locator(".compaction-chip--started")).to_have_count(1)
     expect(_strip(chat).locator(".agent-activity-indicator__label")).to_have_text("Compacting while idle…")
+
+
+def _append_jsonl(path: Path, records: Sequence[Mapping[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as handle:
+        for record in records:
+            handle.write(json.dumps(record) + "\n")
+
+
+def _codex_line(payload_kind: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {"timestamp": utc_iso_seconds_ago(), "type": payload_kind, "payload": dict(payload)}
+
+
+def _pi_message_record(record_id: str, message: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "message",
+        "id": record_id,
+        "parentId": None,
+        "timestamp": utc_iso_seconds_ago(),
+        "message": message,
+    }
+
+
+def _write_exchange_transcript(state_dir: Path, harness: HarnessType) -> Path:
+    """Write ``harness``'s own transcript of one exchange where its watcher finds it; returns the file to append to."""
+    match harness:
+        case HarnessType.CODEX:
+            rollout = state_dir / "plugin" / "codex" / "home" / "sessions" / "2026" / "10" / "13" / "rollout-e2e.jsonl"
+            _append_jsonl(
+                rollout,
+                [
+                    _codex_line("event_msg", {"type": "user_message", "message": "Hello agent!"}),
+                    _codex_line(
+                        "response_item",
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "id": "msg-reply",
+                            "content": [{"type": "output_text", "text": "Hello! How can I help you?"}],
+                        },
+                    ),
+                ],
+            )
+            (state_dir / "codex_transcript_path").write_text(str(rollout))
+            return rollout
+        case HarnessType.PI_CODING:
+            session = state_dir / "plugin" / "pi_coding" / "sessions" / "cwd" / "e2e.jsonl"
+            _append_jsonl(
+                session,
+                [
+                    _pi_message_record(
+                        "rec-user", {"role": "user", "content": [{"type": "text", "text": "Hello agent!"}]}
+                    ),
+                    _pi_message_record(
+                        "rec-reply",
+                        {
+                            "role": "assistant",
+                            "model": "m",
+                            "content": [{"type": "text", "text": "Hello! How can I help you?"}],
+                        },
+                    ),
+                ],
+            )
+            (state_dir / "pi_session_file").write_text(str(session))
+            return session
+        case _:
+            pytest.fail(f"no transcript fixture for {harness}")
+
+
+def _append_compaction(transcript: Path, harness: HarnessType) -> None:
+    """Append what ``harness`` records for the compaction mngr asked for: Codex runs it as a turn, pi outside one."""
+    match harness:
+        case HarnessType.CODEX:
+            _append_jsonl(
+                transcript,
+                [
+                    _codex_line(
+                        "event_msg",
+                        {
+                            "type": "item_completed",
+                            "turn_id": "turn-compact",
+                            "item": {"type": "ContextCompaction", "id": "cc-1", "summary": _SUMMARY_TEXT},
+                        },
+                    ),
+                    _codex_line("event_msg", {"type": "task_complete", "turn_id": "turn-compact"}),
+                ],
+            )
+        case HarnessType.PI_CODING:
+            _append_jsonl(
+                transcript,
+                [
+                    {
+                        "type": "compaction",
+                        "id": "rec-compaction",
+                        "parentId": None,
+                        "timestamp": utc_iso_seconds_ago(),
+                        "summary": _SUMMARY_TEXT,
+                    }
+                ],
+            )
+        case _:
+            pytest.fail(f"no compaction fixture for {harness}")
+
+
+@pytest.mark.parametrize("harness", [HarnessType.CODEX, HarnessType.PI_CODING])
+@pytest.mark.timeout(60, func_only=False)
+def test_a_compact_typed_in_a_codex_or_pi_chat_asks_mngr_and_shows_the_compaction_as_requested(
+    tmp_path: Path, page: Page, harness: HarnessType
+) -> None:
+    """The /compact is never sent: no bubble stays behind, and no reply follows, only the status and the chips."""
+    messenger = RecordingMngrMessenger()
+    with _compaction_workspace(tmp_path, messenger=messenger) as server:
+        transcript = _write_exchange_transcript(server.agent_info.agent_state_dir, harness)
+        _set_fixture_harness(server, harness)
+        chat = _open_chat(page, server)
+        reply = chat.locator(".message-assistant", has_text="Hello! How can I help you?")
+        expect(reply).to_be_visible(timeout=15000)
+
+        chat.locator(".message-input-textbox").fill("/compact")
+        chat.locator(".message-input-send-button").click()
+
+        expect(_strip(chat).locator(".agent-activity-indicator__label")).to_have_text(
+            "Compacting as requested…", timeout=15000
+        )
+        assert messenger.compactions == [(FIXTURE_AGENT_ID, None)]
+        assert messenger.sent == []
+        started = _started_chip(chat)
+        expect(started.locator(".tool-chip-label")).to_have_text(_STARTED_LABEL_BY_CAUSE["manual"])
+        expect(reply.locator("xpath=following-sibling::*[1]").locator(".compaction-chip--started")).to_have_count(1)
+        expect(chat.locator(".outgoing-message")).to_have_count(0, timeout=15000)
+        expect(chat.locator(".message-user", has_text="/compact")).to_have_count(0)
+        expect(chat.locator(".message-input-textbox")).to_have_value("")
+        if harness is HarnessType.CODEX:
+            # Codex runs the compaction as a turn; the request still names it over the turn's own label.
+            manager = server.chat_state.agent_manager
+            tracker = manager._activity_tracker_by_agent[FIXTURE_AGENT_ID]
+            _append_jsonl(transcript, [_codex_line("event_msg", {"type": "task_started", "turn_id": "turn-compact"})])
+            wait_for(
+                lambda: tracker.derive(
+                    lifecycle_state="RUNNING", is_active_marker_present=False, process_started_at=None
+                )
+                == ActivityState.THINKING,
+                timeout=10.0,
+                error_message="the compaction's turn never reached the activity tracker",
+            )
+            manager._recompute_activity_state(FIXTURE_AGENT_ID, broadcast_on_change=True)
+            snapshot = manager.get_chat_snapshot(FIXTURE_AGENT_ID)
+            assert snapshot is not None
+            assert snapshot.active_agent.activity_state == ActivityState.COMPACTING
+            expect(_strip(chat).locator(".agent-activity-indicator__label")).to_have_text("Compacting as requested…")
+
+        _append_compaction(transcript, harness)
+
+        expect(_finished_chip(chat).locator(".tool-chip-label")).to_have_text(_FINISHED_LABEL, timeout=15000)
+        expect(_strip(chat)).to_have_count(0, timeout=15000)
+        expect(started).to_have_count(1)
+        # The agent's rail holds its one reply and the compaction's chip row, nothing more.
+        expect(chat.locator(".message-assistant:not(:has(.tool-chip))")).to_have_count(1)
+        _finished_chip(chat).click()
+        expect(_compaction_panel(chat).locator(".compaction-explanation")).to_have_text(
+            _EXPLANATION_BY_CAUSE["manual"]
+        )
+        expect(_compaction_panel(chat).locator(".compaction-summary")).to_have_text(_SUMMARY_TEXT)
 
 
 @pytest.mark.timeout(60, func_only=False)

@@ -62,6 +62,7 @@ from imbue.chat.accounts import mint_account_dir
 from imbue.chat.activity_state import ActivityState
 from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import MngrMessenger
+from imbue.chat.agent_discovery import SendFailedError
 from imbue.chat.agent_discovery import SendFailure
 from imbue.chat.agent_manager import AgentManager
 from imbue.chat.chat_naming import ChatNamer
@@ -548,22 +549,26 @@ class InlineExecutor(Executor):
 
 
 class RecordingMngrMessenger(MngrMessenger):
-    """A `MngrMessenger` that records sends and key-chord presses and never contacts mngr.
+    """A `MngrMessenger` that records sends, key-chord presses and compaction requests and never contacts mngr.
 
-    Overrides `send_to_agent` (records each `(agent_id, message)`) and
-    `press_key_chord_to_agent` (records each `(agent_id, key)`), returning fixed
-    results, so a test exercises the manager's send / keypress paths without building a
-    real mngr context or hitting the network. Inject via
+    Overrides `send_to_agent` (records each `(agent_id, message)`), `press_key_chord_to_agent`
+    (records each `(agent_id, key)`) and `request_compaction` (records each
+    `(agent_id, instructions)`), returning fixed results, so a test exercises the manager's send /
+    keypress / compaction paths without building a real mngr context or hitting the network. Inject via
     `AgentManager.build(broadcaster, messenger=RecordingMngrMessenger())`.
     """
 
     sent: list[tuple[str, str]] = []
     pressed: list[tuple[str, str]] = []
+    # Each compaction requested, as ``(agent_id, instructions)``.
+    compactions: list[tuple[str, str | None]] = []
     succeeds: bool = True
     # What a non-succeeding send reports, in place of a harness's own words and mngr's kind.
     failure_reason: str = "The agent could not be reached."
     failure_kind: str = "unknown"
     press_succeeds: bool = True
+    # The refusal a compaction request raises, in place of mngr's; None for one that succeeds.
+    compaction_failure: SendFailure | None = None
 
     def send_to_agent(
         self, agent_id: AgentId, message: str, known_locations: Sequence[AgentMatch]
@@ -574,6 +579,11 @@ class RecordingMngrMessenger(MngrMessenger):
     def press_key_chord_to_agent(self, agent_id: AgentId, key: str, known_locations: Sequence[AgentMatch]) -> bool:
         self.pressed.append((str(agent_id), key))
         return self.press_succeeds
+
+    def request_compaction(self, agent_id: AgentId, instructions: str | None) -> None:
+        self.compactions.append((str(agent_id), instructions))
+        if self.compaction_failure is not None:
+            raise SendFailedError(self.compaction_failure.reason, self.compaction_failure.kind)
 
 
 class SummaryWritingMngrMessenger(RecordingMngrMessenger):

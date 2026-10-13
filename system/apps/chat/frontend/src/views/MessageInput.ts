@@ -15,6 +15,7 @@ import type { ComposerAttachment } from "../models/ComposerAttachments";
 import { buildMessageWithAttachments, formatFileSize } from "../models/attachments";
 import { stageElementReferences } from "../models/elementReferences";
 import { drainToComposer, getEventsForChat, interruptAgent, mintMessageId, sendMessage } from "../models/Response";
+import type { SendStatus } from "../models/Response";
 import { cancelHandoff, switchChat } from "../models/Handoffs";
 import {
   getPendingPick,
@@ -86,8 +87,20 @@ const MESSAGE_TEXT_KEY_PREFIX = "message-text:";
 
 // The kind of the server's refusal of a send to a chat whose account was signed out.
 const ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND = "account_signed_out";
-// The kind of the server's refusal of a /compact sent before the agent has anything to compact.
-const NOTHING_TO_COMPACT_SEND_FAILURE_KIND = "nothing_to_compact";
+// The kinds of the server's refusal of a /compact it declines to run: before the agent has anything
+// to compact, and while it is busy or stopped.
+const DECLINED_COMPACT_SEND_FAILURE_KINDS: ReadonlySet<unknown> = new Set([
+  "nothing_to_compact",
+  "compact_unavailable",
+]);
+
+/** Drop the "Sending…" bubble of a /compact the server ran as a compaction: no transcript turn will
+ *  arrive to retire it, and the compaction's own status and chips show what the send did. */
+function dropOutgoingOfRequestedCompaction(chatId: string, outgoingId: string, status: SendStatus | null): void {
+  if (status === "compaction_requested") {
+    dropOutgoing(chatId, outgoingId);
+  }
+}
 
 function sendFailureKind(sendError: unknown): unknown {
   return (sendError as { response?: { kind?: unknown } | null } | null)?.response?.kind;
@@ -314,7 +327,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
   let interceptedAuthCommand: string | null = null;
   // A message the chat declines to deliver: a slash command that would change the agent's terminal
   // rather than start a turn (it still works from that terminal, which the notice says), or a
-  // /compact the server refused because there is nothing to compact yet.
+  // /compact the server declined to run (nothing to compact yet, or the agent is busy or stopped).
   let declinedSend: { title: string; body: string } | null = null;
   // Why the last send or interrupt failed, in the harness's own words, shown as a notice.
   // Component state like the notices above, NOT module state: every open chat panel mounts its
@@ -674,17 +687,17 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           // "Sending…" until the create lands, and the send goes out then. A create that
           // fails rejects here and the message goes back to the composer like any failed send.
           await whenChatRegistered(chatId);
-          await sendMessage(chatId, finalText, messageId);
+          const status = await sendMessage(chatId, finalText, messageId);
           // The send resolved: the message is now real (committed, queued, or held for the
           // agent the chat is switching to), so its "Sending…" bubble is removed by the arriving
-          // transcript turn, queued snapshot, or held-send snapshot (see
-          // OutgoingMessages) -- nothing to do here.
+          // transcript turn, queued snapshot, or held-send snapshot (see OutgoingMessages).
+          dropOutgoingOfRequestedCompaction(chatId, outgoingId, status);
         } catch (err) {
           // The backend confirms delivery before resolving, so a rejection means the message was
-          // NOT accepted. A /compact with nothing to compact yet gets the declined-command notice
-          // rather than the failure notice, since retrying cannot change it.
+          // NOT accepted. A /compact the server declined to run gets the declined-command notice
+          // rather than the failure notice, since retrying at once cannot change it.
           const detail = describeRequestError(err);
-          const isDeclined = sendFailureKind(err) === NOTHING_TO_COMPACT_SEND_FAILURE_KIND;
+          const isDeclined = DECLINED_COMPACT_SEND_FAILURE_KINDS.has(sendFailureKind(err));
           if (!isDeclined) {
             console.error(`Failed to send message to chat ${chatId}: ${detail}`);
           }
@@ -1051,7 +1064,8 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         const outgoingId = addOutgoing(recovery.chatId, recovery.text, messageId);
         try {
           await whenChatRegistered(recovery.chatId);
-          await sendMessage(recovery.chatId, recovery.sentText, messageId);
+          const status = await sendMessage(recovery.chatId, recovery.sentText, messageId);
+          dropOutgoingOfRequestedCompaction(recovery.chatId, outgoingId, status);
           // Landed, so take the restored copy back out of the composer.
           clearRestoredMessage(recovery.chatId, recovery.text, recovery.attachments);
           clearActionFailureNotice();

@@ -76,6 +76,10 @@ class HarnessActivityTracker(ABC):
     # through the chat's own requests).
     compacting_marker_filename: ClassVar[str | None] = None
 
+    # Whether the harness runs a compaction as a turn of its own (codex), so a compaction the chat
+    # asked for reads as a running turn while it runs.
+    is_compaction_run_as_turn: ClassVar[bool] = False
+
     # Filename of the record the harness's mngr plugin writes when a compaction finishes
     # (``{"trigger": ..., "ended_at": ...}``), or None when the harness writes none.
     last_compaction_filename: ClassVar[str | None] = None

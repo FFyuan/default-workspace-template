@@ -441,10 +441,27 @@ the file, and a create request may not set the label.
 
 The setting controls idle compaction only. A chat with Auto-compact off is still
 compacted when its harness reaches its own context limit (Claude's
-auto-compaction, for one) and when the user types `/compact`. A `/compact` sent
-from a Claude chat's composer reaches Claude as its own command; a Codex chat
-sends it to the model as an ordinary message, and Pi's composer declines it with
-a notice pointing at the terminal. In a Claude chat the typed `/compact` shows
+auto-compaction, for one) and when the user types `/compact`. What a composer
+`/compact` does is the harness's `composer_compact_handling` in
+`harnesses/registry.py`. In a Claude chat it reaches Claude as its own command.
+In a Codex or Pi chat it is never sent, since either would hand it to the model
+as prose: the chat app asks mngr to compact the agent instead, through the same
+`request_compaction` call the sweep makes (`MngrMessenger.request_compaction`),
+passing any text after `/compact` as instructions (Pi uses them, Codex ignores
+them). mngr records the compaction against the agent's idle period, so the sweep
+does not compact it again before its next turn. The send answers 200 with
+`status: compaction_requested`, and the composer drops its "Sending…" bubble
+then, since no transcript turn will replace it; the status and chips below show
+the compaction. Such a `/compact` is declined with the "/compact wasn't sent"
+notice, asking nothing of mngr, when nothing was said since the last compaction
+(`kind: nothing_to_compact`), and while the agent is mid-turn, compacting, has
+messages queued, or is stopped (`kind: compact_unavailable`), since both
+harnesses start a compaction in place of a running turn; mngr re-checks the idle
+period under the agent's message lock and declines the same way. A request mngr
+fails is a send failure in mngr's words. pi refuses a compaction of a session
+too small to cut without telling anyone but stderr, so such a Pi `/compact`
+leaves the status up until the chat's next turn or the 10-minute timeout. In a
+Claude chat the typed `/compact` shows
 as the user's own bubble: Claude Code records it as it is submitted, and records
 it again, as the command's expansion, once the compaction ends; the session
 parser emits the first as an ordinary user message and the second hidden, both
@@ -456,8 +473,13 @@ activity state is `COMPACTING` (`compaction_status.py`, applied in
 `agent_manager.py`). Claude's marker (below) wins over a turn in progress,
 since Claude's own compaction runs mid-turn; a compaction the chat asked for
 shows only once the agent is idle, so a `/compact` queued behind a running turn
-leaves the turn's label up until the turn ends. A stopped agent still reads
-idle. It counts as working: the chat list shows the chat as working, and the
+leaves the turn's label up until the turn ends. The exception is Codex, which
+runs its compaction as a turn (`is_compaction_run_as_turn` on its activity
+tracker): the chat asks it to compact only while idle, so its request shows
+over that turn. Pi writes no marker and compacts outside any turn, so a user
+turn that starts after the chat's request ends the request: pi runs no turn
+while it compacts, so its compaction is over or it refused it. A stopped agent
+still reads idle. It counts as working: the chat list shows the chat as working, and the
 composer stays open, with a message sent meanwhile queued behind the
 compaction. The activity strip above the composer names who started it, from
 the snapshot's `active_agent.compaction_cause` (set only while the state is
@@ -477,14 +499,14 @@ the pair replaces it. The state comes from two signals:
   and Claude's own. mngr writes hooks only when it creates an agent, so only
   Claude agents created after the workspace's mngr gained these hooks have them
   (a handoff's successor is a new agent; a rebind keeps the old one).
-- The chat app's own requests: the sweep's, on every harness, and a `/compact`
-  from a Claude chat's composer.
+- The chat app's own requests: the sweep's and a composer `/compact`'s, on every
+  harness mngr can compact.
 
 So the status does not show for a Codex or Pi chat's own compaction, or for an
 older Claude agent's own compaction or a `/compact` typed in its terminal. It
 clears when the compaction finishes: the "Context was compacted" event arrives,
 or for Claude the marker goes or `last_compaction.json` records a finish after
-the request. One that never reports completion (cancelled, failed, or crashed)
+the request, or for Pi a user turn starts after it. One that never reports completion (cancelled, failed, or crashed)
 stops showing after 10 minutes (`PENDING_COMPACTION_TIMEOUT_SECONDS`), and a
 marker older than that is ignored. A request on a chat nobody has open, which no
 "Context was compacted" event can end, stops after 3 minutes instead
@@ -513,7 +535,8 @@ Where they land depends on who started it:
 - `native` (Claude's own compaction, mid-turn): at the event's position in the
   turn, appended to the chip run beside it, or as a chip row of their own when
   nothing chips beside them.
-- `manual` (a `/compact`): directly below the `/compact` bubble.
+- `manual` (a `/compact`): directly below the `/compact` bubble; a Codex or Pi
+  chat shows no such bubble, so there they follow the last turn, as for `idle`.
 - `idle` (the sweep): after the last turn, below its reply, or appended to its
   last chip run when it ended with no reply.
 

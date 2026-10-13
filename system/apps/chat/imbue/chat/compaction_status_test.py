@@ -13,6 +13,7 @@ from imbue.chat.compaction_status import CompactionRequest
 from imbue.chat.compaction_status import CompactionTrigger
 from imbue.chat.compaction_status import cause_of_compacting_marker
 from imbue.chat.compaction_status import cause_of_last_compaction
+from imbue.chat.compaction_status import compact_command_instructions
 from imbue.chat.compaction_status import is_compact_command
 from imbue.chat.compaction_status import is_context_compacted_event
 from imbue.chat.compaction_status import read_compaction_request
@@ -181,51 +182,60 @@ def test_a_missing_compaction_request_reads_as_none(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "marker_cause, pending_cause, derived_state, has_compacting_marker, expected",
+    "marker_cause, pending_cause, derived_state, is_compaction_run_as_turn, expected",
     [
         pytest.param(
-            CompactionCause.NATIVE, None, ActivityState.TOOL_RUNNING, True, CompactionCause.NATIVE, id="marker"
+            CompactionCause.NATIVE, None, ActivityState.TOOL_RUNNING, False, CompactionCause.NATIVE, id="marker"
         ),
         pytest.param(
             CompactionCause.IDLE,
-            CompactionCause.IDLE,
-            ActivityState.THINKING,
-            True,
-            CompactionCause.IDLE,
-            id="marker_mid_turn",
-        ),
-        pytest.param(
-            None, CompactionCause.MANUAL, ActivityState.IDLE, True, CompactionCause.MANUAL, id="request_when_idle"
-        ),
-        pytest.param(None, CompactionCause.MANUAL, ActivityState.THINKING, True, None, id="request_behind_a_turn"),
-        pytest.param(None, CompactionCause.IDLE, ActivityState.TOOL_RUNNING, True, None, id="request_behind_a_tool"),
-        pytest.param(
-            None,
             CompactionCause.IDLE,
             ActivityState.THINKING,
             False,
             CompactionCause.IDLE,
-            id="sweep_request_on_a_markerless_harness_over_its_compaction_turn",
+            id="marker_mid_turn",
+        ),
+        pytest.param(
+            None, CompactionCause.MANUAL, ActivityState.IDLE, False, CompactionCause.MANUAL, id="request_when_idle"
+        ),
+        pytest.param(None, CompactionCause.MANUAL, ActivityState.THINKING, False, None, id="request_behind_a_turn"),
+        pytest.param(None, CompactionCause.IDLE, ActivityState.TOOL_RUNNING, False, None, id="request_behind_a_tool"),
+        pytest.param(
+            None,
+            CompactionCause.IDLE,
+            ActivityState.THINKING,
+            True,
+            CompactionCause.IDLE,
+            id="sweep_request_over_the_compaction_turn_of_a_harness_compacting_as_a_turn",
         ),
         pytest.param(
             None,
             CompactionCause.MANUAL,
             ActivityState.THINKING,
-            False,
-            None,
-            id="manual_request_on_a_markerless_harness_behind_a_turn",
+            True,
+            CompactionCause.MANUAL,
+            id="requested_compact_over_the_compaction_turn_of_a_harness_compacting_as_a_turn",
         ),
-        pytest.param(None, None, ActivityState.IDLE, True, None, id="nothing"),
+        pytest.param(
+            None,
+            CompactionCause.MANUAL,
+            ActivityState.IDLE,
+            True,
+            CompactionCause.MANUAL,
+            id="requested_compact_on_a_harness_compacting_as_a_turn_when_idle",
+        ),
+        pytest.param(None, None, ActivityState.THINKING, True, None, id="a_turn_with_no_request"),
+        pytest.param(None, None, ActivityState.IDLE, False, None, id="nothing"),
     ],
 )
 def test_shown_compaction_cause(
     marker_cause: CompactionCause | None,
     pending_cause: CompactionCause | None,
     derived_state: ActivityState,
-    has_compacting_marker: bool,
+    is_compaction_run_as_turn: bool,
     expected: CompactionCause | None,
 ) -> None:
-    assert shown_compaction_cause(marker_cause, pending_cause, derived_state, has_compacting_marker) == expected
+    assert shown_compaction_cause(marker_cause, pending_cause, derived_state, is_compaction_run_as_turn) == expected
 
 
 @pytest.mark.parametrize(
@@ -290,3 +300,15 @@ def test_is_context_compacted_event(event: dict[str, Any], expected: bool) -> No
 )
 def test_is_compact_command(text: str, expected: bool) -> None:
     assert is_compact_command(text) is expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        pytest.param("/compact", None, id="bare"),
+        pytest.param("/compact   ", None, id="trailing_space"),
+        pytest.param("/compact keep the test plan", "keep the test plan", id="with_instructions"),
+    ],
+)
+def test_compact_command_instructions(text: str, expected: str | None) -> None:
+    assert compact_command_instructions(text) == expected

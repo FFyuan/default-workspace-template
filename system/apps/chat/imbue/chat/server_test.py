@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from typing import Final
 from unittest.mock import patch
 from urllib.parse import parse_qs
 from urllib.parse import quote
@@ -26,6 +27,7 @@ from flask.testing import FlaskClient
 from mngr_cli_contract.contract import assert_mngr_argv_valid
 from oom_priority import bands
 from pydantic import SecretStr
+from werkzeug.test import TestResponse
 
 from imbue.chat.accounts import INDEX_VERSION
 from imbue.chat.accounts import account_dir
@@ -35,6 +37,9 @@ from imbue.chat.accounts import mint_account_dir
 from imbue.chat.activity_state import ActivityState
 from imbue.chat.activity_state import CompactionCause
 from imbue.chat.agent_discovery import AgentInfo
+from imbue.chat.agent_discovery import COMPACT_UNAVAILABLE_SEND_FAILURE_KIND
+from imbue.chat.agent_discovery import COMPACT_WHILE_BUSY_DETAIL
+from imbue.chat.agent_discovery import SendFailure
 from imbue.chat.agent_discovery import agent_state_dir
 from imbue.chat.agent_manager import AgentManager
 from imbue.chat.agent_manager import PENDING_COMPACTION_TIMEOUT_SECONDS
@@ -53,6 +58,7 @@ from imbue.chat.harnesses.codex.model import codex_models_to_options
 from imbue.chat.harnesses.codex.model import get_codex_model_options_path
 from imbue.chat.harnesses.codex.model import read_codex_model_options
 from imbue.chat.harnesses.codex.session import CodexHarnessSession
+from imbue.chat.harnesses.events import DisplayKind
 from imbue.chat.harnesses.harness_type import HarnessType
 from imbue.chat.harnesses.lanes import HARNESS_LABEL
 from imbue.chat.harnesses.message_display import BACKGROUND_TASK_REPORT_TAG
@@ -73,6 +79,7 @@ from imbue.chat.models import ProvisionalChatPhase
 from imbue.chat.models import SendMessageRequest
 from imbue.chat.oom_prioritizer import ChatOomPrioritizer
 from imbue.chat.primitives import ChatId
+from imbue.chat.server import COMPACT_WHILE_STOPPED_DETAIL
 from imbue.chat.server import _DEFAULT_TAIL_COUNT
 from imbue.chat.server import _agent_switch_options
 from imbue.chat.server import _revive_and_retry_send
@@ -4276,7 +4283,6 @@ def _manager_with_known_agents() -> tuple[AgentManager, RecordingMngrMessenger]:
         pytest.param(HarnessType.CLAUDE, "/compact", True, id="claude_bare"),
         pytest.param(HarnessType.CLAUDE, "/compact keep the test plan", True, id="claude_with_instructions"),
         pytest.param(HarnessType.CLAUDE, "please compact", False, id="claude_prose"),
-        pytest.param(HarnessType.PI_CODING, "/compact", False, id="pi_does_not_run_it"),
     ],
 )
 def test_a_compact_command_sent_from_the_composer_shows_the_compaction_it_starts(
@@ -4384,22 +4390,163 @@ def test_a_compact_command_the_agent_refused_shows_no_compaction(tmp_path: Path)
         state.shutdown()
 
 
-def test_a_compact_command_sent_from_a_codex_composer_shows_no_compaction(tmp_path: Path) -> None:
-    agent_id = f"agent-{uuid4().hex}"
-    agent_info = _agent_info(agent_id=agent_id, harness=HarnessType.CODEX, agent_state_dir=tmp_path / "state")
-    manager, messenger = _manager_with_known_agents()
-    # A file session on the codex harness, so the send lands without a live codex daemon.
-    claude_deps = manager._build_session(agent_id, HarnessType.CLAUDE)._deps
-    manager._session_by_agent[agent_id] = FileHarnessSession.build(
-        claude_deps.model_copy_update(to_update(claude_deps.field_ref().harness, HarnessType.CODEX))
-    )
-    client = create_application(build_test_state(agent_manager=manager)).test_client()
-    with patch("imbue.chat.server._find_active_agent", return_value=agent_info):
-        response = client.post(f"/api/chats/{agent_id}/message", json={"message": "/compact"})
+_EXCHANGE_EVENTS: Final[list[dict[str, Any]]] = [
+    {"type": "user_message", "event_id": "evt-user", "content": "Hello agent!"},
+    {"type": "assistant_message", "event_id": "evt-reply", "text": "Hello! How can I help you?", "tool_calls": []},
+]
+_COMPACTED_EVENT: Final[dict[str, Any]] = {
+    "type": "user_message",
+    "event_id": "evt-compacted",
+    "role": "system",
+    "content": "Context was compacted",
+    "display": DisplayKind.STATUS.value,
+    "non_turn_tail": True,
+}
 
-    assert response.status_code == 200
-    assert messenger.sent == [(agent_id, "/compact")]
-    assert agent_id not in manager._compaction_pending_by_agent
+_COMPACTING_THROUGH_MNGR_HARNESSES: Final[tuple[HarnessType, ...]] = (HarnessType.CODEX, HarnessType.PI_CODING)
+
+
+@contextmanager
+def _compact_sent_from_the_composer(
+    tmp_path: Path,
+    harness: HarnessType,
+    message: str = "/compact",
+    events: list[dict[str, Any]] = _EXCHANGE_EVENTS,
+    messenger: RecordingMngrMessenger | None = None,
+    lifecycle_state: str = "RUNNING",
+    activity_state: ActivityState | None = None,
+) -> Iterator[tuple[TestResponse, AgentManager, RecordingMngrMessenger, str]]:
+    """Send ``message`` from the composer of a ``harness`` chat whose transcript holds ``events``; the app stays up
+    until the block ends."""
+    agent_id = f"agent-{uuid4().hex}"
+    running_agent_info = _agent_info(agent_id=agent_id, harness=harness, agent_state_dir=tmp_path / "state")
+    agent_info = running_agent_info.model_copy_update(to_update(running_agent_info.field_ref().state, lifecycle_state))
+    recording_messenger = messenger if messenger is not None else RecordingMngrMessenger()
+    manager = AgentManager.build(WebSocketBroadcaster(), messenger=recording_messenger)
+    manager.note_agent_list_known()
+    if activity_state is not None:
+        seed_agent_state(manager, agent_id, name=agent_info.name, harness=harness, activity_state=activity_state)
+    state = build_test_state(agent_manager=manager)
+    try:
+        with (
+            patch("imbue.chat.server._find_active_agent", return_value=agent_info),
+            patch.object(
+                ChatAppState, "get_or_create_watcher", return_value=SimpleNamespace(get_all_events=lambda: events)
+            ),
+        ):
+            response = (
+                create_application(state)
+                .test_client()
+                .post(f"/api/chats/{agent_id}/message", json={"message": message})
+            )
+        yield response, manager, recording_messenger, agent_id
+    finally:
+        state.shutdown()
+
+
+@pytest.mark.parametrize("harness", _COMPACTING_THROUGH_MNGR_HARNESSES)
+@pytest.mark.parametrize(
+    ("message", "instructions"),
+    [
+        pytest.param("/compact", None, id="bare"),
+        pytest.param("/compact keep the test plan", "keep the test plan", id="with_instructions"),
+    ],
+)
+def test_a_compact_command_from_a_codex_or_pi_composer_asks_mngr_to_compact_instead_of_sending_it(
+    tmp_path: Path, harness: HarnessType, message: str, instructions: str | None
+) -> None:
+    with _compact_sent_from_the_composer(tmp_path, harness, message) as (response, manager, messenger, agent_id):
+        assert response.status_code == 200
+        assert response.get_json() == {"status": "compaction_requested"}
+        assert messenger.compactions == [(agent_id, instructions)]
+        assert messenger.sent == []
+        # No session was built, so nothing reached the harness's own send path either.
+        assert agent_id not in manager._session_by_agent
+        assert manager._compaction_pending_by_agent[agent_id][1] == CompactionCause.MANUAL
+
+
+@pytest.mark.parametrize("harness", _COMPACTING_THROUGH_MNGR_HARNESSES)
+@pytest.mark.parametrize(
+    "events",
+    [
+        pytest.param([], id="fresh_chat"),
+        pytest.param(_EXCHANGE_EVENTS[:1], id="no_reply_yet"),
+        pytest.param([*_EXCHANGE_EVENTS, _COMPACTED_EVENT], id="nothing_said_since_the_last_compaction"),
+    ],
+)
+def test_a_compact_command_with_nothing_to_compact_is_declined_without_asking_mngr(
+    tmp_path: Path, harness: HarnessType, events: list[dict[str, Any]]
+) -> None:
+    with _compact_sent_from_the_composer(tmp_path, harness, events=events) as (response, manager, messenger, agent_id):
+        assert response.status_code == 409
+        assert response.get_json() == {"detail": "Nothing to compact yet.", "kind": "nothing_to_compact"}
+        assert messenger.compactions == []
+        assert agent_id not in manager._compaction_pending_by_agent
+
+
+def test_a_compact_command_after_a_new_exchange_since_the_last_compaction_asks_mngr(tmp_path: Path) -> None:
+    events = [*_EXCHANGE_EVENTS, _COMPACTED_EVENT, *_EXCHANGE_EVENTS]
+    with _compact_sent_from_the_composer(tmp_path, HarnessType.CODEX, events=events) as (
+        response,
+        _,
+        messenger,
+        agent_id,
+    ):
+        assert response.status_code == 200
+        assert messenger.compactions == [(agent_id, None)]
+
+
+@pytest.mark.parametrize("harness", _COMPACTING_THROUGH_MNGR_HARNESSES)
+@pytest.mark.parametrize(
+    ("lifecycle_state", "activity_state", "detail"),
+    [
+        pytest.param("RUNNING", ActivityState.THINKING, COMPACT_WHILE_BUSY_DETAIL, id="mid_turn"),
+        pytest.param("RUNNING", ActivityState.COMPACTING, COMPACT_WHILE_BUSY_DETAIL, id="already_compacting"),
+        pytest.param("STOPPED", None, COMPACT_WHILE_STOPPED_DETAIL, id="stopped"),
+    ],
+)
+def test_a_compact_command_while_the_agent_cannot_compact_is_declined_without_asking_mngr(
+    tmp_path: Path, harness: HarnessType, lifecycle_state: str, activity_state: ActivityState | None, detail: str
+) -> None:
+    """mngr's compaction would abort a running turn (Codex and Pi both start it in the turn's place)."""
+    with _compact_sent_from_the_composer(
+        tmp_path, harness, lifecycle_state=lifecycle_state, activity_state=activity_state
+    ) as (response, manager, messenger, agent_id):
+        assert response.status_code == 409
+        assert response.get_json() == {"detail": detail, "kind": COMPACT_UNAVAILABLE_SEND_FAILURE_KIND}
+        assert messenger.compactions == []
+        assert agent_id not in manager._compaction_pending_by_agent
+
+
+@pytest.mark.parametrize(
+    ("failure", "status_code"),
+    [
+        pytest.param(
+            SendFailure(reason=COMPACT_WHILE_BUSY_DETAIL, kind=COMPACT_UNAVAILABLE_SEND_FAILURE_KIND),
+            409,
+            id="mngr_sees_a_turn_running",
+        ),
+        pytest.param(
+            SendFailure(reason="failed to request context compaction: the daemon hung up", kind="unknown"),
+            500,
+            id="the_request_failed",
+        ),
+    ],
+)
+def test_a_compaction_mngr_did_not_start_leaves_no_compaction_showing(
+    tmp_path: Path, failure: SendFailure, status_code: int
+) -> None:
+    messenger = RecordingMngrMessenger(compaction_failure=failure)
+    with _compact_sent_from_the_composer(tmp_path, HarnessType.CODEX, messenger=messenger) as (
+        response,
+        manager,
+        _,
+        agent_id,
+    ):
+        assert response.status_code == status_code
+        assert response.get_json() == {"detail": failure.reason, "kind": failure.kind}
+        assert messenger.compactions == [(agent_id, None)]
+        assert agent_id not in manager._compaction_pending_by_agent
 
 
 def _claude_stop_with_no_open_turn(tmp_path: Path) -> tuple[AgentInfo, Path]:

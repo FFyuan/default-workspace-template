@@ -5812,6 +5812,109 @@ def test_a_codex_sweep_compaction_shows_compacting_through_the_turn_it_runs_as(
     assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
 
 
+@pytest.mark.parametrize("cause", [CompactionCause.IDLE, CompactionCause.MANUAL])
+def test_a_codex_compaction_request_shows_compacting_with_its_cause_through_its_turn(
+    agent_manager: AgentManager, tmp_path: Path, cause: CompactionCause
+) -> None:
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=HarnessType.CODEX)
+    agent_manager.note_compaction_requested(agent_id, cause, time.monotonic())
+
+    agent_manager.update_session_events(
+        agent_id, [{"type": SPECIAL_EVENT_TYPE, "kind": SpecialEventKind.TURN_STARTED.value}]
+    )
+    assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
+    assert _snapshot_compaction_cause(agent_manager, agent_id) is cause
+
+    event = _compacted_event(seconds_ago=0.0)
+    agent_manager.stamp_compaction_events(_compaction_agent_info(agent_manager, agent_id), [event])
+    agent_manager.update_session_events(
+        agent_id, [{"type": SPECIAL_EVENT_TYPE, "kind": SpecialEventKind.TURN_COMPLETED.value}]
+    )
+    assert event["compaction_cause"] == cause.value
+    assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
+
+
+def _user_turn(seconds_ago: float) -> dict[str, Any]:
+    return {
+        "type": "user_message",
+        "event_id": f"evt-{uuid4().hex}",
+        "timestamp": utc_iso_seconds_ago(seconds_ago),
+        "content": "go",
+    }
+
+
+@pytest.mark.parametrize("cause", [CompactionCause.IDLE, CompactionCause.MANUAL])
+def test_a_pi_compaction_request_does_not_show_over_a_turn_already_running(
+    agent_manager: AgentManager, tmp_path: Path, cause: CompactionCause
+) -> None:
+    """pi compacts outside any turn, so a running turn is never its compaction."""
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=HarnessType.PI_CODING)
+    agent_manager.update_session_events(agent_id, [_user_turn(seconds_ago=30.0)])
+    assert _activity_of(agent_manager, agent_id) == ActivityState.THINKING
+
+    agent_manager.note_compaction_requested(agent_id, cause, time.monotonic())
+
+    assert _activity_of(agent_manager, agent_id) == ActivityState.THINKING
+    assert agent_id in agent_manager._compaction_pending_by_agent
+
+
+@pytest.mark.parametrize(
+    ("harness", "is_ended"),
+    [
+        pytest.param(HarnessType.PI_CODING, True, id="pi"),
+        pytest.param(HarnessType.CODEX, False, id="codex_whose_compaction_is_a_turn"),
+        pytest.param(HarnessType.CLAUDE, False, id="claude_whose_marker_tracks_its_compaction"),
+    ],
+)
+def test_a_user_turn_after_a_compaction_request_ends_it_only_on_a_harness_compacting_outside_turns_unmarked(
+    agent_manager: AgentManager, tmp_path: Path, loguru_records: list[str], harness: HarnessType, is_ended: bool
+) -> None:
+    """pi runs no turn while it compacts, so a turn after the request means its compaction is over or was refused."""
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=harness)
+    agent_manager.note_compaction_requested(agent_id, CompactionCause.MANUAL, time.monotonic() - 1.0)
+    assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
+
+    agent_manager.update_session_events(agent_id, [_user_turn(seconds_ago=0.0)])
+
+    assert (agent_id not in agent_manager._compaction_pending_by_agent) is is_ended
+    ended_lines = _log_lines_starting(
+        loguru_records, f"autocompact: compaction pending ended by a turn agent={agent_id}"
+    )
+    assert ended_lines == (
+        [f"INFO autocompact: compaction pending ended by a turn agent={agent_id} cause=manual"] if is_ended else []
+    )
+
+
+def test_a_pi_compaction_request_ended_by_a_turn_does_not_come_back_once_the_turn_ends(
+    agent_manager: AgentManager, tmp_path: Path
+) -> None:
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=HarnessType.PI_CODING)
+    agent_manager.note_compaction_requested(agent_id, CompactionCause.MANUAL, time.monotonic() - 1.0)
+    agent_manager.update_session_events(agent_id, [_user_turn(seconds_ago=0.0)])
+    assert _activity_of(agent_manager, agent_id) == ActivityState.THINKING
+
+    agent_manager.update_session_events(agent_id, [{"type": "assistant_message", "text": "done", "tool_calls": []}])
+
+    assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
+    assert _snapshot_compaction_cause(agent_manager, agent_id) is None
+
+
+def test_a_pi_compact_requested_from_the_composer_shows_compacting_as_requested_until_its_compacted_event(
+    agent_manager: AgentManager, tmp_path: Path
+) -> None:
+    """pi compacts outside a turn, and its compaction record is the only completion it reports."""
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=HarnessType.PI_CODING)
+
+    agent_manager.note_compaction_requested(agent_id, CompactionCause.MANUAL, time.monotonic())
+    assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
+    assert _snapshot_compaction_cause(agent_manager, agent_id) is CompactionCause.MANUAL
+
+    event = _compacted_event(seconds_ago=0.0)
+    agent_manager.stamp_compaction_events(_compaction_agent_info(agent_manager, agent_id), [event])
+    assert event["compaction_cause"] == "manual"
+    assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
+
+
 def test_a_compaction_request_is_recorded_beside_the_marker(agent_manager: AgentManager, tmp_path: Path) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
     before = time.time()

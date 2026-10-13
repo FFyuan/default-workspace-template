@@ -109,7 +109,7 @@ class SendMessageRequest(FrozenModel):
 class SendMessageResponse(FrozenModel):
     """Response from the message endpoint."""
 
-    status: str = Field(description="Status of the send operation")
+    status: str = Field(description="Status of the send operation: 'ok', or 'compaction_requested'")
 
 
 class SetModelChoiceRequest(FrozenModel):

@@ -1053,11 +1053,17 @@ export function announceMessageSent(chatId: string): void {
   }
 }
 
-export async function sendMessage(chatId: string, message: string, messageId?: string): Promise<string> {
+/** How the message route took a send: delivered ("ok"), held while the chat switches agents ("held"),
+ *  or run as a compaction instead of being sent ("compaction_requested", a `/compact` no transcript
+ *  turn will echo). */
+export type SendStatus = "ok" | "held" | "compaction_requested";
+
+/** Send a message to a chat; resolves with how the route took it, or null when there was nothing to send. */
+export async function sendMessage(chatId: string, message: string, messageId?: string): Promise<SendStatus | null> {
   const trimmed = message.trim();
   const id = messageId ?? mintMessageId();
   if (!trimmed) {
-    return id;
+    return null;
   }
   announceMessageSent(chatId);
 
@@ -1065,7 +1071,7 @@ export async function sendMessage(chatId: string, message: string, messageId?: s
   // (and which named layout) the message came from -- that is how agents
   // attribute a request to a client via `workspace-layout context`. The message_id is
   // the stable send-time id the backend reconciles delivery against (A4).
-  await m.request({
+  const response = await m.request<{ status: SendStatus }>({
     method: "POST",
     url: apiUrl("/api/chats/:chatId/message"),
     params: { chatId },
@@ -1076,7 +1082,7 @@ export async function sendMessage(chatId: string, message: string, messageId?: s
       desktop_id: getActiveDesktopId(),
     },
   });
-  return id;
+  return response.status;
 }
 
 export async function interruptAgent(chatId: string): Promise<void> {

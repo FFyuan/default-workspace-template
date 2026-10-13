@@ -49,7 +49,7 @@ const mocks = vi.hoisted(() => {
     pick: null,
   };
   return {
-    sendMessage: vi.fn(async () => {}),
+    sendMessage: vi.fn(async (): Promise<string | null> => "ok"),
     switchChat: vi.fn(async () => ({ kind: "handoff", phase: "summarizing", returned_block: "" })),
     setPendingAccount: vi.fn(),
     openSwitchDialog: vi.fn(),
@@ -211,6 +211,7 @@ vi.mock("../models/Providers", () => ({
 
 import { jsonBlock } from "@imbue/workspace-ui/src/element_reference";
 import { handoffStateFixture } from "../models/chatSnapshotFixture";
+import { getOutgoingMessages } from "../models/OutgoingMessages";
 import { MessageInput, prependToComposer, restoreComposerDraft, takeComposerDraft } from "./MessageInput";
 
 type AnyVnode = { tag?: unknown; attrs?: Record<string, unknown>; children?: unknown; text?: unknown };
@@ -812,31 +813,52 @@ describe("MessageInput send failure notice", () => {
     expect(text).toContain("Force");
   });
 
-  it("shows a /compact with nothing to compact yet as a declined command, keeping the typed text", async () => {
-    mocks.sendMessage.mockRejectedValueOnce({
-      response: { detail: "Nothing to compact yet.", kind: "nothing_to_compact" },
-      toString: () => "Nothing to compact yet.",
-    });
-    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const component = MessageInput();
+  it.each([
+    ["nothing_to_compact", "Nothing to compact yet."],
+    ["compact_unavailable", "The agent is busy. Send /compact again once it has finished."],
+  ])(
+    "shows a /compact the server declined (%s) as a declined command, keeping the typed text",
+    async (kind, detail) => {
+      mocks.sendMessage.mockRejectedValueOnce({ response: { detail, kind }, toString: () => detail });
+      const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const component = MessageInput();
 
-    const after = await typeAndSend(component, "agent-1", "/compact");
+      const after = await typeAndSend(component, "agent-1", "/compact");
 
-    const text = renderedText(after);
-    expect(text).toContain("/compact wasn't sent");
-    expect(text).toContain("Nothing to compact yet.");
-    expect(text).not.toContain("Couldn't send your message");
-    expect(text).not.toContain("Retry");
-    expect(text).not.toContain("Force");
-    expect(text).not.toContain("terminal");
-    expect(findByTag(after, "textarea")?.attrs?.value).toBe("/compact");
-    expect(error).not.toHaveBeenCalled();
-    error.mockRestore();
+      const text = renderedText(after);
+      expect(text).toContain("/compact wasn't sent");
+      expect(text).toContain(detail);
+      expect(text).not.toContain("Couldn't send your message");
+      expect(text).not.toContain("Retry");
+      expect(text).not.toContain("Force");
+      expect(text).not.toContain("terminal");
+      expect(findByTag(after, "textarea")?.attrs?.value).toBe("/compact");
+      expect(error).not.toHaveBeenCalled();
+      error.mockRestore();
 
-    (findByClass(after, "notice-dismiss")!.attrs!.onclick as () => void)();
-    expect(renderedText(component.view!({ attrs: { chatId: "agent-1" } } as never))).not.toContain(
-      "/compact wasn't sent",
-    );
+      (findByClass(after, "notice-dismiss")!.attrs!.onclick as () => void)();
+      expect(renderedText(component.view!({ attrs: { chatId: "agent-1" } } as never))).not.toContain(
+        "/compact wasn't sent",
+      );
+    },
+  );
+
+  it("drops the Sending bubble of a /compact the server ran as a compaction, which no turn will echo", async () => {
+    mocks.sendMessage.mockResolvedValueOnce("compaction_requested");
+
+    const after = await typeAndSend(MessageInput(), "agent-compacted", "/compact");
+
+    expect(getOutgoingMessages("agent-compacted")).toEqual([]);
+    expect(findByTag(after, "textarea")?.attrs?.value).toBe("");
+    expect(renderedText(after)).not.toContain("wasn't sent");
+  });
+
+  it("keeps the Sending bubble of a delivered message until its turn arrives", async () => {
+    mocks.sendMessage.mockResolvedValueOnce("ok");
+
+    await typeAndSend(MessageInput(), "agent-delivered", "/compact");
+
+    expect(getOutgoingMessages("agent-delivered").map((outgoing) => outgoing.content)).toEqual(["/compact"]);
   });
 
   it("removes the delivered message even when Force drained a queue block above it", async () => {
