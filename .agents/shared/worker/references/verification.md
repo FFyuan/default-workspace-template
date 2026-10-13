@@ -63,18 +63,16 @@ having reviewed nothing, which is worse than not running it.
 
 Both invocations carry the run's footprint into the review agents through
 `$ARGUMENTS`, which each gate skill forwards verbatim into its sub-agent brief.
-When the pass wrote any scope file, `{scope_brief}` below is this block,
-pasted verbatim with `<SCOPE_FILES>` replaced by the path of every scope file
-the pass wrote (`data/.tasks/harden/<slug>/scope-<name>.json`, one per creation
-with a footprint, per `harden-creation.md`), `<UNSCOPED_PATHS>` by the own
-paths of every creation in the pass that has no scope file (a standalone
-service's `system/services/<package>/` and `system/supervisord.conf.d/<name>.conf`,
-a pre-manifest app's directory and its supervisord section; `none` when every
-creation has a scope file), and `<REVIEW_BASE>` by the commit the pin above
-resolved: the `diff_base` your task frontmatter pinned at dispatch, which is
-also each scope file's `diff.base`. A pass whose creations have no scope file
-at all passes an empty `{scope_brief}`; both invocations already name the
-range.
+When the pass covers any app, skill, or service, `{scope_brief}` below is this
+block, pasted verbatim with `<SCOPE_FILES>` replaced by the path of every scope
+file the pass wrote (`data/.tasks/harden/<slug>/scope-<name>.json`, one per
+creation with a footprint, per `harden-creation.md`; `none` when no creation
+has one), `<UNSCOPED_PATHS>` by the own paths of every creation in the pass
+that has no scope file (a standalone service's `system/services/<package>/` and
+`system/supervisord.conf.d/<name>.conf`, a pre-manifest app's directory and its
+supervisord section; `none` when every creation has a scope file), and
+`<REVIEW_BASE>` by the commit the pin above resolved: the `diff_base` your task
+frontmatter pinned at dispatch, which is also each scope file's `diff.base`.
 
     The creations are a user's own and live only in this workspace. Judge them
     against the conventions listed in the scope files below, not against
