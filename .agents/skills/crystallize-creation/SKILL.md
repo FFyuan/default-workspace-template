@@ -32,8 +32,7 @@ The type drives two things: which **gates** the worker emits (skill →
 confirmed the live site already) and the **go-live** step after merge (skill →
 post-crystallize migration; app → refresh the window). The worker reads the
 type from the task file's one `creations` entry and loads `type-<TYPE>.md`; you
-proxy
-whatever gates it emits.
+proxy whatever gates it emits.
 
 ## When to invoke (skill, standalone)
 
