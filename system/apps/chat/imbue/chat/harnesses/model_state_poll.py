@@ -11,10 +11,11 @@ This poller is the bounded replacement: ONE thread stats every known agent's wat
 each interval and invokes ``on_path_changed`` only for an (agent, purpose) pair whose stamp
 (mtime + size, and a directory's entry names) differs from the remembered one. Each agent
 watches a small set of paths keyed by purpose -- its ``model_state.json``, and, for a chat's
-active agent, the chat's background-task marker directory, whose entries change on every marker
-added or removed -- and each purpose's stamp is tracked apart, so a change to one never re-fires the other. The
-invariant is level-triggered and one sentence long: a purpose is recomputed whenever its
-path's observed stamp differs from the remembered stamp. Consequences:
+active agent, the chat's background-task marker directory, whose entries change on every
+marker added or removed -- and each purpose's stamp is tracked apart, so a change to one
+never re-fires the other. The invariant is level-triggered and one sentence long: a purpose
+is recomputed whenever its path's observed stamp differs from the remembered stamp.
+Consequences:
 
 - Resource use is a constant (one thread, one stat per watched path per interval) rather than
   a function of how many agents have ever been seen.
