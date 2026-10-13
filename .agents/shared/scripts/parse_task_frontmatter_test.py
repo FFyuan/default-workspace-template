@@ -456,6 +456,7 @@ def test_a_harden_task_in_the_single_creation_shape_fails_loud(tmp_path: Path) -
         ("scope_file: s.json", "needs a non-empty string `creations`"),
         ("creations: app:roadmap", "needs a non-empty string `scope_file`"),
         ("scope_file: s.json\ncreations: [app:roadmap]", "needs a non-empty string `creations`"),
+        ("scope_file: s.json\ncreations: ' '", "needs a non-empty string `creations`"),
         ("scope_file: s.json\ncreations: roadmap", "'roadmap' is not <type>:<name>"),
         ("scope_file: s.json\ncreations: widget:roadmap", "'widget:roadmap' is not <type>:<name>"),
         ("scope_file: s.json\ncreations: skill:a/b", "'skill:a/b' is not <type>:<name>"),

@@ -135,7 +135,7 @@ def _parse_creations(frontmatter: dict[str, Any]) -> tuple[Creation, ...]:
     if _OPERATION_FIELD not in frontmatter:
         return ()
     for field in (_CREATIONS_FIELD, _SCOPE_FILE_FIELD):
-        if not isinstance(frontmatter.get(field), str) or not frontmatter[field]:
+        if not isinstance(frontmatter.get(field), str) or not frontmatter[field].strip():
             raise ValueError(
                 f"frontmatter names an `{_OPERATION_FIELD}`, so it needs a non-empty "
                 f"string `{field}`"
