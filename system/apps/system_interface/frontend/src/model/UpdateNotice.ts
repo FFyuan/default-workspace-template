@@ -18,7 +18,10 @@ export interface UpdateNotice {
   /** Seconds since the epoch. */
   readonly appliedAt: number;
   readonly drivenBy: string;
-  /** The apps whose program or bundle the apply changed; the banner names them. */
+  /**
+   * The apps included in the rollback: each critical app whose program or bundle the apply changed,
+   * and any other app whose files it changed. The banner names them.
+   */
   readonly apps: readonly string[];
   readonly programs: readonly string[];
   /** The diff reached the workspace's own setup: a rollback restores the files but an agent

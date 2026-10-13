@@ -2,7 +2,7 @@
 
 An apply run with ``--keep-rollback-point`` (the update-app careful flow, never update-self's
 own) leaves ``data/.state/update-apply/last-good.json`` behind: what it landed, the copies it
-kept, and the critical apps and supervisord programs it touched. The shell reads that record
+kept, and the apps and supervisord programs it touched. The shell reads that record
 for ``GET /api/updates/pending``, watches the file so every window learns of a change (a
 rollback's progress, its outcome, the record cleared) as it lands, and runs the two verbs only a
 person closes the notice with: ``confirm-last`` (drop the record, and the copies with it when no
