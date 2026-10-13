@@ -457,7 +457,10 @@ def test_a_harden_task_without_creations_fails_loud(tmp_path: Path) -> None:
         ("creations: roadmap", "must be a non-empty list"),
         ("creations:\n  - roadmap", "entry 1 must be a mapping"),
         ("creations:\n  - name: roadmap", "entry 1 is missing `type`"),
-        ("creations:\n  - name: roadmap\n    type: ''", "`type` must be a non-empty string"),
+        (
+            "creations:\n  - name: roadmap\n    type: ''",
+            "`type` must be a non-empty string",
+        ),
         ("creations:\n  - name: roadmap\n    type: app\n    kind: x", "unknown keys"),
         (
             "creations:\n  - name: roadmap\n    type: app\n  - name: roadmap\n    type: skill",

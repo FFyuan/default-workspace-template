@@ -164,7 +164,9 @@ def _parse_creations(frontmatter: dict[str, Any]) -> tuple[Creation, ...]:
                 raise ValueError(f"{where}: `{key}` must be a non-empty string")
         creations.append(
             Creation(
-                name=entry["name"], type=entry["type"], scope_file=entry.get("scope_file")
+                name=entry["name"],
+                type=entry["type"],
+                scope_file=entry.get("scope_file"),
             )
         )
     names = [creation.name for creation in creations]
