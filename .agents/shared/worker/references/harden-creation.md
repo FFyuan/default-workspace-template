@@ -79,7 +79,8 @@ you regenerate it -- your own commits too. Fail loudly if it is unset.
 
 A creation with no manifest -- a pre-manifest app, a standalone service, the
 system interface -- has nothing to resolve: its footprint is its own directory
-plus its supervisord section, and the run carries no scope file.
+plus its supervisord section, and its `creations` entry carries no scope file.
+Those paths still count toward the union below.
 
 The file records `primary` (the creation's own directories), `wiring` (the
 supervisord program blocks that run it, in the files that declare them),

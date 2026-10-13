@@ -66,9 +66,15 @@ Both invocations carry the run's footprint into the review agents through
 When the pass wrote any scope file, `{scope_brief}` below is this block,
 pasted verbatim with `<SCOPE_FILES>` replaced by the path of every scope file
 the pass wrote (`data/.tasks/harden/<slug>/scope-<name>.json`, one per creation
-with a footprint, per `harden-creation.md`) and `<REVIEW_BASE>` by the commit
-the pin above resolved: the `diff_base` your task frontmatter pinned at
-dispatch, which is also each scope file's `diff.base`:
+with a footprint, per `harden-creation.md`), `<UNSCOPED_PATHS>` by the own
+paths of every creation in the pass that has no scope file (a standalone
+service's `system/services/<package>/` and `system/supervisord.conf.d/<name>.conf`,
+a pre-manifest app's directory and its supervisord section; `none` when every
+creation has a scope file), and `<REVIEW_BASE>` by the commit the pin above
+resolved: the `diff_base` your task frontmatter pinned at dispatch, which is
+also each scope file's `diff.base`. A pass whose creations have no scope file
+at all passes an empty `{scope_brief}`; both invocations already name the
+range.
 
     The creations are a user's own and live only in this workspace. Judge them
     against the conventions listed in the scope files below, not against
@@ -86,9 +92,10 @@ dispatch, which is also each scope file's `diff.base`:
     `primary`; the `wiring` sections named there, in the files they name; every
     `references` path -- for a skill reference, its `SKILL.md` and its
     `scripts/`, so you see how it invokes the app; every `context` path,
-    read-only; the `conventions` list. A path in one file's
-    `diff.outside_footprint` that lies in another's footprint is inside the
-    pass.
+    read-only; the `conventions` list. The pass also covers creations with no
+    scope file, whose footprint is their own paths: <UNSCOPED_PATHS>. A path
+    in one file's `diff.outside_footprint` that lies in another's footprint,
+    or under one of those paths, is inside the pass.
 
     Never read a path matching `exclude`; the scope files themselves are the
     one exception.
