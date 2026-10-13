@@ -100,9 +100,10 @@ A path in the final scope files' `diff.outside_footprint` that lies in no
 creation's footprint is a claim to settle before you report. For each, either
 add a `[[references]]` entry to the owning app's `app.toml` -- when the file
 genuinely belongs to it -- or name it in your final report under `Outside
-footprint:`, one line each on why it changed on this branch. A skill run's one sanctioned edit inside an app
-directory, the `[[references]]` entry it adds to that app's manifest, sits under
-the scope file's `context` and is counted as inside the footprint.
+footprint:`, one line each on why it changed on this branch. A skill run's one
+sanctioned edit inside an app directory, the `[[references]]` entry it adds to
+that app's manifest, sits under the scope file's `context` and is counted as
+inside the footprint.
 
 ## Splitting the pass across sub-workers
 

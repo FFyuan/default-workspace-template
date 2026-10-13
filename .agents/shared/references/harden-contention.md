@@ -69,9 +69,10 @@ Run these in order before any merge from a worker branch -- the merge on `done`
 or a provisional milestone merge:
 
 1. **Wait out the foreground lease (apps and services only).** If a creation in
-   the pass is an app or service and another agent holds its editing lease (an open/in-progress
-   `editing service <name>` ticket in `tk ready`, or `editing critical app <name>`
-   for a critical app -- see `update-app`'s "One editor at a time"), do not merge
+   the pass is an app or service and another agent holds its editing lease (an
+   open/in-progress `editing service <name>` ticket in `tk ready`, or `editing
+   critical app <name>` for a critical app -- see `update-app`'s "One editor at
+   a time"), do not merge
    or refresh mid-edit. Re-check about once a minute until the lease is
    released, then continue -- their edit will usually make your pass stale
    anyway, which the next check catches.
@@ -188,8 +189,9 @@ fresh pass through the normal flow (Steps 1-3 of the calling skill) whose
 scope covers **everything since the last hardened merge**: at minimum the
 `$BASE..HEAD` commits touching its creations, plus whatever any notes on the
 old ticket describe -- including any creations the notes name that the old
-pass did not cover, which the new pass now covers too. One superseding pass validates the union of all pending
-changes together -- which is the only combination that will actually run.
+pass did not cover, which the new pass now covers too. One superseding pass
+validates the union of all pending changes together -- which is the only
+combination that will actually run.
 
 Two wrinkles when the pass had already delivered a provisional milestone
 merge:
