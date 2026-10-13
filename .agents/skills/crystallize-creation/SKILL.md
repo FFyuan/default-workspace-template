@@ -241,8 +241,12 @@ sub-workers it split its pass across are already gone with it):
   introduced, restart any caching service, and close the ticket recorded in
   `data/.tasks/harden/crystallize-$NAME/ticket_id.txt`. Commit consumer changes as a
   separate commit.
-- **service**: refresh its window so the user sees the merged build
-  (`uv run --no-sync workspace-layout refresh --app <service-name>`), then close the ticket.
+- **app**: refresh its window so the user sees the merged build
+  (`uv run --no-sync workspace-layout refresh --app <app-name>`), then close
+  the ticket.
+- **service**: it has no window -- restart its programs (`supervisorctl
+  restart <program>`): the one named after the package (`host_backup` runs as
+  `host-backup`) and any `<program>-<role>` ones. Then close the ticket.
 
 ## Guidelines
 
