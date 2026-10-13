@@ -161,11 +161,15 @@ same app is up rather than hijacking it; surface that and coordinate.
 
 An ordinary app the change also touches is previewed from the same worktree as
 a sibling of the critical app's preview: add `--with <other>` to the `up`
-above, so the critical preview's copied registry names the ordinary app's
-preview rather than the live app (one booted on its own is not what the
-critical preview reaches), and open `<other>-preview` too when it has a window
-of its own, so the user tries both sides of the change together. Every preview
-step below -- close, refresh, re-open, tear down -- applies to it as well.
+above, and open `<other>-preview` too when it has a window of its own, so the
+user tries both sides of the change together. A critical preview that reads a
+copied registry (the shell's, the terminal's) then reaches the ordinary app's
+preview rather than the live app; one booted on its own is not what it
+reaches. The chat's preview reads the live registry, so anything it reaches
+through the registry is still the live app: try that seam from the ordinary
+app's own preview window, and say so when you hand the preview over. Every
+preview step below -- close, refresh, re-open, tear down -- applies to it as
+well.
 
 Only once it is up, open its window:
 
