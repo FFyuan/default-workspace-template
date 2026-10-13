@@ -86,9 +86,10 @@ This writes `data/.state/update-apply/run.json`, which the app polls. Besides
 the `hold`/`resume` pair around each wait on the user (Step 4's customization
 hold, 5b's settle wait), the pass owes that file exactly one more write, a
 `run-status verdict` when it ends; every terminal path below names its
-verdict, and a pass that ends without one shows the user "update failed". It comes after the lease check because there
-is one record per workspace, and a pass that stops because someone else is
-updating must leave the running pass's record alone.
+verdict, and a pass that ends without one shows the user "update failed". It
+comes after the lease check because there is one record per workspace, and a
+pass that stops because someone else is updating must leave the running pass's
+record alone.
 
 **Clean tree.** The worker branches off your `HEAD` and the rollback captures
 it. If `git status --porcelain` is non-empty, record `run-status verdict
