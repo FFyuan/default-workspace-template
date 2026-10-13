@@ -17,7 +17,7 @@ import signal
 import subprocess
 import sys
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -46,7 +46,7 @@ pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="the runner deta
 
 
 @contextmanager
-def _waiting_workspace(tmp_path: Path, messenger: RecordingMngrMessenger) -> Iterator[RunningWorkspace]:
+def _waiting_workspace(tmp_path: Path, messenger: RecordingMngrMessenger) -> Generator[RunningWorkspace]:
     """The served workspace with its fixture chat between turns, its markers under ``tmp_path``, and its poller on."""
     with running_workspace(
         tmp_path,
