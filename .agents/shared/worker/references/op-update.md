@@ -49,9 +49,10 @@ Read the task body for which of the two handoff shapes you were given:
   Verify and harden it -- **do not re-implement it**, and do not redesign the
   approved shape.
 
-Either way, verify per `type-app.md` and `web-frontend-testing.md`, then report
-`done` (or a mid-flight `question`, or `stuck`) with a body that tells the lead
-what landed:
+Either way, verify each creation in the pass per its own `type-<TYPE>.md` --
+the apps per `type-app.md` and `web-frontend-testing.md` -- then report `done`
+(or a mid-flight `question`, or `stuck`) with a body that tells the lead what
+landed:
 
 ```
 Hardened <every creation the pass covers> on branch `<branch>`.

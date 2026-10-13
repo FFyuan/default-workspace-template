@@ -283,7 +283,8 @@ branch you are about to hand the worker is the only copy.
 **Create the worker on the branch.** Follow `update-creation` steps 1-3 (the
 tracking ticket, the task file with `operation: update` and a `creations` entry
 for every creation the change touched -- `type: app` for each app, critical or
-not -- launch, background-poll) with these specifics:
+not, `type: skill` for a skill, `type: service` for a background service --
+launch, background-poll) with these specifics:
 
 - The task file's `diff_base` is the commit the branch forked from the served
   tree, `$(git merge-base HEAD "mngr/update-$SLUG")` run in the served tree, so
