@@ -31,13 +31,14 @@ from typing import Any
 import pytest
 
 from imbue.chat.activity_state import ActivityState
+from imbue.chat.harnesses.claude.session_files import find_session_file
 from imbue.chat.harnesses.claude.session_parser import finished_task_id
 from imbue.chat.harnesses.claude.session_parser import parse_queue_signals
 from imbue.chat.testing import FIXTURE_AGENT_ID
 from imbue.chat.testing import running_workspace
 from imbue.chat.testing import seed_agent_state
 from imbue.mngr.utils.polling import wait_for
-from imbue.mngr_claude.claude_config import encode_claude_project_dir_name
+from imbue.mngr_claude.claude_config import get_claude_config_dir
 from imbue.system_interface.testing import find_free_port
 
 pytestmark = pytest.mark.real_claude
@@ -80,10 +81,10 @@ def _project_with_only_the_stop_hook(tmp_path: Path) -> Path:
     return project
 
 
-def _finished_task_ids_in_transcript(project: Path, session_id: str) -> set[str]:
+def _finished_task_ids_in_transcript(session_id: str) -> set[str]:
     """The ids of the tasks the session's queue ledger reports as over, read as the chat app's Claude watcher reads them."""
-    config_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    transcript = config_dir / "projects" / encode_claude_project_dir_name(project.resolve()) / f"{session_id}.jsonl"
+    transcript = find_session_file(get_claude_config_dir() / "projects", session_id)
+    assert transcript is not None, f"no transcript for session {session_id}"
     signals = (parse_queue_signals(line) for line in transcript.read_text().splitlines())
     return {
         task_id
@@ -178,7 +179,7 @@ def test_a_claude_turn_that_ends_on_a_background_bash_command_leaves_its_chat_wa
             # The command's completion started a turn, whose Stop handed over no tasks.
             assert list((marker_root / FIXTURE_AGENT_ID).glob("claude-*.json")) == []
             wait_for(lambda: _chat(workspace.chat_url)["status"] == "idle", timeout=3.0, poll_interval=0.1)
-            assert task["id"] in _finished_task_ids_in_transcript(project, session_id)
+            assert task["id"] in _finished_task_ids_in_transcript(session_id)
         finally:
             if run.poll() is None:
                 run.kill()
