@@ -421,13 +421,14 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
    shell because every bundle (the shell's, the chat's, and the Getting Started
    app's, whose owner is not critical and so is named only when the pass
    changed its own files) is replaced; an extra app restart is acceptable.
-   Tell the user the banner is at the top of the workspace and what it does. **Never confirm or roll back on the user's behalf.** Only a person
-   closes it: confirming
-   discards the kept snapshots, rolling back restores them and restarts only the
-   touched programs, and the outcome shows in the notice (and stays in its
-   record, `data/.state/update-apply/last-good.json`, until they close it; a
-   rollback started from the notice logs to `rollback-last.log` beside it). If
-   they roll back, the branch and the worker's report are the retry's input.
+   Tell the user the banner is at the top of the workspace and what it does.
+   **Never confirm or roll back on the user's behalf.** Only a person closes
+   it: confirming discards the kept snapshots, rolling back restores them and
+   restarts only the touched programs, and the outcome shows in the notice (and
+   stays in its record, `data/.state/update-apply/last-good.json`, until they
+   close it; a rollback started from the notice logs to `rollback-last.log`
+   beside it). If they roll back, the branch and the worker's report are the
+   retry's input.
 
 4. **Tear down and release.** Whatever the exit code, and after a rejection
    where nothing was merged, close the preview's window and tear it down, retire the

@@ -72,10 +72,9 @@ or a provisional milestone merge:
    the pass is an app or service and another agent holds its editing lease (an
    open/in-progress `editing service <name>` ticket in `tk ready`, or `editing
    critical app <name>` for a critical app -- see `update-app`'s "One editor at
-   a time"), do not merge
-   or refresh mid-edit. Re-check about once a minute until the lease is
-   released, then continue -- their edit will usually make your pass stale
-   anyway, which the next check catches.
+   a time"), do not merge or refresh mid-edit. Re-check about once a minute
+   until the lease is released, then continue -- their edit will usually make
+   your pass stale anyway, which the next check catches.
 
 2. **Freshness check.** The pass is mergeable only if no creation in it has
    changed since the worker branched. The paths to diff are each creation's
