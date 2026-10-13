@@ -566,9 +566,10 @@ gone takes the fresh pass below. Exit 7 means it arrived but the worker sits
 on a dialog it could not dismiss: do not send it again; re-arm the poll, and
 diagnose liveness the same way if no report comes.
 
-Never destroy or stop the worker to make room for a new pass. A fresh pass
-(Step 3b) is only for a worker that is gone, or one that reports `stuck` on
-the catch-up and is not resumed ("Resuming after `stuck`" below).
+A moved `HEAD` never calls for a fresh pass, so never destroy or stop the
+worker to make room for one: after a moved `HEAD`, a fresh pass (Step 3b) is
+only for a worker that is gone, or one that reports `stuck` on the catch-up
+and is not resumed ("Resuming after `stuck`" below).
 
 Run the apply from the staged copy, in the **foreground**: its output (refusal
 and resume messages, any provisioner warning, the `apply phase timings:` line)
