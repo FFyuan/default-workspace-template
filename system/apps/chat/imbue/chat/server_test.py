@@ -621,6 +621,7 @@ def _fake_watcher(
     """A stand-in for ``build_watcher``'s result: no-op queue hooks around the given seed, start, and stop."""
     return SimpleNamespace(
         set_queue_snapshot_callback=lambda _callback: None,
+        set_finished_tasks_callback=lambda _callback: None,
         notify_idle=lambda: [],
         notify_busy=lambda: None,
         set_flush_hooks=lambda _send, _is_alive: None,
