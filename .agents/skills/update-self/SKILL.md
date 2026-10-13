@@ -622,9 +622,10 @@ Exit codes:
   them again right before the next one), wait, and come back through the
   fast-forward check, catching the worker up only if `HEAD` moved. Another
   apply in flight is the same: wait for it to finish, then come back through
-  that check, since it has likely moved `HEAD`. A merge that leaves a rollback in place, or one already landed and
-  rolled back, needs a fresh worker pass off the current `HEAD`
-  (`references/apply-outcomes.md`); the refusal names the commits to revert.
+  that check, since it has likely moved `HEAD`. A merge that leaves a
+  rollback in place, or one already landed and rolled back, needs a fresh
+  worker pass off the current `HEAD` (`references/apply-outcomes.md`); the
+  refusal names the commits to revert.
 
 What each outcome means for the user, the `provision-incomplete` and
 `emergency.json` records, an interrupted apply (re-run the same command; it
