@@ -54,7 +54,7 @@ Either way, verify per `type-app.md` and `web-frontend-testing.md`, then report
 what landed:
 
 ```
-Hardened <app, or every app the pass covers> on branch `<branch>`.
+Hardened <every creation the pass covers> on branch `<branch>`.
 - Change: <one-sentence>
 - Frontend / backend: <which, and the files touched>
 - Bundles built: <the static/ path of every bundle you built, all three when the shared library changed>
