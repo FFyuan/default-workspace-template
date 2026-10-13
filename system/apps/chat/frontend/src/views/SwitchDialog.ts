@@ -332,7 +332,7 @@ async function startNewChat(dialog: OpenDialog): Promise<void> {
 
 /** What a switch does to the background tasks the chat waits on: the agent it stops takes its own (Claude's) with it,
  *  while a command started through the runner keeps running and reports to the chat, whichever agent it runs on. */
-export function backgroundTaskNotes(tasks: readonly BackgroundTask[]): string[] {
+function backgroundTaskNotes(tasks: readonly BackgroundTask[]): string[] {
   const stopped = tasks.filter((task) => task.source !== "run_in_background").length;
   const reporting = tasks.length - stopped;
   const notes: string[] = [];
