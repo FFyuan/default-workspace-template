@@ -54,9 +54,8 @@ supervisorctl start datalib
    holds the root's `system/` lock, and its API is yours to use (below).
 3. **Credentials go through latchkey.** The web-API sources authenticate via
    `latchkey`, already wired to the user through the Imbue Studio app. If a sync
-   reports missing credentials or "not permitted", use the `latchkey` skill to
-   request permission for that service, then re-run the sync (see "Authorizing
-   a source").
+   reports missing credentials or "not permitted", file a permission request
+   for that service, then re-run the sync (see "Authorizing a source").
 4. **Never commit the store.** Everything under `data/` is gitignored by the
    workspace, which is why the store lives there. Don't try to force it into
    git, and don't copy it anywhere that is tracked.
@@ -114,9 +113,13 @@ remembered command lines or config shapes -- go read it.
 The web-API sources (Slack, GitHub, Notion, ...) need the user's credentials,
 which flow through the same `latchkey` gateway used elsewhere. If a sync fails
 for a source with a missing-credentials or "request not permitted by the user"
-error, request access using the **`latchkey` skill**: POST a `predefined`
-permission request for that service's scope (e.g. `slack-api`, `github-api`,
-`notion-api`), wait for the user's approval, then re-run `datalib-dag`.
+error, request access the way the `connect-external-service` skill's
+`references/latchkey.md` describes ("Ask for user permission"): POST a
+`predefined` permission request for that service's scope (e.g. `slack-api`,
+`github-api`, `notion-api`), wait for the user's approval, then re-run
+`datalib-dag`. If datalib's own error hint says to run `latchkey auth set`,
+ignore it: the gateway refuses that command here, and the permission request
+is what works.
 
 ## Supported sources (inside Imbue Studio)
 
@@ -128,15 +131,24 @@ latchkey gateway: **Slack** (`type = "slack"`), **GitHub** (`github`),
 on disk, Gmail over Google's API, or a JMAP server).
 
 Cloudflare-walled web sources -- `claude` over claude.ai's `api` method,
-and `chatgpt` -- also work, given a recent Imbue Studio app. The Imbue Studio
-latchkey gateway routes the requests that ask for it through datalib's
-Chrome-impersonating curl, which clears the TLS fingerprint check, and for an
-agent running remotely sends them out from the user's own computer, because
-these sites block datacenter address ranges outright. Nothing here is
-configurable. If a sync of one of these sources returns Cloudflare challenge
-pages instead of data, an Imbue Studio app too old to do this is the likely
-cause -- fall back to an on-disk export (the `claude` source's `export`
-method) for that data and tell the user why.
+and `chatgpt` -- also work, given a recent Imbue Studio app. Two things have
+to hold:
+
+- **The TLS fingerprint.** The Imbue Studio latchkey gateway routes the
+  requests that ask for it through datalib's Chrome-impersonating curl. This
+  is automatic.
+- **The address the request leaves from.** These sites block datacenter
+  address ranges outright, so for an agent running remotely the requests have
+  to go out through the user's own computer. That happens once desktop
+  proxying is on for the service: set `"proxy": true` on the permission
+  request you file for it (`references/latchkey.md`, "Proxying requests
+  through the user's desktop"), or the user turns it on in that connector's
+  settings.
+
+If a sync of one of these sources returns Cloudflare challenge pages instead
+of data, check proxying first; an Imbue Studio app too old to do either is the
+other likely cause. Failing both, fall back to an on-disk export (the `claude`
+source's `export` method) for that data and tell the user why.
 
 ## Notes
 
