@@ -51,8 +51,9 @@ A task that names an ``operation`` (a harden pass) must also carry
 pass covers (``app:roadmap skill:sync-roadmap``; a type is ``app``, ``skill``,
 ``service``, or ``shared`` with a path under ``.agents/shared``), and
 ``scope_file``, where the worker writes the pass's footprint; both reach the
-worker as ``CREATIONS`` and ``SCOPE_FILE`` like any other string field. Such a task may not carry a top-level ``type``: that is the
-single-creation shape ``creations`` replaced.
+worker as ``CREATIONS`` and ``SCOPE_FILE`` like any other string field. Such a
+task may not carry a top-level ``type``: that is the single-creation shape
+``creations`` replaced.
 
 On any failure -- file missing, no/broken frontmatter, any required
 field missing, wrong type, empty string, an extra key that isn't a
