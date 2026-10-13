@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from enum import auto
 from pathlib import Path
 from typing import Final
+from typing import assert_never
 
 import pathspec
 from imbue.imbue_common.enums import LowerCaseStrEnum
@@ -688,20 +689,28 @@ def compute_creation_scope(repo_root: Path, spec: CreationSpec) -> CreationScope
     after it.
     """
     repo_root = repo_root.resolve()
-    if spec.type == CreationSpecType.SKILL:
-        return compute_skill_scope(repo_root, RepoRelativePath(f"{_SKILLS_DIRECTORY}/{spec.name}"))
-    if spec.type == CreationSpecType.SHARED:
-        return compute_skill_scope(repo_root, RepoRelativePath(f"{_SHARED_DIRECTORY}/{spec.name}"))
-    if spec.type == CreationSpecType.SERVICE:
-        return compute_service_scope(repo_root, spec.name)
-    manifest_path = repo_root.joinpath(*APPS_DIRECTORY_PARTS, spec.name, MANIFEST_FILENAME)
+    match spec.type:
+        case CreationSpecType.SKILL:
+            return compute_skill_scope(repo_root, RepoRelativePath(f"{_SKILLS_DIRECTORY}/{spec.name}"))
+        case CreationSpecType.SHARED:
+            return compute_skill_scope(repo_root, RepoRelativePath(f"{_SHARED_DIRECTORY}/{spec.name}"))
+        case CreationSpecType.SERVICE:
+            return compute_service_scope(repo_root, spec.name)
+        case CreationSpecType.APP:
+            return _compute_named_app_scope(repo_root, spec.name)
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _compute_named_app_scope(repo_root: Path, name: str) -> CreationScope:
+    manifest_path = repo_root.joinpath(*APPS_DIRECTORY_PARTS, name, MANIFEST_FILENAME)
     if manifest_path.is_file():
         return compute_app_scope(repo_root, manifest_path, load_manifest(manifest_path, repo_root=repo_root))
     for loaded in load_app_manifests(repo_root):
-        if loaded.manifest.name == spec.name:
+        if loaded.manifest.name == name:
             return compute_app_scope(repo_root, loaded.manifest_path, loaded.manifest)
     return _compute_unmanifested_scope(
-        repo_root, CreationType.APP, "/".join((*APPS_DIRECTORY_PARTS, spec.name)), APP_CONVENTIONS
+        repo_root, CreationType.APP, "/".join((*APPS_DIRECTORY_PARTS, name)), APP_CONVENTIONS
     )
 
 
