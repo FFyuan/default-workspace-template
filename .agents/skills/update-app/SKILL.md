@@ -134,8 +134,9 @@ another chat editing sequentially on top is safe; only *simultaneous* editing
 needs the lease.
 
 **An in-flight harden pass does not block you -- the foreground wins.** If
-`tk ready` also shows an in-progress `update <name>` or `heal <name>` ticket
-(a background pass hardening an earlier change to this service), proceed with
+`tk ready` also shows an in-progress `update` or `heal` ticket whose title
+lists `<name>` among the creations its pass covers (a background pass hardening
+an earlier change to this service), proceed with
 your edit; your change simply makes that pass stale. Leave a note on that
 ticket (`tk add-note <id> "..."`) so its owner coalesces at merge time. The
 full contention rules live in
