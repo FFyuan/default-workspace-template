@@ -4205,7 +4205,9 @@ class AgentManager:
         try:
             reader.remove_claude_tasks(chat_id, task_ids)
         except OSError as e:
-            _loguru_logger.warning("Could not remove the finished background tasks {} of {}: {}", task_ids, agent_id, e)
+            _loguru_logger.warning(
+                "Could not remove the finished background tasks {} of {}: {}", task_ids, agent_id, e
+            )
             return
         self._recompute_background_tasks(chat_id)
 

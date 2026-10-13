@@ -39,8 +39,8 @@ from imbue.chat.activity_state import parse_iso_timestamp_to_epoch
 from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import SendFailedError
 from imbue.chat.agent_discovery import agent_state_dir
-from imbue.chat.background_tasks import RUN_IN_BACKGROUND_SOURCE
 from imbue.chat.background_tasks import BackgroundTask
+from imbue.chat.background_tasks import RUN_IN_BACKGROUND_SOURCE
 from imbue.chat.chat_records import ChatAgentEntry
 from imbue.chat.chat_records import ChatHandoffRecord
 from imbue.chat.chat_records import ChatRecord

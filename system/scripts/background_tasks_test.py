@@ -343,7 +343,12 @@ def test_a_stop_leaves_another_live_claudes_markers_and_prunes_dead_ones(
         background_tasks.write_marker(
             root,
             _CHAT_ID,
-            _task(task_id, "2026-10-08T09:00:00+00:00", pid, background_tasks.SOURCE_CLAUDE),
+            _task(
+                task_id,
+                "2026-10-08T09:00:00+00:00",
+                pid,
+                background_tasks.SOURCE_CLAUDE,
+            ),
         )
 
     background_tasks.main(

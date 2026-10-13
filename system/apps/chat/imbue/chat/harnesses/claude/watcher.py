@@ -55,9 +55,9 @@ from imbue.chat.harnesses.claude.session_files import expected_session_file
 from imbue.chat.harnesses.claude.session_files import find_session_file
 from imbue.chat.harnesses.claude.session_parser import QueueSignal
 from imbue.chat.harnesses.claude.session_parser import QueueSignalKind
+from imbue.chat.harnesses.claude.session_parser import finished_task_id
 from imbue.chat.harnesses.claude.session_parser import parse_line_detail
 from imbue.chat.harnesses.claude.session_parser import parse_lines
-from imbue.chat.harnesses.claude.session_parser import finished_task_id
 from imbue.chat.harnesses.claude.session_parser import parse_queue_signals
 from imbue.chat.harnesses.session_watcher import FinishedTasksCallback
 from imbue.chat.harnesses.session_watcher import OnEventsCallback
