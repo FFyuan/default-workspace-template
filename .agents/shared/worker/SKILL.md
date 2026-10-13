@@ -31,7 +31,7 @@ eval "$(uv run .agents/shared/scripts/parse_task_frontmatter.py <TASK_FILE>)"
 This sets `TASK_FILE`, `LEAD_AGENT`, `LEAD_WORK_DIR`, `FINISH_REPORT_PATH`,
 `OPERATION`, `CREATIONS`, `SCOPE_FILE`, and `DIFF_BASE`. The parser refuses a
 task that names an operation without `creations` and `scope_file`; fail loudly
-if `DIFF_BASE` is unset. `DIFF_BASE` is the commit before the work being
+if `OPERATION` or `DIFF_BASE` is unset. `DIFF_BASE` is the commit before the work being
 hardened: the test gate selects its suites from what changed since it, and the
 pass's footprint diff is taken from it (`harden-creation.md` has both
 commands). `SCOPE_FILE` is where you write that footprint.
