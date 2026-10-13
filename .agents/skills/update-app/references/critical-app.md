@@ -351,8 +351,9 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
    changes, has changed on the served branch since the worker branched (a
    change to another critical app's sources is not staleness: the apply
    rebuilds that bundle from the merged tree). Name `system/apps/<package>/`
-   once per leased app and once per ordinary app in the pass, and a skill in
-   the pass at `.agents/skills/<name>/`:
+   once per leased app and once per ordinary app in the pass, a skill in the
+   pass at `.agents/skills/<name>/`, and a background service in the pass at
+   `system/services/<package>/` plus `system/supervisord.conf.d/<name>.conf`:
 
    ```bash
    BASE=$(git merge-base HEAD "mngr/update-$SLUG")
