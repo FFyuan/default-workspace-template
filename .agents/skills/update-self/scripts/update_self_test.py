@@ -8087,17 +8087,20 @@ def test_an_apply_keeps_its_rollback_point_only_when_asked(apply_repo: Path) -> 
     assert not _snapshot_copy(apply_repo, "bundle").parent.exists()
 
 
-def test_the_record_names_every_critical_app_the_apply_touched(
+def test_the_record_names_every_app_the_apply_touched(
     apply_repo: Path,
 ) -> None:
     """A shared-library change rebuilds every bundle, so each critical bundle owner is touched;
-    a change under one app's directory touches that app; a non-critical app never counts."""
+    a change under any app's directory touches that app, critical or not, since the rollback
+    reverts its source too; a non-critical bundle owner whose source did not change is not."""
     _write_openable_app(apply_repo, "chat")
     _write_openable_app(apply_repo, "terminal")
+    _write_openable_app(apply_repo, "roadmap", is_critical=False, program="roadmap-web")
+    _write_openable_app(apply_repo, "getting_started", is_critical=False)
     _write_registry(apply_repo, {"chat": _CHAT_ROW_URL, "terminal": _TERMINAL_ROW_URL})
     runner = _apply_runner(
         "M\tsystem/libs/workspace_ui/src/origin.ts\nM\tsystem/apps/terminal/src/terminal_app/main.py\n"
-        "M\tsystem/apps/browser/src/browser/session.py\n",
+        "M\tsystem/apps/roadmap/src/roadmap/main.py\n",
         apply_repo,
     )
 
@@ -8105,8 +8108,8 @@ def test_the_record_names_every_critical_app_the_apply_touched(
 
     record = _rollback_point(apply_repo)
     assert record is not None
-    assert record.apps == ["chat", "system_interface", "terminal"]
-    assert record.programs == ["chat", "system_interface", "terminal"]
+    assert record.apps == ["chat", "roadmap", "system_interface", "terminal"]
+    assert record.programs == ["chat", "roadmap-web", "system_interface", "terminal"]
 
 
 def test_the_record_names_every_critical_app_whose_tool_the_apply_reinstalled(

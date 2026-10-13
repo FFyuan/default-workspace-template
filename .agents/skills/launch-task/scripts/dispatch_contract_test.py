@@ -76,7 +76,8 @@ _FENCED_CODE = re.compile(
 # substituted textually, since bash would read ``<slug>`` as a redirection.
 _PLACEHOLDER_ENV = {
     "NAME": "demo",
-    "TARGET": "demo",
+    "SLUG": "demo",
+    "CREATIONS": "demo",
     "REF": "demo-ref",
 }
 # The worker-side ``report`` invocation is written against values the worker
@@ -381,9 +382,9 @@ def test_task_block_writes_a_file_the_worker_parses_at_the_path_launch_names(
     # resolving, no globbing, no absolute path built by the test.
     named_path = Path(dispatcher.launch_option("--task-file"))
 
-    frontmatter = parse_task_frontmatter.parse(named_path)
+    task = parse_task_frontmatter.parse(named_path)
 
-    report_path = Path(frontmatter["finish_report_path"])
+    report_path = Path(task.fields["finish_report_path"])
     # The runtime dir is what launch rsyncs into the worker, and the worker
     # pushes its report to dirname(finish_report_path) on the lead: both only
     # line up when the report path lives inside the runtime dir.
@@ -392,9 +393,9 @@ def test_task_block_writes_a_file_the_worker_parses_at_the_path_launch_names(
     )
     assert report_path.name == "report.md"
     if dispatcher.name in {"crystallize-creation", "update-creation", "heal-creation"}:
-        # The generic worker dispatches on these two fields.
-        assert frontmatter["operation"] == dispatcher.name.removesuffix("-creation")
-        assert frontmatter["type"]
+        # The generic worker dispatches on the operation and each creation's type.
+        assert task.fields["operation"] == dispatcher.name.removesuffix("-creation")
+        assert task.creations
 
 
 @pytest.mark.parametrize("dispatcher", _DISPATCHERS, ids=[d.name for d in _DISPATCHERS])
@@ -438,7 +439,7 @@ def test_launch_on_the_real_task_file_syncs_runtime_dir_and_addresses_the_worker
     ]
     # Lead and worker agree on the report file: what await polls for is what
     # the worker's parse hands back as FINISH_REPORT_PATH.
-    frontmatter = parse_task_frontmatter.parse(task_file)
+    frontmatter = parse_task_frontmatter.parse(task_file).fields
     assert create_worker._read_finish_report_path(task_file) == Path(
         frontmatter["finish_report_path"]
     )

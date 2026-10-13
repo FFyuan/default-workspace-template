@@ -46,10 +46,24 @@ Extra string keys must be valid POSIX shell identifiers (so the
 variable instead of being parsed as a command). A key like
 ``staged-inputs`` fails loud rather than silently disappearing.
 
+The one list the parser reads is ``creations``: what a harden pass covers, one
+entry per creation, each a mapping with a ``name``, a ``type``, and a
+``scope_file`` when the creation has a footprint. A task that names an
+``operation`` (a harden pass) must carry it. The entries are emitted after the
+string fields, numbered from 1, so a pass over two creations reads:
+
+    CREATION_COUNT=2
+    CREATION_1_NAME=roadmap
+    CREATION_1_TYPE=app
+    CREATION_1_SCOPE_FILE=data/.tasks/harden/update-roadmap-sync/scope-roadmap.json
+    CREATION_2_NAME=sync-roadmap
+    CREATION_2_TYPE=skill
+    CREATION_2_SCOPE_FILE=data/.tasks/harden/update-roadmap-sync/scope-sync-roadmap.json
+
 On any failure -- file missing, no/broken frontmatter, any required
-field missing, wrong type, empty string, or an extra key that isn't a
-valid shell identifier -- prints a human-readable error to stderr and
-exits 1.
+field missing, wrong type, empty string, an extra key that isn't a
+valid shell identifier, or a malformed ``creations`` list -- prints a
+human-readable error to stderr and exits 1.
 """
 
 from __future__ import annotations
@@ -59,7 +73,7 @@ import re
 import shlex
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
@@ -73,6 +87,28 @@ _OPTIONAL_KNOWN_FIELDS = (_ADDRESS_FIELD, _TASK_FILE_FIELD)
 # Fixed emission order for the well-known fields (address first when present).
 _ORDERED_KNOWN_FIELDS = (_ADDRESS_FIELD, _TASK_FILE_FIELD, *_REQUIRED_FIELDS)
 _SHELL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_OPERATION_FIELD = "operation"
+_CREATIONS_FIELD = "creations"
+_CREATION_REQUIRED_KEYS = ("name", "type")
+_CREATION_KEYS = (*_CREATION_REQUIRED_KEYS, "scope_file")
+# The emitted ``CREATION_*`` variables own this prefix, so a string field
+# spelled with it would be overwritten by (or overwrite) one of them in the eval.
+_CREATION_VARIABLE_PREFIX = "creation_"
+
+
+class Creation(NamedTuple):
+    """One creation a harden pass covers."""
+
+    name: str
+    type: str
+    scope_file: str | None
+
+
+class TaskFrontmatter(NamedTuple):
+    """A parsed task file: its top-level string fields and the creations it covers."""
+
+    fields: dict[str, str]
+    creations: tuple[Creation, ...]
 
 
 def _split_frontmatter(text: str) -> dict[str, Any]:
@@ -98,8 +134,51 @@ def _split_frontmatter(text: str) -> dict[str, Any]:
     return parsed
 
 
-def parse(task_file: Path) -> dict[str, str]:
-    """Return all top-level string fields after validating the well-known ones.
+def _parse_creations(frontmatter: dict[str, Any]) -> tuple[Creation, ...]:
+    """Validate the ``creations`` list; required when the task names an ``operation``."""
+    if _CREATIONS_FIELD not in frontmatter:
+        if _OPERATION_FIELD in frontmatter:
+            raise ValueError(
+                f"frontmatter names an `{_OPERATION_FIELD}` but has no "
+                f"`{_CREATIONS_FIELD}` list naming the creations the pass covers"
+            )
+        return ()
+    entries = frontmatter[_CREATIONS_FIELD]
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"frontmatter.{_CREATIONS_FIELD} must be a non-empty list")
+    creations: list[Creation] = []
+    for index, entry in enumerate(entries, start=1):
+        where = f"frontmatter.{_CREATIONS_FIELD} entry {index}"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} must be a mapping, got {type(entry).__name__}")
+        unknown = sorted(str(key) for key in entry if key not in _CREATION_KEYS)
+        if unknown:
+            raise ValueError(
+                f"{where} has unknown keys {unknown} (allowed: {list(_CREATION_KEYS)})"
+            )
+        for key in _CREATION_REQUIRED_KEYS:
+            if key not in entry:
+                raise ValueError(f"{where} is missing `{key}`")
+        for key, value in entry.items():
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{where}: `{key}` must be a non-empty string")
+        creations.append(
+            Creation(
+                name=entry["name"], type=entry["type"], scope_file=entry.get("scope_file")
+            )
+        )
+    names = [creation.name for creation in creations]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        raise ValueError(
+            f"frontmatter.{_CREATIONS_FIELD} names {duplicates} more than once"
+        )
+    return tuple(creations)
+
+
+def parse(task_file: Path) -> TaskFrontmatter:
+    """Return all top-level string fields after validating the well-known ones,
+    and the validated ``creations`` list (empty when the task has none).
 
     Required fields (``finish_report_path``) must be present, string-typed,
     and non-empty -- any violation raises ``ValueError``. ``lead_agent`` and
@@ -153,15 +232,30 @@ def parse(task_file: Path) -> dict[str, str]:
                 f"using snake_case so downstream `eval` can consume the "
                 f"rendered KEY=value line."
             )
-    return result
+        if key.lower().startswith(_CREATION_VARIABLE_PREFIX):
+            raise ValueError(
+                f"frontmatter key `{key}` collides with the CREATION_* variables "
+                f"the `{_CREATIONS_FIELD}` list is emitted as; rename it."
+            )
+    return TaskFrontmatter(fields=result, creations=_parse_creations(frontmatter))
 
 
-def _render(fields: dict[str, str]) -> str:
+def _render(task: TaskFrontmatter) -> str:
+    fields = task.fields
     extras = sorted(key for key in fields if key not in _ORDERED_KNOWN_FIELDS)
     ordered = [*_ORDERED_KNOWN_FIELDS, *extras]
     lines = [
         f"{key.upper()}={shlex.quote(fields[key])}" for key in ordered if key in fields
     ]
+    if task.creations:
+        lines.append(f"CREATION_COUNT={len(task.creations)}")
+    for index, creation in enumerate(task.creations, start=1):
+        lines.append(f"CREATION_{index}_NAME={shlex.quote(creation.name)}")
+        lines.append(f"CREATION_{index}_TYPE={shlex.quote(creation.type)}")
+        if creation.scope_file is not None:
+            lines.append(
+                f"CREATION_{index}_SCOPE_FILE={shlex.quote(creation.scope_file)}"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -179,11 +273,11 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        fields = parse(args.task_file)
+        task = parse(args.task_file)
     except ValueError as exc:
         print(f"invalid task frontmatter: {exc}", file=sys.stderr)
         return 1
-    sys.stdout.write(_render(fields))
+    sys.stdout.write(_render(task))
     return 0
 
 

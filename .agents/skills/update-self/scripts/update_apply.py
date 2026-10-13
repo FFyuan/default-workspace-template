@@ -1395,7 +1395,7 @@ def apply_update(
             # The copies stay where they are, and the record says what this apply
             # touched, so the shell can offer the previous version back until a
             # person confirms the update or the next apply replaces the point.
-            touched = _touched_critical_apps(plan, name_status, repo_root)
+            touched = _touched_apps(plan, name_status, repo_root)
             write_last_good(
                 LastGoodRecord(
                     merge_sha=git_out(runner, repo_root, ["rev-parse", "HEAD"]),
@@ -1573,21 +1573,23 @@ def apply_update(
     return 0
 
 
-def _touched_critical_apps(
+def _touched_apps(
     plan: ApplyPlan,
     name_status: Sequence[tuple[str, str]],
     repo_root: Path,
 ) -> list[tuple[str, str]]:
-    """The critical apps included in this apply's rollback: ``(name, program)``.
+    """The apps included in this apply's rollback: ``(name, program)``.
 
-    Read off the merged tree's manifests: an app is touched when a changed path is
-    under its directory, when the bundle it owns was rebuilt, when the apply reinstalled
-    its tool environment (a shared backend manifest moves every tool's closure, so
-    ``plan.app_tools`` then names every app), or, for the shell, when anything the
-    shell's process runs changed. A frontend apply replaces every bundle, so include
-    each critical owner even if that app's source was unchanged. An extra restart is
-    acceptable; rollback targeting does not need to compare installed and kept source
-    stamps.
+    Read off the merged tree's manifests: any app is touched when a changed path is
+    under its directory -- a critical app's pass carries every other app its change
+    touched, and a rollback reverts their source with the rest, so it has to restart
+    them too. A critical app is also touched when the bundle it owns was rebuilt, when
+    the apply reinstalled its tool environment (a shared backend manifest moves every
+    tool's closure, so ``plan.app_tools`` then names every app), or, for the shell, when
+    anything the shell's process runs changed. A frontend apply replaces every bundle,
+    so include each critical owner even if that app's source was unchanged. An extra
+    restart is acceptable; rollback targeting does not need to compare installed and
+    kept source stamps.
     """
     paths = [path for _, path in name_status]
     apps_dir = repo_root / APPS_DIR
@@ -1607,18 +1609,16 @@ def _touched_critical_apps(
         except (OSError, tomllib.TOMLDecodeError):
             continue
         name = manifest.get("name")
-        if (
-            not isinstance(name, str)
-            or not name
-            or manifest.get("critical") is not True
-        ):
+        if not isinstance(name, str) or not name:
             continue
         app_directory = f"{APPS_DIR}/{directory.name}"
-        is_touched = (
-            any(path.startswith(f"{app_directory}/") for path in paths)
-            or name in rebuilt_bundle_owners
-            or app_directory in reinstalled_tool_directories
-            or (name == SHELL_PROGRAM and plan.backend)
+        is_touched = any(path.startswith(f"{app_directory}/") for path in paths) or (
+            manifest.get("critical") is True
+            and (
+                name in rebuilt_bundle_owners
+                or app_directory in reinstalled_tool_directories
+                or (name == SHELL_PROGRAM and plan.backend)
+            )
         )
         if not is_touched:
             continue

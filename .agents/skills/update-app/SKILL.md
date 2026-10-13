@@ -37,7 +37,9 @@ terminal, and any user app that declares it -- or if the change is under
 `system/libs/workspace_ui/` (the shared library both critical bundles are built
 from) or `system/libs/workspace_layout/` (the layout wire contract the shell, the
 chat, and the terminal all run), **follow [`references/critical-app.md`](references/critical-app.md) and
-stop reading here.** A critical app is never edited in the served tree: that
+stop reading here** -- for the whole change: when it also touches an ordinary
+app or a skill, those go through that flow with it. A critical app is never
+edited in the served tree: that
 flow runs the same live loop against an isolated worktree, with a preview window
 as the user's view, and goes live through the atomic update apply once a
 background worker has hardened the change. Everything below is for an app or
@@ -462,13 +464,17 @@ larger-scope change this gate is the *working* result, not just the mock,
 exactly as `build-app`'s Step 5 gates on the working site.)
 
 - **A change you and the user discussed and applied live, or repeatable
-  work you did by hand** -> invoke `update-creation` with
-  `type=app`. It opens a tracking ticket, dispatches the generic
+  work you did by hand** -> invoke `update-creation` once for the whole
+  change, listing every creation it touched: each app as `type: app`, each
+  background service as `type: service`, and any skill the same change
+  edited. Two apps changed to work together are one pass with one worker,
+  never one per app. It opens a tracking ticket, dispatches the generic
   harden worker to verify/test the change on its own branch, proxies the
-  gates, merges, and refreshes the window on go-live.
+  gates, merges, and refreshes each window on go-live.
 - **The service errored or produced a wrong result and you worked around
-  it** -> invoke `heal-creation` with `type=app` (or `type=service` for a
-  background service) at turn-end instead.
+  it** -> invoke `heal-creation` at turn-end instead, again once, covering
+  every creation the failure spans (`type: app`, or `type: service` for a
+  background service).
 - **A critical app** (the shell, the chat, the terminal, or a user app whose
   manifest says so) never reaches this step from here: its live loop, harden
   handoff, and go-live through the atomic update apply are all
@@ -479,7 +485,7 @@ skills; this skill's turn-end step is just the service-shaped entry into
 them.
 
 Both flows enforce single-flight per creation: if another chat already has a
-harden pass in flight for this service, they leave a note on its ticket
-instead of dispatching a sibling, and the eventual superseding pass covers
-both changes. See
+harden pass in flight for any creation in yours, they leave a note on its
+ticket instead of dispatching a sibling, and the eventual superseding pass
+covers both changes. See
 [`.agents/shared/references/harden-contention.md`](../../shared/references/harden-contention.md).

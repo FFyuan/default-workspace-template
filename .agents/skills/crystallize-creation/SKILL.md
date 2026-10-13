@@ -31,7 +31,8 @@ The type drives two things: which **gates** the worker emits (skill →
 `outline-approval` then `final-creation`; app → none, since the user
 confirmed the live site already) and the **go-live** step after merge (skill →
 post-crystallize migration; app → refresh the window). The worker reads the
-type from the task file and loads `type-<TYPE>.md`; you proxy
+type from the task file's one `creations` entry and loads `type-<TYPE>.md`; you
+proxy
 whatever gates it emits.
 
 ## When to invoke (skill, standalone)
@@ -80,11 +81,12 @@ echo "$TICKET_ID" > data/.tasks/harden/crystallize-$NAME/ticket_id.txt
 
 ## Step 3: Write the task file
 
-The frontmatter carries `operation: crystallize`, the `type`,
+The frontmatter carries `operation: crystallize`,
 `finish_report_path` (the report destination the lead polls; see
-`.agents/shared/references/worker-reporting.md`), `scope_file` (where the worker
-writes the creation's computed footprint at the start of its run -- you name the
-path, the worker creates the file), `diff_base` (the commit before the work
+`.agents/shared/references/worker-reporting.md`), a `creations` list with the
+one creation's `name`, `type`, and `scope_file` (where the worker writes the
+creation's computed footprint at the start of its run -- you name the path, the
+worker creates the file), `diff_base` (the commit before the work
 being hardened began: your `HEAD` at dispatch for a skill reconstructed from
 the transcript; for `type: app`, the parent of the commit that added the app's
 manifest, `$(git rev-parse "$(git log --diff-filter=A --format=%H -1 --
@@ -107,10 +109,12 @@ flow steps, or argparse surfaces -- those are the worker's decisions.
 cat << FRONTMATTER_EOF
 ---
 finish_report_path: data/.tasks/harden/crystallize-$NAME/reports/report.md
-scope_file: data/.tasks/harden/crystallize-$NAME/scope.json
 diff_base: $(git rev-parse HEAD)
 operation: crystallize
-type: skill
+creations:
+  - name: $NAME
+    type: skill
+    scope_file: data/.tasks/harden/crystallize-$NAME/scope-$NAME.json
 FRONTMATTER_EOF
 # If a wrapper staged input files, add this line inside the frontmatter:
 #   source_artifacts_dir: data/.tasks/<calling-skill>/$NAME/
@@ -138,8 +142,8 @@ after. Describe the contract; do not prescribe subcommands or surfaces.>
 
 ## What to do
 Read and follow `.agents/shared/worker/SKILL.md` from your own checkout. It
-reads `operation` and `type` from this frontmatter and follows the matching
-references. When you reach a gate or terminal status, push a report to the lead
+reads `operation` and `creations` from this frontmatter and follows the
+matching references. When you reach a gate or terminal status, push a report to the lead
 per its reporting protocol; the destination is `finish_report_path`.
 Whether to split this pass across sibling sub-workers is your own call, per the
 harden contract's "Splitting the pass across sub-workers".
