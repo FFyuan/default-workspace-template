@@ -87,8 +87,9 @@ The models behind a workspace app's two descriptions:
   `render_pass_scope_file` build the pass scope file behind `app-manifest
   pass-scope`, and `split_against_creations` is the diff split both scope files
   share. `BUILT_IN_EXCLUDES`, `APP_CONVENTIONS`, `SKILL_CONVENTIONS`, and
-  `SERVICE_CONVENTIONS` are the fixed lists. Exclude matching is `pathspec` gitignore syntax; a failing git command
-  raises `ScopeComputationError` rather than reporting an empty diff.
+  `SERVICE_CONVENTIONS` are the fixed lists. Exclude matching is `pathspec`
+  gitignore syntax; a failing git command raises `ScopeComputationError` rather
+  than reporting an empty diff.
 - `app_manifest.selection` and `app_manifest.workspace_graph`: the test
   selection behind `app-manifest select-tests` (below). `workspace_graph` reads
   what the workspace declares about its packages: the uv workspace members and
