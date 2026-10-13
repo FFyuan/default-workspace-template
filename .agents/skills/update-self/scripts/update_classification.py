@@ -89,7 +89,7 @@ _MANIFEST_BASENAMES = frozenset(
 )
 
 
-def _is_test_file(path: str) -> bool:
+def is_test_file(path: str) -> bool:
     name = path.rsplit("/", 1)[-1]
     return name.endswith("_test.py") or name.startswith("test_")
 
@@ -507,7 +507,7 @@ def plan_apply(
         elif (
             path.startswith(f"{SYSTEM_INTERFACE_DIR}/imbue/")
             and path.endswith(".py")
-            and not _is_test_file(path)
+            and not is_test_file(path)
         ):
             backend_src = True
     return ApplyPlan(

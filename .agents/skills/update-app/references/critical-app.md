@@ -413,10 +413,8 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
    - `1`: precondition error (a dirty tree, another apply in flight, a
      conflicted merge); nothing was changed.
 
-   The apply restarts every program and refreshes every open view, so an
-   ordinary app in the pass goes live with it, but the health it waits on is
-   the critical apps' alone. After a `0`, confirm each ordinary app came back
-   yourself (`supervisorctl status <name>`, then the `check-app-errors` skill).
+   Only the critical apps' health gates the apply. After a `0`, check that any
+   ordinary app or service in the pass works, and fix what doesn't.
 
 3. **The notice is the user's.** After a successful apply, one banner across
    the top of the workspace names every app included in the rollback (each

@@ -8116,6 +8116,92 @@ def test_the_record_names_every_app_the_apply_touched(
     assert record.programs == ["chat", "roadmap-web", "system_interface", "terminal"]
 
 
+def _write_service_program(repo_root: Path, program: str) -> None:
+    dropin = repo_root / update_layout.SUPERVISORD_DROPIN_DIR / f"{program}.conf"
+    dropin.parent.mkdir(parents=True, exist_ok=True)
+    dropin.write_text(f"[program:{program}]\ncommand=true\n")
+
+
+@pytest.mark.parametrize(
+    ("diff", "programs", "needs_restart"),
+    [
+        pytest.param(
+            "M\tsystem/services/host_backup/src/host_backup/runner.py\n",
+            {"host-backup", "host-backup-sidecar"},
+            False,
+            id="named-after-its-package",
+        ),
+        pytest.param(
+            "M\tsystem/services/oom_priority/bin/oom_tag_backstop.py\n",
+            set(),
+            True,
+            id="no-program-by-that-name",
+        ),
+        pytest.param(
+            "A\tsystem/services/host_backup/changelog/entry.md\n"
+            "M\tsystem/services/oom_priority/src/oom_priority/bands_test.py\n",
+            set(),
+            False,
+            id="docs-and-tests-touch-no-service",
+        ),
+        pytest.param(
+            "A\tsystem/services/host_backup/pyproject.toml\n"
+            "A\tsystem/services/host_backup/src/host_backup/runner.py\n",
+            set(),
+            False,
+            id="added-by-the-merge",
+        ),
+    ],
+)
+def test_the_record_restarts_the_programs_of_every_service_the_merge_changed(
+    apply_repo: Path, diff: str, programs: set[str], needs_restart: bool
+) -> None:
+    """A rollback reverts a changed service's source, so it restarts the programs named
+    after its package; a changed service with none asks for the services restart."""
+    _write_service_program(apply_repo, "host-backup")
+    _write_service_program(apply_repo, "host-backup-sidecar")
+    _write_service_program(apply_repo, "earlyoom")
+
+    assert _apply_keeping_the_rollback_point(_apply_runner(diff, apply_repo), apply_repo) == 0
+
+    record = _rollback_point(apply_repo)
+    assert record is not None
+    assert set(record.programs) & {"host-backup", "host-backup-sidecar", "earlyoom"} == programs
+    assert record.needs_system_services_restart is needs_restart
+
+
+def test_a_rollback_restarts_ordinary_programs_without_waiting_on_them(
+    apply_repo: Path,
+) -> None:
+    """Only critical programs gate a rollback's verdict, as they gate the apply's: an
+    ordinary app or service that does not come back is restarted, then left to the agent."""
+    _write_openable_app(apply_repo, "chat")
+    _write_openable_app(apply_repo, "roadmap", is_critical=False, program="roadmap-web")
+    _write_registry(apply_repo, {"chat": _CHAT_ROW_URL})
+    _write_service_program(apply_repo, "host-backup")
+    diff = (
+        _CHAT_FRONTEND_DIFF
+        + "M\tsystem/apps/roadmap/src/roadmap/main.py\n"
+        + "M\tsystem/services/host_backup/src/host_backup/runner.py\n"
+    )
+    assert _apply_keeping_the_rollback_point(_apply_runner(diff, apply_repo), apply_repo) == 0
+    record = _rollback_point(apply_repo)
+    assert record is not None
+    assert record.programs == ["chat", "host-backup", "roadmap-web", "system_interface"]
+    # The fixture's supervisor reports only the critical programs: the ordinary two never
+    # settle.
+    runner = _rollback_runner(apply_repo)
+
+    assert _rollback(runner, apply_repo) == 0
+
+    assert runner.argvs_starting("supervisorctl", "restart") == [
+        ["supervisorctl", "restart", "chat", "host-backup", "roadmap-web", "system_interface"]
+    ]
+    settled = _rollback_point(apply_repo)
+    assert settled is not None
+    assert settled.outcome == "Rolled back to the previous version."
+
+
 def test_the_record_names_every_critical_app_whose_tool_the_apply_reinstalled(
     apply_repo: Path,
 ) -> None:

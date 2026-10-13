@@ -62,9 +62,11 @@ from update_apply_contract import (
 from update_banding import ExpendWrapper, as_expendable, keep_protected
 from update_classification import (
     CLASS_DOCKERFILE,
+    CLASS_DOCS,
     ApplyPlan,
     AppTool,
     classify_path,
+    is_test_file,
     plan_apply,
     read_app_tools,
     read_provisioner_inputs,
@@ -98,6 +100,7 @@ from update_layout import (
     NPM_LOCKFILE,
     NPM_ROOT_DIR,
     PROVISIONER_SCRIPT,
+    SERVICES_DIR,
     SUPERVISORD_CONF,
     SUPERVISORD_DROPIN_DIR,
     FrontendBundle,
@@ -1396,6 +1399,9 @@ def apply_update(
             # touched, so the shell can offer the previous version back until a
             # person confirms the update or the next apply replaces the point.
             touched = _touched_apps(plan, name_status, repo_root)
+            service_programs, has_unmapped_service = _touched_service_programs(
+                name_status, repo_root
+            )
             write_last_good(
                 LastGoodRecord(
                     merge_sha=git_out(runner, repo_root, ["rev-parse", "HEAD"]),
@@ -1405,9 +1411,11 @@ def apply_update(
                     snapshots=list(marker.snapshots),
                     programs=sorted(
                         {program for _, program in touched if program is not None}
+                        | set(service_programs)
                     ),
                     apps=[name for name, _ in touched],
-                    needs_system_services_restart=_needs_system_services_restart(
+                    needs_system_services_restart=has_unmapped_service
+                    or _needs_system_services_restart(
                         plan, [path for _, path in name_status]
                     ),
                 ),
@@ -1634,6 +1642,64 @@ def _touched_apps(
             (name, program if isinstance(program, str) and program else name)
         )
     return touched
+
+
+_PROGRAM_SECTION = re.compile(r"^\[program:([^\]]+)\]", re.MULTILINE)
+
+
+def _supervisord_program_names(repo_root: Path) -> set[str]:
+    """Every program the main supervisord config and its drop-ins declare."""
+    conf_paths = [repo_root / SUPERVISORD_CONF] + sorted(
+        (repo_root / SUPERVISORD_DROPIN_DIR).glob("*.conf")
+    )
+    names: set[str] = set()
+    for conf_path in conf_paths:
+        try:
+            names.update(_PROGRAM_SECTION.findall(conf_path.read_text()))
+        except OSError:
+            continue
+    return names
+
+
+def _touched_service_programs(
+    name_status: Sequence[tuple[str, str]], repo_root: Path
+) -> tuple[list[str], bool]:
+    """The programs of every standalone service whose files the merge changed, and
+    whether any such service has no program to restart.
+
+    A service under ``system/services/<package>/`` runs as the program named after its
+    package (``host_backup`` as ``host-backup``) and any ``<name>-<role>`` programs.
+    A rollback reverts its source with the rest, so it restarts those programs too. A
+    changed service with none (one whose programs are named otherwise, or one cron
+    runs) cannot be restarted by name, so the rollback asks for the services agent's
+    restart instead. A service the merge added is removed by the rollback: nothing to
+    restart. Docs and tests run in no program, so they touch no service.
+    """
+    packages: set[str] = set()
+    added_packages: set[str] = set()
+    for status, path in name_status:
+        parts = path.split("/")
+        if classify_path(path).reveal_class == CLASS_DOCS or is_test_file(path):
+            continue
+        if path.startswith(f"{SERVICES_DIR}/") and len(parts) > 3:
+            packages.add(parts[2])
+            if status.startswith("A") and parts[3] == "pyproject.toml":
+                added_packages.add(parts[2])
+    declared = _supervisord_program_names(repo_root)
+    programs: list[str] = []
+    has_unmapped = False
+    for package in sorted(packages - added_packages):
+        name = package.replace("_", "-")
+        owned = sorted(
+            program
+            for program in declared
+            if program == name or program.startswith(f"{name}-")
+        )
+        if owned:
+            programs.extend(owned)
+        else:
+            has_unmapped = True
+    return programs, has_unmapped
 
 
 # The trees a rollback cannot undo by restarting programs: the bootstrap and the
@@ -1930,6 +1996,10 @@ def _run_rollback(
             ).strip()
             sys.stderr.write(f"warning: supervisorctl restart reported: {stderr}\n")
     _record_rollback_progress(record, repo_root, _ROLLBACK_PROGRESS_CHECKING)
+    # Only the critical programs gate the verdict, as they gate the apply's: an ordinary
+    # app or service that does not come back is the agent's to fix, not an emergency.
+    critical_programs = {SHELL_PROGRAM, *read_critical_programs(repo_root)}
+    waited_programs = [program for program in programs if program in critical_programs]
     app_names = [name for name in read_critical_apps(repo_root) if name in record.apps]
     unsettled = wait_settled(
         http,
@@ -1937,13 +2007,13 @@ def _run_rollback(
         runner,
         sleeper,
         shell_url=f"{resolved_base}{HEALTH_PATH}",
-        programs=sorted({SHELL_PROGRAM, *programs}),
+        programs=sorted({SHELL_PROGRAM, *waited_programs}),
         app_names=app_names,
-        require_stable_pid=bool(programs),
+        require_stable_pid=bool(waited_programs),
     )
     if unsettled is None:
         unsettled = _describe_restored_frontend_failure(
-            http, repo_root, resolved_base, sleeper, programs, app_names
+            http, repo_root, resolved_base, sleeper, waited_programs, app_names
         )
     if unsettled is not None:
         write_emergency(
