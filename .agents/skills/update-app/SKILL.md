@@ -466,16 +466,16 @@ exactly as `build-app`'s Step 5 gates on the working site.)
 
 - **A change you and the user discussed and applied live, or repeatable
   work you did by hand** -> invoke `update-creation` once for the whole
-  change, listing every creation it touched: each app as `type: app`, each
-  background service as `type: service`, and any skill the same change
-  edited. Two apps changed to work together are one pass with one worker,
+  change, listing every creation it touched: each app as `app:<name>`, each
+  background service as `service:<package>`, and any skill the same change
+  edited as `skill:<name>`. Two apps changed to work together are one pass with one worker,
   never one per app. It opens a tracking ticket, dispatches the generic
   harden worker to verify/test the change on its own branch, proxies the
   gates, merges, and refreshes each window on go-live.
 - **The service errored or produced a wrong result and you worked around
   it** -> invoke `heal-creation` at turn-end instead, again once, covering
-  every creation the failure spans (`type: app`, or `type: service` for a
-  background service).
+  every creation the failure spans (`app:<name>`, or `service:<package>` for
+  a background service).
 - **A critical app** (the shell, the chat, the terminal, or a user app whose
   manifest says so) never reaches this step from here: its live loop, harden
   handoff, and go-live through the atomic update apply are all

@@ -184,6 +184,24 @@ goes to stdout; with it, the parent directories are created.
   neither. A non-empty `outside_footprint` means either a missing reference or a
   change that does not belong on the branch.
 
+`app-manifest pass-scope` writes the scope file for a harden pass, which covers
+every creation one change touched:
+
+    app-manifest pass-scope --creation <type>:<name> [--creation ...] [--repo-root DIR] [--diff-base REF [--diff-ref REF]] [--out FILE]
+
+Each `--creation` is `app:<registered name or package directory>`,
+`skill:<directory under .agents/skills>`, `service:<package under
+system/services>`, or `shared:<path under .agents/shared>` (a shared script or
+reference, scoped as `--for-path` scopes it). The file is `{"creations": [...], "diff": ...}`: one entry
+per creation, each the scope `footprint` writes with its `diff` null, and one
+`diff` for the pass, whose `inside_footprint` is every changed file some
+creation's footprint accounts for (and that creation does not exclude) and
+whose `outside_footprint` is every changed file none does. A service has
+`type` `service`, its directory as `primary`, and as `wiring` the program named
+after its package (`host_backup` runs as `host-backup`) and every
+`<name>-<role>` one; an app directory with no `app.toml` yet is scoped the same
+way.
+
 `app-manifest references --for-path <path>` prints one JSON object per line
 (`app`, `manifest`, `path`, `note`) for every app whose manifest claims that
 path -- directly or as something beneath a referenced directory -- and exits 0

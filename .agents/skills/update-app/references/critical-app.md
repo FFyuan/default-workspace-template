@@ -285,9 +285,9 @@ worktree holds uncommitted work; commit it and retry. Never discard it: the
 branch you are about to hand the worker is the only copy.
 
 **Create the worker on the branch.** Follow `update-creation` steps 1-3 (the
-tracking ticket, the task file with `operation: update` and a `creations` entry
-for every creation the change touched -- `type: app` for each app, critical or
-not, `type: skill` for a skill, `type: service` for a background service --
+tracking ticket, the task file with `operation: update` and `creations` naming
+every creation the change touched -- `app:<name>` for each app, critical or
+not, `skill:<name>` for a skill, `service:<package>` for a background service --
 launch, background-poll) with these specifics:
 
 - The task file's `diff_base` is the commit the branch forked from the served
@@ -355,16 +355,18 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
    npm files), no other creation in the pass, and no file the branch itself
    changes, has changed on the served branch since the worker branched (a
    change to another critical app's sources is not staleness: the apply
-   rebuilds that bundle from the merged tree). Name `system/apps/<package>/`
-   once per leased app and once per ordinary app in the pass, a skill in the
-   pass at `.agents/skills/<name>/`, and a background service in the pass at
-   `system/services/<package>/` plus `system/supervisord.conf.d/<name>.conf`:
+   rebuilds that bundle from the merged tree). The pass's footprint names
+   every creation in it:
 
    ```bash
    BASE=$(git merge-base HEAD "mngr/update-$SLUG")
-   git diff --name-only --no-renames "$BASE" "mngr/update-$SLUG" > /tmp/update-$SLUG-files.txt
-   git diff --name-only "$BASE" HEAD -- system/apps/<package>/ system/libs/workspace_ui/ system/libs/workspace_layout/ \
-       system/package.json system/package-lock.json $(cat /tmp/update-$SLUG-files.txt)
+   SCOPE=$(mktemp)
+   uv run app-manifest pass-scope $(printf -- '--creation %s ' $CREATIONS) --out "$SCOPE" || exit 1
+   jq -r '[.creations[] | .primary[], .wiring[].path, .references[].path] | unique | .[]' "$SCOPE" \
+       > /tmp/update-$SLUG-paths.txt
+   git diff --name-only --no-renames "$BASE" "mngr/update-$SLUG" >> /tmp/update-$SLUG-paths.txt
+   git diff --name-only "$BASE" HEAD -- system/libs/workspace_ui/ system/libs/workspace_layout/ \
+       system/package.json system/package-lock.json $(cat /tmp/update-$SLUG-paths.txt)
    ```
 
    Empty output means fresh: continue. Any output means the pass is stale; do

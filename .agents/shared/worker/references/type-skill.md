@@ -62,7 +62,7 @@ uv run app-manifest references --for-path .agents/skills/<name>
 
 One JSON line per app that claims the skill; no output means none does.
 
-The scope file's `context` lists the primary directory of every app that claims
+The skill's `context` in the scope file lists the primary directory of every app that claims
 this skill. Read those to verify the invocation contract the skill relies on --
 the routes in `src/<package>/runner.py`, the CLI entry points in
 `pyproject.toml`, `app.toml` -- and read them only: the `[[references]]` entry

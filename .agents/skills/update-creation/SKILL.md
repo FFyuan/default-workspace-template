@@ -58,12 +58,13 @@ exploratory work is NOT an update candidate.
 
 ## The type parameter
 
-Each creation in the pass has a `type`: `skill`, `app`, or `service`. It drives
-where the worker looks (`type-<TYPE>.md`) and that creation's **go-live**
-(Step 4): skill → cross-reference sweep is part of the edit, nothing else; app →
+Each creation in the pass has a type: `skill`, `app`, `service`, or `shared` (a
+shared script or reference, handled as a skill). It drives where the worker
+looks (`type-<TYPE>.md`) and that creation's **go-live** (Step 4): skill or
+shared → cross-reference sweep is part of the edit, nothing else; app →
 refresh the window (a background service has no window -- restart it instead).
 A critical app (the shell, the chat, the terminal, or an app whose manifest
-says `critical = true`) is `type: app` too, but it reaches this flow only from
+says `critical = true`) is an `app:` creation too, but it reaches this flow only from
 `update-app`'s careful flow (`references/critical-app.md`), which calls into
 Steps 1-3 for the orchestration core, creates the worker at approval on the
 branch the lead already built up, and owns the go-live through the atomic
@@ -73,11 +74,13 @@ the same pass, and lands through the same apply.
 
 ## Conventions
 
-Use `$CREATIONS` for the names of every creation the pass covers,
-space-separated (e.g. `migrate-config`, or `roadmap sync-roadmap` for an app and
-the skill that drives it), and `$SLUG` for the pass: the creation's own name
-when there is one, otherwise a short kebab-case name for the change
-(`roadmap-sync`). Then:
+Use `$CREATIONS` for every creation the pass covers, each as `<type>:<name>`,
+space-separated: `app:<registered name>`, `skill:<directory>`,
+`service:<package>`, or `shared:<path under .agents/shared>` for a shared
+script or reference (e.g. `skill:migrate-config`, or `app:roadmap
+skill:sync-roadmap` for an app and the skill that drives it). Use `$SLUG` for
+the pass: the creation's own name when there is one, otherwise a short
+kebab-case name for the change (`roadmap-sync`). Then:
 
 - Worker agent name and branch: `update-$SLUG` / `mngr/update-$SLUG`
 - Runtime dir / task file: `data/.tasks/harden/update-$SLUG/` /
@@ -123,31 +126,25 @@ is your current commit:
 DIFF_BASE_REF=HEAD
 ```
 
-Write the task file. Frontmatter carries `operation: update`,
-`finish_report_path` (the report destination the lead polls; see
-`.agents/shared/references/worker-reporting.md`), `diff_base` (the commit
-before the work being hardened: for the committed origin, the start of
-`$COMMIT_RANGE`, so the scope files' diffs cover the committed change; for the
-emergent origin, your `HEAD` at dispatch), and `creations`, one entry per
-creation the pass covers: its `name`, its `type`, and its `scope_file` (where
-the worker writes that creation's computed footprint at the start of its run --
-you name the path, `scope-<name>.json` beside the task file, and the worker
-creates the file). `scope_file` is for a skill or an app with an `app.toml`;
-omit it for a service, a pre-manifest app, or the system interface, which have
-no footprint. `diff_base` goes on every task: the worker's test gate selects
-its suites from what changed since it. The body carries the `## Change origin`
-marker the worker dispatches on, plus origin-specific content:
+Write the task file. Frontmatter carries `operation: update`, `creations`
+(`$CREATIONS`), `finish_report_path` (the report destination the lead polls;
+see `.agents/shared/references/worker-reporting.md`), `scope_file` (where the
+worker writes the pass's computed footprint at the start of its run -- you name
+the path, the worker creates the file), and `diff_base` (the commit before the
+work being hardened: for the committed origin, the start of `$COMMIT_RANGE`, so
+the scope file's diff covers the committed change; for the emergent origin,
+your `HEAD` at dispatch). The worker's test gate also selects its suites from
+what changed since `diff_base`. The body carries the `## Change origin` marker
+the worker dispatches on, plus origin-specific content:
 
 ```bash
 cat > data/.tasks/harden/update-$SLUG/task.md << TASK_EOF
 ---
 finish_report_path: data/.tasks/harden/update-$SLUG/reports/report.md
+scope_file: data/.tasks/harden/update-$SLUG/scope.json
 diff_base: $(git rev-parse "$DIFF_BASE_REF")
 operation: update
-creations:
-  - name: <name>
-    type: skill
-    scope_file: data/.tasks/harden/update-$SLUG/scope-<name>.json
+creations: $CREATIONS
 ---
 
 # Task: update \`$CREATIONS\`
@@ -184,9 +181,8 @@ follows the matching references. Push reports to the lead per its reporting prot
 TASK_EOF
 ```
 
-Set `ORIGIN: committed` as appropriate, and list one `creations` entry per
-creation the pass covers, each with its own `type:`. Fill in the real content;
-do not leave placeholders. The `## Change origin` marker is required --
+Set `ORIGIN: committed` as appropriate. Fill in the real content; do not leave
+placeholders. The `## Change origin` marker is required --
 the worker fails loudly if it is missing.
 
 **One exception, and it lives here so you meet it where the format is defined:**

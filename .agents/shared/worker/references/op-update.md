@@ -178,8 +178,7 @@ Updated app or service `<name>`:
 ```
 
 The `References registered` and `Outside footprint` lines come from the scope
-file (`harden-creation.md`); a creation with no footprint writes `none` for
-both.
+file (`harden-creation.md`).
 
 In a pass over several creations, write one block per creation, in the order
 the task lists them; the lines about the pass as a whole (the scenarios and tests

@@ -1,6 +1,6 @@
 ---
 name: harden-worker
-description: Run the background harden pass for a change -- crystallize, update, or heal the skills, apps, services, or system interface it covers in an isolated worktree, then report back. Invoke when your task file hands you creations to harden; it names the operation and each creation's type to compose.
+description: Run the background harden pass for a change -- crystallize, update, or heal the skills, apps, and services it covers in an isolated worktree, then report back. Invoke when your task file hands you creations to harden; it names the operation and each creation's type to compose.
 metadata:
   author: imbue
   role: worker-sub-skill
@@ -21,28 +21,27 @@ just routes you to the right ones.
 
 Your task file was synced to your worktree, and its frontmatter names its own
 path in `task_file`. Pass that exact path to the parser to extract the lead
-address, the report destination, the `operation`, and the `creations` list the
-lead set in frontmatter:
+address, the report destination, the `operation`, and the `creations` the lead
+set in frontmatter:
 
 ```bash
 eval "$(uv run .agents/shared/scripts/parse_task_frontmatter.py <TASK_FILE>)"
 ```
 
 This sets `TASK_FILE`, `LEAD_AGENT`, `LEAD_WORK_DIR`, `FINISH_REPORT_PATH`,
-`OPERATION`, `DIFF_BASE`, and `CREATION_COUNT`, and for each creation `i` from 1
-to `CREATION_COUNT`, `CREATION_<i>_NAME` and `CREATION_<i>_TYPE`, plus
-`CREATION_<i>_SCOPE_FILE` for a creation that has a footprint. The parser
-refuses a task that names an operation without a `creations` list. Fail loudly
-if `OPERATION` or `DIFF_BASE` is unset -- the lead must supply both.
-`DIFF_BASE` is the commit before the work being hardened: the test gate selects
-its suites from what changed since it, and a footprint's diff is taken from it
-(`harden-creation.md` has both commands). For a creation whose type is `skill`,
-or `app` with an `app.toml`, also fail loudly if its scope file is unset: it is
-where you write that creation's footprint. A pre-manifest app, a `service`, or
-a `system-interface` creation carries no scope file.
+`OPERATION`, `CREATIONS`, `SCOPE_FILE`, and `DIFF_BASE`. The parser refuses a
+task that names an operation without `creations` and `scope_file`; fail loudly
+if `DIFF_BASE` is unset. `DIFF_BASE` is the commit before the work being
+hardened: the test gate selects its suites from what changed since it, and the
+pass's footprint diff is taken from it (`harden-creation.md` has both
+commands). `SCOPE_FILE` is where you write that footprint.
 
 - `OPERATION` is one of `crystallize`, `update`, `heal`.
-- Each `CREATION_<i>_TYPE` is one of `skill`, `app`, `service`, `system-interface`.
+- `CREATIONS` lists every creation the pass covers as `<type>:<name>`,
+  space-separated (`for creation in $CREATIONS; do echo "${creation%%:*}
+  ${creation#*:}"; done`). The type is `skill`, `app`, `service`, or `shared`:
+  a shared script or reference, named by its path under `.agents/shared/`,
+  which you harden as a skill (`type-skill.md`).
 
 The references below speak of "the creation" and "your type"; in a pass over
 several creations, read them as applying to each creation in turn, and load a
@@ -65,7 +64,7 @@ marked **[shared]**, which live in `.agents/shared/references/`.
 | a creation is a `skill` | `spec-summary.md` **[shared]** | the agentskills.io layout/spec authority |
 | a creation is a `skill`, and your operation runs an outline gate | `skill-outline-fields.md` | what goes inside the outline gate |
 | a creation is a `skill`, on an emergent `update` | `update-vs-create-new.md` | update-in-place vs. split-a-new-sibling |
-| a creation is an `app` or `system-interface` | `web-frontend-testing.md` | isolated-instance and rendered-page rules |
+| a creation is an `app` | `web-frontend-testing.md` | isolated-instance and rendered-page rules |
 
 The two conditional cases that need defining:
 
@@ -73,8 +72,8 @@ The two conditional cases that need defining:
   `crystallize`, an emergent `update`, or any `heal`: the work or incident you
   must reproduce lives only in the conversation. The other runs are handed a
   materialized source instead and skip `transcript-exploration.md` -- a committed
-  `update` reads the diff, an app `crystallize` reads the pre-built app on
-  disk, and a system-interface change reads its brief.
+  `update` reads the diff, and an app `crystallize` reads the pre-built app on
+  disk.
 - **"runs an outline gate"** -- a skill `crystallize` or an emergent skill
   `update`. A committed `update` and any `heal` have no outline gate, so they
   never use `skill-outline-fields.md` or `update-vs-create-new.md` (loading them

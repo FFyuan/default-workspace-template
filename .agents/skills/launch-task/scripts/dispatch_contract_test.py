@@ -77,7 +77,7 @@ _FENCED_CODE = re.compile(
 _PLACEHOLDER_ENV = {
     "NAME": "demo",
     "SLUG": "demo",
-    "CREATIONS": "demo",
+    "CREATIONS": "skill:demo",
     "REF": "demo-ref",
 }
 # The worker-side ``report`` invocation is written against values the worker

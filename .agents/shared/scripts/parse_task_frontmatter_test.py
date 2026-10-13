@@ -405,87 +405,74 @@ body
 
 _TWO_CREATION_PASS = """---
 finish_report_path: data/.tasks/harden/update-roadmap-sync/reports/report.md
+scope_file: data/.tasks/harden/update-roadmap-sync/scope.json
 diff_base: abc123
 operation: update
-creations:
-  - name: roadmap
-    type: app
-    scope_file: data/.tasks/harden/update-roadmap-sync/scope-roadmap.json
-  - name: share-gateway
-    type: service
+creations: app:roadmap service:share_gateway shared:references/roadmap.md
 ---
 body
 """
 
 
-def test_a_pass_over_two_creations_evals_to_numbered_variables(tmp_path: Path) -> None:
-    """What the worker's `eval` defines for a pass covering an app and a service:
-    every creation's name and type, and a scope file only where one was named."""
+def test_a_pass_over_two_creations_reaches_the_worker_as_type_and_name(tmp_path: Path) -> None:
+    """What the worker's `eval` defines for a pass covering an app and a service, read
+    the way the worker reads it: one `<type>:<name>` token per creation."""
     task = _write_task(tmp_path, _TWO_CREATION_PASS)
     probe = (
         f'eval "$({shlex.join([sys.executable, str(_SCRIPT), str(task)])})" && '
-        'printf "%s|" "$OPERATION" "$CREATION_COUNT" '
-        '"$CREATION_1_NAME" "$CREATION_1_TYPE" "$CREATION_1_SCOPE_FILE" '
-        '"$CREATION_2_NAME" "$CREATION_2_TYPE" "${CREATION_2_SCOPE_FILE-unset}"'
+        'printf "%s|" "$OPERATION" "$SCOPE_FILE" && '
+        'for creation in $CREATIONS; do printf "%s=%s|" "${creation%%:*}" "${creation#*:}"; done'
     )
     result = subprocess.run(
         ["bash", "-c", probe], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == (
-        "update|2|roadmap|app|"
-        "data/.tasks/harden/update-roadmap-sync/scope-roadmap.json|"
-        "share-gateway|service|unset|"
+        "update|data/.tasks/harden/update-roadmap-sync/scope.json|"
+        "app=roadmap|service=share_gateway|shared=references/roadmap.md|"
+    )
+    assert parse_task_frontmatter.parse(task).creations == (
+        parse_task_frontmatter.Creation(type="app", name="roadmap"),
+        parse_task_frontmatter.Creation(type="service", name="share_gateway"),
+        parse_task_frontmatter.Creation(type="shared", name="references/roadmap.md"),
     )
 
 
-def test_a_harden_task_without_creations_fails_loud(tmp_path: Path) -> None:
-    """A task naming an `operation` in the old single-creation shape (a top-level
-    `type`) is refused rather than handed to a worker that reads `creations`."""
+def test_a_harden_task_in_the_single_creation_shape_fails_loud(tmp_path: Path) -> None:
+    """A task with a top-level `type` is refused rather than handed to a worker that
+    reads `creations`, even when it carries both."""
     task = _write_task(
         tmp_path,
-        "---\nfinish_report_path: b\noperation: update\ntype: app\n---\nbody\n",
+        "---\nfinish_report_path: b\nscope_file: s.json\noperation: update\n"
+        "creations: app:roadmap\ntype: app\n---\nbody\n",
     )
-    with pytest.raises(ValueError, match="no `creations` list"):
+    with pytest.raises(ValueError, match="top-level `type`"):
         parse_task_frontmatter.parse(task)
 
 
 @pytest.mark.parametrize(
-    "creations_yaml,message",
+    "fields,message",
     [
-        ("creations: []", "must be a non-empty list"),
-        ("creations: roadmap", "must be a non-empty list"),
-        ("creations:\n  - roadmap", "entry 1 must be a mapping"),
-        ("creations:\n  - name: roadmap", "entry 1 is missing `type`"),
+        ("scope_file: s.json", "needs a non-empty string `creations`"),
+        ("creations: app:roadmap", "needs a non-empty string `scope_file`"),
+        ("scope_file: s.json\ncreations: [app:roadmap]", "needs a non-empty string `creations`"),
+        ("scope_file: s.json\ncreations: roadmap", "'roadmap' is not <type>:<name>"),
+        ("scope_file: s.json\ncreations: widget:roadmap", "'widget:roadmap' is not <type>:<name>"),
+        ("scope_file: s.json\ncreations: skill:a/b", "'skill:a/b' is not <type>:<name>"),
+        ("scope_file: s.json\ncreations: shared:../x", "'shared:../x' is not <type>:<name>"),
         (
-            "creations:\n  - name: roadmap\n    type: ''",
-            "`type` must be a non-empty string",
-        ),
-        ("creations:\n  - name: roadmap\n    type: app\n    kind: x", "unknown keys"),
-        (
-            "creations:\n  - name: roadmap\n    type: app\n  - name: roadmap\n    type: skill",
-            "names \\['roadmap'\\] more than once",
+            "scope_file: s.json\ncreations: app:roadmap skill:digest app:roadmap",
+            "names \\['app:roadmap'\\] more than once",
         ),
     ],
 )
-def test_a_malformed_creations_list_fails_loud(
-    tmp_path: Path, creations_yaml: str, message: str
+def test_a_malformed_harden_task_fails_loud(
+    tmp_path: Path, fields: str, message: str
 ) -> None:
     task = _write_task(
-        tmp_path,
-        f"---\nfinish_report_path: b\noperation: update\n{creations_yaml}\n---\nbody\n",
+        tmp_path, f"---\nfinish_report_path: b\noperation: update\n{fields}\n---\nbody\n"
     )
     with pytest.raises(ValueError, match=message):
-        parse_task_frontmatter.parse(task)
-
-
-def test_an_extra_key_shadowing_the_creation_variables_fails_loud(
-    tmp_path: Path,
-) -> None:
-    task = _write_task(
-        tmp_path, "---\nfinish_report_path: b\ncreation_count: '9'\n---\nbody\n"
-    )
-    with pytest.raises(ValueError, match="collides with the CREATION_"):
         parse_task_frontmatter.parse(task)
 
 

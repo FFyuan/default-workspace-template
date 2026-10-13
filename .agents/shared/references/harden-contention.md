@@ -23,14 +23,16 @@ Two principles drive every rule below:
 
 At most one harden pass per creation may be in flight, in either flow -- an
 `update` and a `heal` pass on the same creation collide just as hard as two
-updates. A pass's ticket title lists every creation it covers (`update roadmap
-sync-roadmap`), so before opening the tracking ticket, look for a live pass on
-each creation yours would cover:
+updates. A pass's ticket title lists every creation it covers (`update
+app:roadmap skill:sync-roadmap`), so before opening the tracking ticket, look
+for a live pass on each creation yours would cover. The match also takes the
+bare name, which is how a ticket opened before titles carried types names its
+creation:
 
 ```bash
 tk ready > /tmp/harden-inflight.txt
-for NAME in $CREATIONS; do
-    grep -E -- "- (update|heal) ([^ ]+ )*$NAME( |\$)" /tmp/harden-inflight.txt
+for CREATION in $CREATIONS; do
+    grep -E -- "- (update|heal) ([^ ]+ )*($CREATION|${CREATION#*:})( |\$)" /tmp/harden-inflight.txt
 done
 ```
 
@@ -77,41 +79,33 @@ or a provisional milestone merge:
    your pass stale anyway, which the next check catches.
 
 2. **Freshness check.** The pass is mergeable only if no creation in it has
-   changed since the worker branched. The paths to diff are each creation's
+   changed since the worker branched. The paths to diff are every creation's
    whole footprint, not just the files the worker touched, which is what the
-   worker's scope files hold. Those live under the worker's own `data/`
-   (gitignored, and only the reports directory syncs back), so recompute them
-   on your side with the same command, once per creation, and diff the union:
+   worker's scope file holds. That file lives under the worker's own `data/`
+   (gitignored, and only the reports directory syncs back), so recompute it on
+   your side with the same command:
 
    ```bash
    BASE=$(git merge-base HEAD "$WORKER_BRANCH")
-   PATHS=""
-   # once for each creation in the pass with a footprint, one of:
    SCOPE=$(mktemp)
-   uv run app-manifest footprint system/apps/<package>/app.toml --out "$SCOPE" || exit 1   # an app with a manifest
-   uv run app-manifest footprint --for-path .agents/skills/<name> --out "$SCOPE" || exit 1  # a skill
-   PATHS="$PATHS $(jq -r '[.primary[], .wiring[].path, .references[].path] | unique | .[]' "$SCOPE")"
-
-   [ -n "${PATHS// /}" ] || exit 1
+   uv run app-manifest pass-scope $(printf -- '--creation %s ' $CREATIONS) --out "$SCOPE" || exit 1
+   PATHS=$(jq -r '[.creations[] | .primary[], .wiring[].path, .references[].path] | unique | .[]' "$SCOPE")
+   [ -n "$PATHS" ] || exit 1
    git diff --name-only "$BASE" HEAD -- $PATHS
    ```
 
    The guards matter: with an empty `$PATHS` the diff covers the whole
-   tree, and any commit anywhere reads as a moved base. If the footprint
-   command fails (a reference the manifest names no longer exists, say), fix
-   the manifest on your branch first and rerun; do not treat the failure as
-   staleness. When the worker's `done` report lists paths under `References
-   registered:`, add them to `$PATHS` as well -- your tree's manifest predates
-   them.
-   A creation with no manifest adds its own path to `$PATHS`: a standalone
-   service under `system/services/<package>/` (plus
-   `system/supervisord.conf.d/<name>.conf`), a shared script or reference at
-   its path. A critical app's merge lives in
+   tree, and any commit anywhere reads as a moved base. If the command fails
+   (a reference a manifest names no longer exists, say), fix the manifest on
+   your branch first and rerun; do not treat the failure as staleness. When
+   the worker's `done` report lists paths under `References registered:`, add
+   them to `$PATHS` as well -- your tree's manifest predates them. A critical
+   app's merge lives in
    `update-app/references/critical-app.md` step 4, which applies this same
-   check over each leased app's `system/apps/<package>/` together with
-   `system/libs/workspace_ui/`, `system/libs/workspace_layout/`, `system/package.json`,
-   `system/package-lock.json`, each other creation in the pass at its own
-   paths, and every file the pass branch changes. Empty output means fresh: merge normally. Any output means the base moved under
+   check over the pass's footprint together with `system/libs/workspace_ui/`,
+   `system/libs/workspace_layout/`, `system/package.json`,
+   `system/package-lock.json`, and every file the pass branch changes. Empty
+   output means fresh: merge normally. Any output means the base moved under
    the worker: the pass is stale -- do not merge; supersede it (below).
 
    No shared *authored* file remains in that footprint -- a creation's

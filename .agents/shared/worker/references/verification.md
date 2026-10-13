@@ -63,19 +63,14 @@ having reviewed nothing, which is worse than not running it.
 
 Both invocations carry the run's footprint into the review agents through
 `$ARGUMENTS`, which each gate skill forwards verbatim into its sub-agent brief.
-When the pass covers any app, skill, or service, `{scope_brief}` below is this
-block, pasted verbatim with `<SCOPE_FILES>` replaced by the path of every scope
-file the pass wrote (`data/.tasks/harden/<slug>/scope-<name>.json`, one per
-creation with a footprint, per `harden-creation.md`; `none` when no creation
-has one), `<UNSCOPED_PATHS>` by the own paths of every creation in the pass
-that has no scope file (a standalone service's `system/services/<package>/` and
-`system/supervisord.conf.d/<name>.conf`, a pre-manifest app's directory and its
-supervisord section; `none` when every creation has a scope file), and
-`<REVIEW_BASE>` by the commit the pin above resolved: the `diff_base` your task
-frontmatter pinned at dispatch, which is also each scope file's `diff.base`.
+`{scope_brief}` below is this block, pasted verbatim with `<SCOPE_FILE>`
+replaced by the pass's scope file (`data/.tasks/harden/<slug>/scope.json`, per
+`harden-creation.md`) and `<REVIEW_BASE>` by the commit the pin above resolved:
+the `diff_base` your task frontmatter pinned at dispatch, which is also the
+scope file's `diff.base`.
 
     The creations are a user's own and live only in this workspace. Judge them
-    against the conventions listed in the scope files below, not against
+    against the conventions listed in the scope file below, not against
     `system_interface`'s patterns, and do not flag portability to environments
     they will never run in.
 
@@ -85,24 +80,21 @@ frontmatter pinned at dispatch, which is also each scope file's `diff.base`.
     `main...HEAD` wrong -- often empty. <REVIEW_BASE> is authoritative, and a
     disagreement between it and `main` is expected rather than a finding.
 
-    Each creation's footprint is declared in its scope file: <SCOPE_FILES>.
-    Read, in this order: the diff; then for each scope file, every file under
-    `primary`; the `wiring` sections named there, in the files they name; every
-    `references` path -- for a skill reference, its `SKILL.md` and its
-    `scripts/`, so you see how it invokes the app; every `context` path,
-    read-only; the `conventions` list. The pass also covers creations with no
-    scope file, whose footprint is their own paths: <UNSCOPED_PATHS>. A path
-    in one file's `diff.outside_footprint` that lies in another's footprint,
-    or under one of those paths, is inside the pass.
+    The pass's footprint is declared in <SCOPE_FILE>, one entry per creation
+    under `creations`. Read, in this order: the diff; then for each creation,
+    every file under `primary`; the `wiring` sections named there, in the files
+    they name; every `references` path -- for a skill reference, its
+    `SKILL.md` and its `scripts/`, so you see how it invokes the app; every
+    `context` path, read-only; the `conventions` list.
 
-    Never read a path matching `exclude`; the scope files themselves are the
-    one exception.
+    Never read a path matching a creation's `exclude`; the scope file itself
+    is the one exception.
 
-    Do not read other apps, or any path outside the footprints, unless you are
-    following a concrete import, call, URL, or file path from inside them, or
-    a finding cannot be confirmed without it.
+    Do not read other apps, or any path outside the footprint, unless you are
+    following a concrete import, call, URL, or file path from inside it, or a
+    finding cannot be confirmed without it.
 
-    List every file you read outside the footprints and the conventions under
+    List every file you read outside the footprint and the conventions under
     `Expanded to:` in your report, with the reason for each.
 
     Check the consumer contract in both directions: a change to the app's

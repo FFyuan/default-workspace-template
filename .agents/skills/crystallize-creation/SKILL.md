@@ -31,7 +31,7 @@ The type drives two things: which **gates** the worker emits (skill →
 `outline-approval` then `final-creation`; app → none, since the user
 confirmed the live site already) and the **go-live** step after merge (skill →
 post-crystallize migration; app → refresh the window). The worker reads the
-type from the task file's one `creations` entry and loads `type-<TYPE>.md`; you
+type from the task file's `creations` and loads `type-<TYPE>.md`; you
 proxy whatever gates it emits.
 
 ## When to invoke (skill, standalone)
@@ -80,22 +80,20 @@ echo "$TICKET_ID" > data/.tasks/harden/crystallize-$NAME/ticket_id.txt
 
 ## Step 3: Write the task file
 
-The frontmatter carries `operation: crystallize`,
-`finish_report_path` (the report destination the lead polls; see
-`.agents/shared/references/worker-reporting.md`), a `creations` list with the
-one creation's `name`, `type`, and `scope_file` (where the worker writes the
-creation's computed footprint at the start of its run -- you name the path, the
-worker creates the file), `diff_base` (the commit before the work
+The frontmatter carries `operation: crystallize`, `creations` (the one
+creation as `<type>:<name>`: `skill:$NAME`, `app:<app name>`, or
+`service:<package>`), `finish_report_path` (the report destination the lead
+polls; see `.agents/shared/references/worker-reporting.md`), `scope_file`
+(where the worker writes the creation's computed footprint -- you name the
+path, the worker creates the file), `diff_base` (the commit before the work
 being hardened began: your `HEAD` at dispatch for a skill reconstructed from
-the transcript; for `type: app`, the parent of the commit that added the app's
+the transcript; for an app, the parent of the commit that added the app's
 manifest, `$(git rev-parse "$(git log --diff-filter=A --format=%H -1 --
 system/apps/<package>/app.toml)^")`, so the scope file's diff covers the
-scaffold and everything built on it), and an optional `source_artifacts_dir`.
-For a `type: service` task, which has no footprint, omit `scope_file` and set
-`diff_base` to the parent of the commit that added the service's
-`system/supervisord.conf.d/<name>.conf`, the same way; `diff_base` goes on
-every task, since the worker's test gate selects its suites from what changed
-since it. The body *describes* the
+scaffold and everything built on it; for a service, the parent of the commit
+that added its `system/supervisord.conf.d/<name>.conf`, the same way), and an
+optional `source_artifacts_dir`. The worker's test gate also selects its suites
+from what changed since `diff_base`. The body *describes* the
 work and -- for a skill reconstructed from the transcript -- anchors the
 worker's search with verbatim quotes (the user's original ask, key decisions,
 tool outputs that defined the recipe). Without anchors the worker scans the
@@ -108,12 +106,10 @@ flow steps, or argparse surfaces -- those are the worker's decisions.
 cat << FRONTMATTER_EOF
 ---
 finish_report_path: data/.tasks/harden/crystallize-$NAME/reports/report.md
+scope_file: data/.tasks/harden/crystallize-$NAME/scope.json
 diff_base: $(git rev-parse HEAD)
 operation: crystallize
-creations:
-  - name: $NAME
-    type: skill
-    scope_file: data/.tasks/harden/crystallize-$NAME/scope-$NAME.json
+creations: skill:$NAME
 FRONTMATTER_EOF
 # If a wrapper staged input files, add this line inside the frontmatter:
 #   source_artifacts_dir: data/.tasks/<calling-skill>/$NAME/
@@ -164,7 +160,7 @@ BODY_EOF
 } > data/.tasks/harden/crystallize-$NAME/task.md
 ```
 
-Set `type: app` (and adjust the body to point at the already-built lib)
+Set `creations: app:<app name>` (and adjust the body to point at the already-built lib)
 when invoked by `build-app`. Fill in the real `## What was done` and
 `## Anchors` -- do not leave the placeholders. If frontmatter sets
 `source_artifacts_dir`, Step 4 pushes that directory to the worker too.

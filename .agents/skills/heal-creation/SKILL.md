@@ -22,8 +22,8 @@ two workers would each see only half of the failure.
 
 ## The type parameter
 
-Each creation in the pass has a `type`: `skill` (the default), `app`, or
-`service`. The worker reads it and loads `type-<TYPE>.md`. A heal of a critical
+Each creation in the pass has a type: `skill`, `app`, or `service`. The worker
+reads it and loads `type-<TYPE>.md`. A heal of a critical
 app (the shell, the chat, the terminal, or an app whose manifest says
 `critical = true`) is a live edit of the served tree at your own risk: there is
 no preview, no kept rollback point, and no notice behind it, so a wrong fix
@@ -41,10 +41,13 @@ it whenever the fix can wait for a preview.
 
 ## Conventions
 
-Use `$CREATIONS` for the names of every creation the pass heals,
-space-separated (e.g. `migrate-config`, or `roadmap sync-roadmap`), and `$SLUG`
-for the pass: the creation's own name when there is one, otherwise a short
-kebab-case name for the failure (`roadmap-sync`). Then:
+Use `$CREATIONS` for every creation the pass heals, each as `<type>:<name>`,
+space-separated: `app:<registered name>`, `skill:<directory>`,
+`service:<package>`, or `shared:<path under .agents/shared>` for a shared
+script or reference (e.g. `skill:migrate-config`, or `app:roadmap
+skill:sync-roadmap`). Use `$SLUG` for the pass: the creation's own name when
+there is one, otherwise a short kebab-case name for the failure
+(`roadmap-sync`). Then:
 
 - Worker agent name and branch: `heal-$SLUG` / `mngr/heal-$SLUG`
 - Runtime dir / task file: `data/.tasks/harden/heal-$SLUG/` /
@@ -73,17 +76,13 @@ tk start "$TICKET_ID"
 
 ## Step 2: Write the task file
 
-Frontmatter carries `operation: heal`, the worker reporting fields (per
-`.agents/shared/references/worker-reporting.md`), `diff_base` (your `HEAD` at
-dispatch: the fix does not exist yet, so the worker's own commits are the whole
-diff), and `creations`, one entry per creation the pass heals: its `name`, its
-`type`, and its `scope_file` (where the worker writes that creation's computed
-footprint at the start of its run -- you name the path, `scope-<name>.json`
-beside the task file, and the worker creates the file). `scope_file` is for a
-skill or an app with an `app.toml`; omit it for a service or a pre-manifest
-app, which have no footprint.
-`diff_base` goes on every task: the worker's test gate selects its suites from
-what changed since it. The body describes the failure and anchors the worker's search
+Frontmatter carries `operation: heal`, `creations` (`$CREATIONS`), the worker
+reporting fields (per `.agents/shared/references/worker-reporting.md`),
+`scope_file` (where the worker writes the pass's computed footprint at the
+start of its run -- you name the path, the worker creates the file), and
+`diff_base` (your `HEAD` at dispatch: the fix does not exist yet, so the
+worker's own commits are the whole diff). The worker's test gate also selects
+its suites from what changed since `diff_base`. The body describes the failure and anchors the worker's search
 with verbatim quotes (the user's request, the failing command or error, any tool
 output that exposed the misbehavior). Without anchors the worker scans the wrong
 region of your transcript.
@@ -92,12 +91,10 @@ region of your transcript.
 cat > data/.tasks/harden/heal-$SLUG/task.md << TASK_EOF
 ---
 finish_report_path: data/.tasks/harden/heal-$SLUG/reports/report.md
+scope_file: data/.tasks/harden/heal-$SLUG/scope.json
 diff_base: $(git rev-parse HEAD)
 operation: heal
-creations:
-  - name: <name>
-    type: skill
-    scope_file: data/.tasks/harden/heal-$SLUG/scope-<name>.json
+creations: $CREATIONS
 ---
 
 # Task: heal \`$CREATIONS\`
@@ -132,8 +129,7 @@ Push reports to the lead per its reporting protocol.
 TASK_EOF
 ```
 
-List one `creations` entry per creation the pass heals, each with its own
-`type:`, and fill in the real content; do not leave placeholders.
+Fill in the real content; do not leave placeholders.
 
 ## Step 3: Launch the worker and poll
 
