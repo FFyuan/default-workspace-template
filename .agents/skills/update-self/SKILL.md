@@ -568,7 +568,7 @@ diagnose liveness the same way if no report comes.
 
 Never destroy or stop the worker to make room for a new pass. A fresh pass
 (Step 3b) is only for a worker that is gone, or one that reports `stuck` on
-the catch-up.
+the catch-up and is not resumed ("Resuming after `stuck`" below).
 
 Run the apply from the staged copy, in the **foreground**: its output (refusal
 and resume messages, any provisioner warning, the `apply phase timings:` line)

@@ -206,8 +206,10 @@ which takes the milestone's commits back out of it.
 ## Superseding a pass whose worker is gone
 
 When there is no worker left to catch up -- an abandoned pass whose session is
-gone, one stopped after a failure, or one that reported `stuck` on the catch-up
-itself -- replace it with **one** new pass:
+gone, or one stopped after a failure (a `stuck` on the catch-up itself
+included) whose user did not override it -- replace it with **one** new pass.
+A worker the user's override resumes is kept (`lead-proxy.md`, "Resuming
+after the user overrides a failure"):
 
 ```bash
 uv run .agents/skills/launch-task/scripts/create_worker.py destroy --name <worker-name> --delete-branches
