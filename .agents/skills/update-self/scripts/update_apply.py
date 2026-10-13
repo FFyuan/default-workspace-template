@@ -1654,10 +1654,15 @@ def _supervisord_program_names(repo_root: Path) -> set[str]:
     )
     names: set[str] = set()
     for conf_path in conf_paths:
+        if not conf_path.is_file():
+            continue
         try:
             names.update(_PROGRAM_SECTION.findall(conf_path.read_text()))
-        except OSError:
-            continue
+        except OSError as exc:
+            sys.stderr.write(
+                f"note: skipping {conf_path} for the rollback's service programs: "
+                f"it could not be read ({exc}).\n"
+            )
     return names
 
 
