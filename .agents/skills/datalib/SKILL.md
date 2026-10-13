@@ -47,11 +47,35 @@ supervisorctl start datalib
    mirrored. Query the local store before syncing anything new. An empty
    result means "nothing mirrored yet", so offer to sync -- don't treat it as
    "no such data".
-2. **Sync to import or refresh data.** Syncs are incremental and resumable; the
-   first sync of a source is slow, later runs only pull deltas. `datalib-dag`
-   runs alongside the Datalib app's server on the same root without conflict;
-   never start a second `datalib-http` on this root, though -- the running one
-   holds the root's `system/` lock, and its API is yours to use (below).
+2. **Sync to import or refresh data, without holding your turn.** Syncs are
+   incremental and resumable; the first sync of a source is slow (minutes to
+   an hour), later runs only pull deltas. Don't run one inside your turn: the
+   user would watch an idle chat, and a sync you run from your own shell is
+   stopped when this chat is stopped or handed off. Hand it to the Datalib app
+   instead, which runs independently of any chat, and be woken when it ends:
+
+   ```bash
+   # File the sync. Prints one request id per line (one per source).
+   python3 .agents/skills/datalib/scripts/sync_request.py open slack/ingest --by "${MINDS_CHAT_ID:-agent}"
+
+   # Wait for those requests in the background, then END YOUR TURN.
+   python3 system/scripts/run_in_background.py --description "Sync Slack into datalib" -- \
+     python3 .agents/skills/datalib/scripts/sync_request.py wait <request-id>...
+   ```
+
+   Tell the user the sync is running and that you will answer when it is
+   done; they can watch it in the Datalib app. When it ends, a message with
+   each request's outcome (`done`, `failed` and the step it failed at, or
+   `stopped` and by whom) starts your next turn. `open` with no step syncs
+   every source. With no chat to be woken in (`MINDS_CHAT_ID` and
+   `MNGR_AGENT_ID` both unset), run the `wait` command directly instead.
+
+   `datalib-dag <config> --sync <step>` from the agent guide does the same
+   sync and blocks until it ends, printing progress as it goes. Use it for a
+   refresh you expect to take seconds, or when you need that progress output
+   to diagnose a failure. It runs alongside the app's server on the same root
+   without conflict; never start a second `datalib-http` on this root, though
+   -- the running one holds the root's `system/` lock.
 3. **Credentials go through latchkey.** The web-API sources authenticate via
    `latchkey`, already wired to the user through the Imbue Studio app. If a sync
    reports missing credentials or "not permitted", file a permission request
