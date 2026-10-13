@@ -4194,8 +4194,8 @@ class AgentManager:
 
         Claude's Stop hook only copies the tasks still listed when a turn ends normally, so a
         turn the user interrupts, or one that fails, would leave a finished task's marker live
-        for as long as Claude runs. Its transcript records every task's end, whatever the turn
-        then does.
+        until Claude's next Stop, or its exit. Its transcript records every task's end, whatever
+        the turn then does.
         """
         reader = self._background_tasks
         if reader is None:

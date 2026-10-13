@@ -3551,7 +3551,7 @@ def test_a_claude_task_its_transcript_reports_over_stops_counting_with_no_stop_h
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
     """A turn the user interrupts, or one that fails, runs no Stop hook, so the finished task's marker would stay
-    live for as long as Claude runs. The transcript's notice of its end removes it."""
+    live until Claude's next Stop, or its exit. The transcript's notice of its end removes it."""
     manager, reader = _manager_reading_tasks(broadcaster, tmp_path)
     claude = reader.script.SOURCE_CLAUDE
     try:
