@@ -22,8 +22,9 @@ Each marker names the pid whose death makes it stale (the runner, or the Claude 
 and where ``/proc`` has it, that process's start time, so a pid recycled after a restart does not
 bring a marker back. Readers skip a stale marker and never delete it; its writer's next pass does.
 The one exception is the chat app, which removes a ``claude-*`` marker as soon as Claude's
-transcript reports the task over: a turn the user interrupts, or one that fails, runs no Stop
-hook, and its finished tasks would otherwise read as pending for as long as Claude runs.
+transcript reports the task over, in a chat whose transcript it is tailing: a turn the user
+interrupts, or one that fails, runs no Stop hook, and its finished tasks would otherwise read as
+pending until the next Stop or Claude's exit.
 
 The chat app reads the directories on its state poller and is the authority for everyone else:
 ``list`` and ``is-busy`` ask it first (``GET /api/agents?tracked=true``), and read the files
