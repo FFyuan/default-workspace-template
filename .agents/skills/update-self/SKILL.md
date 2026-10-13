@@ -587,8 +587,8 @@ are installed instead of a live build; the apply installs them only as a set (on
 `npm run build` emits them all), and builds live when any is missing or stale.
 
 That one command is the whole landing: it fast-forwards to the worker's branch
-tip (its `update-self:` merge, or a catch-up merge on top of it), snapshots the
-pre-apply state, refreshes the
+tip (its `update-self:` merge and anything it committed after it, catch-up
+merges included), snapshots the pre-apply state, refreshes the
 affected environments, re-runs `system/scripts/setup_system.sh` when a file it
 reads changed, pre-flights the merged backend (the shell, and the chat app in its
 side-effect-free `--preflight` mode, since the chat is the process that imports

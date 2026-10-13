@@ -136,8 +136,8 @@ a commit reverting just the paths they dislike; never rewind history.
 
 `<merge sha>` is the update's `update-self:` merge, not the tip the apply
 landed. After a catch-up that tip (and the sha the version history records) is
-the worker's catch-up merge, and reverting it with `-m 1` takes out the
-workspace's own commits instead of the update:
+the worker's catch-up merge or a commit on top of it, and reverting a catch-up
+merge with `-m 1` takes out the workspace's own commits instead of the update:
 
 ```bash
 git log --first-parent -1 --format=%H --fixed-strings \
