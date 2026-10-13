@@ -1,7 +1,7 @@
 ---
 name: datalib
 description: Search and mirror the user's own personal data (chat history, Slack, email, GitHub, Notion, contacts, messages) with datalib, an UNANNOUNCED feature that is off by default. Use ONLY when the user explicitly says "datalib" -- never suggest, mention, or start it proactively, and never reach for it just because a request is about their past messages or mail.
-compatibility: The datalib binaries are installed at boot by system/scripts/env.d/2000-datalib-binaries.sh. Needs curl and the latchkey gateway (present in a default-workspace-template agent); datalib brings its own Node runtime.
+compatibility: Nothing of datalib is installed until this skill is first used; scripts/install_datalib.sh then downloads the binaries and datalib's own Node runtime (about 195 MB together). Needs curl and the latchkey gateway (present in a default-workspace-template agent).
 ---
 
 # datalib
@@ -32,19 +32,14 @@ DATA_ROOT="$HOME/workspace/data/.skills/datalib"   # the data root holding the s
 DATALIB_CONFIG="$DATA_ROOT/config.toml"
 mkdir -p "$DATA_ROOT"
 
-# The binaries are pinned to datalib v0.42.0 and installed on the env-converge
-# one-shot at boot. If they are not there yet (a first boot still converging,
-# or a workspace updated to this version that has not rebooted), run the
-# unit by hand -- it is idempotent and a no-op once installed:
-command -v datalib-dag >/dev/null 2>&1 || bash "$HOME/workspace/system/scripts/env.d/2000-datalib-binaries.sh"
+# Nothing of datalib is installed until it is first used. This installs the
+# binaries (pinned to datalib v0.42.0) and the Node runtime a sync shells out
+# to, about 195 MB together on the first run; after that it only checks that
+# they are there, so run it every time:
+bash "$HOME/workspace/.agents/skills/datalib/scripts/install_datalib.sh"
 
-# The Node runtime a sync shells out to (latchkey and qmd, at the versions
-# datalib was built with) is a separate ~100 MB download into
-# ~/.cache/datalib/runtime. The first sync fetches it if this does not:
-datalib-step pull-runtime
-
-# The Datalib app is stopped until someone asks for datalib. Start it once;
-# it is a no-op when already running, and from then on the app is listed:
+# The Datalib app is stopped until someone asks for datalib. Start it; from
+# then on the app is listed. "already started" means it was running already:
 supervisorctl start datalib
 ```
 
@@ -78,8 +73,8 @@ supervisorctl start datalib
    The window signs itself in (it opens with datalib's API token on its
    address), so there is no link to paste. If the window is empty or the app is
    missing from the launcher, `supervisorctl status datalib` says why: `STOPPED`
-   means it was never started (start it as above), and on a fresh workspace
-   it retries until the binaries have arrived.
+   means it was never started (start it as above), and one that keeps
+   exiting is missing its binary (run the install script above).
 6. **The API is reachable with the bearer token.** The same server answers
    `http://127.0.0.1:8731` from inside the workspace, and every route needs
    the token it publishes at `$DATA_ROOT/system/api-token` (stable across

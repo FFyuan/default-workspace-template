@@ -61,7 +61,7 @@ MINTED_TOKEN_BYTES: Final[int] = 32
 # skill reads the same file for its bearer token.
 TOKEN_FILE_RELATIVE_PATH: Final[Path] = Path("system") / "api-token"
 
-# Where system/scripts/env.d/2000-datalib-binaries.sh links the pinned binaries. An absolute path:
+# Where the datalib skill's scripts/install_datalib.sh links the pinned binaries. An absolute path:
 # supervisord's children do not have ~/.local/bin on PATH.
 DATALIB_HTTP_RELATIVE_TO_HOME: Final[Path] = Path(".local") / "bin" / "datalib-http"
 
@@ -189,12 +189,12 @@ def launch(arguments: argparse.Namespace) -> None:
     """Register the app with the token on its launch path, then become datalib-http.
 
     Refuses to start (so supervisord retries with its backoff, and the app is never registered without a
-    server behind it) until the env.d unit has installed the binary.
+    server behind it) until the datalib skill's install script has installed the binary.
     """
     if not arguments.datalib_http.is_file():
         raise DatalibLaunchError(
             f"{arguments.datalib_http} is not installed yet; "
-            "system/scripts/env.d/2000-datalib-binaries.sh installs it on the next env-converge run"
+            "run .agents/skills/datalib/scripts/install_datalib.sh, as the datalib skill does on first use"
         )
     token = read_or_mint_token(arguments.data_root)
     registered_manifest_path = write_registered_manifest(
