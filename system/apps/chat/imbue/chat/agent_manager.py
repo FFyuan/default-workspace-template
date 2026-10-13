@@ -2119,6 +2119,7 @@ class AgentManager:
             apply_model=self.apply_model_pick,
             drain_to_composer=capabilities.drain_to_composer,
             ensure_watcher=capabilities.ensure_watcher,
+            get_background_tasks=self._background_tasks_of_chat,
             stop_agent=self.stop_agent_process,
             destroy_agent=self.destroy_agent_process,
             note_agent_renamed=self._note_agent_renamed,
@@ -4207,6 +4208,10 @@ class AgentManager:
             _loguru_logger.warning("Could not remove the finished background tasks {} of {}: {}", task_ids, agent_id, e)
             return
         self._recompute_background_tasks(chat_id)
+
+    def _background_tasks_of_chat(self, chat_id: ChatId) -> tuple[BackgroundTask, ...]:
+        with self._lock:
+            return self._background_tasks_by_chat.get(chat_id, ())
 
     def busy_state_of_agent(self, agent_id: str, labels: Mapping[str, str]) -> AgentBusyState:
         """Whether an agent will resume on its own, the chat it belongs to, and that chat's pending tasks.

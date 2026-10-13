@@ -29,6 +29,9 @@ BACKGROUND_TASKS_SCRIPT_PATH: Final[Path] = Path("system/scripts/background_task
 # The markers' root under the chat's data dir; the script's own default and the agents'
 # ``MINDS_BACKGROUND_TASKS_DIR`` name the same directory.
 BACKGROUND_TASKS_DIRNAME: Final[str] = "background_tasks"
+# The marker source of a command ``run_in_background.py`` runs, which outlives the agent that started it; the script's
+# ``SOURCE_RUN_IN_BACKGROUND``.
+RUN_IN_BACKGROUND_SOURCE: Final[str] = "run_in_background"
 
 
 class BackgroundTasksScriptError(ChatAppError):

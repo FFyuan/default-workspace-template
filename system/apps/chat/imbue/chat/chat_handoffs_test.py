@@ -18,6 +18,7 @@ from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import SendFailedError
 from imbue.chat.agent_manager import _account_binding_args
 from imbue.chat.agent_manager import _build_chat_create_command
+from imbue.chat.background_tasks import BackgroundTask
 from imbue.chat.chat_handoffs import HandoffCancelledError
 from imbue.chat.chat_handoffs import HandoffDeps
 from imbue.chat.chat_handoffs import HandoffRunner
@@ -344,6 +345,7 @@ def _runner(workspace: _FakeWorkspace, **overrides: Any) -> HandoffRunner:
         apply_model=workspace.apply_model,
         drain_to_composer=workspace.drain_to_composer,
         ensure_watcher=workspace.ensure_watcher,
+        get_background_tasks=lambda chat_id: (),
         stop_agent=workspace.stop_agent,
         destroy_agent=workspace.destroy_agent,
         note_agent_renamed=workspace.note_agent_renamed,
@@ -634,6 +636,37 @@ def test_the_prompt_names_an_earlier_predecessor_by_the_archival_name_it_was_giv
     assert f"- seq 2: {archived_agent_name(2, 'Chat-1', second)}, id {second}" in prompt
     assert archived_agent_name(1, "Chat-1", first) not in prompt
     assert successor in workspace.agents
+
+
+def test_the_prompt_says_which_waited_on_tasks_the_switch_stopped_and_which_still_report(tmp_path: Path) -> None:
+    """The switch stops the retiring agent, which ends Claude's own background tasks; a command started through the
+    runner outlives it and reports to the chat. The successor is told which is which, so it restarts what was lost
+    and waits for what is coming."""
+    workspace, _, _ = _workspace(tmp_path, phase=HandoffPhase.SUMMARIZING)
+    tasks = (
+        BackgroundTask(
+            source="claude",
+            id="bg-1",
+            description="Run the test suite",
+            started_at="2026-10-08T12:00:00+00:00",
+            pid=1,
+            kind="shell",
+            command="pytest -q",
+        ),
+        BackgroundTask(
+            source="run_in_background",
+            id="task-1",
+            description="Rebuild the worker image",
+            started_at="2026-10-08T12:01:00+00:00",
+            pid=2,
+        ),
+    )
+
+    _runner(workspace, get_background_tasks=lambda chat_id: tasks).run(workspace.chat_id, "h-1")
+
+    prompt = workspace.delivered_prompt()
+    assert "- Stopped by the switch; start it again if it is still needed: Run the test suite (`pytest -q`)" in prompt
+    assert "- Still running; its report arrives in this chat as a message: Rebuild the worker image" in prompt
 
 
 def test_the_prompt_leaves_out_a_seeded_chats_seed_segment(tmp_path: Path) -> None:

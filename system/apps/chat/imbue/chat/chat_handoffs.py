@@ -39,6 +39,8 @@ from imbue.chat.activity_state import parse_iso_timestamp_to_epoch
 from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import SendFailedError
 from imbue.chat.agent_discovery import agent_state_dir
+from imbue.chat.background_tasks import RUN_IN_BACKGROUND_SOURCE
+from imbue.chat.background_tasks import BackgroundTask
 from imbue.chat.chat_records import ChatAgentEntry
 from imbue.chat.chat_records import ChatHandoffRecord
 from imbue.chat.chat_records import ChatRecord
@@ -204,6 +206,25 @@ def summary_section(path: Path, text: str) -> str:
 
 
 @pure
+def background_tasks_section(tasks: tuple[BackgroundTask, ...]) -> str:
+    """The prompt's passage on the tasks the chat waited on as it moved, or '' when there were none.
+
+    A command the retiring agent started through ``run_in_background.py`` outlives it and reports to the chat, so to
+    the successor; any other (Claude's own) ended with the agent the switch stopped.
+    """
+    if not tasks:
+        return ""
+    lines = ["Background tasks your predecessor was waiting on when the chat moved to you:"]
+    for task in tasks:
+        if task.source == RUN_IN_BACKGROUND_SOURCE:
+            lines.append(f"- Still running; its report arrives in this chat as a message: {task.description}")
+        else:
+            command = f" (`{task.command}`)" if task.command else ""
+            lines.append(f"- Stopped by the switch; start it again if it is still needed: {task.description}{command}")
+    return "\n".join(lines) + "\n\n"
+
+
+@pure
 def summary_request_message(path: Path) -> str:
     """The slash command that asks the retiring agent for its summary (the ``handoff-summary`` skill)."""
     return f"{HANDOFF_SUMMARY_COMMAND} {path}"
@@ -361,6 +382,8 @@ class HandoffDeps(FrozenModel):
     # Interrupt the agent's turn and return its queue as one block (the stop button's path).
     drain_to_composer: Callable[[AgentInfo], str]
     ensure_watcher: Callable[[AgentInfo], TranscriptReader]
+    # The chat's pending background tasks, as the chat app last read them.
+    get_background_tasks: Callable[[ChatId], tuple[BackgroundTask, ...]]
     # ``mngr stop`` plus the session's dead-lifecycle teardown, reflected in the tracked state.
     stop_agent: Callable[[AgentInfo], None]
     # ``mngr destroy --force`` of one agent by id; raises ``AgentDestroyError`` when mngr refuses or fails.
@@ -595,7 +618,8 @@ class HandoffRunner:
     def _render_prompt(
         self, record: ChatRecord, handoff: ChatHandoffRecord, outcome: SummaryOutcome, trigger_text: str
     ) -> str:
-        """Fill the ``continue-chat`` reference in: the summary, the predecessors, the lanes, the user's message.
+        """Fill the ``continue-chat`` reference in: the summary, the background tasks the chat was waiting on, the
+        predecessors, the lanes, the user's message.
 
         The summary travels inside the prompt when it is no larger than ``INLINE_SUMMARY_MAX_BYTES``,
         so the successor has its context before its first tool call; the path stays beside it for
@@ -628,6 +652,7 @@ class HandoffRunner:
                 predecessor_harness=HARNESS_LABEL[retiring.harness],
                 successor_harness=HARNESS_LABEL[handoff.target_harness],
                 summary=summary,
+                background_tasks=background_tasks_section(self._deps.get_background_tasks(record.chat_id)),
                 predecessors=predecessors,
                 source_lane=retiring.lane,
                 target_lane=handoff.target_lane,
