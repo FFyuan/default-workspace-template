@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+import shutil
 import threading
 import urllib.error
 import urllib.parse
