@@ -236,8 +236,8 @@ class LastGoodRecord:
     merge added, which a rollback removes) and ``apps`` the app names the shell
     raises the notice on, an added app included. ``needs_system_services_restart``
     says the diff reached the bootstrap or the services agent's own setup, which a
-    program restart cannot undo. ``progress`` is what a running rollback is doing right now and
-    ``outcome`` how it ended, both for the notice to show.
+    program restart cannot undo. ``progress`` is what a running rollback is doing
+    right now and ``outcome`` how it ended, both for the notice to show.
     """
 
     merge_sha: str
