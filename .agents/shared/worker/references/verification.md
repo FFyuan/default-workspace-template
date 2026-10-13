@@ -87,8 +87,9 @@ scope file's `diff.base`.
     `SKILL.md` and its `scripts/`, so you see how it invokes the app; every
     `context` path, read-only; the `conventions` list.
 
-    Never read a path matching a creation's `exclude`; the scope file itself
-    is the one exception.
+    Never read a path matching a creation's `exclude`, unless another
+    creation's footprint holds it and does not exclude it; the scope file
+    itself is the one exception.
 
     Do not read other apps, or any path outside the footprint, unless you are
     following a concrete import, call, URL, or file path from inside it, or a
