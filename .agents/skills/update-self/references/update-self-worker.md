@@ -566,7 +566,7 @@ the workspace's commits as your edits.
   Handle a failing test as 4b does, except that the tree before your change,
   for attributing a failure, is the commit you merged (the catch-up merge's
   second parent), not `$MERGE^1`: a test that fails there was already failing
-  in the workspace.
+  in the workspace, and one absent there arrived with the update.
 - **Isolated-service boots** for a service with a file both sides of the
   catch-up merge changed (your branch and the incoming commits, conflicted or
   auto-merged), as 4b boots its merged set, and for each service that carries
