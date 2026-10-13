@@ -10,8 +10,8 @@ set -euo pipefail
 # Two callers, one contract:
 #
 #   - The SessionStart hook claude_session_start_background.sh starts it
-#     detached, at most every few hours per config dir and project path, with
-#     --strict so a failed install is retried by the next session. A plugin
+#     detached at every session start, without --strict, unless the previous
+#     run for the same config dir and project path is still going. A plugin
 #     installed from inside a running session is only loaded by the next
 #     session (Claude Code resolves the plugin set at startup), so the run
 #     converges state for later sessions and never blocks the current one. Its
@@ -26,7 +26,7 @@ set -euo pipefail
 #     provision output, and the worker itself reports the missing gate.
 #
 #   --strict (exit 1 when any plugin failed to install) is for callers that
-#   act on a failed install, as the SessionStart run does by retrying it.
+#   would rather fail fast than run without the plugins.
 #
 # The cache is never wiped here. Every claude in the workspace shares one
 # config dir, so deleting plugins/cache/<marketplace> while other sessions run

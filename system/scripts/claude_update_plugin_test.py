@@ -195,7 +195,7 @@ def test_never_wipes_the_shared_plugin_cache(tmp_path: Path) -> None:
     assert cached_skill.is_file()
 
 
-def test_install_failure_is_reported_on_stdout_and_does_not_fail_a_non_strict_run(
+def test_install_failure_is_reported_on_stdout_and_does_not_fail_the_hook(
     tmp_path: Path,
 ) -> None:
     result, calls = _run(tmp_path, fail=f"install:{_GUARDIAN}")
@@ -235,7 +235,7 @@ def test_update_failure_alone_is_a_warning_even_under_strict(tmp_path: Path) -> 
     assert f"plugin update --scope project {_GUARDIAN}" in calls
 
 
-def test_missing_claude_binary_is_a_noop_for_worker_provisioning_but_an_error_under_strict(
+def test_missing_claude_binary_is_a_noop_for_the_hook_but_an_error_under_strict(
     tmp_path: Path,
 ) -> None:
     empty_bin = tmp_path / "empty-bin"
@@ -246,7 +246,7 @@ def test_missing_claude_binary_is_a_noop_for_worker_provisioning_but_an_error_un
         "SHIM_LOG": str(tmp_path / "unused.log"),
     }
 
-    provision_run = subprocess.run(
+    hook_run = subprocess.run(
         ["/bin/bash", str(_SCRIPT)],
         cwd=tmp_path,
         env=env,
@@ -263,8 +263,8 @@ def test_missing_claude_binary_is_a_noop_for_worker_provisioning_but_an_error_un
         check=False,
     )
 
-    assert provision_run.returncode == 0
-    assert provision_run.stdout == ""
+    assert hook_run.returncode == 0
+    assert hook_run.stdout == ""
     assert strict_run.returncode == 1
     assert "claude is not on PATH" in strict_run.stderr
 

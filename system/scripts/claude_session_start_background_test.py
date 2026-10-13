@@ -2,8 +2,9 @@
 
 Claude Code takes no prompt until every SessionStart hook exits, so what these pin is
 that the hook's own run stays short however slow the jobs are, that the jobs still run
-(at a lower CPU priority), that the plugin run is throttled per config dir and project
-path, and that the warnings a previous run logged reach the next session's context.
+(at a lower CPU priority), that every session starts a plugin check unless the previous
+one for the same config dir and project path is still running, and that the warnings a
+previous run logged reach the next session's context.
 Recording ``claude`` and ``uv`` shims stand in for the real binaries.
 """
 
@@ -19,7 +20,6 @@ from imbue.mngr.utils.polling import wait_for
 
 _HOOK = Path(__file__).with_name("claude_session_start_background.sh")
 _PLUGIN_SCRIPT = Path(__file__).with_name("claude_update_plugin.sh")
-_TWO_DAYS_SECONDS = 2 * 24 * 3600
 _SLOW_JOB_SECONDS = 3
 _HOOK_RETURN_BUDGET_SECONDS = 2.0
 # The jobs run at a lower CPU priority on purpose, so a busy machine starves them;
@@ -66,19 +66,14 @@ def _scripts_dir(tmp_path: Path) -> Path:
 
 
 def _install_scripts(tmp_path: Path) -> Path:
-    """Copy the hook and the plugin script it starts, backdated two days.
-
-    The hook also runs the plugin script when that script is newer than its stamp, so
-    the tests run copies whose age they control rather than the checkout's files."""
+    """Copy the hook and the plugin script it starts, so the hook keeps its state
+    under ``tmp_path`` rather than the checkout."""
     scripts_dir = _scripts_dir(tmp_path)
     hook = scripts_dir / _HOOK.name
     if not hook.exists():
         scripts_dir.mkdir(parents=True)
-        two_days_ago = time.time() - _TWO_DAYS_SECONDS
         for script in (_HOOK, _PLUGIN_SCRIPT):
-            copied = scripts_dir / script.name
-            shutil.copy2(script, copied)
-            os.utime(copied, (two_days_ago, two_days_ago))
+            shutil.copy2(script, scripts_dir / script.name)
     return hook
 
 
@@ -162,48 +157,32 @@ def test_the_hook_returns_before_its_slow_jobs_and_they_run_at_lower_priority(
     assert job_niceness == {min(base_niceness + 10, 19)}
 
 
-def test_the_plugin_run_is_throttled_but_uv_sync_runs_every_session(
-    tmp_path: Path,
-) -> None:
+def test_every_session_checks_plugins_and_syncs(tmp_path: Path) -> None:
     _run_hook(tmp_path, delay_seconds=0)
     _wait_for_shim_calls(tmp_path, "plugin update", expected_count=2)
     _wait_for_shim_calls(tmp_path, "sync --all-packages", expected_count=1)
-    # The hook touches the stamp before it starts a plugin run, so a stamp it leaves
-    # alone means it started none; an hour old is well inside the throttle window.
-    stamp = _state_dir(tmp_path) / "plugin_update.stamp"
-    an_hour_ago_ns = (int(time.time()) - 3600) * 1_000_000_000
-    os.utime(stamp, ns=(an_hour_ago_ns, an_hour_ago_ns))
 
     _run_hook(tmp_path, delay_seconds=0)
 
-    assert stamp.stat().st_mtime_ns == an_hour_ago_ns
+    _wait_for_shim_calls(tmp_path, "plugin marketplace list", expected_count=2)
     _wait_for_shim_calls(tmp_path, "sync --all-packages", expected_count=2)
 
 
-def test_a_stale_stamp_lets_the_plugin_run_again(tmp_path: Path) -> None:
-    _run_hook(tmp_path, delay_seconds=0)
-    _wait_for_shim_calls(tmp_path, "plugin update", expected_count=2)
-    stamp = _state_dir(tmp_path) / "plugin_update.stamp"
-    a_day_ago = time.time() - 24 * 3600
-    os.utime(stamp, (a_day_ago, a_day_ago))
-
-    _run_hook(tmp_path, delay_seconds=0)
-
-    _wait_for_shim_calls(tmp_path, "plugin marketplace list", expected_count=2)
-
-
-def test_a_changed_plugin_script_runs_again_inside_the_throttle_window(
+def test_a_session_skips_the_plugin_check_while_the_last_one_is_running(
     tmp_path: Path,
 ) -> None:
-    _run_hook(tmp_path, delay_seconds=0)
-    _wait_for_shim_calls(tmp_path, "plugin update", expected_count=2)
-    an_hour_ago = time.time() - 3600
-    os.utime(_state_dir(tmp_path) / "plugin_update.stamp", (an_hour_ago, an_hour_ago))
-    (_scripts_dir(tmp_path) / _PLUGIN_SCRIPT.name).touch()
+    _run_hook(tmp_path, delay_seconds=_SLOW_JOB_SECONDS)
+    pid_file = _state_dir(tmp_path) / "plugin_update.pid"
+    running_pid = pid_file.read_text()
 
-    _run_hook(tmp_path, delay_seconds=0)
+    _run_hook(tmp_path, delay_seconds=_SLOW_JOB_SECONDS)
 
-    _wait_for_shim_calls(tmp_path, "plugin marketplace list", expected_count=2)
+    # Both sessions' uv syncs start at once, as would a second plugin check, so by the
+    # time both syncs have logged, a second check would have logged its first call too.
+    _wait_for_shim_calls(tmp_path, "sync --all-packages", expected_count=2)
+    _wait_for_shim_calls(tmp_path, "plugin marketplace list", expected_count=1)
+    assert sum("plugin marketplace list" in line for line in _shim_calls(tmp_path)) == 1
+    assert pid_file.read_text() == running_pid
 
 
 def test_the_next_session_reports_what_the_previous_runs_warned_about(
@@ -231,8 +210,7 @@ def test_the_next_session_reports_what_the_previous_runs_warned_about(
 def test_a_warning_from_a_run_that_succeeded_is_reported_to_one_session_only(
     tmp_path: Path,
 ) -> None:
-    # Only the updates fail: the run warns but succeeds, so its stamp and its log both
-    # stay until the next run, hours later.
+    # Only the updates fail: the run warns but succeeds.
     _run_hook(tmp_path, delay_seconds=0, failing_args="plugin update")
     _wait_for_shim_calls(tmp_path, "plugin update", expected_count=2)
     plugin_log = _state_dir(tmp_path) / "plugin_update.log"
@@ -246,17 +224,6 @@ def test_a_warning_from_a_run_that_succeeded_is_reported_to_one_session_only(
 
     assert "warning: could not update plugin" in reporting_session.stdout
     assert "warning: could not update plugin" not in later_session.stdout
-
-
-def test_a_failed_plugin_install_is_retried_by_the_next_session(tmp_path: Path) -> None:
-    _run_hook(tmp_path, delay_seconds=0, exit_code=1)
-    _wait_for_shim_calls(tmp_path, "plugin install", expected_count=2)
-    stamp = _state_dir(tmp_path) / "plugin_update.stamp"
-    _wait_until(lambda: not stamp.exists(), "the failed plugin run left its stamp")
-
-    _run_hook(tmp_path, delay_seconds=0)
-
-    _wait_for_shim_calls(tmp_path, "plugin marketplace list", expected_count=2)
 
 
 def test_warnings_a_tool_prints_on_stderr_are_not_reported(tmp_path: Path) -> None:
@@ -285,10 +252,6 @@ def test_a_job_that_outlives_its_time_limit_is_killed_and_counts_as_failed(
     _run_hook(tmp_path, delay_seconds=_SLOW_JOB_SECONDS, job_timeout_seconds=1)
     state_dir = _state_dir(tmp_path)
 
-    _wait_until(
-        lambda: not (state_dir / "plugin_update.stamp").exists(),
-        "the timed-out plugin run left its stamp",
-    )
     _wait_until(
         lambda: "failed (exit 124)" in (state_dir / "uv_sync.log").read_text(),
         "the timed-out uv sync logged no warning",
