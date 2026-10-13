@@ -21,10 +21,11 @@ atomic, rollback-on-failure **apply**.
 You are the **lead**, and the pass is **fully unattended**: resolve the target,
 dispatch the worker, answer its gates, audit its evidence, run the apply, then
 report. The user launches an update and walks away; they come back to a
-finished result and an offer to roll back anything they don't like. Two things
-still wait for the user: an `--override` past the version ceiling (asked at
-launch, while they are present) and an update that cannot keep something they
-built (the Step 4 hold).
+finished result and an offer to roll back anything they don't like. Three
+things still wait for the user: an `--override` past the version ceiling (asked
+at launch, while they are present), an update that cannot keep something they
+built (the Step 4 hold), and another chat's edit that still holds the update
+after an hour (5b's settle wait).
 
 The default target is **the release the Imbue Studio app driving this workspace was
 built against**, and only that one: the template ships the code that app talks
