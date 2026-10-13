@@ -356,12 +356,16 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
    changes, has changed on the served branch since the worker branched (a
    change to another critical app's sources is not staleness: the apply
    rebuilds that bundle from the merged tree). The pass's footprint names
-   every creation in it:
+   every creation in it, computed from the worker's checkout of the branch,
+   since a creation the branch added is not in the served tree yet:
 
    ```bash
    BASE=$(git merge-base HEAD "mngr/update-$SLUG")
+   WORK_DIR=$(mngr ls --include "name == \"update-$SLUG\"" --format json \
+       | python3 -c 'import sys, json; print(json.load(sys.stdin)["agents"][0]["work_dir"])')
    SCOPE=$(mktemp)
-   uv run app-manifest pass-scope $(printf -- '--creation %s ' $CREATIONS) --out "$SCOPE" || exit 1
+   uv run app-manifest pass-scope $(printf -- '--creation %s ' $CREATIONS) --repo-root "$WORK_DIR" \
+       --out "$SCOPE" || exit 1
    jq -r '[.creations[] | .primary[], .wiring[].path, .references[].path] | unique | .[]' "$SCOPE" \
        > /tmp/update-$SLUG-paths.txt
    git diff --name-only --no-renames "$BASE" "mngr/update-$SLUG" >> /tmp/update-$SLUG-paths.txt
