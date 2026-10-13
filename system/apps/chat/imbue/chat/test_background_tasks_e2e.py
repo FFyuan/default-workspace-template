@@ -46,7 +46,7 @@ pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="the runner deta
 
 
 @contextmanager
-def _waiting_workspace(tmp_path: Path, messenger: RecordingMngrMessenger) -> Generator[RunningWorkspace]:
+def _waiting_workspace(tmp_path: Path, messenger: RecordingMngrMessenger) -> Generator[RunningWorkspace, None, None]:
     """The served workspace with its fixture chat between turns, its markers under ``tmp_path``, and its poller on."""
     with running_workspace(
         tmp_path,
