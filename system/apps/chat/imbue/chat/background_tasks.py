@@ -108,9 +108,17 @@ def load_background_task_reader(
     root: Path, script_path: Path = BACKGROUND_TASKS_SCRIPT_PATH
 ) -> BackgroundTaskReader | None:
     """A reader over ``root``, or None when the script cannot be loaded (a boot outside a workspace, such as the
-    update's pre-flight), in which case no chat reads as busy on a background task."""
+    update's pre-flight), in which case no chat reads as busy on a background task.
+
+    Creates the root, so the shell's avatar, which watches it only once it exists, sees the first task as it lands.
+    """
     try:
-        return BackgroundTaskReader.load(root, script_path)
+        reader = BackgroundTaskReader.load(root, script_path)
     except BackgroundTasksScriptError as e:
         logger.warning("Reading no background tasks: {}", e)
         return None
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.warning("Could not create the background task marker root {}: {}", root, e)
+    return reader

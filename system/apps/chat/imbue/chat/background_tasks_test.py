@@ -7,6 +7,7 @@ from imbue.chat.background_tasks import BackgroundTask
 from imbue.chat.background_tasks import load_background_task_reader
 from imbue.chat.config import DEFAULT_CHAT_DATA_DIR
 from imbue.chat.primitives import ChatId
+from imbue.chat.testing import BACKGROUND_TASKS_SCRIPT_REPO_PATH
 from imbue.chat.testing import build_background_task_reader
 from imbue.chat.testing import write_background_task_marker
 
@@ -60,3 +61,12 @@ def test_the_chat_app_reads_the_marker_root_the_script_writes_by_default() -> No
 def test_a_boot_with_no_script_reads_no_tasks(tmp_path: Path) -> None:
     """The update's pre-flight boots in a directory with no workspace beneath it; that must not stop the app."""
     assert load_background_task_reader(tmp_path / "background_tasks", tmp_path / "missing.py") is None
+
+
+def test_loading_the_reader_creates_the_marker_root_for_the_shells_watch(tmp_path: Path) -> None:
+    """The shell's avatar watches the root only once it exists; made at load, it is there before the first task."""
+    root = tmp_path / "data" / "background_tasks"
+
+    assert load_background_task_reader(root, BACKGROUND_TASKS_SCRIPT_REPO_PATH) is not None
+
+    assert root.is_dir()
