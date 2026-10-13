@@ -584,6 +584,18 @@ def split_against_creations(
     return tuple(inside), tuple(outside)
 
 
+@pure
+def _summarize_diff(changed: ChangedFiles, creations: Sequence[CreationScope]) -> DiffSummary:
+    inside_footprint, outside_footprint = split_against_creations(changed.files, creations)
+    return DiffSummary(
+        base=changed.base,
+        ref=changed.ref,
+        files=changed.files,
+        inside_footprint=inside_footprint,
+        outside_footprint=outside_footprint,
+    )
+
+
 def with_diff_against_base(
     scope: CreationScope, repo_root: Path, diff_base: str, diff_ref: str
 ) -> CreationScope:
@@ -592,15 +604,7 @@ def with_diff_against_base(
     A ref other than HEAD lets one tree answer for a range that does not end at it, such as
     what a merge commit's first parent changed since the fork point.
     """
-    changed = list_changed_files(repo_root, diff_base, diff_ref)
-    inside_footprint, outside_footprint = split_against_creations(changed.files, (scope,))
-    diff_summary = DiffSummary(
-        base=changed.base,
-        ref=changed.ref,
-        files=changed.files,
-        inside_footprint=inside_footprint,
-        outside_footprint=outside_footprint,
-    )
+    diff_summary = _summarize_diff(list_changed_files(repo_root, diff_base, diff_ref), (scope,))
     return scope.model_copy_update(to_update(scope.field_ref().diff, diff_summary))
 
 
@@ -733,17 +737,9 @@ def compute_pass_scope(
     creations = tuple(compute_creation_scope(repo_root, spec) for spec in specs)
     if diff_base is None:
         return PassScope(creations=creations, diff=None)
-    changed = list_changed_files(repo_root.resolve(), diff_base, diff_ref)
-    inside, outside = split_against_creations(changed.files, creations)
     return PassScope(
         creations=creations,
-        diff=DiffSummary(
-            base=changed.base,
-            ref=changed.ref,
-            files=changed.files,
-            inside_footprint=inside,
-            outside_footprint=outside,
-        ),
+        diff=_summarize_diff(list_changed_files(repo_root.resolve(), diff_base, diff_ref), creations),
     )
 
 
