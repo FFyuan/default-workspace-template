@@ -162,16 +162,24 @@ def is_compact_command(text: str) -> bool:
 
 @pure
 def shown_compaction_cause(
-    marker_cause: CompactionCause | None, pending_cause: CompactionCause | None, derived_state: ActivityState
+    marker_cause: CompactionCause | None,
+    pending_cause: CompactionCause | None,
+    derived_state: ActivityState,
+    has_compacting_marker: bool,
 ) -> CompactionCause | None:
     """The cause of the compaction a chat shows, or None when it shows its turn state instead.
 
     A live marker always shows (Claude's own auto-compaction runs mid-turn). The chat's own
     request shows only over an idle agent: a /compact queued behind a running turn waits for it.
+    The exception is the sweep's request on a harness with no ``compacting`` marker (Codex, Pi):
+    the sweep asks only an idle agent, and such a harness reports the compaction itself as a turn,
+    so the request is the only sign of the compaction it started.
     """
     if marker_cause is not None:
         return marker_cause
     if derived_state == ActivityState.IDLE:
+        return pending_cause
+    if pending_cause == CompactionCause.IDLE and not has_compacting_marker:
         return pending_cause
     return None
 

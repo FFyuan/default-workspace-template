@@ -5791,6 +5791,27 @@ def test_a_compact_queued_behind_a_running_turn_shows_the_turn_until_it_ends(
     assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
 
 
+def test_a_codex_sweep_compaction_shows_compacting_through_the_turn_it_runs_as(
+    agent_manager: AgentManager, tmp_path: Path
+) -> None:
+    agent_id, _ = _tracked_compaction_agent(agent_manager, tmp_path, harness=HarnessType.CODEX)
+    agent_manager.note_sweep_compaction_requested(f"agent-{agent_id}")
+    assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
+
+    agent_manager.update_session_events(
+        agent_id, [{"type": SPECIAL_EVENT_TYPE, "kind": SpecialEventKind.TURN_STARTED.value}]
+    )
+    assert _activity_of(agent_manager, agent_id) == ActivityState.COMPACTING
+
+    agent_manager.stamp_compaction_events(
+        _compaction_agent_info(agent_manager, agent_id), [_compacted_event(seconds_ago=0.0)]
+    )
+    agent_manager.update_session_events(
+        agent_id, [{"type": SPECIAL_EVENT_TYPE, "kind": SpecialEventKind.TURN_COMPLETED.value}]
+    )
+    assert _activity_of(agent_manager, agent_id) == ActivityState.IDLE
+
+
 def test_a_compaction_request_is_recorded_beside_the_marker(agent_manager: AgentManager, tmp_path: Path) -> None:
     agent_id, state_dir = _tracked_compaction_agent(agent_manager, tmp_path)
     before = time.time()

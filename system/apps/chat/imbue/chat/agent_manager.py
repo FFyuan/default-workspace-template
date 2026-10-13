@@ -4730,7 +4730,12 @@ class AgentManager:
                 else None
             )
             # Never over a dead lifecycle: a dead process compacts nothing.
-            compaction_cause = shown_compaction_cause(live_compaction.marker_cause, pending_cause, new_state)
+            compaction_cause = shown_compaction_cause(
+                live_compaction.marker_cause,
+                pending_cause,
+                new_state,
+                has_compacting_marker=tracker.compacting_marker_filename is not None,
+            )
             is_cause_changed = False
             if compaction_cause is not None and not is_lifecycle_dead(agent_state.state):
                 new_state = ActivityState.COMPACTING

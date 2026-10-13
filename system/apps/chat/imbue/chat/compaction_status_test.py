@@ -181,29 +181,51 @@ def test_a_missing_compaction_request_reads_as_none(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "marker_cause, pending_cause, derived_state, expected",
+    "marker_cause, pending_cause, derived_state, has_compacting_marker, expected",
     [
-        pytest.param(CompactionCause.NATIVE, None, ActivityState.TOOL_RUNNING, CompactionCause.NATIVE, id="marker"),
+        pytest.param(
+            CompactionCause.NATIVE, None, ActivityState.TOOL_RUNNING, True, CompactionCause.NATIVE, id="marker"
+        ),
         pytest.param(
             CompactionCause.IDLE,
             CompactionCause.IDLE,
             ActivityState.THINKING,
+            True,
             CompactionCause.IDLE,
             id="marker_mid_turn",
         ),
-        pytest.param(None, CompactionCause.MANUAL, ActivityState.IDLE, CompactionCause.MANUAL, id="request_when_idle"),
-        pytest.param(None, CompactionCause.MANUAL, ActivityState.THINKING, None, id="request_behind_a_turn"),
-        pytest.param(None, CompactionCause.IDLE, ActivityState.TOOL_RUNNING, None, id="request_behind_a_tool"),
-        pytest.param(None, None, ActivityState.IDLE, None, id="nothing"),
+        pytest.param(
+            None, CompactionCause.MANUAL, ActivityState.IDLE, True, CompactionCause.MANUAL, id="request_when_idle"
+        ),
+        pytest.param(None, CompactionCause.MANUAL, ActivityState.THINKING, True, None, id="request_behind_a_turn"),
+        pytest.param(None, CompactionCause.IDLE, ActivityState.TOOL_RUNNING, True, None, id="request_behind_a_tool"),
+        pytest.param(
+            None,
+            CompactionCause.IDLE,
+            ActivityState.THINKING,
+            False,
+            CompactionCause.IDLE,
+            id="sweep_request_on_a_markerless_harness_over_its_compaction_turn",
+        ),
+        pytest.param(
+            None,
+            CompactionCause.MANUAL,
+            ActivityState.THINKING,
+            False,
+            None,
+            id="manual_request_on_a_markerless_harness_behind_a_turn",
+        ),
+        pytest.param(None, None, ActivityState.IDLE, True, None, id="nothing"),
     ],
 )
 def test_shown_compaction_cause(
     marker_cause: CompactionCause | None,
     pending_cause: CompactionCause | None,
     derived_state: ActivityState,
+    has_compacting_marker: bool,
     expected: CompactionCause | None,
 ) -> None:
-    assert shown_compaction_cause(marker_cause, pending_cause, derived_state) == expected
+    assert shown_compaction_cause(marker_cause, pending_cause, derived_state, has_compacting_marker) == expected
 
 
 @pytest.mark.parametrize(
