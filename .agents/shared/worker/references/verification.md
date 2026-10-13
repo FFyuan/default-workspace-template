@@ -36,9 +36,10 @@ and wins over the committed file, so this stays local to your worktree and out
 of your diff:
 
 ```bash
-python3 - "$SCOPE_FILE" <<'PY'
+BASE=$(git rev-parse --verify "$DIFF_BASE^{commit}") || exit 1
+python3 - "$BASE" <<'PY'
 import json, pathlib, sys
-base = json.loads(pathlib.Path(sys.argv[1]).read_text())["diff"]["base"]
+base = sys.argv[1]
 path = pathlib.Path(".reviewer/settings.local.json")
 settings = json.loads(path.read_text()) if path.exists() else {}
 settings.setdefault("stop_hook", {})["base_branch"] = base
@@ -62,16 +63,17 @@ having reviewed nothing, which is worse than not running it.
 
 Both invocations carry the run's footprint into the review agents through
 `$ARGUMENTS`, which each gate skill forwards verbatim into its sub-agent brief.
-When `type` is app, skill, or service, `{scope_brief}` below is this block,
-pasted verbatim with `<SCOPE_FILE>` replaced by the scope file's path
-(`data/.tasks/harden/<slug>/scope.json`, per `harden-creation.md`) and
-`<REVIEW_BASE>` by that file's `diff.base`, which is the `diff_base` your task
-frontmatter pinned at dispatch:
+When the pass wrote any scope file, `{scope_brief}` below is this block,
+pasted verbatim with `<SCOPE_FILES>` replaced by the path of every scope file
+the pass wrote (`data/.tasks/harden/<slug>/scope-<name>.json`, one per creation
+with a footprint, per `harden-creation.md`) and `<REVIEW_BASE>` by the commit
+the pin above resolved: the `diff_base` your task frontmatter pinned at
+dispatch, which is also each scope file's `diff.base`:
 
-    The creation is a user's own and lives only in this workspace. Judge it
-    against the conventions listed in the scope file below, not against
+    The creations are a user's own and live only in this workspace. Judge them
+    against the conventions listed in the scope files below, not against
     `system_interface`'s patterns, and do not flag portability to environments
-    the creation will never run in.
+    they will never run in.
 
     Review the range <REVIEW_BASE>..HEAD. Do not derive the diff from `main`
     or any other branch name: the lead may have provisionally merged a
@@ -79,20 +81,23 @@ frontmatter pinned at dispatch:
     `main...HEAD` wrong -- often empty. <REVIEW_BASE> is authoritative, and a
     disagreement between it and `main` is expected rather than a finding.
 
-    The creation's footprint is declared in <SCOPE_FILE>. Read, in this order:
-    the diff; every file under `primary`; the `wiring` sections named there, in
-    the files they name; every `references` path -- for a skill reference, its
-    `SKILL.md` and its `scripts/`, so you see how it invokes the app; every
-    `context` path, read-only; the `conventions` list.
+    Each creation's footprint is declared in its scope file: <SCOPE_FILES>.
+    Read, in this order: the diff; then for each scope file, every file under
+    `primary`; the `wiring` sections named there, in the files they name; every
+    `references` path -- for a skill reference, its `SKILL.md` and its
+    `scripts/`, so you see how it invokes the app; every `context` path,
+    read-only; the `conventions` list. A path in one file's
+    `diff.outside_footprint` that lies in another's footprint is inside the
+    pass.
 
-    Never read a path matching `exclude`; the scope file itself is the one
-    exception.
+    Never read a path matching `exclude`; the scope files themselves are the
+    one exception.
 
-    Do not read other apps, or any path outside the footprint, unless you are
-    following a concrete import, call, URL, or file path from inside the
-    footprint, or a finding cannot be confirmed without it.
+    Do not read other apps, or any path outside the footprints, unless you are
+    following a concrete import, call, URL, or file path from inside them, or
+    a finding cannot be confirmed without it.
 
-    List every file you read outside the footprint and the conventions under
+    List every file you read outside the footprints and the conventions under
     `Expanded to:` in your report, with the reason for each.
 
     Check the consumer contract in both directions: a change to the app's
