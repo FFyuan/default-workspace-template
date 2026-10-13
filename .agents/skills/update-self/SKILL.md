@@ -523,14 +523,18 @@ python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scrip
 If it is still busy after the hour, record the hold so the app shows what the
 update is waiting on, then tell the user which chat's edit is holding the
 update and that nothing has been applied; a lease is broken only on their
-call. Record `run-status resume`, with the same staged script, once they
-answer:
+call:
 
 ```bash
 python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
     run-status hold \
     --detail "<one plain line: which chat's unfinished edit is holding the update>"
 ```
+
+When they answer, record `run-status resume` with the same staged script and
+run the settle wait again. If they skip the update instead, record `run-status
+verdict REFUSED --detail "<that another chat's edit was in progress, and they
+chose not to wait for it>"` and tear down, as Step 4's hold does.
 
 If it says `tk ready failed`, the leases could not be read: find out why
 and wait again. Once it settles, check whether those chats committed since the
