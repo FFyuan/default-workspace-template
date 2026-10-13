@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 from typing import Final
 
@@ -19,6 +20,7 @@ from app_manifest.manifest import LocationScope
 from app_manifest.manifest import load_manifest
 from app_manifest.primitives import AppName
 from app_manifest.registry import RegistryRow
+from app_manifest.registry import SHELL_APP_CONTRACT_PATH
 from app_manifest.registry import read_registry
 from flask import Flask
 from flask import request
@@ -510,13 +512,20 @@ def read_stub_update_self_calls(repo_root: Path) -> list[dict[str, Any]]:
 # that run the real Files skip where dufs is not installed.
 FILES_APP_DIRECTORY: Final[Path] = Path(__file__).resolve().parents[4] / "files"
 DUFS_BINARY: Final[str | None] = shutil.which("dufs")
+_REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[6]
+# The workspace's own path, where Files' "not found" page imports the shell's app contract module from: dufs serves
+# the filesystem root, so the module's path there is its URL.
+_WORKSPACE_ROOT: Final[PurePosixPath] = PurePosixPath("/home/user/workspace")
 
 
 @contextmanager
 def running_files(root: Path) -> Generator[str, None, None]:
-    """Run dufs over ``root`` as Files runs it over ``/``, with the Files frontend's build as its assets; yields its
-    loopback URL."""
+    """Run dufs over ``root`` as Files runs it over ``/``, with the Files frontend's build as its assets and the shell's
+    built app contract module at its workspace path under ``root``; yields its loopback URL."""
     assert DUFS_BINARY is not None, "dufs is not installed"
+    served_contract = root / _WORKSPACE_ROOT.relative_to("/") / SHELL_APP_CONTRACT_PATH
+    served_contract.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(_REPO_ROOT / SHELL_APP_CONTRACT_PATH, served_contract)
     port = find_free_port()
     url = f"http://127.0.0.1:{port}"
     command = [DUFS_BINARY, "--allow-all", "--bind", "127.0.0.1", "--port", str(port)]
