@@ -287,6 +287,91 @@ def test_the_chat_app_stamped_chat_id_keys_the_claude_markers(
     assert not background_tasks.is_busy(background_task_markers, _CHAT_ID)
 
 
+def _env_with_recorded_main_claude(
+    tmp_path: Path, main_pid: int, **extra: str
+) -> dict[str, str]:
+    state_dir = tmp_path / "agent-state"
+    state_dir.mkdir(exist_ok=True)
+    (state_dir / background_tasks.CLAUDE_MAIN_PID_FILE_NAME).write_text(f"{main_pid}\n")
+    return _main_claude_env(tmp_path, MNGR_AGENT_STATE_DIR=str(state_dir), **extra)
+
+
+def test_a_nested_claude_neither_records_nor_clears_while_the_main_claude_lives(
+    background_task_markers: Path, tmp_path: Path, live_claude_pid: int
+) -> None:
+    main_env = _main_claude_env(tmp_path, CLAUDE_PID=str(live_claude_pid))
+    background_tasks.main(
+        ["record-claude-stop"], main_env, _stop_input(_shell_entry("main-task"))
+    )
+    nested_env = _env_with_recorded_main_claude(tmp_path, live_claude_pid)
+
+    background_tasks.main(["clear-claude"], nested_env)
+    background_tasks.main(
+        ["record-claude-stop"], nested_env, _stop_input(_shell_entry("nested-task"))
+    )
+
+    assert [
+        task.id
+        for task in background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
+    ] == ["main-task"]
+
+
+@pytest.mark.parametrize("owner", ["exited", "not-claude"])
+def test_a_recorded_main_claude_that_is_gone_does_not_block_its_successor(
+    background_task_markers: Path,
+    tmp_path: Path,
+    exited_pid: int,
+    live_other_pid: int,
+    owner: str,
+) -> None:
+    recorded = exited_pid if owner == "exited" else live_other_pid
+    env = _env_with_recorded_main_claude(tmp_path, recorded)
+
+    background_tasks.main(["record-claude-stop"], env, _stop_input(_shell_entry("one")))
+
+    assert background_tasks.is_busy(background_task_markers, _CHAT_ID)
+
+
+def test_a_stop_leaves_another_live_claudes_markers_and_prunes_dead_ones(
+    background_task_markers: Path,
+    tmp_path: Path,
+    live_claude_pid: int,
+    exited_pid: int,
+) -> None:
+    root = background_task_markers
+    for task_id, pid in (("successor", live_claude_pid), ("gone", exited_pid)):
+        background_tasks.write_marker(
+            root,
+            _CHAT_ID,
+            _task(task_id, "2026-10-08T09:00:00+00:00", pid, background_tasks.SOURCE_CLAUDE),
+        )
+
+    background_tasks.main(
+        ["record-claude-stop"], _main_claude_env(tmp_path), _stop_input()
+    )
+
+    assert [task.id for task in background_tasks.read_markers(root / _CHAT_ID)] == [
+        "successor"
+    ]
+
+
+def test_a_stop_does_not_record_a_task_it_lists_as_over(
+    background_task_markers: Path, tmp_path: Path
+) -> None:
+    stdin = _stop_input(
+        _shell_entry("running"),
+        {**_shell_entry("completed"), "status": "completed"},
+        {**_shell_entry("killed"), "status": "killed"},
+    )
+
+    background_tasks.main(["record-claude-stop"], _main_claude_env(tmp_path), stdin)
+
+    assert [
+        task.id
+        for task in background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
+    ] == ["running"]
+
+
 def _wired_command(event: str) -> str:
     """The background_tasks.py command ``.claude/settings.json`` runs for ``event``."""
     settings = json.loads((_REPO_ROOT / ".claude" / "settings.json").read_text())

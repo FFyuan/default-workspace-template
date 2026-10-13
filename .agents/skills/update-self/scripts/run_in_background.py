@@ -186,6 +186,12 @@ def marker_path(environ: Mapping[str, str], chat_id: str, task_id: str) -> Path:
     )
 
 
+def run_task_id(task_dir: Path, runner_pid: int) -> str:
+    """The id of one run's marker: its task directory and its runner, so two runs sharing a
+    ``--task-dir`` each keep a marker of their own."""
+    return f"{task_dir.name}-{runner_pid}"
+
+
 def process_start_time(pid: int) -> str:
     """When the process started (``/proc/<pid>/stat`` field 22), or '' where ``/proc`` lacks it."""
     try:
@@ -441,7 +447,9 @@ def run_and_deliver(
             is_keeping_host_awake,
         )
     finally:
-        marker_path(command_environ, chat_id, task_dir.name).unlink(missing_ok=True)
+        marker_path(
+            command_environ, chat_id, run_task_id(task_dir, os.getpid())
+        ).unlink(missing_ok=True)
 
 
 def _run_and_deliver(
@@ -528,12 +536,13 @@ def _start_detached(
             start_new_session=True,
         )
     # Before the caller's tool call returns, so the chat is busy before its agent can end the turn.
-    path = marker_path(environ, chat_id, task_dir.name)
+    task_id = run_task_id(task_dir, runner.pid)
+    path = marker_path(environ, chat_id, task_id)
     try:
         remove_dead_runner_markers(path.parent)
         write_marker(
             path,
-            task_dir.name,
+            task_id,
             description,
             runner.pid,
         )

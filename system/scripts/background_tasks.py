@@ -15,11 +15,15 @@ Two writers, each owning its own files and never reading another's:
 - Claude's Stop hook (``record-claude-stop``), which copies the ``background_tasks`` list Claude
   Code hands it into ``claude-*`` markers, keeping a still-listed task's start time and removing
   the ones no longer listed; and its SessionStart hook (``clear-claude``, on startup and resume),
-  which removes them all, since a new Claude process has none of the old one's tasks.
+  which removes those of a Claude process that is gone. Both act only for the agent's main
+  Claude, never a nested one, and only on that Claude's own markers.
 
 Each marker names the pid whose death makes it stale (the runner, or the Claude main process),
 and where ``/proc`` has it, that process's start time, so a pid recycled after a restart does not
 bring a marker back. Readers skip a stale marker and never delete it; its writer's next pass does.
+The one exception is the chat app, which removes a ``claude-*`` marker as soon as Claude's
+transcript reports the task over: a turn the user interrupts, or one that fails, runs no Stop
+hook, and its finished tasks would otherwise read as pending for as long as Claude runs.
 
 The chat app reads the directories on its state poller and is the authority for everyone else:
 ``list`` and ``is-busy`` ask it first (``GET /api/agents?tracked=true``), and read the files
@@ -50,6 +54,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import urllib.parse
@@ -67,6 +72,10 @@ SOURCE_RUN_IN_BACKGROUND = "run_in_background"
 SOURCE_CLAUDE = "claude"
 # The ``type`` labels of Claude Code's Stop-hook ``background_tasks`` entries recorded as markers.
 CLAUDE_KINDS = ("shell", "monitor", "workflow", "subagent")
+# The statuses Claude Code gives a task that is over; an entry with one is not recorded.
+CLAUDE_FINISHED_STATUSES = ("completed", "failed", "killed")
+# Where mngr records the pid of the claude process that owns an agent, under its state dir.
+CLAUDE_MAIN_PID_FILE_NAME = "claude_main_pid"
 
 # What a chat id or task id may contribute to a path; anything else becomes ``_``.
 _UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]")
@@ -485,9 +494,9 @@ def claude_hook_chat_id(environ: Mapping[str, str]) -> str:
     """The chat whose Claude markers this hook may write, or '' when it must do nothing.
 
     Only the agent's main Claude session writes: not mngr's subagent-proxy children, not a
-    Claude outside an mngr agent, and not a nested Claude started in another directory. A
-    nested Claude in the work dir passes these checks; the main session's next Stop corrects
-    what it wrote. A Claude that does not name its own pid (``CLAUDE_PID``) writes nothing
+    Claude outside an mngr agent, not a nested Claude started in another directory, and not one
+    started in the work dir while the agent's main Claude (the one mngr records as owning the
+    agent) is alive. A Claude that does not name its own pid (``CLAUDE_PID``) writes nothing
     either: its markers would have no process to go stale by.
     """
     if environ.get("MNGR_CLAUDE_SUBAGENT_PROXY_CHILD") or not environ.get(
@@ -507,7 +516,55 @@ def claude_hook_chat_id(environ: Mapping[str, str]) -> str:
         or Path(project_dir).resolve() != Path(work_dir).resolve()
     ):
         return ""
+    if is_shadowed_by_main_claude(environ, int(raw_pid)):
+        return ""
     return own_chat_id(environ)
+
+
+def recorded_main_claude_pid(environ: Mapping[str, str]) -> int | None:
+    """The pid mngr's SessionStart hook recorded as the agent's main claude, or None when there is none."""
+    state_dir = environ.get("MNGR_AGENT_STATE_DIR", "")
+    if not state_dir:
+        return None
+    try:
+        raw = (
+            (Path(state_dir) / CLAUDE_MAIN_PID_FILE_NAME)
+            .read_text(encoding="utf-8")
+            .strip()
+        )
+    except OSError:
+        return None
+    return int(raw) if raw.isdigit() and int(raw) > 0 else None
+
+
+def process_command_name(pid: int) -> str:
+    """The process's executable name as ``ps`` reports it, or '' when it cannot say."""
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "comm=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout.strip()
+
+
+def is_shadowed_by_main_claude(environ: Mapping[str, str], claude_pid: int) -> bool:
+    """Whether another live claude owns the agent, which makes this one a nested claude.
+
+    The same rule as mngr's own hooks: a recorded owner that is dead, or whose pid now holds
+    something other than claude, owns nothing, and no record at all lets the hook through.
+    """
+    main_pid = recorded_main_claude_pid(environ)
+    return (
+        main_pid is not None
+        and main_pid != claude_pid
+        and is_pid_alive(main_pid)
+        and Path(process_command_name(main_pid)).name == "claude"
+    )
 
 
 def claude_main_pid(environ: Mapping[str, str]) -> int:
@@ -537,6 +594,8 @@ def claude_tasks_from_stop_input(
         task_id, kind = entry.get("id"), entry.get("type")
         if not isinstance(task_id, str) or not task_id or kind not in CLAUDE_KINDS:
             continue
+        if entry.get("status") in CLAUDE_FINISHED_STATUSES:
+            continue
         description = entry.get("description")
         command = entry.get("command")
         previous = existing.get(task_id)
@@ -555,9 +614,15 @@ def claude_tasks_from_stop_input(
     return tasks
 
 
+def is_claude_marker_ours(task: BackgroundTask, pid: int) -> bool:
+    """Whether a hook fired by the claude at ``pid`` may remove this Claude marker: its own, or one
+    whose claude is gone. A handoff's other agent shares the chat, and its markers stay its own."""
+    return task.pid == pid or not is_task_live(task)
+
+
 def record_claude_stop(root: Path, chat_id: str, payload: object, pid: int) -> None:
-    """Make the chat's Claude markers match the Stop input's task list: write each listed task, and
-    remove every Claude marker no longer listed."""
+    """Make this claude's markers in the chat match the Stop input's task list: write each listed
+    task, and remove the ones no longer listed and those whose claude is gone."""
     directory = chat_dir(root, chat_id)
     existing = {
         task.id: task
@@ -574,12 +639,14 @@ def record_claude_stop(root: Path, chat_id: str, payload: object, pid: int) -> N
             write_marker(root, chat_id, task)
     listed = {task.id for task in tasks}
     for task_id in existing.keys() - listed:
-        remove_marker(root, chat_id, SOURCE_CLAUDE, task_id)
+        if is_claude_marker_ours(existing[task_id], pid):
+            remove_marker(root, chat_id, SOURCE_CLAUDE, task_id)
 
 
-def clear_claude(root: Path, chat_id: str) -> None:
+def clear_claude(root: Path, chat_id: str, pid: int) -> None:
+    """Remove the chat's Claude markers a new claude process cannot have: its own and dead ones."""
     for task in read_markers(chat_dir(root, chat_id)):
-        if task.source == SOURCE_CLAUDE:
+        if task.source == SOURCE_CLAUDE and is_claude_marker_ours(task, pid):
             remove_marker(root, chat_id, SOURCE_CLAUDE, task.id)
 
 
@@ -612,7 +679,7 @@ def cmd_clear_claude(environ: Mapping[str, str]) -> int:
     if not chat_id:
         return 0
     try:
-        clear_claude(marker_root(environ), chat_id)
+        clear_claude(marker_root(environ), chat_id, claude_main_pid(environ))
     except OSError as exc:
         print(
             f"background_tasks.py: could not clear the Claude tasks: {exc}",

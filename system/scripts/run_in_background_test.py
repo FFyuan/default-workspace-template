@@ -537,7 +537,7 @@ def test_the_chat_is_busy_from_before_the_caller_returns_until_the_report_lands(
     assert started.returncode == 0, started.stderr
     [task] = background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
     assert task.source == background_tasks.SOURCE_RUN_IN_BACKGROUND
-    assert task.id == _task_dir_from(started.stdout, tmp_path).name
+    assert task.id == f"{_task_dir_from(started.stdout, tmp_path).name}-{task.pid}"
     assert task.description == "Build the site"
     _wait_for_posts(fake_chat_app, 1)
     _wait_until(
@@ -674,6 +674,40 @@ def test_the_runners_marker_is_where_and_what_the_reader_expects(
 
 
 @pytest.mark.usefixtures("fake_mngr")
+def test_two_runs_sharing_a_task_dir_each_keep_the_chat_busy_until_their_own_report(
+    fake_chat_app: Any, background_task_markers: Path, tmp_path: Path
+) -> None:
+    task_dir = tmp_path / "shared-task"
+    options = ("--task-dir", str(task_dir))
+    environ = _agent_env(MNGR_AGENT_ID=_CHAT_ID)
+    quick = _start_runner(
+        tmp_path,
+        environ,
+        "Quick one",
+        *_python_command("import time; time.sleep(1)"),
+        options=options,
+    )
+    slow = _start_runner(
+        tmp_path,
+        environ,
+        "Slow one",
+        *_python_command("import time; time.sleep(6)"),
+        options=options,
+    )
+    assert quick.returncode == 0, quick.stderr
+    assert slow.returncode == 0, slow.stderr
+
+    _wait_for_posts(fake_chat_app, 1)
+    _wait_until(
+        lambda: len(background_tasks.list_live_tasks(background_task_markers, _CHAT_ID))
+        == 1,
+        "the quick run's marker outlived its report",
+    )
+    [pending] = background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
+    assert pending.description == "Slow one"
+
+
+@pytest.mark.usefixtures("fake_mngr")
 def test_a_new_run_clears_its_chats_markers_from_runners_that_died(
     fake_chat_app: Any, background_task_markers: Path, tmp_path: Path, exited_pid: int
 ) -> None:
@@ -698,8 +732,9 @@ def test_a_new_run_clears_its_chats_markers_from_runners_that_died(
     )
 
     assert started.returncode == 0, started.stderr
+    [task] = background_tasks.read_markers(chat_dir)
     assert [path.name for path in chat_dir.iterdir()] == [
-        f"run_in_background-{_task_dir_from(started.stdout, tmp_path).name}.json"
+        f"run_in_background-{_task_dir_from(started.stdout, tmp_path).name}-{task.pid}.json"
     ]
     _wait_for_posts(fake_chat_app, 1)
 
