@@ -15,9 +15,11 @@ from app_manifest.scope import CreationScope
 from app_manifest.scope import CreationType
 from app_manifest.scope import ReferenceKind
 from app_manifest.scope import compute_app_scope
+from app_manifest.scope import compute_creation_scope
 from app_manifest.scope import compute_skill_scope
 from app_manifest.scope import find_referencing_manifests
 from app_manifest.scope import find_wiring_sections
+from app_manifest.scope import parse_creation_spec
 from app_manifest.scope import reference_kind_for_path
 from app_manifest.scope import render_scope_file
 from app_manifest.scope import with_diff_against_base
@@ -610,3 +612,35 @@ def test_the_diff_can_run_to_a_ref_other_than_head_so_a_merge_answers_for_each_s
     # The referenced script the release changed is inside; the doc the app never claimed is not.
     assert update_side.diff.inside_footprint == ("system/scripts/run_news.sh",)
     assert update_side.diff.outside_footprint == ("docs/system/style_guide.md",)
+
+
+def test_an_app_creation_is_found_by_its_registered_name_or_scoped_by_its_directory(
+    tmp_path: Path,
+) -> None:
+    """A lead names an app by its registered name, which need not be its package's; an app
+    directory with no manifest yet is scoped by its directory and the programs named after it."""
+    build_news_workspace(tmp_path)
+    write_app_manifest(
+        tmp_path,
+        "daily_digest",
+        'name = "daily-digest"\ndisplay_name = "Daily digest"\nicon = "icon.svg"\n',
+        is_icon_written=True,
+    )
+    write_repo_file(tmp_path, "system/apps/road_map/runner.py", "ROUTES = ()\n")
+    write_supervisord_dropin(
+        tmp_path, "road-map", ("program:road-map", "program:road-map-sync", "program:road-mapper")
+    )
+
+    by_name = compute_creation_scope(tmp_path, parse_creation_spec("app:daily-digest"))
+    unmanifested = compute_creation_scope(tmp_path, parse_creation_spec("app:road_map"))
+
+    assert by_name.creation.type is CreationType.APP
+    assert by_name.creation.package == "daily_digest"
+    assert by_name.creation.manifest == "system/apps/daily_digest/app.toml"
+    assert list(by_name.primary) == ["system/apps/daily_digest/"]
+    assert unmanifested.creation.type is CreationType.APP
+    assert unmanifested.creation.manifest is None
+    assert list(unmanifested.primary) == ["system/apps/road_map/"]
+    assert [(wiring.path, list(wiring.sections)) for wiring in unmanifested.wiring] == [
+        ("system/supervisord.conf.d/road-map.conf", ["program:road-map", "program:road-map-sync"])
+    ]
