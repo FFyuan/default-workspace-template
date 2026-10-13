@@ -2,8 +2,8 @@
 # Installs everything datalib needs to run, the first time the datalib skill
 # is used: the binaries (datalib-http for the Datalib app, datalib-dag and the
 # rest for the skill), one pinned release for both so the UI and the agent's
-# tools never disagree about the store format, and the Node runtime a sync
-# shells out to. Nothing here runs at boot, so a workspace that never uses
+# tools never disagree about the store format, datalib's guide for agents,
+# and the Node runtime a sync shells out to. Nothing here runs at boot, so a workspace that never uses
 # datalib downloads nothing.
 #
 # Safe to run every time: each half checks what is already in place first.
@@ -54,6 +54,27 @@ else
 fi
 _link_binaries
 _log "binaries linked into $BIN_DIR"
+
+# datalib's guide for agents, and the two docs a config is written from, at
+# the same tag as the binaries. Kept beside them so the skill reads a local
+# copy instead of fetching github.com in every chat. They sit at the paths
+# they have under the repo's docs/, so the links between them resolve. A miss
+# is reported but not fatal: the skill falls back to the URL.
+readonly DOCS_DIR="$RELEASE_DIR/docs"
+readonly DOCS_URL="https://raw.githubusercontent.com/imbue-ai/datalib/$PINNED_VERSION/docs"
+for doc in agent_user.md user/getting_your_data.md user/config_examples/all_sources.toml; do
+    [ -s "$DOCS_DIR/$doc" ] && continue
+    mkdir -p "$(dirname "$DOCS_DIR/$doc")"
+    # Downloaded under another name first, so an interrupted fetch never
+    # leaves a truncated guide that the check above would accept.
+    if curl -LsSf "$DOCS_URL/$doc" -o "$DOCS_DIR/$doc.partial"; then
+        mv "$DOCS_DIR/$doc.partial" "$DOCS_DIR/$doc"
+    else
+        rm -f "$DOCS_DIR/$doc.partial"
+        _log "could not fetch docs/$doc; read it at $DOCS_URL/$doc instead"
+    fi
+done
+_log "agent guide at $DOCS_DIR/agent_user.md"
 
 # The tarball carries the binaries only. The Node runtime (latchkey and qmd,
 # at the versions datalib was built with) is a separate asset of the same

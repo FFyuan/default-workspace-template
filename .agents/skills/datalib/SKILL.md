@@ -33,9 +33,9 @@ DATALIB_CONFIG="$DATA_ROOT/config.toml"
 mkdir -p "$DATA_ROOT"
 
 # Nothing of datalib is installed until it is first used. This installs the
-# binaries (pinned to datalib v0.42.0) and the Node runtime a sync shells out
-# to, about 195 MB together on the first run; after that it only checks that
-# they are there, so run it every time:
+# binaries (pinned to datalib v0.42.0), datalib's agent guide, and the Node
+# runtime a sync shells out to, about 195 MB together on the first run; after
+# that it only checks that they are there, so run it every time:
 bash "$HOME/workspace/.agents/skills/datalib/scripts/install_datalib.sh"
 
 # The Datalib app is stopped until someone asks for datalib. Start it; from
@@ -94,19 +94,25 @@ supervisorctl start datalib
    alongside it, since a list in that file *replaces* the defaults rather than
    adding to them (see `system/services/host_backup/README.md`).
 
-## Driving datalib: read the upstream agent guide
+## Driving datalib: read its agent guide
 
 datalib ships its own guide for agents using it. **Read it before doing any
 datalib work** -- how to write the pipeline config, run a sync, query the
 mirrored data, and use the HTTP API all live there, and they change with the
-version pinned above:
+version pinned above. The install script saved a copy beside the binaries:
 
-https://github.com/imbue-ai/datalib/blob/v0.42.0/docs/agent_user.md
+```bash
+cat "$HOME/.local/share/datalib/v0.42.0/docs/agent_user.md"
+```
 
-That link is pinned to the same tag the binaries are installed from, so it
-matches the tools you have. Its relative links resolve against
-`https://github.com/imbue-ai/datalib/blob/v0.42.0/docs/`. Don't rely on
-remembered command lines or config shapes -- go read it.
+It is the guide at the same tag the binaries are installed from, so it matches
+the tools you have. Two docs it links are saved with it, at the same relative
+paths: `user/getting_your_data.md` (each source's setup) and
+`user/config_examples/all_sources.toml` (a config naming every source). Its
+other relative links resolve against
+`https://github.com/imbue-ai/datalib/blob/v0.42.0/docs/`, and that is also
+where to read the guide if the local copy is missing. Don't rely on remembered
+command lines or config shapes -- go read it.
 
 ## Authorizing a source
 
