@@ -232,8 +232,9 @@ class LastGoodRecord:
     ``merge_sha`` is the merge the apply landed and ``rollback_to`` the tree it
     landed on; ``programs`` are the supervisord programs a rollback restarts (the
     touched apps', the shell's included: each critical app whose program or bundle the
-    apply changed, and any other app whose files it changed) and ``apps`` the app names
-    the shell raises the notice on. ``needs_system_services_restart`` says the diff reached
+    apply changed, and any other app whose files it changed, except an app the merge
+    added, which a rollback removes) and ``apps`` the app names the shell raises the
+    notice on, an added app included. ``needs_system_services_restart`` says the diff reached
     the bootstrap or the services agent's own setup, which a program restart
     cannot undo. ``progress`` is what a running rollback is doing right now and
     ``outcome`` how it ended, both for the notice to show.
