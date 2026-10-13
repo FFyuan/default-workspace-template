@@ -554,6 +554,35 @@ def read_file_at_revision(repo_root: Path, revision: str, path: RepoRelativePath
     return _run_git(repo_root, ("show", f"{revision}:{path}"))
 
 
+@pure
+def split_against_creations(
+    changed_files: Sequence[RepoRelativePath], creations: Sequence[CreationScope]
+) -> tuple[tuple[RepoRelativePath, ...], tuple[RepoRelativePath, ...]]:
+    """The changed files some creation's footprint accounts for, and those none does.
+
+    A file is inside when a creation's footprint covers it and that creation does not
+    exclude it. Otherwise a file the built-ins or any creation excludes is in neither list.
+    """
+    built_in_spec = pathspec.PathSpec.from_lines(_EXCLUDE_PATTERN_STYLE, BUILT_IN_EXCLUDES)
+    exclude_specs = [
+        (creation, pathspec.PathSpec.from_lines(_EXCLUDE_PATTERN_STYLE, creation.exclude))
+        for creation in creations
+    ]
+    inside: list[RepoRelativePath] = []
+    outside: list[RepoRelativePath] = []
+    for changed_file in changed_files:
+        if built_in_spec.match_file(changed_file):
+            continue
+        if any(
+            is_inside_footprint(changed_file, creation) and not exclude_spec.match_file(changed_file)
+            for creation, exclude_spec in exclude_specs
+        ):
+            inside.append(changed_file)
+        elif not any(exclude_spec.match_file(changed_file) for _, exclude_spec in exclude_specs):
+            outside.append(changed_file)
+    return tuple(inside), tuple(outside)
+
+
 def with_diff_against_base(
     scope: CreationScope, repo_root: Path, diff_base: str, diff_ref: str
 ) -> CreationScope:
@@ -563,22 +592,13 @@ def with_diff_against_base(
     what a merge commit's first parent changed since the fork point.
     """
     changed = list_changed_files(repo_root, diff_base, diff_ref)
-    exclude_spec = pathspec.PathSpec.from_lines(_EXCLUDE_PATTERN_STYLE, scope.exclude)
-    inside_footprint: list[RepoRelativePath] = []
-    outside_footprint: list[RepoRelativePath] = []
-    for changed_file in changed.files:
-        if exclude_spec.match_file(changed_file):
-            continue
-        if is_inside_footprint(changed_file, scope):
-            inside_footprint.append(changed_file)
-        else:
-            outside_footprint.append(changed_file)
+    inside_footprint, outside_footprint = split_against_creations(changed.files, (scope,))
     diff_summary = DiffSummary(
         base=changed.base,
         ref=changed.ref,
         files=changed.files,
-        inside_footprint=tuple(inside_footprint),
-        outside_footprint=tuple(outside_footprint),
+        inside_footprint=inside_footprint,
+        outside_footprint=outside_footprint,
     )
     return scope.model_copy_update(to_update(scope.field_ref().diff, diff_summary))
 
@@ -693,36 +713,6 @@ class PassScope(FrozenModel):
         description="The diff against a base, split by whether any creation's footprint accounts for each "
         "file, when the caller asks for one"
     )
-
-
-@pure
-def _is_excluded(candidate: RepoRelativePath, globs: Sequence[ExcludeGlob]) -> bool:
-    return pathspec.PathSpec.from_lines(_EXCLUDE_PATTERN_STYLE, globs).match_file(candidate)
-
-
-@pure
-def split_against_creations(
-    changed_files: Sequence[RepoRelativePath], creations: Sequence[CreationScope]
-) -> tuple[tuple[RepoRelativePath, ...], tuple[RepoRelativePath, ...]]:
-    """The changed files some creation's footprint accounts for, and those none does.
-
-    A file is the pass's when a creation's footprint covers it and that creation does not
-    exclude it. Otherwise a file the built-ins or any creation excludes is in neither list,
-    as a single creation's diff leaves it.
-    """
-    inside: list[RepoRelativePath] = []
-    outside: list[RepoRelativePath] = []
-    for changed_file in changed_files:
-        if _is_excluded(changed_file, BUILT_IN_EXCLUDES):
-            continue
-        if any(
-            is_inside_footprint(changed_file, creation) and not _is_excluded(changed_file, creation.exclude)
-            for creation in creations
-        ):
-            inside.append(changed_file)
-        elif not any(_is_excluded(changed_file, creation.exclude) for creation in creations):
-            outside.append(changed_file)
-    return tuple(inside), tuple(outside)
 
 
 def compute_pass_scope(
