@@ -5,7 +5,9 @@ and the template's Stop hook (``background_tasks.py record-claude-stop``, wired 
 copies them into the chat's markers. Nothing documents that field, so this runs the pinned claude with the
 hook wired exactly as the repo wires it: one turn starts a background Bash command and ends, the command's
 completion starts the next turn, and that turn's Stop hands over an empty list. The chat app must read the
-chat as waiting on the command between the two, and idle once the second turn has ended.
+chat as waiting on the command between the two, and idle once the second turn has ended. The command's end is
+also recorded in the session transcript as an enqueued ``<task-notification>``, which the chat app reads to drop
+a finished task's marker when no Stop follows; it must name the task by the id the Stop hook recorded.
 
 ``claude -p`` stays up while its background command runs and runs the turn its completion starts, as an
 agent's Claude does. It is started through ``sh -c 'CLAUDE_PID=$$ exec claude ...'`` so the hook's
@@ -22,16 +24,20 @@ import shutil
 import subprocess
 import tomllib
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from imbue.chat.activity_state import ActivityState
+from imbue.chat.harnesses.claude.session_parser import finished_task_id
+from imbue.chat.harnesses.claude.session_parser import parse_queue_signals
 from imbue.chat.testing import FIXTURE_AGENT_ID
 from imbue.chat.testing import running_workspace
 from imbue.chat.testing import seed_agent_state
 from imbue.mngr.utils.polling import wait_for
+from imbue.mngr_claude.claude_config import encode_claude_project_dir_name
 from imbue.system_interface.testing import find_free_port
 
 pytestmark = pytest.mark.real_claude
@@ -72,6 +78,18 @@ def _project_with_only_the_stop_hook(tmp_path: Path) -> Path:
         json.dumps({"hooks": {"Stop": [{"hooks": [_repo_stop_hook()]}]}})
     )
     return project
+
+
+def _finished_task_ids_in_transcript(project: Path, session_id: str) -> set[str]:
+    """The ids of the tasks the session's queue ledger reports as over, read as the chat app's Claude watcher reads them."""
+    config_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    transcript = config_dir / "projects" / encode_claude_project_dir_name(project.resolve()) / f"{session_id}.jsonl"
+    signals = (parse_queue_signals(line) for line in transcript.read_text().splitlines())
+    return {
+        task_id
+        for task_id in (finished_task_id(signal.content) for signal in signals if signal is not None)
+        if task_id is not None
+    }
 
 
 def _chat(chat_url: str) -> dict[str, Any]:
@@ -118,7 +136,18 @@ def test_a_claude_turn_that_ends_on_a_background_bash_command_leaves_its_chat_wa
                 "MNGR_AGENT_WORK_DIR": str(project),
             }
         )
-        argv = [claude, "-p", "--model", "haiku", "--permission-mode", "bypassPermissions", prompt]
+        session_id = str(uuid.uuid4())
+        argv = [
+            claude,
+            "-p",
+            "--model",
+            "haiku",
+            "--permission-mode",
+            "bypassPermissions",
+            "--session-id",
+            session_id,
+            prompt,
+        ]
         run = subprocess.Popen(
             ["sh", "-c", f"CLAUDE_PID=$$ exec {shlex.join(argv)}"],
             cwd=project,
@@ -142,12 +171,14 @@ def test_a_claude_turn_that_ends_on_a_background_bash_command_leaves_its_chat_wa
             marker = json.loads(marker_path.read_text())
             assert marker["pid"] == run.pid
             assert marker["command"] == f"sleep {_COMMAND_SECONDS}"
+            assert marker_path.name == f"claude-{task['id']}.json"
 
             output, _ = run.communicate(timeout=_RUN_TIMEOUT_SECONDS)
             assert run.returncode == 0, output
             # The command's completion started a turn, whose Stop handed over no tasks.
             assert list((marker_root / FIXTURE_AGENT_ID).glob("claude-*.json")) == []
             wait_for(lambda: _chat(workspace.chat_url)["status"] == "idle", timeout=3.0, poll_interval=0.1)
+            assert task["id"] in _finished_task_ids_in_transcript(project, session_id)
         finally:
             if run.poll() is None:
                 run.kill()
