@@ -136,10 +136,11 @@ class ThemeIcons(FrozenModel):
     spec: ThemeIconSpec = Field(description="The limits the icons follow")
     # The folder the spec came from: the theme's own, or the base's it inherits the icons of.
     spec_folder: Path = Field(
-        description="The theme folder the icon spec and its curated icons are in"
+        description="The folder of the theme that declares the icon spec, where its guide and references are"
     )
     curated_by_app: dict[AppName, Path] = Field(
-        description="Curated icon files, by app name"
+        description="Curated icon files, by app name, from that theme and every theme after it in the chain, a "
+        "nearer theme's file taking precedence"
     )
     generated_by_app: dict[AppName, Path] = Field(
         description="Icons generated in this workspace, by app name"
