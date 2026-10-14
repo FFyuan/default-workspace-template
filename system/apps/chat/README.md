@@ -171,9 +171,9 @@ turn that ends to wait reads `background` at once, never `idle` first. The tasks
 are the chat's, so a handoff moves nothing: the successor reads the same
 directory. A switch stops the agent, which ends its tasks: the harness's own end
 unreported, while the runner reports how its command ended to the chat. The
-handoff prompt tells the successor which was which, and a Claude that resumes
-after a restart (a rebind, or any other) is told by its SessionStart hook which
-of its own tasks the restart ended. The memory prioritizer treats a chat waiting
+handoff prompt tells the successor which was which, and Claude Code itself tells
+a Claude that resumes after a restart (a rebind, or any other) which of its own
+tasks the restart stopped. The memory prioritizer treats a chat waiting
 on one of the harness's own tasks as mid-turn; one waiting only on runner
 commands ages as an idle chat does, since its runner outlives a shed of the
 agent's process and its report revives the chat.

@@ -103,6 +103,31 @@ def test_a_stop_records_every_waking_kind_and_skips_the_rest(
     assert (shell.description, shell.command) == ("tail logs", "tail -f log")
 
 
+def test_a_stop_records_a_command_as_the_agent_wrote_it(
+    background_task_markers: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Claude's Stop input carries each command as the PreToolUse rewrite hook passed it on, with
+    the commit identity and OOM band in front; the marker keeps only what the agent wrote."""
+    host_dir = tmp_path / "host"
+    host_dir.mkdir()
+    (host_dir / "data.json").write_text(json.dumps({"host_id": "host-1"}))
+    monkeypatch.setenv("MNGR_AGENT_ID", _CHAT_ID)
+    monkeypatch.setenv("MNGR_AGENT_NAME", "build-chat")
+    monkeypatch.setenv("MNGR_HOST_DIR", str(host_dir))
+    monkeypatch.delenv("MNGR_AGENT_STATE_DIR", raising=False)
+    rewritten = hooks.agent_rewrite_bash_command.build_rewritten_command("tail -f log")
+    assert rewritten.startswith("export GIT_AUTHOR_NAME=build-chat ")
+
+    _stop(
+        background_task_markers,
+        _main_claude_env(tmp_path),
+        _shell_entry("shell-1") | {"command": rewritten},
+    )
+
+    [task] = markers.list_live_tasks(background_task_markers, _CHAT_ID)
+    assert task.command == "tail -f log"
+
+
 def test_a_later_stop_keeps_a_listed_tasks_start_and_prunes_the_unlisted_ones(
     background_task_markers: Path, tmp_path: Path
 ) -> None:
@@ -321,12 +346,12 @@ def _run_wired_hook(
 
 
 @pytest.mark.parametrize("source", ["resume", "startup"])
-def test_the_wired_claude_hooks_record_a_stop_and_a_restarted_claude_hears_what_it_lost(
+def test_the_wired_claude_hooks_record_a_stop_and_a_restarted_claude_clears_it_silently(
     background_task_markers: Path, source: str
 ) -> None:
     """Runs the hook commands exactly as ``.claude/settings.json`` spells them, as Claude does. A
-    resumed session is the same conversation, so Claude is told which of its tasks the restart
-    ended (SessionStart's stdout is added to its context); a new one starts clean."""
+    restarted Claude's markers of the dead one go, and SessionStart prints nothing: Claude Code
+    itself tells a resumed session which of its tasks the restart stopped."""
     old_claude = subprocess.Popen(["sleep", "60"])
     try:
         _run_wired_hook(
@@ -347,10 +372,7 @@ def test_the_wired_claude_hooks_record_a_stop_and_a_restarted_claude_hears_what_
     )
 
     assert list(markers.chat_dir(background_task_markers, _CHAT_ID).iterdir()) == []
-    if source == "resume":
-        assert "- Build the site (`tail -f log`)" in started.stdout
-    else:
-        assert started.stdout == ""
+    assert started.stdout == ""
 
 
 @pytest.mark.parametrize("event", ["Stop", "SessionStart"])

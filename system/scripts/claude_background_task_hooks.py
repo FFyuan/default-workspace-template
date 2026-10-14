@@ -7,13 +7,13 @@
 ``.claude/settings.json`` wires both, and each reads the hook's input from stdin. Claude Code hands
 its Stop hook the session's ``background_tasks`` list. ``stop`` copies the ones still pending into
 ``harness-claude-*`` markers, keeping a still-listed task's start time and removing the ones no
-longer listed. ``session-start`` (startup and resume) removes those of a Claude process that is
-gone and, on a resume, prints which of Claude's tasks the restart ended, which SessionStart adds
-to Claude's context, since nothing else will tell it: a rebind, a memory shed's revival and any
-other restart of the agent end them silently. Both act only for the agent's main Claude, never a
-nested one, and only on that Claude's own markers and dead ones: after a handoff the chat's other
-agent may be a live Claude whose markers are its own. Each exits 0 on every condition it handles,
-so it never blocks Claude's stop.
+longer listed; a task's command is recorded as the agent wrote it, without the prefix
+``agent_rewrite_bash_command.py`` puts on every Bash command. ``session-start`` (startup and
+resume) removes those of a Claude process that is gone; Claude Code itself tells a resumed session
+which of its tasks the restart stopped. Both act only for the agent's main Claude, never a nested
+one, and only on that Claude's own markers and dead ones: after a handoff the chat's other agent
+may be a live Claude whose markers are its own. Each exits 0 on every condition it handles, so it
+never blocks Claude's stop.
 
 A turn the user interrupts, or one that fails, runs no Stop hook, so its finished tasks would read
 as pending until the next Stop or Claude's exit; the chat app removes such a marker once the
@@ -37,6 +37,7 @@ sys.path.insert(
     str(Path(__file__).resolve().parents[1] / "libs" / "chat_background_tasks" / "src"),
 )
 
+import agent_rewrite_bash_command
 from chat_background_tasks.markers import (
     BackgroundTask,
     TaskSource,
@@ -151,6 +152,11 @@ def is_shadowed_by_main_claude(environ: Mapping[str, str], claude_pid: int) -> b
     )
 
 
+def original_command(command: str) -> str:
+    """The command as the agent wrote it, without the prefix the PreToolUse rewrite hook added."""
+    return command.removeprefix(agent_rewrite_bash_command.build_rewritten_command(""))
+
+
 def is_claude_task(task: BackgroundTask) -> bool:
     return task.source is TaskSource.HARNESS and task.harness == CLAUDE_HARNESS
 
@@ -191,7 +197,7 @@ def tasks_from_stop_input(
                 pid=caller.pid,
                 harness=CLAUDE_HARNESS,
                 kind=str(kind),
-                command=command if isinstance(command, str) else "",
+                command=original_command(command) if isinstance(command, str) else "",
                 pid_start=pid_start,
             )
         )
@@ -226,45 +232,15 @@ def record_stop(root: Path, caller: HookCaller, payload: object) -> None:
             remove_claude_marker(root, caller.chat_id, task_id)
 
 
-def clear(root: Path, caller: HookCaller) -> list[BackgroundTask]:
-    """Remove the chat's Claude markers a new claude process cannot have, its own and dead ones, and
-    return them."""
-    removed = [
-        task
-        for task in read_markers(chat_dir(root, caller.chat_id))
-        if is_claude_task(task) and is_marker_ours(task, caller.pid)
-    ]
-    for task in removed:
-        remove_claude_marker(root, caller.chat_id, task.id)
-    return removed
+def clear(root: Path, caller: HookCaller) -> None:
+    """Remove the chat's Claude markers a new claude process cannot have, its own and dead ones."""
+    for task in read_markers(chat_dir(root, caller.chat_id)):
+        if is_claude_task(task) and is_marker_ours(task, caller.pid):
+            remove_claude_marker(root, caller.chat_id, task.id)
 
 
 def remove_claude_marker(root: Path, chat_id: str, task_id: str) -> None:
     remove_marker(root, chat_id, TaskSource.HARNESS, task_id, CLAUDE_HARNESS)
-
-
-def is_resume(payload: object) -> bool:
-    fields = json_object(payload)
-    return fields is not None and fields.get("source") == "resume"
-
-
-def lost_tasks_notice(tasks: list[BackgroundTask]) -> str:
-    """What a resumed Claude is told of the background tasks its restart ended, which will never
-    report; '' when there were none."""
-    if not tasks:
-        return ""
-    lines = [
-        "These background tasks of yours were running when this session last stopped. The "
-        "restart ended them and they will not report; start again any you still need:"
-    ]
-    for task in tasks:
-        command = f" (`{task.command}`)" if task.command else ""
-        lines.append(f"- {task.description or task.id}{command}")
-    lines.append(
-        "A command you started through run_in_background.py is different: its report, "
-        "saying how it ended, still arrives in this chat."
-    )
-    return "\n".join(lines)
 
 
 def read_payload(stdin: IO[str], event: str) -> object:
@@ -297,17 +273,14 @@ def cmd_session_start(stdin: IO[str], environ: Mapping[str, str]) -> int:
     caller = hook_caller(environ)
     if caller is None:
         return 0
-    payload = read_payload(stdin, "SessionStart")
+    read_payload(stdin, "SessionStart")
     try:
-        removed = clear(marker_root(environ), caller)
+        clear(marker_root(environ), caller)
     except OSError as exc:
         print(
             f"claude_background_task_hooks.py: could not clear the Claude tasks: {exc}",
             file=sys.stderr,
         )
-        return 0
-    if is_resume(payload) and removed:
-        print(lost_tasks_notice(removed))
     return 0
 
 
@@ -321,8 +294,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     commands.add_parser(
         "session-start",
-        help="The SessionStart hook: clear this Claude's markers and dead ones; on a resume, "
-        "name the tasks the restart ended.",
+        help="The SessionStart hook: clear this Claude's markers and dead ones.",
     )
     return parser
 

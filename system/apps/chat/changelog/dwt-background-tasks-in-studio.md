@@ -4,7 +4,7 @@ A chat whose agent ended its turn to wait on a background task no longer reads a
 
 - The chat list's green check now waits for the wait to end: a chat that ends its turn to wait on a background task is not marked done, and is marked once it goes idle with nothing pending while you are looking at another chat.
 
-- Above the message box, below the activity line, a wait line appears whenever background tasks are pending: "Waiting on 2 background tasks · 4m 05s", timed from the oldest. Pressing it lists each task with its description and how long it has run.
+- Above the message box, above the activity line, a wait line appears whenever background tasks are pending: "Waiting on 2 background tasks · 4m 05s", timed from the oldest. Pressing it lists each task with its description and how long it has run.
 
 - When a chat waiting on background tasks moves to another provider, the agent that takes it over is told which tasks the switch ended for good (the old agent's own) and which will still report (commands started through `run_in_background.py`, whose report says how they ended).
 
