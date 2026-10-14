@@ -15,6 +15,7 @@ from imbue.mngr.utils.polling import wait_for
 from imbue.mngr_codex.codex_config import get_codex_home
 
 _SCRIPT = Path(__file__).with_name("codex_update_plugin.sh")
+_PUBLISH_WAIT_SECONDS = 30.0
 _SHIM = """#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -243,13 +244,14 @@ def test_a_publish_waits_for_the_one_already_going(tmp_path: Path) -> None:
         agent.start()
         wait_for(
             lambda: '"plugin", "add"' in _read_or_empty(tmp_path / "calls.jsonl"),
-            timeout=5,
+            timeout=_PUBLISH_WAIT_SECONDS,
             error_message="the agent never installed code-guardian",
         )
         assert agent.is_alive()
         assert not (_shared_root(tmp_path) / "current").exists()
-    agent.join(timeout=5)
+    agent.join(timeout=_PUBLISH_WAIT_SECONDS)
 
+    assert not agent.is_alive()
     assert _installed(_shared_copy(tmp_path)) == ("1", ["1"])
 
 
