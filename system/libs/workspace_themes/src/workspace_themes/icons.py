@@ -107,14 +107,19 @@ def _clear_flat_background(image: Image.Image) -> Image.Image:
     return cleared
 
 
-def _trim_and_square(image: Image.Image) -> Image.Image:
+def _drawn_box(image: Image.Image) -> tuple[int, int, int, int]:
+    """The box around the image's opaque pixels; raises IconImageError when there are none."""
     mask = image.getchannel("A").point(
         lambda alpha: 255 if alpha >= OPAQUE_ALPHA_THRESHOLD else 0
     )
     box = mask.getbbox()
     if box is None:
         raise IconImageError("the image is empty once its background is cleared")
-    trimmed = image.crop(box)
+    return box
+
+
+def _trim_and_square(image: Image.Image) -> Image.Image:
+    trimmed = image.crop(_drawn_box(image))
     side = max(trimmed.size)
     margin = max(1, round(side * FIT_MARGIN_FRACTION))
     canvas = Image.new(
@@ -182,11 +187,18 @@ def _limit_colors(image: Image.Image, max_colors: int) -> Image.Image:
 
 
 def fit_icon_image(image: Image.Image, spec: ThemeIconSpec) -> Image.Image:
-    """Force a drawn candidate onto the theme's limits; raises IconImageError when nothing of it is left."""
+    """Force a drawn candidate onto the theme's limits; raises IconImageError when nothing of it is left.
+
+    A drawing already at the canvas size (a pixel grid drawn at the theme's size, a reference icon) keeps its pixels
+    one for one: trimming it and scaling it back would stretch or drop rows of it.
+    """
     working = image.convert("RGBA")
     if spec.background == IconBackground.TRANSPARENT and _is_corner_opaque(working):
         working = _clear_flat_background(working)
-    working = _scale_to_canvas(_trim_and_square(working), spec)
+    if working.size == (spec.size, spec.size):
+        _drawn_box(working)
+    else:
+        working = _scale_to_canvas(_trim_and_square(working), spec)
     if spec.rendering == IconRendering.PIXELATED:
         working.putalpha(
             working.getchannel("A").point(

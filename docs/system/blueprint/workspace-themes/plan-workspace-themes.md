@@ -279,7 +279,7 @@ The `make-theme-icon` skill makes a theme's icon for an app:
 
 1. It reads the theme's guide and limits, the app's name, display name, and purpose, and the app's standard icon.
 2. It draws a candidate with whatever it can reach: an image tool the harness provides, an image API the user has a key for (the skill's `providers/` has examples), or, with no image model at all, a pixel grid or an SVG the agent writes itself.
-3. `workspace-themes icon fit` forces the candidate onto the limits: trims it, scales it to the canvas (nearest neighbour for a pixelated theme), quantizes it to the palette or color count, and clears or fills the background.
+3. `workspace-themes icon fit` forces the candidate onto the limits: trims it, scales it to the canvas (nearest neighbour for a pixelated theme), quantizes it to the palette or color count, and clears or fills the background. A candidate already at the canvas size (a pixel grid drawn at the theme's size) is not trimmed or scaled, so its pixels stay one for one.
 4. `workspace-themes icon check` checks the result. A png icon: size, format, background, palette, color count, that it is not blank, and that it still reads scaled down to 16 pixels (enough contrast between the icon and its background). An svg icon: that it is well-formed SVG with a `viewBox`, so it scales, and holds no script, event handler, `foreignObject`, or reference outside itself. `workspace-themes validate` holds a theme's own svg icons to the same rules.
 5. `workspace-themes icon install` puts it in place (section 6.3).
 

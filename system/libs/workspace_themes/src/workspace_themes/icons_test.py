@@ -130,6 +130,25 @@ def test_an_empty_drawing_cannot_be_fitted() -> None:
         fit_icon_image(Image.new("RGBA", (64, 64), (255, 255, 255, 255)), _spec())
 
 
+def test_a_drawing_at_the_canvas_size_keeps_its_pixels_one_for_one() -> None:
+    # A 30-pixel checkerboard in a 32-pixel canvas: trimmed, given a margin, and scaled back, its rows would double
+    # or merge.
+    drawing = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    for y in range(1, 31):
+        for x in range(1, 31):
+            is_black = (x + y) % 2 == 0
+            drawing.putpixel(
+                (x, y), (0, 0, 0, 255) if is_black else (255, 255, 255, 255)
+            )
+    spec = _spec(palette=("#000000", "#ffffff"))
+
+    fitted = fit_icon_image(drawing, spec)
+
+    assert rgba_pixels(fitted) == rgba_pixels(drawing)
+    with pytest.raises(IconImageError, match="empty"):
+        fit_icon_image(Image.new("RGBA", (32, 32), (0, 0, 0, 0)), spec)
+
+
 def test_a_pixel_grid_an_agent_writes_is_drawn_one_character_per_pixel() -> None:
     grid = "..kk..\n.kwwk.\n..kk..\n"
 
