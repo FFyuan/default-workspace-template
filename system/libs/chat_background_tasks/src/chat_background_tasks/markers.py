@@ -19,9 +19,9 @@ and where ``/proc`` has it, that process's start time, so a pid recycled after a
 bring a marker back. Readers skip a stale marker and never delete it; its writer's next pass does.
 
 The marker root is ``data/.apps/chat/background_tasks`` under the workspace's main checkout: the
-repo this package is in, or, when that is a git worktree (a worker's work dir), the checkout the
-worktree belongs to, whose ``data/`` is the one the chat app reads. ``$MINDS_BACKGROUND_TASKS_DIR``
-overrides it.
+repo the caller names (by default the one this package is in), or, when that is a git worktree (a
+worker's work dir), the checkout the worktree belongs to, whose ``data/`` is the one the chat app
+reads. ``$MINDS_BACKGROUND_TASKS_DIR`` overrides it.
 """
 
 import datetime
