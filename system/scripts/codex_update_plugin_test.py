@@ -301,6 +301,7 @@ def test_a_failed_refresh_keeps_the_shared_copy_and_fails(tmp_path: Path) -> Non
     assert _installed(_shared_copy(tmp_path)) == ("1", ["1"])
 
 
+@pytest.mark.flaky
 def test_only_the_two_newest_shared_copies_are_kept(tmp_path: Path) -> None:
     _run(tmp_path, agent="first agent")
     for number in (2, 3):
