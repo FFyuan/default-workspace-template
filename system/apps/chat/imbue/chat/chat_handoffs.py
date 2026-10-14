@@ -216,14 +216,19 @@ def background_tasks_section(tasks: tuple[BackgroundTask, ...]) -> str:
         return ""
     lines = ["Background tasks your predecessor was waiting on when the chat moved to you:"]
     for task in tasks:
-        if task.source is TaskSource.RUN_IN_BACKGROUND:
-            lines.append(
-                f"- Its report, saying how it ended, arrives in this chat as a message (the switch stopped it if it "
-                f"was still running): {task.description}"
-            )
-        else:
-            command = f" (`{task.command}`)" if task.command else ""
-            lines.append(f"- Stopped by the switch; start it again if it is still needed: {task.description}{command}")
+        match task.source:
+            case TaskSource.RUN_IN_BACKGROUND:
+                lines.append(
+                    f"- Its report, saying how it ended, arrives in this chat as a message (the switch stopped it if it "
+                    f"was still running): {task.description}"
+                )
+            case TaskSource.HARNESS:
+                command = f" (`{task.command}`)" if task.command else ""
+                lines.append(
+                    f"- Stopped by the switch; start it again if it is still needed: {task.description}{command}"
+                )
+            case _ as unreachable:
+                assert_never(unreachable)
     return "\n".join(lines) + "\n\n"
 
 
