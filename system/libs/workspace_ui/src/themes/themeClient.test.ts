@@ -69,6 +69,44 @@ describe("wearTheme", () => {
     expect(themeLinks().map((link) => link.getAttribute(THEME_LINK_ATTRIBUTE))).toEqual(["windows-2000"]);
   });
 
+  it("drops a theme still loading when another is worn, settling it, whichever stylesheet loads first", async () => {
+    const first = wearTheme({ id: "mac-classic", revision: "1" });
+    settleLink(themeLinks()[0], "load");
+    await first;
+
+    const preview = wearTheme({ id: "windows-2000", revision: "2" });
+    const previewLink = themeLinks()[1];
+    const back = wearTheme({ id: "mac-classic", revision: "1" });
+    await preview;
+    expect(themeLinks().map((link) => link.getAttribute(THEME_LINK_ATTRIBUTE))).toEqual([
+      "mac-classic",
+      "mac-classic",
+    ]);
+    // A late error from the dropped link leaves the page's stylesheets alone.
+    settleLink(previewLink, "error");
+    expect(themeLinks()).toHaveLength(2);
+    settleLink(themeLinks()[1], "load");
+    await back;
+
+    expect(themeLinks()).toHaveLength(1);
+    expect(currentTheme()).toEqual({ id: "mac-classic", revision: "1" });
+  });
+
+  it("settles a repeated wear of a theme still loading only once its stylesheet has loaded", async () => {
+    const worn = wearTheme({ id: "mac-classic", revision: "1" });
+    let isAgainSettled = false;
+    const again = wearTheme({ id: "mac-classic", revision: "1" }).then(() => {
+      isAgainSettled = true;
+    });
+    await Promise.resolve();
+    expect(isAgainSettled).toBe(false);
+
+    settleLink(themeLinks()[0], "load");
+    await worn;
+    await again;
+    expect(isAgainSettled).toBe(true);
+  });
+
   it("holds the first frame for the bundle only when asked, marking the link before it is inserted", async () => {
     const append = document.head.appendChild.bind(document.head);
     let blockingWhenInserted: string | null = null;

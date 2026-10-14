@@ -44,6 +44,16 @@ let isCurrentRemembered = true;
 let hasAdoptedBootedTheme = false;
 const listeners = new Set<ThemeListener>();
 
+/** The theme stylesheet still loading, put on by the last call that changed the theme. */
+interface PendingThemeLink {
+  readonly link: HTMLLinkElement;
+  /** Settles once the page shows the theme, or once a later change replaces it. */
+  readonly shown: Promise<void>;
+  /** Drop the link before it has loaded, settling `shown`: a later change replaced it. */
+  readonly supersede: () => void;
+}
+let pending: PendingThemeLink | null = null;
+
 /** Hears the theme the page wears, and whether it is remembered (false while it is only shown, as a preview). */
 export type ThemeListener = (theme: ThemeRef, isRemembered: boolean) => void;
 
@@ -120,23 +130,27 @@ export interface WearThemeOptions {
 /**
  * Wear a theme: load its bundle as the page's last stylesheet, mark `<html>`, and remember it. The returned
  * promise settles once the page shows the theme (its stylesheet has loaded, or failed and was dropped, which
- * leaves the standard look), which is when a reader of the theme's tokens can read them.
+ * leaves the standard look), which is when a reader of the theme's tokens can read them, or once a later call
+ * wears another theme before this one has loaded.
  */
 export function wearTheme(theme: ThemeRef, doc: Document = document, options: WearThemeOptions = {}): Promise<void> {
   adoptBootedThemeOnce(doc);
   const isRemembered = options.isRemembered !== false;
   const isSame = theme.id === current.id && theme.revision === current.revision;
-  const existing = themeLinks(doc);
   const url = themeBundleUrl(theme);
-  if (isSame && (url === null) === (existing.length === 0)) {
+  if (isSame && (url === null) === (themeLinks(doc).length === 0)) {
     // The theme stays; only whether it is remembered may change (a previewed theme saved as it is).
     if (isRemembered !== isCurrentRemembered) {
       isCurrentRemembered = isRemembered;
       if (isRemembered) remember(theme);
       for (const listener of listeners) listener(theme, isRemembered);
     }
-    return Promise.resolve();
+    return pending?.shown ?? Promise.resolve();
   }
+  // A theme still loading is no longer the one to wear: it never shows, and its promise settles now.
+  pending?.supersede();
+  pending = null;
+  const existing = themeLinks(doc);
   current = theme;
   isCurrentRemembered = isRemembered;
   const root = doc.documentElement;
@@ -156,16 +170,35 @@ export function wearTheme(theme: ThemeRef, doc: Document = document, options: We
   link.setAttribute(THEME_LINK_ATTRIBUTE, theme.id);
   // Set before the link is inserted: whether a stylesheet holds the first frame is settled when its fetch starts.
   if (options.isRenderBlocking === true) link.setAttribute("blocking", "render");
-  return new Promise((resolve) => {
-    const settle = (isLoaded: boolean): void => {
-      for (const old of existing) old.remove();
-      if (!isLoaded) link.remove();
-      resolve();
-    };
-    link.addEventListener("load", () => settle(true), { once: true });
-    link.addEventListener("error", () => settle(false), { once: true });
-    doc.head.appendChild(link);
+  let isSettled = false;
+  let resolveShown: () => void = () => undefined;
+  const shown = new Promise<void>((resolve) => {
+    resolveShown = resolve;
   });
+  const settle = (isLoaded: boolean): void => {
+    if (isSettled) return;
+    isSettled = true;
+    if (pending?.link === link) pending = null;
+    for (const old of existing) old.remove();
+    if (!isLoaded) link.remove();
+    resolveShown();
+  };
+  link.addEventListener("load", () => settle(true), { once: true });
+  link.addEventListener("error", () => settle(false), { once: true });
+  pending = {
+    link,
+    shown,
+    supersede: () => {
+      // Settled here, so the removed link's late error (some browsers fire one) cannot drop the stylesheets the
+      // page wears meanwhile.
+      if (isSettled) return;
+      isSettled = true;
+      link.remove();
+      resolveShown();
+    },
+  };
+  doc.head.appendChild(link);
+  return shown;
 }
 
 /** Hear every change of the page's theme, or of whether it is remembered (the shell passes both on to the pages it
@@ -226,6 +259,7 @@ export function resetThemeClientForTests(): void {
   current = STANDARD_THEME;
   isCurrentRemembered = true;
   hasAdoptedBootedTheme = false;
+  pending = null;
   listeners.clear();
   document.documentElement.removeAttribute(THEME_ATTRIBUTE);
   document.documentElement.removeAttribute(THEME_REVISION_ATTRIBUTE);
