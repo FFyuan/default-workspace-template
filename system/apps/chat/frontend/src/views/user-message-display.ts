@@ -16,6 +16,7 @@ import { MarkdownContent } from "../markdown";
 import { parseMessageAttachments } from "../models/attachments";
 import type { UserMessageEvent } from "../models/Response";
 import { classifyUserMessage, isHiddenUserMessage } from "./message-classification";
+import type { UserMessageClass } from "./message-classification";
 import { isBlockExpanded, setBlockExpanded } from "./expansion-state";
 import { UserMessageKind } from "./message-kinds";
 import { renderToolBlock } from "./ToolCallBlock";
@@ -92,7 +93,7 @@ function renderStatusMessage(label: string, body: string, expansionKey: string):
 }
 
 /** A notice's lead when the backend's decision names none. */
-export const NOTICE_FALLBACK_LABEL = "Background task completed";
+const NOTICE_FALLBACK_LABEL = "Background task completed";
 
 /** The space below a notice's transcript row. */
 export const NOTICE_ROW_SPACING_CLASS = "mb-2";
@@ -108,6 +109,11 @@ export function renderNotice(label: string, body: string): m.Vnode {
       body ? ` ${body}` : null,
     ]),
   ]);
+}
+
+/** A notice that is not on the transcript yet (queued, or held by a switch) as a row of its own. */
+export function renderNoticeRow(key: string, rowClass: string, cls: UserMessageClass): m.Vnode {
+  return m("div", { class: rowClass, key }, [renderNotice(cls.label ?? NOTICE_FALLBACK_LABEL, cls.body)]);
 }
 
 export function StableUserMessage(): m.Component<{ event: UserMessageEvent }> {

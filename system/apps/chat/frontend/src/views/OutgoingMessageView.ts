@@ -12,14 +12,13 @@ import m from "mithril";
 import { getOutgoingMessages } from "../models/OutgoingMessages";
 import type { DisplayDecision } from "../models/Chats";
 import type { OutgoingMessage } from "../models/OutgoingMessages";
-import { classifyUserMessage } from "./message-classification";
+import { classifyDecidedMessage } from "./message-classification";
 import { UserMessageKind } from "./message-kinds";
 import {
-  NOTICE_FALLBACK_LABEL,
   NOTICE_ROW_SPACING_CLASS,
   USER_BUBBLE_CLASS,
   USER_MESSAGE_ROW_CLASS,
-  renderNotice,
+  renderNoticeRow,
 } from "./user-message-display";
 
 // The user rail's own recipes; the extra classes are bare markers for tests.
@@ -47,12 +46,7 @@ export interface NotYetRealBubble {
  *  renders through here (optimistic, held by a switch, re-sent by a tap), so they look the same
  *  and the handoff to the real turn is invisible. */
 export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
-  const cls = classifyUserMessage({
-    content: bubble.content,
-    display: bubble.display?.display ?? undefined,
-    display_label: bubble.display?.display_label ?? undefined,
-    display_body: bubble.display?.display_body ?? undefined,
-  });
+  const cls = classifyDecidedMessage(bubble.content, bubble.display);
   if (cls.kind === UserMessageKind.Notice) {
     const noticeRowClass = [
       "message-notice-row",
@@ -61,9 +55,7 @@ export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
     ]
       .filter((part) => part !== null)
       .join(" ");
-    return m("div", { class: noticeRowClass, key: bubble.key }, [
-      renderNotice(cls.label ?? NOTICE_FALLBACK_LABEL, cls.body),
-    ]);
+    return renderNoticeRow(bubble.key, noticeRowClass, cls);
   }
   const rowClass = [
     OUTGOING_ROW_CLASS,
