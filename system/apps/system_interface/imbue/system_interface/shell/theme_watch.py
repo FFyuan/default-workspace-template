@@ -26,6 +26,8 @@ from imbue.imbue_common.mutable_model import MutableModel
 
 # A burst of writes (a theme saved file by file, an icon fitted then installed) is answered once, after it settles.
 THEME_CHANGE_SETTLE_SECONDS: Final[float] = 0.4
+# How long after a failed start (a watched folder gone mid-start, no inotify instances left) the watch tries again.
+THEME_WATCH_RETRY_SECONDS: Final[float] = 30.0
 
 
 class _AnyChangeHandler(FileSystemEventHandler):
@@ -107,7 +109,12 @@ class ThemeCatalogWatch(MutableModel):
         try:
             observer.start()
         except OSError as error:
-            logger.opt(exception=error).error("Failed to watch the theme folders")
+            # The emitters started before the failing one keep running until they are unscheduled.
+            observer.unschedule_all()
+            logger.opt(exception=error).error(
+                "Failed to watch the theme folders; trying again in {} seconds", THEME_WATCH_RETRY_SECONDS
+            )
+            self._schedule_check_after(THEME_WATCH_RETRY_SECONDS)
             return
         self._observer = observer
         self._watched = watched
@@ -131,12 +138,15 @@ class ThemeCatalogWatch(MutableModel):
 
     def schedule_check(self) -> None:
         """Check once a burst of changes settles; nothing once the watch has stopped."""
+        self._schedule_check_after(THEME_CHANGE_SETTLE_SECONDS)
+
+    def _schedule_check_after(self, delay_seconds: float) -> None:
         with self._lock:
             if self._is_stopped:
                 return
             if self._timer is not None:
                 self._timer.cancel()
-            timer = threading.Timer(THEME_CHANGE_SETTLE_SECONDS, self.check_now)
+            timer = threading.Timer(delay_seconds, self.check_now)
             timer.daemon = True
             self._timer = timer
             timer.start()
@@ -148,8 +158,9 @@ class ThemeCatalogWatch(MutableModel):
             with self._lock:
                 if self._is_stopped:
                     return
-            # A theme root made since the watch began (the first workspace theme's themes/) is watched from now on.
-            if self._observer is not None and self._watched_directories() != self._watched:
+            # A theme root made since the watch began (the first workspace theme's themes/) is watched from now on,
+            # and a watch that failed to start is tried again.
+            if self._observer is None or self._watched_directories() != self._watched:
                 self._stop_observer()
                 self._start_observer()
             signature = _catalog_signature(self.loader.load())

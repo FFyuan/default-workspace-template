@@ -53,6 +53,23 @@ def test_a_theme_root_made_while_the_watch_runs_is_watched_from_then_on(tmp_path
         watch.stop()
 
 
+@pytest.mark.timeout(30)
+def test_a_check_starts_the_watch_again_when_none_is_running(tmp_path: Path) -> None:
+    changes: list[int] = []
+    watch = _watch(tmp_path, changes)
+    watch.start()
+    try:
+        # What a failed start leaves: no observer delivering events.
+        watch._stop_observer()
+
+        watch.check_now()
+        write_test_theme(tmp_path / WORKSPACE_THEMES_DIRECTORY, "paper", "")
+
+        wait_for(lambda: len(changes) == 1, timeout=10.0)
+    finally:
+        watch.stop()
+
+
 def _write_chat_overlay_theme(repo_root: Path) -> None:
     """A workspace theme whose chat overlay styles ``chat.user-message``."""
     folder = write_test_theme(repo_root / WORKSPACE_THEMES_DIRECTORY, "paper", "")
