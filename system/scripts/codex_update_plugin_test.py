@@ -180,6 +180,16 @@ def test_a_copy_that_fails_partway_falls_back_to_installing_from_github(
     ]
 
 
+def test_an_unwritable_shared_folder_still_provisions_the_agent(tmp_path: Path) -> None:
+    _shared_root(tmp_path).write_text("")
+
+    result, _, home = _run(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert "could not keep a shared copy" in result.stderr
+    assert _installed(home) == ("1", ["1"])
+
+
 def test_a_refresh_before_any_codex_agent_does_nothing(tmp_path: Path) -> None:
     _run(tmp_path, provisioned=False)
 

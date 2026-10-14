@@ -61,12 +61,13 @@ copy_install() {
 
 # Make a copy of the install in `source_home` the shared copy, and drop every
 # older copy but the one it replaces (an agent may still be copying from that).
+# Every caller tests its status, so each step returns on failure itself.
 publish_shared_copy() {
     local source_home="$1"
     local previous=""
     local copy
-    mkdir -p "$shared_root"
-    copy="$(mktemp -d "$shared_root/copy.XXXXXX")"
+    mkdir -p "$shared_root" || return 1
+    copy="$(mktemp -d "$shared_root/copy.XXXXXX")" || return 1
     copy_install "$source_home" "$copy" || { rm -rf "$copy"; return 1; }
     if [[ -L "$shared_current" ]]; then
         previous="$(readlink "$shared_current")"
@@ -118,13 +119,16 @@ refresh_shared_copy() {
 }
 
 # Keep this agent's config as the one a refresh installs with. It is moved into
-# place whole, so a refresh never reads a half-written file.
+# place whole, so a refresh never reads a half-written file. Its caller tests its
+# status, so each step returns on failure itself.
 save_shared_config() {
     local staged
-    mkdir -p "$shared_root"
-    staged="$(mktemp "$shared_root/config.XXXXXX")"
-    cp "$CODEX_HOME/config.toml" "$staged"
-    mv "$staged" "$shared_config"
+    mkdir -p "$shared_root" || return 1
+    staged="$(mktemp "$shared_root/config.XXXXXX")" || return 1
+    if ! cp "$CODEX_HOME/config.toml" "$staged" || ! mv "$staged" "$shared_config"; then
+        rm -f "$staged"
+        return 1
+    fi
 }
 
 STRICT=0
