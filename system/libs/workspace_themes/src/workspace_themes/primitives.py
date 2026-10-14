@@ -42,7 +42,7 @@ class ThemeId(str):
 
 
 class _BoundedText(str):
-    """Trimmed text between one character and a maximum length."""
+    """Trimmed text between one character and a maximum length, with no control characters."""
 
     max_length: int = 0
     label: str = ""
@@ -54,6 +54,10 @@ class _BoundedText(str):
         if len(stripped) > cls.max_length:
             raise InvalidThemeValueError(
                 f"{cls.label} must be at most {cls.max_length} characters, got {len(stripped)}"
+            )
+        if _CONTROL_CHARACTER_PATTERN.search(stripped) is not None:
+            raise InvalidThemeValueError(
+                f"{cls.label} {stripped!r} may not hold control characters"
             )
         return super().__new__(cls, stripped)
 
