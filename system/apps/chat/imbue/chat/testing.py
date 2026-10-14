@@ -262,10 +262,6 @@ CONTINUE_CHAT_TEMPLATE_PATH: Final[Path] = (
 )
 
 
-def build_background_task_reader(root: Path) -> BackgroundTaskReader:
-    return BackgroundTaskReader(root=root)
-
-
 def write_background_task_marker(
     reader: BackgroundTaskReader,
     chat_id: str,
@@ -1065,7 +1061,7 @@ def running_workspace(
             prompt_template_path=CONTINUE_CHAT_TEMPLATE_PATH,
             background_tasks=None
             if background_tasks_root is None
-            else build_background_task_reader(background_tasks_root),
+            else BackgroundTaskReader(root=background_tasks_root),
         )
         # The agents carry the signed-in account's label, as a chat the app created would, so the
         # page's provider row names it.

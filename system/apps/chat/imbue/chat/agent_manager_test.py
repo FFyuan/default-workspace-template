@@ -107,7 +107,6 @@ from imbue.chat.primitives import ChatId
 from imbue.chat.primitives import ChatStatus
 from imbue.chat.testing import CONTINUE_CHAT_TEMPLATE_PATH
 from imbue.chat.testing import RecordingMngrMessenger
-from imbue.chat.testing import build_background_task_reader
 from imbue.chat.testing import build_test_state
 from imbue.chat.testing import drain_is_connecting_pushes
 from imbue.chat.testing import is_chat_connecting
@@ -3474,7 +3473,7 @@ def test_model_state_poller_recomputes_and_broadcasts_when_the_state_file_change
 def _manager_reading_tasks(
     broadcaster: WebSocketBroadcaster, tmp_path: Path, store: InMemoryChatRecordStore | None = None
 ) -> tuple[AgentManager, BackgroundTaskReader]:
-    reader = build_background_task_reader(tmp_path / "background_tasks")
+    reader = BackgroundTaskReader(root=tmp_path / "background_tasks")
     manager = AgentManager.build(
         broadcaster,
         chat_files_root=tmp_path / "chats",

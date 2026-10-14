@@ -7,9 +7,9 @@ from chat_background_tasks.markers import TaskSource
 
 from imbue.chat.background_tasks import BACKGROUND_TASKS_DIRNAME
 from imbue.chat.background_tasks import BackgroundTask
+from imbue.chat.background_tasks import BackgroundTaskReader
 from imbue.chat.config import DEFAULT_CHAT_DATA_DIR
 from imbue.chat.primitives import ChatId
-from imbue.chat.testing import build_background_task_reader
 from imbue.chat.testing import write_background_task_marker
 
 
@@ -22,7 +22,7 @@ def _dead_pid() -> int:
 def test_the_reader_reads_the_live_markers_the_library_writes(tmp_path: Path) -> None:
     """What the library reads arrives in the app's types: live markers oldest first, a stale one (its pid dead) and
     a malformed one skipped."""
-    reader = build_background_task_reader(tmp_path / "background_tasks")
+    reader = BackgroundTaskReader(root=tmp_path / "background_tasks")
     chat_id = ChatId("agent-1")
     write_background_task_marker(
         reader, chat_id, "later", os.getpid(), "Watch the logs", "2026-10-08T12:05:00+00:00", harness="claude"

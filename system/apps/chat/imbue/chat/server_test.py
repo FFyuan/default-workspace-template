@@ -39,6 +39,7 @@ from imbue.chat.agent_manager import AgentManager
 from imbue.chat.agent_manager import SKIP_CLAUDE_INSTALLATION_CHECK_SETTING
 from imbue.chat.agent_manager import _build_chat_destroy_command
 from imbue.chat.agent_manager import _build_chat_stop_command
+from imbue.chat.background_tasks import BackgroundTaskReader
 from imbue.chat.chat_naming import ChatNamer
 from imbue.chat.chat_records import ChatRecord
 from imbue.chat.chat_transcript import agent_switch_event_id
@@ -83,7 +84,6 @@ from imbue.chat.testing import InlineExecutor
 from imbue.chat.testing import RecordingGateway
 from imbue.chat.testing import RecordingMngrMessenger
 from imbue.chat.testing import VanishedAgentMngrMessenger
-from imbue.chat.testing import build_background_task_reader
 from imbue.chat.testing import build_test_state
 from imbue.chat.testing import close_ws
 from imbue.chat.testing import drain_is_connecting_pushes
@@ -184,7 +184,7 @@ def test_the_agent_and_chat_listings_carry_each_chats_busy_verdict_and_pending_t
 ) -> None:
     """``/api/agents`` is what ``system/scripts/background_tasks.py`` asks first, so its answer is checked through the
     script's own parser; ``/api/chats`` carries the same facts on each snapshot."""
-    reader = build_background_task_reader(tmp_path / "background_tasks")
+    reader = BackgroundTaskReader(root=tmp_path / "background_tasks")
     manager = AgentManager.build(WebSocketBroadcaster(), chat_files_root=tmp_path / "chats", background_tasks=reader)
     state = build_test_state(config=config, agent_manager=manager)
     manager.note_agent_list_known()
