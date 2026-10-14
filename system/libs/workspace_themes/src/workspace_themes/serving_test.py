@@ -63,7 +63,7 @@ def test_a_served_file_is_a_style_or_asset_file_inside_its_theme_folder(
         "paper/theme.toml",
         "paper/icons/guide.md",
         "paper/../standard/theme.toml",
-        "paper/%2e%2e/standard/theme.toml",
+        "paper/%2e%2e/paper/parts.css",
         "paper/a\x00.css",
         "paper/missing.css",
         "unknown/theme.css",
@@ -101,6 +101,20 @@ def test_an_icon_replaced_by_a_link_after_the_catalog_was_read_is_not_served(
 
     with pytest.raises(ThemeFileNotFoundError):
         resolve_theme_icon(catalog, "paper", "files.png")
+
+
+def test_a_style_file_replaced_by_a_link_after_the_catalog_was_read_is_not_served(
+    tmp_path: Path, catalog: ThemeCatalog
+) -> None:
+    style_file = tmp_path / BUILTIN_THEMES_DIRECTORY / "paper" / "parts.css"
+    outside = tmp_path / "secret.css"
+    outside.write_text("secret { color: red; }\n", encoding="utf-8")
+    assert isinstance(resolve_theme_asset(catalog, "paper/parts.css"), ThemeFile)
+    style_file.unlink()
+    style_file.symlink_to(outside)
+
+    with pytest.raises(ThemeFileNotFoundError):
+        resolve_theme_asset(catalog, "paper/parts.css")
 
 
 def test_a_theme_file_is_never_sniffed_and_an_svg_runs_nothing() -> None:
