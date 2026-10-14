@@ -113,6 +113,8 @@ start_refresh() {
     if [[ -n "$running_pid" ]] && kill -0 "$running_pid" 2>/dev/null; then
         return 0
     fi
+    # Whatever an earlier refresh that was stopped left behind.
+    rm -rf "$shared_root"/refresh-config.* "$shared_root"/refresh.??????
     config="$(mktemp "$shared_root/refresh-config.XXXXXX")"
     cp "$CODEX_HOME/config.toml" "$config"
     local time_limit=""
@@ -120,13 +122,15 @@ start_refresh() {
         time_limit="timeout $((REFRESH_DELAY_SECONDS + REFRESH_TIMEOUT_SECONDS))"
     fi
     # Every descriptor is redirected so mngr, which reads this script's output to
-    # its end, is never left waiting on the detached run's copy of it.
+    # its end, is never left waiting on the detached run's copy of it. The run is
+    # the workspace's, not this agent's: mngr kills every process carrying the
+    # agent's MNGR_AGENT_ID before it starts the agent, so the variable is dropped.
     # shellcheck disable=SC2086
     if command -v setsid >/dev/null 2>&1; then
-        setsid nohup $time_limit bash "$script_path" --refresh "$config" \
+        env -u MNGR_AGENT_ID setsid nohup $time_limit bash "$script_path" --refresh "$config" \
             >"$shared_root/refresh.log" 2>&1 </dev/null &
     else
-        nohup $time_limit bash "$script_path" --refresh "$config" \
+        env -u MNGR_AGENT_ID nohup $time_limit bash "$script_path" --refresh "$config" \
             >"$shared_root/refresh.log" 2>&1 </dev/null &
     fi
     echo "$!" > "$pid_file"

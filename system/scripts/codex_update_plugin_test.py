@@ -17,7 +17,7 @@ _SHIM = """#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
 with open(os.environ["SHIM_LOG"], "a") as log:
-    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:]]) + "\\n")
+    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:], os.environ.get("MNGR_AGENT_ID")]) + "\\n")
 if " ".join(sys.argv[1:3]) == os.environ.get("SHIM_FAIL"):
     sys.exit(1)
 home = Path(os.environ["CODEX_HOME"])
@@ -62,6 +62,7 @@ def _run(
             **os.environ,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
             "MNGR_AGENT_STATE_DIR": str(state),
+            "MNGR_AGENT_ID": f"agent-{agent.replace(' ', '-')}",
             "CODEX_HOME": str(shared),
             "SHIM_LOG": str(log),
             "SHIM_FAIL": fail,
@@ -143,8 +144,11 @@ def test_a_later_agent_refreshes_the_shared_copy_for_the_next_one(tmp_path: Path
 
     result, _, home = _run(tmp_path, agent="second agent", revision="2")
     _wait_for_refresh(tmp_path)
+    refresh_calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
 
     assert result.returncode == 0, result.stderr
+    # mngr kills processes carrying the agent's id before starting it; the refresh must not carry it.
+    assert [call[2] for call in refresh_calls] == [None, None]
     assert _installed(home) == ("1", ["1"])
     assert _installed(_shared_copy(tmp_path)) == ("2", ["2"])
     # The copy it replaced stays, since an agent may still be copying from it.
