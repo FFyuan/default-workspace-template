@@ -218,7 +218,7 @@
     // Exact rows (the system reports each program's own memory) need no note; the estimate that
     // shrinks every row by one factor does, so it says the values are approximate.
     $("usage-note").hidden = s.usage_mode === "exact";
-    $("usage-note").textContent = "Memory use is approximate. Programs share part of their memory, so each value is scaled down to match the total memory in use. Stopping a chat or app frees about the memory shown next to it.";
+    $("usage-note").textContent = "Memory use is approximate.";
     renderUsage(s.usage);
 
     const d = s.disk, dp = pct(d.used, d.total);
