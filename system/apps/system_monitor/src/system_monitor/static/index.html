@@ -314,8 +314,8 @@
     if (top.bytes < ADVICE_MIN_BYTES) return "";
     return {
       chats: " Chats are using the most memory. Stopping chats you aren't using frees memory.",
-      apps: " Your apps are using the most memory. Most stop a minute after their last window closes.",
-      checkers: " Code checkers are using the most memory. Each one stops when the chat that started it is stopped.",
+      apps: " Your apps are using the most memory. Quitting apps you aren't using frees memory.",
+      checkers: " Code checkers are using the most memory. Asking an agent to stop its code checkers, or stopping its chat, frees memory.",
       scratch: ` Temporary files are using ${size(top.bytes)}. They're cleared when the workspace restarts.`,
     }[top.id];
   }
