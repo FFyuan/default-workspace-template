@@ -108,7 +108,8 @@ uv run workspace-themes icon missing <id>
 names the apps still without one, and `app` while the generic program icon is missing (the theme is
 unavailable until it has one; the icon commands still take it). Make each with the `make-theme-icon` skill, in the background
 (the `launch-task` skill) when there are more than one or two (a background agent installs into the
-live workspace, as that skill says), and show the user the theme while they land. The theme is finished when the command prints `every theme has an icon for every app`.
+live workspace, as that skill says, and names the icons it put in `themes/<id>/icons/`; commit them
+with the theme once they land), and show the user the theme while they land. The theme is finished when the command prints `every theme has an icon for every app`.
 A theme that keeps the standard icons (no `[icons]` of its own) has nothing to draw here.
 
 ## 7. Show the user

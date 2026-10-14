@@ -69,7 +69,9 @@ live workspace's, so run every `workspace-themes icon` command with
 it names with the `make-theme-icon` skill, drawing it by hand (a pixel grid for a png
 theme, a written SVG for an svg theme; a worker asks the user for no image-model key),
 and install it there too. An icon for a built-in
-theme lands under the live workspace's `data/.themes/`, not in the commit.
+theme lands under the live workspace's `data/.themes/`, not in the commit; one for a workspace
+theme lands in that theme's `themes/<id>/icons/` there, which is not in your branch either, so
+name each such icon in your report for the chat to commit.
 
 ## Working in isolation
 

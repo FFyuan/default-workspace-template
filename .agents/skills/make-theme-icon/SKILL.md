@@ -118,7 +118,9 @@ workspace.
 background worker) adds `--repo-root /home/user/workspace` to `icon install` and to
 `icon missing`, so the icon lands in the live workspace the shell draws from, and the check
 reads the icons it already has there; one installed into the worker's own `data/` is never
-seen and goes when the checkout does.
+seen and goes when the checkout does. An icon for a workspace theme lands in `themes/<id>/icons/`
+of the live workspace, outside the worker's own branch: the worker names each one in its report,
+and the chat that launched it commits them with the theme.
 
 A built-in theme's own icons come first: `install` refuses an icon for an app the theme ships
 one for, and the generic program icon, of a built-in theme. To change one of those, make a
