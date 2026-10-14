@@ -263,6 +263,19 @@ def test_the_caching_loader_reads_again_only_after_a_change(tmp_path: Path) -> N
     assert second.find_available("paper") is not None
 
 
+def test_an_app_manifest_that_is_not_utf8_is_left_out_of_the_catalog(
+    tmp_path: Path,
+) -> None:
+    write_standard_theme(tmp_path)
+    app = tmp_path / "system" / "apps" / "broken"
+    app.mkdir(parents=True)
+    (app / "app.toml").write_bytes(b'name = "broken"\ndisplay_name = "\xff"\n')
+
+    catalog = CachingThemeCatalogLoader(repo_root=tmp_path).load()
+
+    assert catalog.find_available("standard") is not None
+
+
 def test_a_missing_root_reads_as_no_themes(tmp_path: Path) -> None:
     roots = (ThemeRoot(directory=tmp_path / "nowhere", source=ThemeSource.WORKSPACE),)
 

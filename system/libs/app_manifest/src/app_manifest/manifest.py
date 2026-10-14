@@ -606,7 +606,7 @@ def load_manifest(path: Path, *, repo_root: Path | None = None) -> AppManifest:
     """
     try:
         raw_text = path.read_text(encoding="utf-8")
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         raise ManifestLoadError(f"cannot read manifest {path}: {e}") from e
     try:
         data = tomllib.loads(raw_text)

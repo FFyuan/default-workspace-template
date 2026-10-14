@@ -592,6 +592,14 @@ def test_load_manifest_reports_a_missing_file(tmp_path: Path) -> None:
         load_manifest(tmp_path / "nope.toml")
 
 
+def test_load_manifest_reports_a_file_that_is_not_utf8(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "app.toml"
+    manifest_path.write_bytes(b'name = "news"\ndisplay_name = "\xff"\n')
+
+    with pytest.raises(ManifestLoadError, match="cannot read"):
+        load_manifest(manifest_path)
+
+
 def _manifest_with_preview(preview: dict[str, object]) -> AppManifest:
     return AppManifest.model_validate(
         {
