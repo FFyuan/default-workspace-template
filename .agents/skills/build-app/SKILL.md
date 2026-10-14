@@ -143,7 +143,8 @@ under `system/apps/<your-package>/` so they get an isolated window and origin.
   registered the app (Step 1), `uv run workspace-themes icon missing` names
   each theme with icons of its own (Classic Mac, Windows 2000, any the user
   made) that has none for it. Make each with the `make-theme-icon` skill, in
-  the background (the `launch-task` skill) so the mock is not held up; until
+  the background (the `launch-task` skill) so the mock is not held up (a
+  background agent installs into the live workspace, as that skill says); until
   one lands, that theme shows an icon derived from the one you drew. The app
   is not finished until `icon missing` prints
   `every theme has an icon for every app`.

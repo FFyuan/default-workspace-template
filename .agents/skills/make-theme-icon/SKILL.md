@@ -113,6 +113,12 @@ stays as shipped. The shell picks it up at once, with no restart. `--app app` re
 generic program icon, shown for an app with no icon of its own, of a theme made in this
 workspace.
 
+`data/` is not shared between checkouts. An agent working in a checkout of its own (a
+background worker) adds `--repo-root /home/user/workspace` to `icon install` and to
+`icon missing`, so the icon lands in the live workspace the shell draws from, and the check
+reads the icons it already has there; one installed into the worker's own `data/` is never
+seen and goes when the checkout does.
+
 A built-in theme's own icons come first: `install` refuses an icon for an app the theme ships
 one for, and the generic program icon, of a built-in theme. To change one of those, make a
 workspace theme based on it (the `create-theme` skill, `--base <theme-id>`) and install the

@@ -62,11 +62,13 @@ App specifics:
 ## Theme icons
 
 The app needs an icon in every theme that draws its own (`build-app`'s
-`references/theming.md`, "Icons under a theme"). `uv run workspace-themes icon missing`
-must print `every theme has an icon for every app`; make any icon it names with the
-`make-theme-icon` skill, drawing it by hand as a pixel grid (a worker asks the user
-for no image-model key). An icon in a built-in theme lands under `data/.themes/`, not
-in the commit.
+`references/theming.md`, "Icons under a theme"). Your checkout's `data/` is not the
+live workspace's, so run every `workspace-themes icon` command with
+`--repo-root /home/user/workspace`: `uv run workspace-themes icon missing --repo-root
+/home/user/workspace` must print `every theme has an icon for every app`; make any icon
+it names with the `make-theme-icon` skill, drawing it by hand as a pixel grid (a worker
+asks the user for no image-model key), and install it there too. An icon for a built-in
+theme lands under the live workspace's `data/.themes/`, not in the commit.
 
 ## Working in isolation
 

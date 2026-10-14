@@ -6,4 +6,4 @@ Skills for workspace themes.
 
 - `build-app`: new apps are scaffolded to wear the workspace's theme (the page kit in the page's head, the theme route, and `[theming] mode = "tokens"`), and `references/theming.md` says how to build a page from the shared parts and tokens, check it under every theme, and make its theme icons. The default fonts in `frontend-choices.md` are now the design tokens.
 
-- Building an app now includes drawing its icon for every theme with icons of its own (`workspace-themes icon missing` must come back clean), checked again by the hardening worker; making a theme likewise includes an icon for every app.
+- Building an app now includes drawing its icon for every theme with icons of its own (`workspace-themes icon missing` must come back clean), checked again by the hardening worker; making a theme likewise includes an icon for every app. An agent drawing icons in a checkout of its own (a background worker) installs and checks them against the live workspace (`--repo-root /home/user/workspace`), since its own `data/` is not the one the shell reads.
