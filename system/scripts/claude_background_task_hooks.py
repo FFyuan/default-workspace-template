@@ -53,6 +53,8 @@ from chat_background_tasks.markers import (
     write_marker,
 )
 
+# The chat app's name for the harness (``HarnessType.CLAUDE``), by which it removes the marker of a
+# task the transcript reports over; the two must match.
 CLAUDE_HARNESS = "claude"
 # The ``type`` labels of Claude Code's Stop-hook ``background_tasks`` entries recorded as markers.
 CLAUDE_KINDS = ("shell", "monitor", "workflow", "subagent")
