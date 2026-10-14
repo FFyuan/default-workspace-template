@@ -185,7 +185,7 @@ fi
 
 save_shared_config || echo "warning: could not keep this agent's config for refreshing code-guardian" >&2
 
-if [[ -L "$shared_current" ]] && copy_install "$(cd "$shared_current" && pwd -P)" "$CODEX_HOME"; then
+if [[ -d "$shared_current" ]] && copy_install "$(cd "$shared_current" && pwd -P)" "$CODEX_HOME"; then
     exit 0
 fi
 

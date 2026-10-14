@@ -190,6 +190,23 @@ def test_a_copy_that_fails_partway_falls_back_to_installing_from_github(
     ]
 
 
+def test_a_shared_copy_that_is_gone_falls_back_to_installing_from_github(
+    tmp_path: Path,
+) -> None:
+    _run(tmp_path, agent="first agent")
+    shutil.rmtree(_shared_copy(tmp_path))
+
+    result, calls, home = _run(tmp_path, agent="second agent")
+
+    assert result.returncode == 0, result.stderr
+    assert "cd:" not in result.stderr
+    assert [call[1][:2] for call in calls] == [
+        ["plugin", "marketplace"],
+        ["plugin", "add"],
+    ]
+    assert _installed(home) == ("1", ["1"])
+
+
 def test_an_agent_in_a_worktree_shares_the_main_checkouts_copy(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     script = workspace / "system" / "scripts" / _SCRIPT.name
