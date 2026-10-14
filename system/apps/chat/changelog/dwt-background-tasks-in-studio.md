@@ -17,3 +17,5 @@ A chat whose agent ended its turn to wait on a background task no longer reads a
 - The memory prioritizer treats a chat waiting on one of Claude's own background tasks like one with a turn running, so it is not aged toward being shed: a shed would end the task unreported. A chat waiting only on `run_in_background.py` commands ages as an idle chat does, since the command's runner outlives a shed and its report revives the chat.
 
 - When a command started through `run_in_background.py` is stopped before its runner can report how it ended (Imbue Studio stopping a busy chat's commands to apply an update, or a restart), the next message the chat sends its agent is followed by a one-line notice naming those commands, so the agent knows no report is coming and can start again what it still needs.
+
+- A Claude turn that ends to wait on one of Claude's own background tasks no longer flashes the chat as done for a moment: until Claude's end-of-turn hooks have run (one of them records the task), the chat reads as still working, then as waiting.

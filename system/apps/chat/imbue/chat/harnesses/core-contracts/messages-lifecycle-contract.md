@@ -209,7 +209,10 @@ its chat is **busy**, and the chat's status says so: **`background`**, distinct 
   busy (the chat waits on the user, not on itself), and neither is a process that will never
   wake the agent.
 - **Precedence:** stopped, attention, working, background, idle. A turn in flight is `working`
-  even with tasks pending; the strip shows the wait and, beneath it, the activity line.
+  even with tasks pending; the strip shows the wait and, beneath it, the activity line. So is a
+  turn still closing: its final message is in the transcript but its harness has not closed it
+  (Claude's Stop hooks, one of which records the tasks it is left waiting on, run before
+  `active` is cleared). It is busy and shows no activity.
 - **The backend decides it** (`active_agent.is_busy` and `active_agent.background_tasks` on the
   snapshot); the frontend renders the wait it is given and decides nothing.
 - **A wait ends exactly:** when the task's marker goes (its report delivered or given up; for a

@@ -337,6 +337,13 @@ class AgentStateItem(FrozenModel):
             "for this agent."
         ),
     )
+    is_turn_closing: bool = Field(
+        default=False,
+        description=(
+            "Whether the transcript has ended the agent's turn while its harness still marks one open (its "
+            "turn-end hooks are running, and may yet record a background task): busy and working, with no activity"
+        ),
+    )
     model_choice: ModelChoice | None = Field(
         default=None,
         description=(

@@ -3975,6 +3975,46 @@ def test_a_finished_tasks_notice_that_starts_no_turn_still_ends_the_wait(
         manager.stop()
 
 
+def test_a_turn_the_transcript_ends_before_its_hooks_do_reads_working_until_they_close_it(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Claude writes its final message, then runs its Stop hooks: one records the background task the turn started,
+    and only after them is the ``active`` marker cleared. Read at the final message, the chat must not be idle (it
+    would be marked done); it stays working until the harness closes the turn, and nothing but the poller's pass
+    has to notice that close."""
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    manager, reader = _manager_reading_tasks(broadcaster, tmp_path)
+    state_dir = tmp_path / "agents" / "agent-1"
+    state_dir.mkdir(parents=True)
+    try:
+        seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING")
+        manager._ensure_activity_tracking("agent-1")
+        manager.update_session_events(
+            "agent-1", [{"type": "user_message", "timestamp": "2026-07-28T00:00:00Z", "content": "go"}]
+        )
+        (state_dir / "active").touch()
+        manager._recompute_activity_state("agent-1", broadcast_on_change=False)
+        manager._background_tasks_poller.poll_once()
+        client_queue = broadcaster.register()
+
+        manager.update_session_events(
+            "agent-1", [{"type": "assistant_message", "timestamp": "2026-07-28T00:00:05Z", "content": "started"}]
+        )
+        manager._recompute_activity_state("agent-1", broadcast_on_change=True)
+        write_background_task_marker(reader, "agent-1", "task-1", os.getpid(), harness="claude")
+        manager._background_tasks_poller.poll_once()
+        (state_dir / "active").unlink()
+        manager._background_tasks_poller.poll_once()
+
+        pushed = [message for message in _drain(client_queue) if message.get("type") == "chats_updated"]
+        statuses = [message["chats"][0]["status"] for message in pushed]
+        assert "idle" not in statuses
+        assert statuses[0] == "working"
+        assert statuses[-1] == "background"
+    finally:
+        manager.stop()
+
+
 def test_a_turn_in_flight_reads_working_with_its_pending_tasks_listed(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:

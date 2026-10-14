@@ -171,7 +171,11 @@ sees the tasks alone. The listing is a fresh discovery by default;
 discovery, and 503 until it has read it once. The poller is not the only reader:
 the recompute that sees a turn end reads its chat's markers before it publishes
 the end (the Stop hook writes them before mngr clears the `active` marker), so a
-turn that ends to wait reads `background` at once, never `idle` first. The tasks
+turn that ends to wait reads `background` at once, never `idle` first. A turn
+whose final message is in the transcript while `active` is still down reads as
+closing: busy and `working`, with no activity on the strip, until the marker
+goes; the poller rechecks a closing turn on every pass, since that removal is
+the only sign of its end. The tasks
 are the chat's, so a handoff moves nothing: the successor reads the same
 directory. A switch stops the agent, which ends its tasks: the harness's own end
 unreported, while the runner reports how its command ended to the chat. The

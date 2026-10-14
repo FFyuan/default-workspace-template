@@ -556,15 +556,19 @@ def is_turn_in_flight(activity_state: ActivityState | None) -> bool:
 
 @pure
 def chat_status_for_agent(
-    lifecycle_state: str, activity_state: ActivityState | None, is_permission_pending: bool, is_busy: bool
+    lifecycle_state: str,
+    activity_state: ActivityState | None,
+    is_permission_pending: bool,
+    is_busy: bool,
+    is_turn_closing: bool = False,
 ) -> ChatStatus:
-    """The chat row's status rule: a dead lifecycle wins, then a pending permission, then a live turn or compaction,
-    then a busy chat (one a pending background task will wake)."""
+    """The chat row's status rule: a dead lifecycle wins, then a pending permission, then a live turn, a compaction or
+    a turn still closing, then a busy chat (one a pending background task will wake)."""
     if is_lifecycle_dead(lifecycle_state):
         return ChatStatus.STOPPED
     if is_permission_pending:
         return ChatStatus.ATTENTION
-    if activity_state is not None and is_working_activity_state(activity_state):
+    if (activity_state is not None and is_working_activity_state(activity_state)) or is_turn_closing:
         return ChatStatus.WORKING
     if is_busy:
         return ChatStatus.BACKGROUND
@@ -599,6 +603,8 @@ class _FinishedTasksAwaitingTurn(FrozenModel):
     harness: HarnessType = Field(description="The harness whose markers they are")
     task_ids: tuple[str, ...] = Field(description="The finished tasks, in the order the transcript reported them")
     passes_left: int = Field(description="State-poller passes still to wait for that turn before removing them anyway")
+
+
 def _monotonic_to_epoch(monotonic_at: float, now: float) -> float:
     """The epoch time of a past ``time.monotonic()`` reading, given the epoch time now."""
     return now - (time.monotonic() - monotonic_at)
@@ -841,7 +847,7 @@ def chat_snapshot_for_active_agent(
     """
     handoff = chat.handoff
     transition = chat.transition
-    is_busy = is_turn_in_flight(agent.activity_state) or bool(background_tasks)
+    is_busy = is_turn_in_flight(agent.activity_state) or agent.is_turn_closing or bool(background_tasks)
     return ChatSnapshot(
         chat_id=chat.chat_id,
         title=handoff.chat_title if handoff is not None else (agent.labels.get("display_name") or agent.name),
@@ -849,7 +855,9 @@ def chat_snapshot_for_active_agent(
         project=agent.labels.get("project"),
         status=_converging_status(transition.phase)
         if transition is not None
-        else chat_status_for_agent(agent.state, agent.activity_state, is_permission_pending, is_busy),
+        else chat_status_for_agent(
+            agent.state, agent.activity_state, is_permission_pending, is_busy, agent.is_turn_closing
+        ),
         labels=agent.labels,
         agent_ids=chat.member_agent_ids,
         handoff=_transition_state_of(chat.record),
@@ -4508,11 +4516,15 @@ class AgentManager:
         """
         with self._lock:
             busy_chat_ids = list(self._background_tasks_by_chat)
+            closing_agent_ids = [agent_id for agent_id, agent in self._agents.items() if agent.is_turn_closing]
             unclaimed = self._age_finished_tasks_awaiting_turn_locked()
         for agent_id, held in unclaimed:
             self._remove_finished_tasks(agent_id, held.harness, held.task_ids, broadcast_on_change=True)
         for chat_id in busy_chat_ids:
             self._recompute_background_tasks(chat_id)
+        # A turn's harness closes it by removing a marker, which nothing else re-reads unless an event follows.
+        for agent_id in closing_agent_ids:
+            self._recompute_activity_state(agent_id, broadcast_on_change=True)
 
     def _age_finished_tasks_awaiting_turn_locked(self) -> list[tuple[str, _FinishedTasksAwaitingTurn]]:
         """Count one pass against every held removal, and take out the ones no turn claimed in time."""
@@ -4617,7 +4629,7 @@ class AgentManager:
             chat_id = record.chat_id if record is not None else ChatId(labels.get("chat_id") or agent_id)
             active_chat_id = self._chat_id_of_agent_if_active_locked(agent_id)
             tasks = () if active_chat_id is None else self._background_tasks_by_chat.get(active_chat_id, ())
-        is_turn_running = agent is not None and is_turn_in_flight(agent.activity_state)
+        is_turn_running = agent is not None and (is_turn_in_flight(agent.activity_state) or agent.is_turn_closing)
         return AgentBusyState(chat_id=chat_id, is_busy=is_turn_running or bool(tasks), background_tasks=tasks)
 
     def _list_compacting_marker_paths(self) -> dict[str, Path]:
@@ -4691,7 +4703,9 @@ class AgentManager:
             time.monotonic() - RELAXED_CONFIRMATION_TIMEOUT_SECONDS if sweep_started_at is None else sweep_started_at
         )
         if finished_at is not None and finished_at >= requested_at:
-            _loguru_logger.debug("Skipped the compaction status of agent {}: its compaction already finished", agent_id)
+            _loguru_logger.debug(
+                "Skipped the compaction status of agent {}: its compaction already finished", agent_id
+            )
             return
         self.note_compaction_requested(agent_id, CompactionCause.IDLE, requested_at)
 
@@ -4749,8 +4763,7 @@ class AgentManager:
             cause_seen_at = self._compaction_cause_seen_at_by_agent.get(agent_id)
             remembered_cause = (
                 self._compaction_cause_by_agent.get(agent_id)
-                if cause_seen_at is not None
-                and time.monotonic() - cause_seen_at < PENDING_COMPACTION_TIMEOUT_SECONDS
+                if cause_seen_at is not None and time.monotonic() - cause_seen_at < PENDING_COMPACTION_TIMEOUT_SECONDS
                 else None
             )
         pending_requested_at = None if pending is None else _monotonic_to_epoch(pending[0], now)
@@ -4828,7 +4841,8 @@ class AgentManager:
             if is_marker_fresh:
                 requested_cause = self._sweep_cause_of(agent_id) if pending_cause is None else pending_cause
                 return _LiveCompaction(
-                    marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause), pending_cause=pending_cause
+                    marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause),
+                    pending_cause=pending_cause,
                 )
             self._log_stale_compacting_marker_once(agent_id, marker, marker_age_seconds)
             return _LiveCompaction(marker_cause=None, pending_cause=pending_cause)
@@ -5044,6 +5058,16 @@ class AgentManager:
                 self._compaction_cause_by_agent[agent_id] = compaction_cause
                 self._compaction_cause_seen_at_by_agent[agent_id] = time.monotonic()
             old_state = self._activity_state_by_agent.get(agent_id)
+            was_turn_closing = agent_state.is_turn_closing
+            # The transcript can end a turn before the harness closes it: Claude writes its final message, then runs
+            # its Stop hooks, one of which records the background tasks the chat is left waiting on, and only then
+            # clears the ``active`` marker. Until then the turn reads closing, so the chat never reads idle (done)
+            # before its wait is known.
+            is_turn_closing = (
+                is_active_marker_present
+                and new_state == ActivityState.IDLE
+                and not is_lifecycle_dead(agent_state.state)
+            )
             # The queued-message backstop is LEVEL-triggered, not edge-triggered: an
             # IDLE agent's harness queue is about to drain, so a queued survivor while
             # idle is either on its way in (Claude dequeues only after its end-of-turn
@@ -5062,13 +5086,15 @@ class AgentManager:
                 and agent_state.activity_state == new_state.value
                 and not has_idle_queue
                 and not is_cause_changed
+                and was_turn_closing == is_turn_closing
             ):
                 return
             self._activity_state_by_agent[agent_id] = new_state
-            # Update just this slot so any cached ``model_choice`` stays intact --
+            # Update just these slots so any cached ``model_choice`` stays intact --
             # each derived field updates its own field without knowing the others'.
             self._agents[agent_id] = agent_state.model_copy_update(
-                to_update(agent_state.field_ref().activity_state, new_state)
+                to_update(agent_state.field_ref().activity_state, new_state),
+                to_update(agent_state.field_ref().is_turn_closing, is_turn_closing),
             )
             # An idle reading can predate the fold of the turn a leave just opened (the watcher
             # pushes the queue snapshot ahead of that turn's events), so the backstop may have
@@ -5093,7 +5119,8 @@ class AgentManager:
         # down before the turn reads as ended (mngr's Stop hook clears the ``active`` marker only
         # after the sibling hooks that write them). Reading them now, not on the poller's next
         # pass, publishes the end with its wait, so the chat never reads idle (done) in between.
-        if is_turn_in_flight(old_state) and not is_turn_in_flight(new_state):
+        was_turn_open = is_turn_in_flight(old_state) or was_turn_closing
+        if was_turn_open and not (is_turn_in_flight(new_state) or is_turn_closing):
             with self._lock:
                 ended_chat_id = self._chat_id_of_agent_if_active_locked(agent_id)
             if ended_chat_id is not None:
