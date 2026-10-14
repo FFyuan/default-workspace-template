@@ -3,7 +3,7 @@ import shlex
 import threading
 import time
 from collections.abc import Callable
-from collections.abc import Iterator
+from collections.abc import Generator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from contextlib import contextmanager
@@ -934,13 +934,16 @@ class AgentManager:
     # Evicts one agent's session watcher (releasing its resident transcript, thread, and
     # filesystem watches). Set once at composition (``set_watcher_eviction_callback``) --
     # the watcher registry lives on the app state, which the manager must not import; the
-    # manager only knows WHEN an agent is positively gone or stopped. ``None`` (tests) =
-    # no eviction.
+    # manager only knows WHEN an agent is positively gone or an archived member stopped.
+    # ``None`` (tests) = no eviction.
     _watcher_eviction_callback: Callable[[str], None] | None
     # Drops what stopped chats nobody is streaming hold resident, after every observe event.
     # Set once at composition (``set_unviewed_transcript_release``); the app state knows who
     # is streaming. ``None`` (tests) = no release.
     _unviewed_transcript_release: Callable[[], None] | None
+    # Ends every open stream of a chat by its id. Set once at composition
+    # (``set_chat_stream_ender``); the streams live on the app state. ``None`` (tests) = none ended.
+    _chat_stream_ender: Callable[[str], None] | None
 
     @classmethod
     def build(
@@ -1027,6 +1030,7 @@ class AgentManager:
         manager._transcript_broadcaster = None
         manager._watcher_eviction_callback = None
         manager._unviewed_transcript_release = None
+        manager._chat_stream_ender = None
         manager._auto_open = (
             auto_open
             if auto_open is not None
@@ -1051,9 +1055,7 @@ class AgentManager:
             # A secondary's presence is its own windows', not the workspace's, and the scores it
             # would write are the live chat's, so it keeps an inert prioritizer.
             set_adj=None if is_secondary else set_oom_score_adj,
-            resolve_process_started_at=lambda chat_id: manager._read_agent_process_started_at(
-                manager._active_agent_id_of_chat(chat_id)
-            ),
+            resolve_process_started_at=manager._read_active_process_started_at,
             presence=manager._presence,
         )
         manager._autocompactor = (
@@ -1070,6 +1072,11 @@ class AgentManager:
         """The pid of the process a chat runs on, for the OOM prioritizer; None for a chat with no active agent."""
         active_agent_id = self._active_agent_id_of_chat(chat_id)
         return None if active_agent_id is None else lookup_pid_by_agent_id(active_agent_id)
+
+    def _read_active_process_started_at(self, chat_id: ChatId) -> float | None:
+        """When the process a chat runs on started, for the OOM prioritizer; None for a chat with no active agent."""
+        active_agent_id = self._active_agent_id_of_chat(chat_id)
+        return None if active_agent_id is None else self._read_agent_process_started_at(active_agent_id)
 
     def _active_agent_id_of_chat(self, chat_id: ChatId) -> str | None:
         """The agent a chat runs on, from its record, else the chat's own id under the own-chat rule.
@@ -2516,7 +2523,7 @@ class AgentManager:
         self._broadcast_chats_updated()
 
     @contextmanager
-    def track_connecting_send(self, agent_id: str, message_id: str) -> Iterator[Callable[[], None]]:
+    def track_connecting_send(self, agent_id: str, message_id: str) -> Generator[Callable[[], None], None, None]:
         """Scope one send's delivery. The yielded callable marks the send as waiting for the agent to
         come up (the snapshot's ``is_connecting``); leaving the scope clears the mark."""
         try:
@@ -2576,9 +2583,10 @@ class AgentManager:
 
         self._stop_activity_tracking(agent_id)
         self._stop_model_tracking(agent_id)
-        # The agent is positively gone, so its resident transcript goes with it, and so does
-        # the codex live-user-turn record keyed by its id.
-        self._evict_watcher(agent_id)
+        # The agent is positively gone, so what it held resident goes with it (the whole chat's
+        # transcripts when it was the chat's active agent), and so does the codex
+        # live-user-turn record keyed by its id.
+        self._evict_removed_agent(agent_id)
         drop_live_user_turns(agent_id)
         self._broadcast_chats_updated()
 
@@ -3611,8 +3619,8 @@ class AgentManager:
             if agent_id in before_details and before_details[agent_id].state != agent.state
         }
         # Agents whose lifecycle TRANSITIONED into a positively-dead state this event --
-        # a stop, an OOM shed, an idle shutdown. The chat-memory contract says a stopped
-        # chat holds no resident transcript, so their watchers are evicted below.
+        # a stop, an OOM shed, an idle shutdown. The archived members among them are evicted
+        # below, on the transition alone, so a later read of their segment stays resident.
         newly_dead_ids = {
             agent_id
             for agent_id in state_changed_ids
@@ -3679,12 +3687,12 @@ class AgentManager:
         for agent_id in let_go_agent_ids:
             self._stop_activity_tracking(agent_id)
             self._stop_model_tracking(agent_id)
-            self._evict_watcher(agent_id)
+            self._evict_removed_agent(agent_id)
 
         for agent_id in removed_agent_ids:
             self._stop_activity_tracking(agent_id)
             self._stop_model_tracking(agent_id)
-            self._evict_watcher(agent_id)
+            self._evict_removed_agent(agent_id)
             with self._lock:
                 self._pending_permission_ids_by_agent.pop(agent_id, None)
                 is_own_chat = not self._is_recorded_member_locked(agent_id)
@@ -3724,12 +3732,15 @@ class AgentManager:
         for agent_id in recompute_ids:
             self._recompute_activity_state(agent_id, broadcast_on_change=False)
 
-        # Drop the resident transcript of every chat that just stopped (its active agent
-        # died), its archived segments included; an archived member dying drops only its
-        # own. A read of a stopped chat rebuilds its transcript after that, so the release
-        # then drops what any stopped chat holds, sparing a chat whose stream is open.
-        for agent_id in newly_dead_ids:
-            self._evict_chat_transcripts(agent_id)
+        # An archived member dying drops only its own transcript. A chat whose active agent died
+        # is left to the release, which spares a chat whose stream is open: that stream is fed
+        # only by the chat's watcher, and a reported death can be momentary.
+        with self._lock:
+            dead_archived_member_ids = [
+                agent_id for agent_id in newly_dead_ids if self._is_archived_member_locked(agent_id)
+            ]
+        for agent_id in dead_archived_member_ids:
+            self._evict_watcher(agent_id)
         if self._unviewed_transcript_release is not None:
             self._unviewed_transcript_release()
 
@@ -3749,15 +3760,23 @@ class AgentManager:
             ]
         )
 
-    def _evict_chat_transcripts(self, agent_id: str) -> None:
-        """Drop what a dead agent held resident: the whole chat's transcripts when it was the
-        chat's active agent (the chat stopped), else its own alone (an archived member
-        stopping leaves the chat, and the watcher a user may be viewing, standing)."""
+    def _evict_removed_agent(self, agent_id: str) -> None:
+        """Drop what a removed agent held resident: the whole chat's transcripts when it was the
+        chat's active agent, else its own alone (an archived member going leaves the chat, and
+        the watcher a user may be viewing, standing).
+
+        The whole chat goes because the release cannot drop it later: a chat whose active agent
+        is no longer tracked never reads as stopped. Its open streams are ended too, since nothing
+        feeds them once its watcher is gone: the chat page reconnects, and resyncs once the agent is
+        listed again (a removal can be a listing's momentary omission)."""
         with self._lock:
             chat = self._resolve_chat_locked(self._chat_id_of_agent_locked(agent_id))
-        member_ids = chat.member_agent_ids if chat is not None and chat.active_agent_id == agent_id else (agent_id,)
+        is_active_agent = chat is not None and chat.active_agent_id == agent_id
+        member_ids = chat.member_agent_ids if chat is not None and is_active_agent else (agent_id,)
         for member_id in member_ids:
             self._evict_watcher(member_id)
+        if chat is not None and is_active_agent and self._chat_stream_ender is not None:
+            self._chat_stream_ender(str(chat.chat_id))
 
     def _get_agent_state_dir(self, agent_id: str) -> Path:
         """Return the per-agent state directory under the local mngr host dir.
@@ -3918,20 +3937,27 @@ class AgentManager:
         """Wire transcript eviction (the composition root calls this once).
 
         Invoked, per agent, with everything resident for that agent to drop -- its watcher or
-        its archived segment's loader -- when an agent is removed (destroyed) or its chat's
-        lifecycle TRANSITIONS into a positively-dead state -- stop from the UI, ``mngr stop``,
-        an OOM shed, an idle shutdown. Edge-triggered on purpose: a level-triggered evict
-        would tear down the watcher a user is actively viewing on a stopped chat, right
-        after every rebuild-on-read."""
+        its archived segment's loader -- when an agent is removed (destroyed; the whole chat's
+        members when it was the chat's active agent) or an archived member dies. A chat whose
+        active agent dies is released by ``set_unviewed_transcript_release``'s callback
+        instead, which spares a chat someone is streaming."""
         self._watcher_eviction_callback = callback
 
     def set_unviewed_transcript_release(self, callback: Callable[[], None]) -> None:
         """Wire the release of stopped chats' transcripts nobody is streaming (the composition root calls this once).
 
-        Invoked after every observe event. The transition eviction alone would leave a
-        stopped chat that is read after its stop resident until the app restarts: the read
-        rebuilds its transcript, and no further transition comes to evict it."""
+        Invoked after every observe event, which releases a chat whose active agent died unless it
+        is being streamed; the server runs the same release when a chat's stream closes, which
+        drops a streamed chat once its last stream goes. Level-triggered, so a stopped chat that a
+        read rebuilds after its stop is dropped too."""
         self._unviewed_transcript_release = callback
+
+    def set_chat_stream_ender(self, callback: Callable[[str], None]) -> None:
+        """Wire the ending of a chat's open streams (the composition root calls this once).
+
+        Invoked with a chat id when the chat's active agent is removed, since the removal drops
+        the watcher that fed those streams."""
+        self._chat_stream_ender = callback
 
     def _evict_watcher(self, agent_id: str) -> None:
         callback = self._watcher_eviction_callback
@@ -4143,7 +4169,8 @@ class AgentManager:
     def _read_agent_process_started_at(self, agent_id: str) -> float | None:
         """Return the agent's process-start mtime, resolving its marker by harness.
 
-        The OOM prioritizer knows only an agent id, but the marker filename is
+        The OOM prioritizer reaches this with a chat's active agent id (through
+        ``_read_active_process_started_at``), but the marker filename is
         harness-specific (see ``_read_process_started_at``), so it comes from the
         agent's ``HarnessSpec`` -- harness identity, known as soon as the agent is
         known. This deliberately does NOT ask the agent's activity tracker: a
@@ -4154,8 +4181,8 @@ class AgentManager:
         agent itself is unknown.
         """
         # Lock-free ``dict.get`` (atomic under the GIL), matching what this method did
-        # before: it is injected as a callback into the OOM prioritizer and so can be
-        # invoked from a thread that already holds ``_lock``, which is not reentrant.
+        # before: the OOM prioritizer's callback calls it and so it can be invoked
+        # from a thread that already holds ``_lock``, which is not reentrant.
         agent_state = self._agents.get(agent_id)
         if agent_state is None:
             return None
