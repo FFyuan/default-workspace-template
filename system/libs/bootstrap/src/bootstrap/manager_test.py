@@ -442,7 +442,6 @@ def test_agent_tools_cron_entry_runs_the_refresh_hourly_through_the_runner(
         "10m",
     ]
     assert command[9:11] == ["bash", str(WORKSPACE_ROOT_DIR / AGENT_TOOLS_SCRIPT)]
-    # The script it names is the one in this checkout.
     assert (Path(__file__).parents[5] / AGENT_TOOLS_SCRIPT).is_file()
 
 

@@ -23,10 +23,8 @@
 # It exits non-zero when any of these failed, so run_job.sh retries it.
 #
 # --claude-plugins does only the Claude plugins, for one config dir (default
-# $CLAUDE_CONFIG_DIR, else ~/.claude), and always exits 0: the warnings it prints
-# say what went wrong. The chat app runs it when a Claude account is signed in,
-# so plugins are ready before the account's first chat, and a worker runs it as a
-# provision command, since a worker's one session starts in a fresh worktree path.
+# $CLAUDE_CONFIG_DIR, else ~/.claude), and always exits 0, so it never fails a
+# worker's provisioning: the warnings it prints say what went wrong.
 #
 # --session-start is the SessionStart hook. It prints, once, the warnings the last
 # runs logged, so a session learns why a skill is missing; and when the session's

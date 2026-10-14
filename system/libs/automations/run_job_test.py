@@ -218,7 +218,6 @@ def test_lock_fd_is_closed_for_the_command(tmp_path: Path) -> None:
 
 
 def test_state_lives_under_the_workspaces_data_dir(tmp_path: Path) -> None:
-    # Anywhere else in the tree is neither ignored by git nor where the docs say.
     script = tmp_path / "system" / "libs" / "automations" / "run_job.sh"
     script.parent.mkdir(parents=True)
     script.write_text(_SCRIPT.read_text())

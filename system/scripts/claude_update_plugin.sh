@@ -7,18 +7,11 @@ set -euo pipefail
 # that .claude/settings.json enables, so their skills are loaded by the NEXT
 # claude session started from this directory.
 #
-# refresh_agent_tools.sh is its one caller, and always passes --strict (exit 1
-# when any plugin failed to install), so the hourly refresh retries a failure.
-# It runs this once per Claude config dir: hourly for every config dir in use,
-# when a Claude account is signed in, from the SessionStart hook for a config
-# dir that has never had a successful install, and as a worker's provision
-# command, BEFORE the worker's claude starts (a worker gets a single session in
-# a fresh worktree path, so that is the only place an install can land in time
-# for it). A plugin installed from inside a running session is only loaded by
-# the next session, since Claude Code resolves the plugin set at startup.
-# refresh_agent_tools.sh logs this script's stdout, and the next session's hook
-# prints the "warning:" lines from it, so the agent can explain why a skill is
-# missing.
+# refresh_agent_tools.sh runs it once per Claude config dir, with --strict (exit 1
+# when any plugin failed to install) so a failure is retried, and logs its stdout;
+# the next session's hook prints the "warning:" lines from it, so the agent can
+# explain why a skill is missing. Claude Code resolves the plugin set at session
+# startup, so a plugin installed during a session only loads in the next one.
 #
 # The cache is never wiped here. Every claude on an account shares its
 # config dir, so deleting plugins/cache/<marketplace> while other sessions run
