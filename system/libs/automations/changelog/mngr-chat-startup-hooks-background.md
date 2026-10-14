@@ -1,0 +1,1 @@
+`run_job.sh` takes `--wake-grace <N[mhd]>`: after the workspace starts or wakes from sleep (no tick for five minutes), a due run waits that long, so a catch-up run does not compete with someone who just opened the workspace. The built-in hourly tool refresh uses ten minutes.

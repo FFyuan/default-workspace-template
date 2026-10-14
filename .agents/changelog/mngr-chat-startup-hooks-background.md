@@ -1,0 +1,1 @@
+The `manage-scheduled-tasks` skill documents the new built-in hourly entry, `/etc/cron.d/refresh-agent-tools`, which keeps agents' plugins and the venv up to date, and `run_job.sh`'s new `--wake-grace` option, which holds a catch-up run for a while after the workspace wakes.

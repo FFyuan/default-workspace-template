@@ -1,0 +1,1 @@
+Signing in to a new Claude account (through a sign-in flow or the Imbue keys page) starts installing the workspace's Claude plugins into that account's folder in the background, so the account's first chat has them. Plugins install per Claude config dir, and the hourly refresh would otherwise reach a new account only on its next run.
