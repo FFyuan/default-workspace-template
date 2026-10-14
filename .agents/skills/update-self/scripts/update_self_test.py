@@ -8128,13 +8128,15 @@ _RIDE_ALONG_DIFF = (
     + "A\tsystem/apps/notes/app.toml\n"
     + "M\tsystem/services/host_backup/src/host_backup/runner.py\n"
     + "M\tsystem/services/oom_priority/bin/oom_tag_backstop.py\n"
+    + "A\tsystem/services/share_gateway/pyproject.toml\n"
     + "M\t.agents/skills/digest/SKILL.md\n"
 )
 
 
 def _ride_along_pass_scope() -> list[update_apply.PassCreation]:
     """A careful pass over the chat and, riding along, an ordinary app, an app the merge adds,
-    a service whose wiring names its programs, a service with none, and a skill."""
+    a service whose wiring names its programs, a service with none, a service the merge adds,
+    and a skill."""
     return [
         update_apply.PassCreation("app", "chat", "system/apps/chat/", ("chat",)),
         update_apply.PassCreation(
@@ -8150,6 +8152,12 @@ def _ride_along_pass_scope() -> list[update_apply.PassCreation]:
         update_apply.PassCreation(
             "service", "oom_priority", "system/services/oom_priority/", ()
         ),
+        update_apply.PassCreation(
+            "service",
+            "share_gateway",
+            "system/services/share_gateway/",
+            ("share-gateway",),
+        ),
         update_apply.PassCreation("skill", "digest", ".agents/skills/digest/", ()),
     ]
 
@@ -8159,7 +8167,8 @@ def test_the_record_takes_the_pass_scopes_other_apps_and_services(
 ) -> None:
     """Beside the critical apps, the record takes the pass's other apps and services from
     its scope: the programs their wiring names, an added app named with nothing to restart,
-    and a service with no program left for the agent rather than escalated."""
+    an added service with nothing to restart, and a service with no program left for the
+    agent rather than escalated."""
     _write_openable_app(apply_repo, "chat")
     _write_registry(apply_repo, {"chat": _CHAT_ROW_URL})
 
