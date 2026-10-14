@@ -72,6 +72,22 @@ describe("a menu", () => {
     expect(part("sheet")!.compareDocumentPosition(part("menu")!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
+  it("marks its card, rows, and dividers as the contract's menu parts", () => {
+    rows = [
+      { kind: "action", key: "go", label: "Go", onSelect: () => undefined },
+      { kind: "divider" },
+      { kind: "action", key: "stop", label: "Stop", onSelect: () => undefined },
+    ];
+    menu.open(ANCHOR);
+
+    const parts = Array.from(
+      part("menu")!.querySelectorAll<HTMLElement>("[data-part]"),
+      (element) => element.dataset.part,
+    );
+    expect(part("menu")!.dataset.part).toBe("menu");
+    expect(parts).toEqual(["menu-item", "menu-separator", "menu-item"]);
+  });
+
   it("closes on a press on the sheet, and on Escape, and on nothing else", () => {
     menu.open(ANCHOR);
     part("sheet")!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
