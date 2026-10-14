@@ -956,6 +956,7 @@ dependencies = [
     { name = "tk-command-parsing" },
     { name = "tomlkit" },
     { name = "workspace-layout" },
+    { name = "workspace-themes" },
 ]
 
 [package.dev-dependencies]
@@ -995,6 +996,7 @@ requires-dist = [
     { name = "tk-command-parsing", editable = "system/libs/tk_command_parsing" },
     { name = "tomlkit", specifier = ">=0.12" },
     { name = "workspace-layout", editable = "system/libs/workspace_layout" },
+    { name = "workspace-themes", editable = "system/libs/workspace_themes" },
 ]
 
 [package.metadata.requires-dev]
