@@ -65,8 +65,9 @@ claude_state_dir() {
     printf '%s/claude/%s' "$state_root" "$(printf '%s|%s' "$1" "$repo_root" | cksum | cut -d' ' -f1)"
 }
 
-# Install and update the plugins in one config dir, print what the run printed,
-# and return its exit status. A run already going for the same dir is left to
+# Install and update the plugins in one config dir, print what the run printed
+# (its stdout, and on stderr the claude errors behind a warning), and return its
+# exit status. A run already going for the same dir is left to
 # finish, and this one returns 0. flock(1) is missing on macOS, which then gets
 # no overlap protection.
 refresh_claude_plugins() {
@@ -89,6 +90,7 @@ refresh_claude_plugins() {
                 >>"$state_dir/plugin_update.log"
         fi
         cat "$state_dir/plugin_update.log"
+        cat "$state_dir/plugin_update.stderr.log" >&2
         exit "$status"
     ) 8>"$state_dir/lock"
 }

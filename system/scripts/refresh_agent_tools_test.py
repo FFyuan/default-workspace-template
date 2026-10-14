@@ -28,7 +28,8 @@ pytestmark = pytest.mark.timeout(_JOB_WAIT_SECONDS * 3)
 # Each shim appends "<name> <niceness> <config dir> <args>" to $SHIM_LOG after
 # $SHIM_DELAY seconds, and creates $SHIM_LOG.lock-inherited if it was handed the
 # plugin refresh's lock (fd 8). `uv run` prints $SHIM_CONFIG_DIRS, standing in for
-# claude_config_dirs.py. A call whose args start with $SHIM_FAIL_ARGS fails.
+# claude_config_dirs.py. A call whose args start with $SHIM_FAIL_ARGS fails, saying
+# so on stderr.
 _SHIM = """#!/usr/bin/env bash
 if { : >&8; } 2>/dev/null; then
     touch "$SHIM_LOG.lock-inherited"
@@ -43,6 +44,7 @@ if [[ "$1" == run ]]; then
     printf '%s\\n' "$SHIM_CONFIG_DIRS"
 fi
 if [[ -n "${SHIM_FAIL_ARGS:-}" && "$*" == "$SHIM_FAIL_ARGS"* ]]; then
+    echo "shim error: $*" >&2
     exit 1
 fi
 """
@@ -202,6 +204,8 @@ def test_the_one_dir_mode_never_fails_and_says_what_went_wrong(tmp_path: Path) -
 
     assert result.returncode == 0
     assert "warning: failed to install plugin(s)" in result.stdout
+    # claude's own error, which says why, reaches the caller too.
+    assert "shim error: plugin install" in result.stderr
     assert all(f" {tmp_path / 'default-config'} " in call for call in _calls(tmp_path))
     assert not _calls_matching(tmp_path, "sync --all-packages")
 
