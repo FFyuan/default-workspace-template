@@ -83,6 +83,14 @@ def test_contract_css_passes(tmp_path: Path) -> None:
             "names missing.png, which does not exist",
         ),
         (
+            '[data-part="window"] { background: url("%2e%2e/%2E%2e/api/x.png?q=1"); }',
+            "leaves the theme folder",
+        ),
+        (
+            '[data-part="window"] { background: url(.%2e/a.png); }',
+            "leaves the theme folder",
+        ),
+        (
             '[data-part="window"] { background: image-set("https://example.com/a.png" 1x); }',
             "is remote",
         ),

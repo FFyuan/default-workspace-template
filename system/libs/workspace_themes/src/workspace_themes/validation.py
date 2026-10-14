@@ -4,6 +4,7 @@ import tomllib
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
+from urllib.parse import unquote
 from xml.etree import ElementTree
 
 import tinycss2
@@ -204,7 +205,8 @@ def _check_url(reference: str, context: StyleSheetContext, line: int) -> list[st
         return [
             f"{context.label}:{line}: url({stripped}) is remote; a theme's files come from its own folder"
         ]
-    path_part = _strip_query_and_fragment(stripped)
+    # A browser reads a percent-encoded dot segment (%2e%2e) as .., and the server decodes the path it serves.
+    path_part = unquote(_strip_query_and_fragment(stripped))
     if not path_part:
         return [f"{context.label}:{line}: url() names no file"]
     resolved = _resolve_in_folder(context.folder, context.file_directory, path_part)
