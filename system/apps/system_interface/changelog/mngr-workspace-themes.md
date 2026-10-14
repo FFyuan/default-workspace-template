@@ -1,6 +1,6 @@
 Workspace themes: Desktop settings has a **Theme** choice listing every theme the workspace has -- Standard, **Classic Mac**, **Windows 2000**, and any theme made in the workspace -- with a live preview (Save keeps it, Cancel puts the saved one back). A preview is never remembered, so a reload mid-preview comes back in the saved theme.
 
-- A theme can be the workspace's default ("Make this the workspace default") or one desktop's own; a desktop with no choice of its own wears the default.
+- A theme can be the workspace's default ("Make this the workspace default") or one desktop's own; a desktop with no choice of its own wears the default. A desktop whose own theme is no longer available wears the standard look, and its Theme row says so.
 
 - Window title bars are drawn from the theme's chrome: which controls sit left and right, and whether the title is centred (Classic Mac puts the close box first and centres the title).
 

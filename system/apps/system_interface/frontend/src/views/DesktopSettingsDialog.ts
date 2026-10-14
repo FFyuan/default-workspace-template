@@ -10,7 +10,7 @@ import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { inputClass } from "@imbue/workspace-ui/src/components/Input";
 import { MODAL_LABEL_CLASS, MODAL_MESSAGE_CLASS, Modal } from "@imbue/workspace-ui/src/components/Modal";
 import type { AppRecord, Desktop, Wallpaper, WallpaperListing } from "../model/records";
-import { resolveDesktopTheme, type ThemeCatalog, type ThemeRecord } from "../model/themes";
+import { availableTheme, resolveDesktopTheme, type ThemeCatalog, type ThemeRecord } from "../model/themes";
 import { appIconMarkupForApp } from "./components/appIcon";
 import { glyph as genericGlyph } from "./glyphs";
 import { SQUIGGLE_GLYPHS, squiggleMarkup } from "./squiggles";
@@ -99,7 +99,7 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
     try {
       await attrs.onSave(chosen, color, glyphIndex, resolvedWallpaper(attrs.wallpapers), {
         theme,
-        isWorkspaceDefault: isWorkspaceDefault && theme !== null,
+        isWorkspaceDefault: isWorkspaceDefault && availableTheme(attrs.themes, theme) !== null,
       });
     } catch (e) {
       error = (e as Error).message;
@@ -299,6 +299,18 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
     );
   }
 
+  /** A saved choice that is no longer available (deleted, or failing its checks) is worn as the standard look. */
+  function unavailableChoiceNote(catalog: ThemeCatalog): m.Children {
+    if (theme === null || availableTheme(catalog, theme) !== null) return null;
+    const chosen = theme;
+    const name = catalog.themes.find((record) => record.id === chosen)?.name ?? chosen;
+    return m(
+      "p",
+      { "data-theme-unavailable": "", class: "mb-2 type-helper text-secondary" },
+      `This desktop's theme, ${name}, is not available, so it wears the standard look.`,
+    );
+  }
+
   function themeRow(attrs: DesktopSettingsDialogAttrs): m.Children {
     const catalog = attrs.themes;
     const defaultTheme = resolveDesktopTheme(catalog, null);
@@ -319,7 +331,8 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
       attrs.onMakeTheme === null
         ? m("p", { "data-make-theme-hint": "", class: "mb-2 type-helper text-secondary" }, MAKE_THEME_IN_CHAT_HINT)
         : null,
-      theme === null
+      unavailableChoiceNote(catalog),
+      availableTheme(catalog, theme) === null
         ? null
         : m("label", { class: "mb-3 flex items-center gap-2 type-helper text-primary" }, [
             m("input", {

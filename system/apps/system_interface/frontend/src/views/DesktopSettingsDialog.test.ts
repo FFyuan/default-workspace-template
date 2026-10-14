@@ -135,6 +135,26 @@ describe("DesktopSettingsDialog", () => {
     });
   });
 
+  it("says a saved theme is not available, and offers no workspace default for it", async () => {
+    const attrs = render({ desktop: desktopRecord("home", { name: "Home", theme: "gone" }) });
+
+    expect(card().querySelector("[data-theme-unavailable]")?.textContent).toBe(
+      "This desktop's theme, gone, is not available, so it wears the standard look.",
+    );
+    expect(card().querySelector("[data-theme-as-workspace-default]")).toBeNull();
+    (card().querySelector(".desktop-settings-save") as HTMLButtonElement).click();
+    await settled();
+    expect(attrs.onSave).toHaveBeenCalledWith("Home", expect.any(String), 0, null, {
+      theme: "gone",
+      isWorkspaceDefault: false,
+    });
+
+    (card().querySelector('[data-theme="mac-classic"]') as HTMLButtonElement).click();
+    m.redraw.sync();
+    expect(card().querySelector("[data-theme-unavailable]")).toBeNull();
+    expect(card().querySelector("[data-theme-as-workspace-default]")).not.toBeNull();
+  });
+
   it("does not save a blank name: Save is disabled and Enter posts nothing", async () => {
     const attrs = render();
     const input = card().querySelector(".desktop-settings-name") as HTMLInputElement;

@@ -143,7 +143,8 @@ export function parseThemeCatalog(value: unknown): ThemeCatalog {
   return { default: typeof value.default === "string" ? value.default : null, themes };
 }
 
-function availableTheme(catalog: ThemeCatalog, id: string | null): ThemeRecord | null {
+/** The catalog's theme with this id, when there is one and it is available. */
+export function availableTheme(catalog: ThemeCatalog, id: string | null): ThemeRecord | null {
   if (id === null) return null;
   return catalog.themes.find((theme) => theme.id === id && theme.available) ?? null;
 }
