@@ -48,17 +48,21 @@ export type HandoffPhase = "draining" | "summarizing" | "switching" | "restartin
 /** What a converging chat is doing: moving to another harness on a new agent, or changing account in place. */
 export type TransitionKind = "handoff" | "rebind";
 
-/** One message the chat app holds while the chat switches (the backend's ``HeldSendSnapshot``).
- *  Rendered from the snapshot until it lands in the transcript. */
-export interface HeldSend {
-  // The send-time message_id (contract A4); the page's own bubble for the same send carries it too.
-  message_id: string;
-  text: string;
-  // The render decision the text would get in the transcript (a user_message's fields of the
-  // same names); null for a plain message.
+/** The render decision a not-yet-delivered message's text would get in the transcript (a
+ *  user_message's fields of the same names; the backend's ``DisplayDecisionFields``); null for a
+ *  plain message. */
+export interface DisplayDecision {
   display?: UserMessageEvent["display"] | null;
   display_label?: string | null;
   display_body?: string | null;
+}
+
+/** One message the chat app holds while the chat switches (the backend's ``HeldSendSnapshot``).
+ *  Rendered from the snapshot until it lands in the transcript. */
+export interface HeldSend extends DisplayDecision {
+  // The send-time message_id (contract A4); the page's own bubble for the same send carries it too.
+  message_id: string;
+  text: string;
 }
 
 /** The in-progress switch a chat carries while it converges: a handoff or a rebind (spec 5, 6). */
@@ -119,7 +123,7 @@ export interface ChatSnapshot {
 /** One message currently parked in an agent's harness queue (the wire shape of the backend
  *  ``QueuedMessageState``). The frontend keys the bubble on ``queued_id`` and never derives or
  *  reconciles these. */
-export interface QueuedMessage {
+export interface QueuedMessage extends DisplayDecision {
   queued_id: string;
   content: string;
   timestamp: string;
@@ -127,11 +131,6 @@ export interface QueuedMessage {
   // interrupt+resend, or a Claude message still queued when the reply landed): it renders as an
   // ordinary send's bubble rather than as a plain queued chip.
   is_sending?: boolean;
-  // The render decision the content would get in the transcript (a user_message's fields of
-  // the same names); null for a plain message.
-  display?: UserMessageEvent["display"] | null;
-  display_label?: string | null;
-  display_body?: string | null;
 }
 
 /** Where a chat that is not an agent yet stands (the backend's ``ProvisionalChatPhase``). */

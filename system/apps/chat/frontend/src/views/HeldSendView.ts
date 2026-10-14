@@ -11,6 +11,7 @@
 
 import m from "mithril";
 import { getChatById } from "../models/Chats";
+import { displayDecisionOf } from "../models/OutgoingMessages";
 import { isMessageCarriedBySwitch } from "../models/Response";
 import { renderNotYetRealBubble } from "./OutgoingMessageView";
 
@@ -23,7 +24,7 @@ export function renderHeldSends(chatId: string): m.Vnode[] {
       key: `held-${held.message_id}`,
       content: held.text,
       extraRowClass: "held-send",
-      display: held,
+      display: displayDecisionOf(held),
     }),
   );
 }

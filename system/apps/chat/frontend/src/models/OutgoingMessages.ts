@@ -22,11 +22,7 @@
 import m from "mithril";
 
 import { addChatsUpdatedListener, isHandoffCancellable } from "./Chats";
-import type { HandoffState, HeldSend } from "./Chats";
-
-/** The render decision the backend made for a message it holds (``HeldSend``), for the bubble to
- *  draw the message as the transcript will. */
-export type DisplayDecision = Pick<HeldSend, "display" | "display_label" | "display_body">;
+import type { DisplayDecision, HandoffState } from "./Chats";
 
 export interface OutgoingMessage {
   id: string;
@@ -38,6 +34,13 @@ export interface OutgoingMessage {
   messageId?: string;
   /** The backend's render decision, for a held send that comes back as a bubble when its switch ends. */
   display?: DisplayDecision;
+}
+
+/** Just the render decision a backend record carries, or undefined for a plain message. */
+export function displayDecisionOf(decision: DisplayDecision): DisplayDecision | undefined {
+  return decision.display
+    ? { display: decision.display, display_label: decision.display_label, display_body: decision.display_body }
+    : undefined;
 }
 
 const byChat: Record<string, OutgoingMessage[]> = {};
@@ -211,10 +214,7 @@ export function trackBackendArrivals(
         const returning = previous.handoff.held_sends;
         for (const held of isCancelled ? returning.slice(1) : returning) {
           if (isCarriedBySwitch(chat.chat_id, held.message_id)) continue;
-          const display = held.display
-            ? { display: held.display, display_label: held.display_label, display_body: held.display_body }
-            : undefined;
-          addOutgoing(chat.chat_id, held.text, held.message_id, display);
+          addOutgoing(chat.chat_id, held.text, held.message_id, displayDecisionOf(held));
         }
         for (let i = 0; i < consumedBySuccessor; i++) {
           removeOldest(chat.chat_id);

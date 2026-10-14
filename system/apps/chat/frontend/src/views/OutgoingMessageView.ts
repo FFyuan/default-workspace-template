@@ -10,7 +10,8 @@
  */
 import m from "mithril";
 import { getOutgoingMessages } from "../models/OutgoingMessages";
-import type { DisplayDecision, OutgoingMessage } from "../models/OutgoingMessages";
+import type { DisplayDecision } from "../models/Chats";
+import type { OutgoingMessage } from "../models/OutgoingMessages";
 import { classifyUserMessage } from "./message-classification";
 import { UserMessageKind } from "./message-kinds";
 import {
@@ -41,8 +42,8 @@ export interface NotYetRealBubble {
   display?: DisplayDecision;
 }
 
-/** A user message that is not yet a real turn, drawn as the row it will become: the user bubble,
- *  or the one-line notice the backend decided its text renders as. Every not-yet-delivered message
+/** A user message that is not yet a real turn, drawn as the user bubble it will become, or as the
+ *  one-line notice when the backend decided its text renders as one (a background-task report). Every not-yet-delivered message
  *  renders through here (optimistic, held by a switch, re-sent by a tap), so they look the same
  *  and the handoff to the real turn is invisible. */
 export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
