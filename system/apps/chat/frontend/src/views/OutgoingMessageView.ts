@@ -47,23 +47,16 @@ export interface NotYetRealBubble {
  *  a tap), so they look the same and the handoff to the real turn is invisible. */
 export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
   const cls = classifyDecidedMessage(bubble.content, bubble.displayDecision);
-  if (cls.kind === UserMessageKind.Notice) {
-    const noticeRowClass = [
-      "message-notice-row",
-      bubble.isGroupSpaced === true ? null : NOTICE_ROW_SPACING_CLASS,
-      bubble.extraRowClass ?? null,
-    ]
-      .filter((part) => part !== null)
-      .join(" ");
-    return renderNoticeRow(bubble.key, noticeRowClass, cls);
-  }
-  const rowClass = [
-    OUTGOING_ROW_CLASS,
-    bubble.isGroupSpaced === true ? null : STANDALONE_ROW_SPACING_CLASS,
-    bubble.extraRowClass ?? null,
-  ]
+  const isNotice = cls.kind === UserMessageKind.Notice;
+  const [baseClass, spacingClass] = isNotice
+    ? ["message-notice-row", NOTICE_ROW_SPACING_CLASS]
+    : [OUTGOING_ROW_CLASS, STANDALONE_ROW_SPACING_CLASS];
+  const rowClass = [baseClass, bubble.isGroupSpaced === true ? null : spacingClass, bubble.extraRowClass ?? null]
     .filter((part) => part !== null)
     .join(" ");
+  if (isNotice) {
+    return renderNoticeRow(bubble.key, rowClass, cls);
+  }
   return m("div", { class: rowClass, key: bubble.key }, [
     m("div", { class: USER_BUBBLE_CLASS }, [
       m("div", { class: "message-content whitespace-pre-wrap" }, bubble.content),
