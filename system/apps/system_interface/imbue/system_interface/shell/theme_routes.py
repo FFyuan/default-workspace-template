@@ -21,6 +21,7 @@ from imbue.system_interface.app_context import get_state
 from imbue.system_interface.shell.errors import InvalidShellValueError
 from imbue.system_interface.shell.route_helpers import parse_request_body
 from imbue.system_interface.shell.state import ShellState
+from imbue.system_interface.shell.theme_wire import THEME_ICON_ROUTE
 from imbue.system_interface.shell.theme_wire import theme_catalog_wire_json
 
 
@@ -77,7 +78,7 @@ def register_theme_routes(application: Flask) -> None:
         "/api/themes/default", view_func=set_default_theme, methods=["POST"], endpoint="set_default_theme"
     )
     application.add_url_rule(
-        "/api/themes/<theme_id>/icons/<file_name>",
+        THEME_ICON_ROUTE.format(theme_id="<theme_id>", file_name="<file_name>"),
         view_func=serve_theme_icon,
         methods=["GET"],
         endpoint="serve_theme_icon",
