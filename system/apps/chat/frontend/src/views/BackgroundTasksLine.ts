@@ -1,5 +1,5 @@
 /**
- * The wait line under the activity strip: the background tasks the chat waits on, whose
+ * The wait line above the activity line: the background tasks the chat waits on, whose
  * completion will start the agent's next turn (the snapshot's ``active_agent.background_tasks``).
  *
  * Collapsed, it is one line: "Waiting on N background tasks · <how long the oldest has run>".
