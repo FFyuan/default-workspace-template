@@ -129,6 +129,7 @@ refresh_all() {
 session_start() {
     local config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
     local state_dir
+    local log
     state_dir="$(claude_state_dir "$config_dir")"
     # A log is reported only while it is newer than its marker, so each run's
     # warnings reach one session.
