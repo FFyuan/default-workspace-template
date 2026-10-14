@@ -96,7 +96,8 @@ function parseChrome(value: unknown): ThemeChrome | null {
 
 function parseIcons(value: unknown): ThemeIcons | null {
   if (!isRecord(value)) return null;
-  const apps: Record<string, string> = {};
+  // No prototype, so an app named "__proto__" is a key like any other.
+  const apps: Record<string, string> = Object.create(null) as Record<string, string>;
   if (isRecord(value.apps)) {
     for (const [name, url] of Object.entries(value.apps)) if (typeof url === "string") apps[name] = url;
   }

@@ -62,8 +62,10 @@ export function themedIconFor(
   if (theme === null || theme.id === STANDARD_THEME_ID || theme.icons === null) return null;
   const icons = theme.icons;
   const isPixelated = icons.rendering === "pixelated";
-  const listed = icons.apps[appName];
-  if (listed !== undefined) return { url: listed, source: "theme", isPixelated };
+  // An own property only: an app may be named like one Object has, such as "constructor".
+  if (Object.prototype.hasOwnProperty.call(icons.apps, appName)) {
+    return { url: icons.apps[appName], source: "theme", isPixelated };
+  }
   if (icons.derive !== "none" && standardMarkupAt !== null) {
     const standardMarkup = standardMarkupAt(icons.size);
     const key = derivedKey(theme, appName, standardMarkup);

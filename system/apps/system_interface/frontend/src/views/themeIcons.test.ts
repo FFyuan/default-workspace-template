@@ -48,6 +48,13 @@ describe("themedIconFor", () => {
     });
   });
 
+  it("never takes a property every object has for an app's icon", () => {
+    setIconTheme(themeRecord("paper", { icons: icons({}) }));
+
+    expect(themedIconFor("constructor", () => STANDARD_MARKUP)?.source).toBe("fallback");
+    expect(themedIconFor("toString", () => STANDARD_MARKUP)?.source).toBe("fallback");
+  });
+
   it("shows the fallback while an icon is derived from the standard one, which needs a canvas", () => {
     setIconTheme(themeRecord("paper", { icons: icons({ derive: "monochrome" }) }));
 
