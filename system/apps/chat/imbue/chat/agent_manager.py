@@ -1152,6 +1152,8 @@ class AgentManager:
         rather than treating a restart as "nothing has ever been messaged".
         """
         self._initial_discover()
+        if self._background_tasks is not None:
+            self._background_tasks.create_root()
         self._auto_open.start()
         self._seed_oom_prioritizer()
         self._oom_prioritizer.start()

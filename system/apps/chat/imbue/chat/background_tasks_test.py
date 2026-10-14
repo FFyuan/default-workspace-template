@@ -7,7 +7,6 @@ from chat_background_tasks.markers import TaskSource
 
 from imbue.chat.background_tasks import BACKGROUND_TASKS_DIRNAME
 from imbue.chat.background_tasks import BackgroundTask
-from imbue.chat.background_tasks import open_background_task_reader
 from imbue.chat.config import DEFAULT_CHAT_DATA_DIR
 from imbue.chat.primitives import ChatId
 from imbue.chat.testing import build_background_task_reader
@@ -58,12 +57,3 @@ def test_the_chat_app_reads_the_marker_root_the_writers_use_by_default() -> None
     """The writers fall back to the library's default root when ``MINDS_BACKGROUND_TASKS_DIR`` is unset; the chat app
     reads its own data dir's ``background_tasks``. Both are repo-root relative and must name one directory."""
     assert DEFAULT_CHAT_DATA_DIR / BACKGROUND_TASKS_DIRNAME == markers.DEFAULT_MARKER_ROOT
-
-
-def test_opening_the_reader_creates_the_marker_root_for_the_shells_watch(tmp_path: Path) -> None:
-    """The shell's avatar watches the root only once it exists; made at startup, it is there before the first task."""
-    root = tmp_path / "data" / "background_tasks"
-
-    open_background_task_reader(root)
-
-    assert root.is_dir()

@@ -66,12 +66,10 @@ class BackgroundTaskReader(FrozenModel):
         for task_id in task_ids:
             claude_tasks.remove_finished_task(self.root, str(chat_id), task_id)
 
-
-def open_background_task_reader(root: Path) -> BackgroundTaskReader:
-    """A reader over ``root``, which it creates so the shell's avatar, which watches it only once it exists, sees
-    the first task as it lands."""
-    try:
-        root.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        logger.warning("Could not create the background task marker root {}: {}", root, e)
-    return BackgroundTaskReader(root=root)
+    def create_root(self) -> None:
+        """Create the marker root, so the shell's avatar, which watches it only once it exists, sees the first task
+        as it lands."""
+        try:
+            self.root.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning("Could not create the background task marker root {}: {}", self.root, e)
