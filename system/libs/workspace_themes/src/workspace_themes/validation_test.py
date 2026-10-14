@@ -174,6 +174,16 @@ def test_a_manifest_with_an_unknown_key_or_a_bad_value_names_each(
     assert any(problem.startswith("theme.toml: colour:") for problem in problems)
 
 
+def test_a_manifest_that_is_not_utf_8_is_a_problem_not_a_crash(tmp_path: Path) -> None:
+    (tmp_path / "theme.toml").write_bytes(b'name = "Caf\xe9"\n')
+
+    manifest, problems = read_theme_manifest(tmp_path)
+
+    assert manifest is None
+    assert len(problems) == 1
+    assert problems[0].startswith("theme.toml is not UTF-8 text")
+
+
 def test_a_style_file_may_not_take_the_bundle_s_name_at_the_top_of_the_folder(
     tmp_path: Path,
 ) -> None:

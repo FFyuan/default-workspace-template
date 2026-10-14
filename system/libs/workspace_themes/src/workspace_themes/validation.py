@@ -84,6 +84,8 @@ def read_theme_manifest(folder: Path) -> tuple[ThemeManifest | None, list[str]]:
         raw_text = manifest_path.read_text(encoding="utf-8")
     except OSError as error:
         return None, [f"theme.toml cannot be read: {error}"]
+    except UnicodeDecodeError as error:
+        return None, [f"theme.toml is not UTF-8 text: {error}"]
     try:
         data: dict[str, Any] = tomllib.loads(raw_text)
     except tomllib.TOMLDecodeError as error:
