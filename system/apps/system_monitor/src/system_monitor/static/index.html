@@ -302,7 +302,7 @@
 
   // What the user can do about the largest kind of memory they can free: chats, their apps,
   // code checkers, or files in scratch space. Never names one chat or app; says nothing when none
-  // of them holds much. Closing a chat's window does not stop it; its menu's Stop chat does.
+  // of them holds much.
   const ADVICE_MIN_BYTES = 100 * 2 ** 20;
   function freeingAdvice(s) {
     // Scratch space counts only where it is held in memory, which is when it has a row.
@@ -313,7 +313,7 @@
     const top = freeable.reduce((a, b) => (b.bytes > a.bytes ? b : a));
     if (top.bytes < ADVICE_MIN_BYTES) return "";
     return {
-      chats: " Chats are using the most memory. Stopping chats you aren't using frees it (Stop chat in a chat's menu); closing a chat's window does not.",
+      chats: " Chats are using the most memory. Stopping chats you aren't using frees memory.",
       apps: " Your apps are using the most memory. Most stop a minute after their last window closes.",
       checkers: " Code checkers are using the most memory. Each one stops when the chat that started it is stopped.",
       scratch: ` Temporary files are using ${size(top.bytes)}. They're cleared when the workspace restarts.`,
