@@ -5,7 +5,7 @@ import queue
 import shutil
 import subprocess
 from collections.abc import Callable
-from collections.abc import Iterator
+from collections.abc import Generator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from contextlib import contextmanager
@@ -519,7 +519,7 @@ _WORKSPACE_ROOT: Final[PurePosixPath] = PurePosixPath("/home/user/workspace")
 
 
 @contextmanager
-def running_file_viewer(root: Path) -> Iterator[str]:
+def running_file_viewer(root: Path) -> Generator[str, None, None]:
     """Run dufs over ``root`` as the File Viewer's program line runs it over ``/``, with the shell's built app contract
     module at its workspace path under ``root``, where the viewer's pages import it; yields its loopback URL."""
     assert DUFS_BINARY is not None, "dufs is not installed"

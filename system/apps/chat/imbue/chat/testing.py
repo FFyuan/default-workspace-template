@@ -28,7 +28,6 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from collections.abc import Generator
-from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from concurrent.futures import Executor
@@ -136,7 +135,7 @@ def agent_message_lock(agent_state_dir: Path) -> Generator[None, None, None]:
 
 
 @contextmanager
-def observer_holding_the_lock(events_base_dir: Path) -> Iterator[None]:
+def observer_holding_the_lock(events_base_dir: Path) -> Generator[None, None, None]:
     """Hold the observe lock for the body, standing in for a live ``mngr observe``.
 
     The chat's follower reads the lock as the observer's liveness, so a test that wants
@@ -692,7 +691,7 @@ class ServedApp:
 
 
 @contextmanager
-def serve_app(app: Flask) -> Iterator[ServedApp]:
+def serve_app(app: Flask) -> Generator[ServedApp, None, None]:
     """Serve ``app`` on an ephemeral loopback port via a real threaded Werkzeug server.
 
     Used by the WebSocket/SSE tests, which the Flask test client cannot drive
@@ -920,7 +919,7 @@ def running_workspace(
     messenger: MngrMessenger | None = None,
     # Further registry rows beside the chat's, for apps a test serves itself.
     extra_rows: Sequence[str] = (),
-) -> Iterator[RunningWorkspace]:
+) -> Generator[RunningWorkspace, None, None]:
     """Serve the shell and this chat app together, the way a workspace runs them, over fakes.
 
     The chat app lists the fixture agent (plus any ``additional_agents``, bare state dirs with
