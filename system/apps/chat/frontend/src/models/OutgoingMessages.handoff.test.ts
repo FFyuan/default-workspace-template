@@ -82,7 +82,7 @@ describe("the bubbles of a chat switching harness", () => {
       }),
     ]);
     push([chatSnapshotFixture(chat)]);
-    expect(getOutgoingMessages(chat).map((o) => [o.messageId, o.display])).toEqual([
+    expect(getOutgoingMessages(chat).map((o) => [o.messageId, o.displayDecision])).toEqual([
       ["trigger-1", undefined],
       ["m-report", decision],
     ]);

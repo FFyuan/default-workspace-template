@@ -24,7 +24,7 @@ export function renderHeldSends(chatId: string): m.Vnode[] {
       key: `held-${held.message_id}`,
       content: held.text,
       extraRowClass: "held-send",
-      display: displayDecisionOf(held),
+      displayDecision: displayDecisionOf(held),
     }),
   );
 }

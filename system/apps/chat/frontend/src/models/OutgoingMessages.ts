@@ -33,7 +33,7 @@ export interface OutgoingMessage {
    *  exactly, rather than by position. */
   messageId?: string;
   /** The backend's render decision, for a held send that comes back as a bubble when its switch ends. */
-  display?: DisplayDecision;
+  displayDecision?: DisplayDecision;
 }
 
 /** Just the render decision a backend record carries, or undefined for a plain message. */
@@ -56,13 +56,18 @@ let nextId = 0;
 
 /** Record a just-sent message as an optimistic "Sending…" bubble; returns its id
  *  so the caller can drop it on failure. */
-export function addOutgoing(chatId: string, content: string, messageId?: string, display?: DisplayDecision): string {
+export function addOutgoing(
+  chatId: string,
+  content: string,
+  messageId?: string,
+  displayDecision?: DisplayDecision,
+): string {
   const id = `outgoing-${nextId++}`;
   (byChat[chatId] ??= []).push({
     id,
     content,
     ...(messageId === undefined ? {} : { messageId }),
-    ...(display === undefined ? {} : { display }),
+    ...(displayDecision === undefined ? {} : { displayDecision }),
   });
   m.redraw();
   return id;

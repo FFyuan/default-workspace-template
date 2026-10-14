@@ -38,7 +38,7 @@ export interface NotYetRealBubble {
   /** Marker classes added to the row, for a caller whose bubbles a test or a style picks out. */
   extraRowClass?: string;
   /** The backend's render decision for the text; a notice (a background-task report) draws as one. */
-  display?: DisplayDecision;
+  displayDecision?: DisplayDecision;
 }
 
 /** A user message that is not yet a real turn, drawn as the user bubble it will become, or as the
@@ -46,7 +46,7 @@ export interface NotYetRealBubble {
  *  renders through here (optimistic, held by a switch, re-sent by a tap), so they look the same
  *  and the handoff to the real turn is invisible. */
 export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
-  const cls = classifyDecidedMessage(bubble.content, bubble.display);
+  const cls = classifyDecidedMessage(bubble.content, bubble.displayDecision);
   if (cls.kind === UserMessageKind.Notice) {
     const noticeRowClass = [
       "message-notice-row",
@@ -72,7 +72,11 @@ export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
 }
 
 function renderOutgoingBubble(outgoing: OutgoingMessage): m.Vnode {
-  return renderNotYetRealBubble({ key: outgoing.id, content: outgoing.content, display: outgoing.display });
+  return renderNotYetRealBubble({
+    key: outgoing.id,
+    content: outgoing.content,
+    displayDecision: outgoing.displayDecision,
+  });
 }
 
 /** The optimistic outgoing bubbles for a chat, in send order. Returns [] when
