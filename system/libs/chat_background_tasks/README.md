@@ -7,13 +7,13 @@ task's completion will start the next one.
 
 ## Modules
 
-- `markers` -- the harness-neutral layer: the `BackgroundTask` record and its
-  `TaskSource` (`run_in_background`, a command whose runner outlives the agent and
-  reports how it ended to the chat, or `harness`, one of the harness's own tasks,
-  which ends with the agent's process, unreported), atomic writes, liveness (a
-  marker names the pid whose death makes it stale, and that process's start time
-  where `/proc` has it), and the marker root, which resolves to the main
-  checkout's `data/` even from a worker's git worktree.
+- `markers` -- the `BackgroundTask` record and its `TaskSource`
+  (`run_in_background`, a command whose runner outlives the agent and reports how
+  it ended to the chat, or `harness`, one of the harness's own tasks, which ends
+  with the agent's process, unreported), atomic writes, liveness (a marker names
+  the pid whose death makes it stale, and that process's start time where `/proc`
+  has it), and the marker root, which resolves to the main checkout's `data/` even
+  from a worker's git worktree.
 - `listing` -- which chats are busy and on what: the chat app's
   `GET /api/agents?tracked=true` answer, which also counts a turn in flight, or
   the marker files when the chat app cannot answer.
