@@ -10,6 +10,7 @@ bash snippet that records its invocations to a marker file.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
 
 _SCRIPT = Path(__file__).parent / "run_job.sh"
@@ -151,15 +152,19 @@ def test_custom_retry_gap(tmp_path: Path) -> None:
 _GRACE = ("--every", "1h", "--wake-grace", "10m")
 
 
-def _tick_each_minute(tmp_path: Path, start: int, minutes: int) -> None:
-    """Tick the way cron does, once a minute, ``minutes`` times from ``start``."""
-    for minute in range(minutes):
+def _tick_at(tmp_path: Path, start: int, minutes: Iterable[int]) -> None:
+    """Tick at each of ``minutes`` after ``start``.
+
+    Ticks under five minutes apart keep the workspace awake for the runner, as cron's
+    every-minute ticks do, at a fraction of the subprocesses.
+    """
+    for minute in minutes:
         _run(tmp_path, *_GRACE, now=start + minute * 60)
 
 
 def test_wake_grace_holds_the_first_run_after_a_fresh_start(tmp_path: Path) -> None:
     # No tick has been recorded yet, which is what a new workspace looks like.
-    _tick_each_minute(tmp_path, _BASE_NOW, 10)
+    _tick_at(tmp_path, _BASE_NOW, [0, 4, 8])
     assert _runs(tmp_path) == 0
     _run(tmp_path, *_GRACE, now=_BASE_NOW + 10 * 60)
     assert _runs(tmp_path) == 1
@@ -168,11 +173,11 @@ def test_wake_grace_holds_the_first_run_after_a_fresh_start(tmp_path: Path) -> N
 def test_wake_grace_holds_a_catch_up_run_after_the_machine_slept(
     tmp_path: Path,
 ) -> None:
-    _tick_each_minute(tmp_path, _BASE_NOW, 11)
+    _tick_at(tmp_path, _BASE_NOW, [0, 4, 8, 10])
     assert _runs(tmp_path) == 1
     woke = _BASE_NOW + 10 * 60 + 3 * 3600
 
-    _tick_each_minute(tmp_path, woke, 10)
+    _tick_at(tmp_path, woke, [0, 4, 8])
     assert _runs(tmp_path) == 1
     _run(tmp_path, *_GRACE, now=woke + 10 * 60)
     assert _runs(tmp_path) == 2
@@ -181,7 +186,8 @@ def test_wake_grace_holds_a_catch_up_run_after_the_machine_slept(
 def test_wake_grace_does_not_hold_a_run_that_comes_due_while_awake(
     tmp_path: Path,
 ) -> None:
-    _tick_each_minute(tmp_path, _BASE_NOW, 71)
+    # The first run lands at minute 10 and the next is due at minute 70.
+    _tick_at(tmp_path, _BASE_NOW, [0, 4, 8, 10, *range(14, 71, 4)])
     assert _runs(tmp_path) == 2
 
 
