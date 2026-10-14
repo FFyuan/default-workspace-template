@@ -187,7 +187,9 @@ def test_an_app_overlay_styles_only_the_parts_its_app_declares_and_is_left_out_f
     )
     (folder / "apps").mkdir()
     (folder / "apps" / "chat.css").write_text(
-        '[data-part="chat.user-message"] { color: #000000; }\n', "utf-8"
+        '[data-part="chat.user-message"] [data-part="button"] { color: #000000; }\n'
+        '@media (min-width: 1px) { [data-part="chat.user-message"], [data-part="button"] { color: #000000; } }\n',
+        "utf-8",
     )
     (folder / "apps" / "files.css").write_text(
         '[data-part="files.row"] { color: #000000; }\n', "utf-8"
@@ -197,7 +199,10 @@ def test_an_app_overlay_styles_only_the_parts_its_app_declares_and_is_left_out_f
 
     assert entry is not None
     # files is here but declares no parts; notes is not here at all, so its overlay is never read or loaded.
+    # Every overlay is in every app's bundle, so a selector that names no part of its own app would style them all.
     assert entry.problems == (
+        "apps/chat.css:2: an app's overlay styles only that app; each selector names one of its parts, "
+        '[data-part="chat.<part>"]',
         "apps/files.css:1: 'files.row' is not a part this file may style",
     )
     assert [str(item.path) for item in entry.style_files] == [

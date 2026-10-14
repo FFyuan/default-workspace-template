@@ -66,6 +66,10 @@ class StyleSheetContext(FrozenModel):
     allowed_parts: frozenset[str] = Field(
         description="The data-part values the file may name"
     )
+    scoping_part_prefix: str | None = Field(
+        default=None,
+        description="For an app's overlay, '<app>.': every selector names one of that app's parts",
+    )
 
 
 @pure
@@ -387,6 +391,54 @@ def _check_attribute_selector(
     return []
 
 
+@pure
+def _exact_part_name(block: ast.SquareBracketsBlock) -> str | None:
+    """The part an attribute selector names, when it is ``[data-part="<part>"]``."""
+    significant = _significant(block.content)
+    name_index = _attribute_name_index(significant)
+    if len(significant) != name_index + 3:
+        return None
+    name_token, operator_token, value_token = significant[name_index:]
+    if (
+        not isinstance(name_token, ast.IdentToken)
+        or name_token.lower_value != _DATA_PART_ATTRIBUTE
+        or not isinstance(operator_token, ast.LiteralToken)
+        or operator_token.value != _EXACT_MATCH_OPERATOR
+        or not isinstance(value_token, (ast.StringToken, ast.IdentToken))
+    ):
+        return None
+    return value_token.value
+
+
+@pure
+def _split_selector_list(prelude: Sequence[ast.Node]) -> list[list[ast.Node]]:
+    """A rule's selectors, split at its top-level commas, each without whitespace or comments."""
+    selectors: list[list[ast.Node]] = [[]]
+    for token in _significant(prelude):
+        if isinstance(token, ast.LiteralToken) and token.value == ",":
+            selectors.append([])
+        else:
+            selectors[-1].append(token)
+    return [selector for selector in selectors if selector]
+
+
+def _check_overlay_scope(
+    prelude: Sequence[ast.Node], context: StyleSheetContext, prefix: str
+) -> list[str]:
+    """Every selector of an app's overlay names one of the app's parts outside any selector function, so the
+    overlay, which is in every app's bundle, matches nothing on another app's page."""
+    return [
+        f"{context.label}:{selector[0].source_line}: an app's overlay styles only that app; each selector names "
+        f'one of its parts, [data-part="{prefix}<part>"]'
+        for selector in _split_selector_list(prelude)
+        if not any(
+            (_exact_part_name(token) or "").startswith(prefix)
+            for token in selector
+            if isinstance(token, ast.SquareBracketsBlock)
+        )
+    ]
+
+
 def _check_selector(
     prelude: Sequence[ast.Node], context: StyleSheetContext
 ) -> list[str]:
@@ -445,6 +497,12 @@ def _check_rules(rules: Iterable[ast.Node], context: StyleSheetContext) -> list[
             problems.extend(_check_at_rule(node, context))
         elif isinstance(node, ast.QualifiedRule):
             problems.extend(_check_selector(node.prelude, context))
+            if context.scoping_part_prefix is not None:
+                problems.extend(
+                    _check_overlay_scope(
+                        node.prelude, context, context.scoping_part_prefix
+                    )
+                )
             problems.extend(_check_declarations(node.content or [], context))
         else:
             continue
@@ -486,7 +544,10 @@ def app_part_selector_names(app_name: str, part_names: Iterable[str]) -> frozens
 
 
 def _check_style_file(
-    folder: Path, relative: str, allowed_parts: frozenset[str]
+    folder: Path,
+    relative: str,
+    allowed_parts: frozenset[str],
+    scoping_part_prefix: str | None = None,
 ) -> tuple[list[str], int]:
     path = folder / relative
     if not relative.endswith(STYLE_FILE_SUFFIX):
@@ -502,6 +563,7 @@ def _check_style_file(
         folder=folder,
         file_directory=posixpath.dirname(relative),
         allowed_parts=allowed_parts,
+        scoping_part_prefix=scoping_part_prefix,
     )
     return check_style_sheet(css_text, context), len(css_text.encode("utf-8"))
 
@@ -526,7 +588,10 @@ def check_style_files(
             continue
         allowed = core_parts | app_part_selector_names(app_name, app_parts)
         file_problems, size = _check_style_file(
-            folder, f"{APP_STYLES_DIRECTORY}/{app_name}.css", allowed
+            folder,
+            f"{APP_STYLES_DIRECTORY}/{app_name}.css",
+            allowed,
+            scoping_part_prefix=f"{app_name}.",
         )
         problems.extend(file_problems)
         total_bytes += size
