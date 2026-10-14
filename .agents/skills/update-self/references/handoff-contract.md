@@ -69,10 +69,10 @@ directory).
 
 A caught-up pass (SKILL.md 5b, the worker guide's §7) lands a catch-up merge
 whose first parent is the worker's line and whose second parent is the
-workspace's `HEAD` from before the apply. So the `update-self:` merge stays on `HEAD`'s
-first-parent line, which is what the apply, `footprint-ranges` and
-`resolve_template_base.py` walk, but the commits other chats made during the
-pass do not. A tool that walks the first-parent line to list the workspace's
+workspace's `HEAD` from before the apply. So the `update-self:` merge stays on
+`HEAD`'s first-parent line, where the apply and `resolve_template_base.py` look
+for it (`footprint-ranges` finds it by its subject alone), but the commits
+other chats made during the pass do not. A tool that walks the first-parent line to list the workspace's
 own commits misses them; find them through the second parent of a catch-up
 merge instead.
 
