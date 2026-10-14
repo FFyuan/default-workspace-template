@@ -230,6 +230,36 @@ def test_an_icon_that_misses_the_limits_is_not_installed(tmp_path: Path) -> None
     )
 
 
+def test_an_icon_that_is_not_a_png_is_not_installed_for_a_png_theme(
+    tmp_path: Path,
+) -> None:
+    root = _workspace(tmp_path)
+    drawn = tmp_path / "drawn.png"
+    write_test_icon(drawn, 32)
+    disguised = tmp_path / "files.png"
+    with Image.open(drawn) as image:
+        image.save(disguised, format="WEBP", lossless=True)
+
+    installed = CliRunner().invoke(
+        main,
+        [
+            "icon",
+            "install",
+            str(disguised),
+            "--theme",
+            "paper",
+            "--app",
+            "files",
+            "--repo-root",
+            str(root),
+        ],
+    )
+
+    assert installed.exit_code == 1
+    assert "is WEBP, not PNG" in installed.output
+    assert not (root / GENERATED_ICONS_DIRECTORY).exists()
+
+
 def test_an_icon_a_built_in_theme_ships_is_not_installed_over_but_a_workspace_theme_takes_it(
     tmp_path: Path,
 ) -> None:

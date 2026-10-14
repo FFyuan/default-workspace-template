@@ -35,6 +35,7 @@ from workspace_themes.icons import (
     icon_install_path,
     install_icon_file,
     load_icon_image,
+    load_png_icon_image,
     pixel_scale_hint,
     preview_icon_image,
     render_pixel_grid,
@@ -489,7 +490,7 @@ def _icon_problems(path: Path, icons: ThemeIcons) -> list[str]:
     if icons.spec.format == IconFormat.SVG:
         return check_svg_icon(path)
     try:
-        return check_icon_image(load_icon_image(path), icons.spec)
+        return check_icon_image(load_png_icon_image(path), icons.spec)
     except IconImageError as error:
         return [str(error)]
 

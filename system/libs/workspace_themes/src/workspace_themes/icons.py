@@ -42,13 +42,26 @@ PREVIEW_CHECKER_COLORS: Final[tuple[tuple[int, int, int, int], ...]] = (
 )
 
 
-def load_icon_image(path: Path) -> Image.Image:
-    """Raises IconImageError when the file is not an image Pillow reads."""
+def _open_icon_image(path: Path) -> tuple[Image.Image, str | None]:
     try:
         with Image.open(path) as opened:
-            return opened.convert("RGBA")
+            return opened.convert("RGBA"), opened.format
     except (OSError, UnidentifiedImageError, Image.DecompressionBombError) as error:
         raise IconImageError(f"{path} cannot be read as an image: {error}") from error
+
+
+def load_icon_image(path: Path) -> Image.Image:
+    """Raises IconImageError when the file is not an image Pillow reads."""
+    image, _ = _open_icon_image(path)
+    return image
+
+
+def load_png_icon_image(path: Path) -> Image.Image:
+    """An icon file for a png theme; raises IconImageError when it is not a PNG, whatever its name says."""
+    image, image_format = _open_icon_image(path)
+    if image_format != "PNG":
+        raise IconImageError(f"{path} is {image_format}, not PNG")
+    return image
 
 
 @pure
