@@ -34,6 +34,7 @@ _BUILTIN_THEMES: Final[tuple[str, ...]] = ("standard", "mac-classic", "windows-2
 
 pytestmark = [
     pytest.mark.browser,
+    pytest.mark.timeout(60),
     pytest.mark.skipif(not is_e2e_browser_installed(), reason="Playwright browsers not installed"),
     pytest.mark.skipif(
         not (_STATIC_DIRECTORY / "theme-gallery.html").is_file(),
