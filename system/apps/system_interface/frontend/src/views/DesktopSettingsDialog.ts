@@ -218,8 +218,9 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
     ]);
   }
 
-  /** A theme's picture in its tile: the icon it draws for the File Viewer, or the desktop's own squiggle for a
-   *  theme without pixel icons (the standard look) and for an unavailable one, whose files are not served. */
+  /** A theme's picture in its tile: its own File Viewer icon, else its generic program icon (an icon a theme
+   *  derives is drawn in the page only for the theme being worn), or the desktop's own squiggle for a theme
+   *  without pixel icons (the standard look) and for an unavailable one, whose files are not served. */
   function themePicture(record: ThemeRecord, previewApp: Pick<AppRecord, "name" | "icon"> | null): m.Children {
     const icons = record.available ? record.icons : null;
     const url = icons === null ? null : (icons.apps[THEME_PREVIEW_APP] ?? icons.fallback_url);
