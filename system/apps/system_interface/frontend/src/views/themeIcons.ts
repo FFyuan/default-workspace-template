@@ -79,11 +79,17 @@ export function themedIconFor(
 function startDerivation(key: string, standardMarkup: string, icons: ThemeIcons): void {
   // Marked as under way, so a redraw while it runs does not start another.
   derivedByKey.set(key, null);
-  void deriveIcon(standardMarkup, icons).then((url) => {
-    if (url === null) return;
-    derivedByKey.set(key, url);
-    m.redraw();
-  });
+  deriveIcon(standardMarkup, icons).then(
+    (url) => {
+      // A key dropped meanwhile belongs to a theme no longer worn.
+      if (url === null || !derivedByKey.has(key)) return;
+      derivedByKey.set(key, url);
+      m.redraw();
+    },
+    (error: unknown) => {
+      console.warn("[si] could not derive an app's themed icon; its fallback shows instead", error);
+    },
+  );
 }
 
 async function deriveIcon(standardMarkup: string, icons: ThemeIcons): Promise<string | null> {
