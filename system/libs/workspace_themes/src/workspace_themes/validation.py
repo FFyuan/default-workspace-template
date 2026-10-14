@@ -269,6 +269,8 @@ def _urls_in(tokens: Iterable[ast.Node]) -> list[tuple[str, int]]:
             (ast.ParenthesesBlock, ast.SquareBracketsBlock, ast.CurlyBracketsBlock),
         ):
             found.extend(_urls_in(token.content))
+        else:
+            continue
     return found
 
 
@@ -425,6 +427,12 @@ def _check_keyframes(
             problems.extend(_check_declarations(node.content, context))
         elif isinstance(node, ast.ParseError):
             problems.append(f"{context.label}:{node.source_line}: {node.message}")
+        elif isinstance(node, ast.AtRule):
+            problems.append(
+                f"{context.label}:{node.source_line}: @{node.lower_at_keyword} is not allowed inside @keyframes"
+            )
+        else:
+            continue
     return problems
 
 
@@ -438,6 +446,8 @@ def _check_rules(rules: Iterable[ast.Node], context: StyleSheetContext) -> list[
         elif isinstance(node, ast.QualifiedRule):
             problems.extend(_check_selector(node.prelude, context))
             problems.extend(_check_declarations(node.content or [], context))
+        else:
+            continue
     return problems
 
 

@@ -124,6 +124,10 @@ def test_contract_css_passes(tmp_path: Path) -> None:
         ('[*|data-part^="chat"] { color: red; }', "select a part exactly"),
         (":nth-child(1 of .private) { color: red; }", ".private is a class"),
         ("::slotted(.x) { color: red; }", ".x is a class"),
+        (
+            "@keyframes blink { @media print { from { opacity: 0; } } }",
+            "@media is not allowed inside @keyframes",
+        ),
     ],
 )
 def test_css_that_steps_outside_the_contract_is_named(
