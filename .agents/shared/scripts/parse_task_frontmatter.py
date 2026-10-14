@@ -141,7 +141,7 @@ def _parse_creations(frontmatter: dict[str, Any]) -> tuple[str, ...]:
 
 def parse(task_file: Path) -> TaskFrontmatter:
     """Return all top-level string fields after validating the well-known ones,
-    and a harden pass's validated ``creations`` (empty for any other task).
+    and a harden pass's ``creations`` (empty for any other task).
 
     Required fields (``finish_report_path``) must be present, string-typed,
     and non-empty -- any violation raises ``ValueError``. ``lead_agent`` and
