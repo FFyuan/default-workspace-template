@@ -263,7 +263,11 @@ The exception is a chat that is **mid-turn** (a running lifecycle state): it is
 doing work right now that a shed would destroy rather than defer, so its
 staleness climb is suspended for the duration of the turn and it stays below the
 worker band. Both edges of the turn count as engagement, so a chat that ran for
-three days starts aging from when its turn *ended*, not when it began.
+three days starts aging from when its turn *ended*, not when it began. A chat
+whose turn has ended to wait on one of its harness's own background tasks (one
+of Claude's, say) counts as mid-turn too, since a shed would end that task
+unreported. One waiting only on `run_in_background.py` commands does not: the
+runner outlives a shed, and its report revives the chat.
 
 Idle time is measured from the most recent of: a message sent through the UI, the
 moment its tab was switched to, either edge of a turn, or -- as a floor -- its own
