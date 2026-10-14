@@ -21,6 +21,19 @@ describe("the page kit's stylesheet", () => {
     }
   });
 
+  it("layers every rule but its tokens, so a theme's rules beat them at any specificity", () => {
+    const css = readFileSync(new URL("./workspace_theme.css", import.meta.url), "utf8").replace(
+      /\/\*[\s\S]*?\*\//g,
+      "",
+    );
+    const outsideTheLayer = css
+      .replace(/:root\s*\{[^}]*\}/, "")
+      .replace(/@layer workspace-page-kit\s*\{[\s\S]*\}\s*$/, "");
+
+    expect(css).toContain("@layer workspace-page-kit {");
+    expect(outsideTheLayer.trim()).toBe("");
+  });
+
   it("declares every color token the shared library has", () => {
     const kit = tokenValues(new URL("./workspace_theme.css", import.meta.url));
     const library = tokenValues(new URL("../base.css", import.meta.url));

@@ -4,7 +4,10 @@
 
    The tokens are the standard theme's values, the same as system/libs/workspace_ui/src/base.css declares
    (a test keeps the two equal). Style your own elements with var(--c-...) and the type tokens, never a literal,
-   and mark the elements below with their contract part so a theme can dress them. */
+   and mark the elements below with their contract part so a theme can dress them.
+
+   The element and part rules sit in a layer, as the shared library's look does, so a theme's unlayered rules
+   beat them whatever their specificity: [data-part="button"] in a theme restyles a primary button too. */
 
 :root {
   --c-bg: #fafaf8;
@@ -65,102 +68,104 @@
   --dur-slow: 200ms;
 }
 
-body {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-  color: var(--c-text-primary);
-  background: var(--c-bg);
-}
-h1,
-h2,
-h3 {
-  font-family: var(--font-display);
-  font-weight: var(--weight-semibold);
-  line-height: 1.3;
-}
-h1 {
-  font-size: var(--font-size-heading-lg);
-}
-h2 {
-  font-size: var(--font-size-heading);
-}
-a {
-  color: var(--c-accent);
-}
-code,
-pre,
-kbd {
-  font-family: var(--font-mono);
-  background: var(--c-bg-code);
-  border-radius: var(--radius-sm);
-}
+@layer workspace-page-kit {
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body);
+    line-height: 1.5;
+    color: var(--c-text-primary);
+    background: var(--c-bg);
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: var(--weight-semibold);
+    line-height: 1.3;
+  }
+  h1 {
+    font-size: var(--font-size-heading-lg);
+  }
+  h2 {
+    font-size: var(--font-size-heading);
+  }
+  a {
+    color: var(--c-accent);
+  }
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono);
+    background: var(--c-bg-code);
+    border-radius: var(--radius-sm);
+  }
 
-/* A push button: <button data-part="button" data-variant="primary|secondary|ghost|destructive">. */
-[data-part="button"] {
-  font: inherit;
-  padding: 6px 14px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-surface);
-  color: var(--c-text-primary);
-  cursor: pointer;
-}
-[data-part="button"]:not(:disabled):hover {
-  background: var(--c-fill-hover);
-}
-[data-part="button"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-[data-part="button"][data-variant="primary"] {
-  border-color: var(--c-accent);
-  background: var(--c-accent);
-  color: var(--c-text-on-accent);
-}
-[data-part="button"][data-variant="primary"]:not(:disabled):hover {
-  background: var(--c-accent-hover);
-}
-[data-part="button"][data-variant="ghost"] {
-  border-color: transparent;
-  background: transparent;
-}
-[data-part="button"][data-variant="destructive"] {
-  border-color: var(--c-danger);
-  background: var(--c-danger);
-  color: var(--c-text-on-accent);
-}
+  /* A push button: <button data-part="button" data-variant="primary|secondary|ghost|destructive">. */
+  [data-part="button"] {
+    font: inherit;
+    padding: 6px 14px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    background: var(--c-surface);
+    color: var(--c-text-primary);
+    cursor: pointer;
+  }
+  [data-part="button"]:not(:disabled):hover {
+    background: var(--c-fill-hover);
+  }
+  [data-part="button"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  [data-part="button"][data-variant="primary"] {
+    border-color: var(--c-accent);
+    background: var(--c-accent);
+    color: var(--c-text-on-accent);
+  }
+  [data-part="button"][data-variant="primary"]:not(:disabled):hover {
+    background: var(--c-accent-hover);
+  }
+  [data-part="button"][data-variant="ghost"] {
+    border-color: transparent;
+    background: transparent;
+  }
+  [data-part="button"][data-variant="destructive"] {
+    border-color: var(--c-danger);
+    background: var(--c-danger);
+    color: var(--c-text-on-accent);
+  }
 
-/* A text field or text area: <input data-part="field">, <textarea data-part="field">. */
-[data-part="field"] {
-  font: inherit;
-  padding: 6px 10px;
-  border: 1px solid var(--c-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--c-surface);
-  color: var(--c-text-primary);
-}
+  /* A text field or text area: <input data-part="field">, <textarea data-part="field">. */
+  [data-part="field"] {
+    font: inherit;
+    padding: 6px 10px;
+    border: 1px solid var(--c-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--c-surface);
+    color: var(--c-text-primary);
+  }
 
-/* A card that opens something, and a selectable row (aria-current="true" on the current one). */
-[data-part="tile"] {
-  padding: 16px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-xl);
-  background: var(--c-surface);
-  color: inherit;
-  text-align: left;
-}
-[data-part="list-row"] {
-  padding: 6px 8px;
-  border-radius: var(--radius-md);
-}
-[data-part="list-row"][aria-current="true"] {
-  background: var(--c-fill-active);
-}
-[data-part="badge"] {
-  padding: 1px 6px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-helper);
+  /* A card that opens something, and a selectable row (aria-current="true" on the current one). */
+  [data-part="tile"] {
+    padding: 16px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-xl);
+    background: var(--c-surface);
+    color: inherit;
+    text-align: left;
+  }
+  [data-part="list-row"] {
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+  }
+  [data-part="list-row"][aria-current="true"] {
+    background: var(--c-fill-active);
+  }
+  [data-part="badge"] {
+    padding: 1px 6px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-helper);
+  }
 }
