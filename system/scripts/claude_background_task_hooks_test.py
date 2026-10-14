@@ -107,16 +107,19 @@ def test_a_stop_records_a_command_as_the_agent_wrote_it(
     background_task_markers: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Claude's Stop input carries each command as the PreToolUse rewrite hook passed it on, with
-    the commit identity and OOM band in front; the marker keeps only what the agent wrote."""
+    the commit identity and OOM band in front; the marker keeps only what the agent wrote. The
+    identity names the agent as it was when the command ran, which the chat's automatic name,
+    landing during its first turn, changes before that turn's Stop."""
     host_dir = tmp_path / "host"
     host_dir.mkdir()
     (host_dir / "data.json").write_text(json.dumps({"host_id": "host-1"}))
     monkeypatch.setenv("MNGR_AGENT_ID", _CHAT_ID)
-    monkeypatch.setenv("MNGR_AGENT_NAME", "build-chat")
+    monkeypatch.setenv("MNGR_AGENT_NAME", "chat-3")
     monkeypatch.setenv("MNGR_HOST_DIR", str(host_dir))
     monkeypatch.delenv("MNGR_AGENT_STATE_DIR", raising=False)
     rewritten = hooks.agent_rewrite_bash_command.build_rewritten_command("tail -f log")
-    assert rewritten.startswith("export GIT_AUTHOR_NAME=build-chat ")
+    assert rewritten.startswith("export GIT_AUTHOR_NAME=chat-3 ")
+    monkeypatch.setenv("MNGR_AGENT_NAME", "Fix the login page")
 
     _stop(
         background_task_markers,

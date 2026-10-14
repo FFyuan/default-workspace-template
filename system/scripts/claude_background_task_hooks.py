@@ -152,11 +152,6 @@ def is_shadowed_by_main_claude(environ: Mapping[str, str], claude_pid: int) -> b
     )
 
 
-def original_command(command: str) -> str:
-    """The command as the agent wrote it, without the prefix the PreToolUse rewrite hook added."""
-    return command.removeprefix(agent_rewrite_bash_command.build_rewritten_command(""))
-
-
 def is_claude_task(task: BackgroundTask) -> bool:
     return task.source is TaskSource.HARNESS and task.harness == CLAUDE_HARNESS
 
@@ -197,7 +192,9 @@ def tasks_from_stop_input(
                 pid=caller.pid,
                 harness=CLAUDE_HARNESS,
                 kind=str(kind),
-                command=original_command(command) if isinstance(command, str) else "",
+                command=agent_rewrite_bash_command.original_command(command)
+                if isinstance(command, str)
+                else "",
                 pid_start=pid_start,
             )
         )
