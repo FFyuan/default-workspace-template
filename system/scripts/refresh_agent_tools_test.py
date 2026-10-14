@@ -68,18 +68,16 @@ def _install(tmp_path: Path) -> Path:
     return scripts_dir / "refresh_agent_tools.sh"
 
 
-def _run(
+def _env(
     tmp_path: Path,
-    *args: str,
     config_dir: str = "default-config",
     config_dirs: tuple[str, ...] = ("default-config",),
     delay_seconds: int = 0,
     failing_args: str = "",
     codex_exit: int = 0,
     job_timeout_seconds: int = 60,
-) -> tuple[subprocess.CompletedProcess[str], float]:
-    script = _install(tmp_path)
-    env = {
+) -> dict[str, str]:
+    return {
         **os.environ,
         "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
         "HOME": str(tmp_path / "home"),
@@ -91,6 +89,28 @@ def _run(
         "CODEX_STUB_EXIT": str(codex_exit),
         "AGENT_TOOLS_JOB_TIMEOUT_SECONDS": str(job_timeout_seconds),
     }
+
+
+def _run(
+    tmp_path: Path,
+    *args: str,
+    config_dir: str = "default-config",
+    config_dirs: tuple[str, ...] = ("default-config",),
+    delay_seconds: int = 0,
+    failing_args: str = "",
+    codex_exit: int = 0,
+    job_timeout_seconds: int = 60,
+) -> tuple[subprocess.CompletedProcess[str], float]:
+    script = _install(tmp_path)
+    env = _env(
+        tmp_path,
+        config_dir=config_dir,
+        config_dirs=config_dirs,
+        delay_seconds=delay_seconds,
+        failing_args=failing_args,
+        codex_exit=codex_exit,
+        job_timeout_seconds=job_timeout_seconds,
+    )
     started = time.monotonic()
     result = subprocess.run(
         ["bash", str(script), *args],
@@ -292,14 +312,7 @@ def test_a_run_already_going_for_a_config_dir_is_left_to_finish(tmp_path: Path) 
         pytest.skip("overlap protection needs flock(1), which macOS lacks")
     first = subprocess.Popen(
         ["bash", str(_install(tmp_path)), "--claude-plugins"],
-        env={
-            **os.environ,
-            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
-            "HOME": str(tmp_path / "home"),
-            "CLAUDE_CONFIG_DIR": str(tmp_path / "default-config"),
-            "SHIM_LOG": str(tmp_path / "shim.log"),
-            "SHIM_DELAY": "2",
-        },
+        env=_env(tmp_path, delay_seconds=2),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
