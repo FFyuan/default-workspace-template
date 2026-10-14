@@ -96,9 +96,14 @@ class AgentStatePoller:
         return self
 
     def start(self) -> None:
-        """Begin polling on a background thread. Idempotent."""
+        """Run one pass now, then poll on a background thread. Idempotent.
+
+        The first pass runs before this returns, so what the paths say is known before the
+        app starts answering, rather than one interval later.
+        """
         if self._thread is not None:
             return
+        self.poll_once()
         self._thread = threading.Thread(target=self._run, daemon=True, name="agent-state-poll")
         self._thread.start()
 

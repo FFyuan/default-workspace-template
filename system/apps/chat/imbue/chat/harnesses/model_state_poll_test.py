@@ -178,6 +178,22 @@ def test_poller_uses_one_thread_regardless_of_agent_count(tmp_path: Path) -> Non
     assert set(threading.enumerate()) - threads_before == set()
 
 
+def test_start_has_read_every_path_before_it_returns(tmp_path: Path) -> None:
+    """The app starts answering as soon as its manager starts, so a chat already waiting on a task must not read
+    idle for the poller's first interval."""
+    markers = tmp_path / "background_tasks"
+    markers.mkdir()
+    (markers / "run_in_background-a.json").write_text("{}")
+    changed: list[tuple[str, WatchedPathPurpose]] = []
+    poller = _build_poller_over({"agent-1": {_TASKS: markers}}, changed)
+
+    poller.start()
+    try:
+        assert changed == [("agent-1", _TASKS)]
+    finally:
+        poller.stop()
+
+
 def test_stop_is_idempotent_and_safe_without_start(tmp_path: Path) -> None:
     poller = _build_poller_over({}, [])
     poller.stop()
