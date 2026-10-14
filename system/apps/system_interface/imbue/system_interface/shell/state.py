@@ -200,8 +200,8 @@ class ShellState(MutableModel):
         return value
 
     def start(self) -> None:
-        """Prune stale clients (now, and daily from here on), then start the inventory (registry watch, liveness)
-        and the avatar status reader (the event file watch)."""
+        """Prune stale clients (now, and daily from here on), then start the inventory (registry watch, liveness),
+        the avatar status reader (the event file watch), and the theme watch (the theme folders and app manifests)."""
         self.prune_unseen_clients()
         thread = threading.Thread(target=self._run_client_prune, daemon=True, name="shell-client-prune")
         self._prune_thread = thread
