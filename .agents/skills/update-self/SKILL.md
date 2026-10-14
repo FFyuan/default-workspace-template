@@ -517,7 +517,7 @@ your next one:
 ```bash
 python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/run_in_background.py \
     --description "Wait for other chats to finish their edits" -- \
-    bash -c 'for i in $(seq 1 360); do leases=$(tk ready) || { echo "tk ready failed"; exit 1; }; if [ -z "$(git status --porcelain)" ] && ! printf "%s\n" "$leases" | grep -q -- "- editing service "; then echo settled; exit 0; fi; sleep 10; done; echo "still busy after an hour"; git status --porcelain; exit 1'
+    bash -c 'for i in $(seq 1 360); do leases=$(tk ready) || { echo "tk ready failed"; exit 1; }; if [ -z "$(git status --porcelain)" ] && ! printf "%s\n" "$leases" | grep -q -- "- editing service "; then echo settled; exit 0; fi; sleep 10; done; echo "still busy after an hour"; git status --porcelain; printf "%s\n" "$leases" | grep -- "- editing service "; exit 1'
 ```
 
 If it is still busy after the hour, record the hold so the app shows what the
