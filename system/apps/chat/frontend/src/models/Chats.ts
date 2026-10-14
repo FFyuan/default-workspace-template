@@ -61,8 +61,8 @@ export interface BackgroundTask {
   // The harness's type for a "harness" task; empty for the runner's.
   kind: string;
   description: string;
-  // When it started (ISO 8601, UTC); for Claude's, when its Stop hook first recorded it, at the end of the
-  // turn that started it.
+  // When it started (ISO 8601, UTC); for a "harness" task, when its turn-end hook first recorded it, at the
+  // end of the turn that started it.
   started_at: string;
 }
 
