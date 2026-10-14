@@ -118,7 +118,11 @@ def cmd_clear_claude(stdin: IO[str], environ: Mapping[str, str]) -> int:
         return 0
     try:
         payload = json.loads(stdin.read() or "null")
-    except ValueError:
+    except ValueError as exc:
+        print(
+            f"background_tasks.py: the SessionStart input is not JSON ({exc})",
+            file=sys.stderr,
+        )
         payload = None
     try:
         removed = claude.clear(
