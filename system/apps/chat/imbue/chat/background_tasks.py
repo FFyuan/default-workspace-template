@@ -2,11 +2,10 @@
 
 A chat is busy when its agent will resume on its own: its active agent has a turn in flight, or
 its chat has a pending background task, whose completion starts one. Only the chat app knows the
-first (the ``system/scripts/background_tasks.py`` CLI's file fallback, used when the app cannot answer,
-sees the tasks alone).
-The pending tasks are one marker file each under ``<chat data dir>/background_tasks/<chat-id>/``,
-written by ``run_in_background.py`` and by a harness's hooks. This module wraps what the library
-reads in this app's types.
+first (the ``system/scripts/background_tasks.py`` CLI's file fallback, used when the app cannot
+answer, sees the tasks alone). The pending tasks are one marker file each under
+``<chat data dir>/background_tasks/<chat-id>/``, written by ``run_in_background.py`` and by a
+harness's hooks. This module wraps what the library reads in this app's types.
 """
 
 from pathlib import Path
