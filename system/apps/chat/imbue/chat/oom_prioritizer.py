@@ -184,8 +184,10 @@ class ChatOomPrioritizer:
     def record_running_chats(self, running_ids: Iterable[ChatId]) -> None:
         """Record which chats are currently mid-turn, then re-tag if it changed.
 
-        A chat waiting on a pending background task counts as mid-turn: the task's
-        completion starts its next turn. Called on every lifecycle change and
+        A chat waiting on one of its harness's own background tasks counts as mid-turn:
+        a shed would end the task unreported. One waiting only on ``run_in_background``
+        commands does not, since the runner outlives a shed and its report revives the
+        chat. Called on every lifecycle change and
         whenever a chat's pending background tasks change. Both edges of a
         turn stamp engagement: entering a running state means something addressed
         the chat (for one driven from outside the UI this is the only evidence it
