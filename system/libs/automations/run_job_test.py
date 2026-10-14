@@ -102,7 +102,9 @@ def test_due_day_waits_for_hour_but_extra_day_fires_any_hour(tmp_path: Path) -> 
     assert _runs(tmp_path) == 2
 
 
-def test_failed_run_leaves_window_uncovered_and_retries_after_gap(tmp_path: Path) -> None:
+def test_failed_run_leaves_window_uncovered_and_retries_after_gap(
+    tmp_path: Path,
+) -> None:
     failing = ["bash", "-c", "exit 1"]
     result = _run(tmp_path, "--every", "7d", command=failing)
     assert result.returncode == 1
@@ -146,6 +148,43 @@ def test_custom_retry_gap(tmp_path: Path) -> None:
     assert _runs(tmp_path) == 1
 
 
+_GRACE = ("--every", "1h", "--wake-grace", "10m")
+
+
+def _tick_each_minute(tmp_path: Path, start: int, minutes: int) -> None:
+    """Tick the way cron does, once a minute, ``minutes`` times from ``start``."""
+    for minute in range(minutes):
+        _run(tmp_path, *_GRACE, now=start + minute * 60)
+
+
+def test_wake_grace_holds_the_first_run_after_a_fresh_start(tmp_path: Path) -> None:
+    # No tick has been recorded yet, which is what a new workspace looks like.
+    _tick_each_minute(tmp_path, _BASE_NOW, 10)
+    assert _runs(tmp_path) == 0
+    _run(tmp_path, *_GRACE, now=_BASE_NOW + 10 * 60)
+    assert _runs(tmp_path) == 1
+
+
+def test_wake_grace_holds_a_catch_up_run_after_the_machine_slept(
+    tmp_path: Path,
+) -> None:
+    _tick_each_minute(tmp_path, _BASE_NOW, 11)
+    assert _runs(tmp_path) == 1
+    woke = _BASE_NOW + 10 * 60 + 3 * 3600
+
+    _tick_each_minute(tmp_path, woke, 10)
+    assert _runs(tmp_path) == 1
+    _run(tmp_path, *_GRACE, now=woke + 10 * 60)
+    assert _runs(tmp_path) == 2
+
+
+def test_wake_grace_does_not_hold_a_run_that_comes_due_while_awake(
+    tmp_path: Path,
+) -> None:
+    _tick_each_minute(tmp_path, _BASE_NOW, 71)
+    assert _runs(tmp_path) == 2
+
+
 def test_overlapping_tick_skips_while_lock_held(tmp_path: Path) -> None:
     import fcntl
     import shutil
@@ -153,7 +192,9 @@ def test_overlapping_tick_skips_while_lock_held(tmp_path: Path) -> None:
     import pytest
 
     if shutil.which("flock") is None:
-        pytest.skip("flock(1) not available (macOS); overlap protection is container-only")
+        pytest.skip(
+            "flock(1) not available (macOS); overlap protection is container-only"
+        )
 
     state = tmp_path / "state" / "job"
     state.mkdir(parents=True)

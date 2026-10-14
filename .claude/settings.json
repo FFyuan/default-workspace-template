@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${MNGR_AGENT_WORK_DIR:-.}/system/scripts/claude_session_start_background.sh"
+            "command": "${MNGR_AGENT_WORK_DIR:-.}/system/scripts/refresh_agent_tools.sh --session-start"
           },
           {
             "type": "command",

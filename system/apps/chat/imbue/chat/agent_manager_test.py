@@ -448,6 +448,26 @@ def test_a_chat_created_with_nothing_to_say_is_created_without_a_first_message(
     assert "--template welcome" not in argv_line
 
 
+def test_a_new_claude_account_gets_its_plugins_installed_and_other_harnesses_do_not(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(tmp_path))
+    calls = tmp_path / "refresh-calls"
+    script = tmp_path / "system" / "scripts" / "refresh_agent_tools.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text(f'echo "$PWD $*" >> {calls}\n')
+    manager = AgentManager.build(broadcaster, chat_files_root=tmp_path / "chats")
+    try:
+        manager.install_account_plugins_in_background(HarnessType.CODEX, tmp_path / "codex-account")
+        manager.install_account_plugins_in_background(HarnessType.CLAUDE, tmp_path / "claude-account")
+        wait_until_true(calls.exists, 10, "the plugin install to start")
+    finally:
+        manager.stop()
+
+    assert calls.read_text().splitlines() == [f"{tmp_path} --claude-plugins {tmp_path / 'claude-account'}"]
+
+
 def test_a_new_chat_takes_the_workspaces_default_fast_mode_and_keeps_it_in_its_folder(
     broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

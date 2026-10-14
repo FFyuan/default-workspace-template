@@ -209,6 +209,9 @@ _SESSION_SWEEP_INTERVAL_SECONDS: Final[float] = 10.0
 # user is waiting on, so they are bounded rather than left to hang.
 _RENAME_TIMEOUT_SECONDS: Final[float] = 30.0
 
+# Keeps the tools agents start with up to date; relative to the workspace root.
+_REFRESH_AGENT_TOOLS_SCRIPT: Final[Path] = Path("system/scripts/refresh_agent_tools.sh")
+
 # Cap on the `mngr destroy` subprocess. A destroy measured ~16s idle on this
 # class of host (mngr CLI startup + discovery + teardown + inline worktree gc)
 # and degrades under load, so a tight cap would SIGTERM real destroys mid-
@@ -1471,6 +1474,26 @@ class AgentManager:
             args=(account_id,),
             name=f"reauth-restart-{account_id[:8]}",
             is_checked=False,
+        )
+
+    def install_account_plugins_in_background(self, harness: HarnessType, account_dir: Path) -> None:
+        """Start installing the Claude plugins into a newly signed-in Claude account, and return.
+
+        Plugins install per config dir, and a Claude account's folder is one, so without this
+        the account's first chats would run without them until the hourly refresh reached it.
+        ``refresh_agent_tools.sh`` logs any failure for the account's next session to report,
+        so nothing waits on it or reads its exit code. Other harnesses keep no plugins per
+        account.
+        """
+        if harness is not HarnessType.CLAUDE:
+            return
+        work_dir = Path(self._own_work_dir) if self._own_work_dir else Path.cwd()
+        self._creation_cg.run_process_in_background(
+            command=["bash", str(work_dir / _REFRESH_AGENT_TOOLS_SCRIPT), "--claude-plugins", str(account_dir)],
+            cwd=work_dir,
+            is_checked_by_group=False,
+            is_output_accumulated=False,
+            name="claude plugin install for a new account",
         )
 
     def restart_agents_on_account(self, account_id: str) -> int:

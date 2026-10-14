@@ -7,28 +7,20 @@ set -euo pipefail
 # that .claude/settings.json enables, so their skills are loaded by the NEXT
 # claude session started from this directory.
 #
-# Two callers, one contract:
+# refresh_agent_tools.sh is its one caller, and always passes --strict (exit 1
+# when any plugin failed to install), so the hourly refresh retries a failure.
+# It runs this once per Claude config dir: hourly for every config dir in use,
+# when a Claude account is signed in, from the SessionStart hook for a config
+# dir that has never had a successful install, and as a worker's provision
+# command, BEFORE the worker's claude starts (a worker gets a single session in
+# a fresh worktree path, so that is the only place an install can land in time
+# for it). A plugin installed from inside a running session is only loaded by
+# the next session, since Claude Code resolves the plugin set at startup.
+# refresh_agent_tools.sh logs this script's stdout, and the next session's hook
+# prints the "warning:" lines from it, so the agent can explain why a skill is
+# missing.
 #
-#   - The SessionStart hook claude_session_start_background.sh starts it
-#     detached at every session start, without --strict, unless the previous
-#     run for the same config dir and project path is still going. A plugin
-#     installed from inside a running session is only loaded by the next
-#     session (Claude Code resolves the plugin set at startup), so the run
-#     converges state for later sessions and never blocks the current one. Its
-#     stdout goes to a log, and the next session's hook prints the "warning:"
-#     lines from it, so the agent can explain why a skill is missing.
-#
-#   - The worker create template (.mngr/settings.toml) runs it as a provision
-#     command, BEFORE the worker's claude starts. A worker gets a single session
-#     in a fresh worktree path, so this is the only place an install can land in
-#     time for it. It deliberately runs without --strict: a plugin outage must
-#     not make a worker undeployable, so a failure there is a warning in the
-#     provision output, and the worker itself reports the missing gate.
-#
-#   --strict (exit 1 when any plugin failed to install) is for callers that
-#   would rather fail fast than run without the plugins.
-#
-# The cache is never wiped here. Every claude in the workspace shares one
+# The cache is never wiped here. Every claude on an account shares its
 # config dir, so deleting plugins/cache/<marketplace> while other sessions run
 # strips their plugin skills and hook scripts; and a session whose reinstall
 # then fails (offline, git auth) starts with no plugin at all.

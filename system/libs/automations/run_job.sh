@@ -7,17 +7,20 @@
 # or was killed mid-flight. Modeled on the host-backup service's tick loop:
 # a run only counts once it COMPLETES.
 #
-# Usage: run_job.sh <job-id> --every <N[mhd]> [--at <hour>] [--retry-after <N[mhd]>] <command...>
+# Usage: run_job.sh <job-id> --every <N[mhd]> [--at <hour>] [--retry-after <N[mhd]>] [--wake-grace <N[mhd]>] <command...>
 #
 #   --every 7d --at 3     weekly at 3 AM local, catch-up after downtime
 #   --every 15m           every 15 minutes, no due-hour concept
 #   --retry-after 2m      gap before retrying a failed run (default 2m)
+#   --wake-grace 10m      after the workspace wakes, hold a due run this long
 #
-# State (two timestamps and a counter, under data/.state/ so it survives
+# State (timestamps and a counter, under data/.state/ so it survives
 # container recreation and is captured by the restic host backup):
 #   data/.state/jobs/<job-id>/last_attempt   epoch when a run last STARTED
 #   data/.state/jobs/<job-id>/last_success   epoch when a run last COMPLETED (exit 0)
 #   data/.state/jobs/<job-id>/failures       consecutive failed attempts
+#   data/.state/jobs/<job-id>/last_tick      epoch of the last tick (--wake-grace only)
+#   data/.state/jobs/<job-id>/woke_at        epoch the workspace last woke (--wake-grace only)
 #
 # Semantics:
 #   - Due when now - last_success >= --every. Only last_success covers a
@@ -33,6 +36,11 @@
 #     can never leak into daemons the command starts (tmux, agents).
 #   - At 3 consecutive failures a loud warning is logged; the retry cadence
 #     is unchanged (the flock and --retry-after already bound the cost).
+#   - --wake-grace: a tick that finds no tick in the last WAKE_GAP_SECONDS
+#     (the first tick ever, after a boot, or after the machine slept) marks a
+#     wake, and a due run waits until the grace has passed since it. A wake is
+#     usually someone opening the workspace to use it, and a catch-up run is
+#     not worth slowing their first minutes down for.
 #
 # Test hooks (used by system/libs/automations/run_job_test.py): MINDS_JOB_STATE_DIR overrides
 # the state root; MINDS_JOB_NOW_EPOCH / MINDS_JOB_NOW_HOUR override the clock.
@@ -42,7 +50,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 usage() {
-    echo "usage: run_job.sh <job-id> --every <N[mhd]> [--at <hour>] [--retry-after <N[mhd]>] <command...>" >&2
+    echo "usage: run_job.sh <job-id> --every <N[mhd]> [--at <hour>] [--retry-after <N[mhd]>] [--wake-grace <N[mhd]>] <command...>" >&2
     exit 2
 }
 
@@ -61,11 +69,13 @@ JOB_ID="$1"; shift
 EVERY=""
 AT_HOUR=""
 RETRY_AFTER="2m"
+WAKE_GRACE=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --every) EVERY="$2"; shift 2 ;;
         --at) AT_HOUR="$2"; shift 2 ;;
         --retry-after) RETRY_AFTER="$2"; shift 2 ;;
+        --wake-grace) WAKE_GRACE="$2"; shift 2 ;;
         --*) echo "run_job: unknown option: $1" >&2; usage ;;
         *) break ;;
     esac
@@ -73,11 +83,30 @@ done
 [ -n "$EVERY" ] && [ "$#" -ge 1 ] || usage
 EVERY_SECONDS=$(to_seconds "$EVERY")
 RETRY_SECONDS=$(to_seconds "$RETRY_AFTER")
+WAKE_GRACE_SECONDS=0
+if [ -n "$WAKE_GRACE" ]; then
+    WAKE_GRACE_SECONDS=$(to_seconds "$WAKE_GRACE")
+fi
+# cron ticks every minute, so a longer silence means the machine was off or asleep.
+WAKE_GAP_SECONDS=300
 
 STATE_DIR="${MINDS_JOB_STATE_DIR:-$ROOT/data/.state/jobs}/$JOB_ID"
 mkdir -p "$STATE_DIR"
 
 log() { printf '%s run_job[%s]: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$JOB_ID" "$*"; }
+
+NOW="${MINDS_JOB_NOW_EPOCH:-$(date +%s)}"
+HOUR="${MINDS_JOB_NOW_HOUR:-$((10#$(date +%H)))}"
+
+# Recorded before the lock, so a tick that finds a run in progress still counts
+# as the machine being awake.
+if [ "$WAKE_GRACE_SECONDS" -gt 0 ]; then
+    LAST_TICK="$(cat "$STATE_DIR/last_tick" 2>/dev/null || echo "")"
+    if [ -z "$LAST_TICK" ] || [ $(( NOW - LAST_TICK )) -gt "$WAKE_GAP_SECONDS" ]; then
+        printf '%s\n' "$NOW" > "$STATE_DIR/woke_at"
+    fi
+    printf '%s\n' "$NOW" > "$STATE_DIR/last_tick"
+fi
 
 # One run at a time per job. Held by THIS parent for the whole run; the
 # command below runs with fd 9 closed so nothing it daemonizes can inherit
@@ -89,8 +118,6 @@ if command -v flock >/dev/null 2>&1; then
     flock -n 9 || exit 0
 fi
 
-NOW="${MINDS_JOB_NOW_EPOCH:-$(date +%s)}"
-HOUR="${MINDS_JOB_NOW_HOUR:-$((10#$(date +%H)))}"
 LAST_SUCCESS="$(cat "$STATE_DIR/last_success" 2>/dev/null || echo "")"
 LAST_ATTEMPT="$(cat "$STATE_DIR/last_attempt" 2>/dev/null || echo "")"
 
@@ -111,6 +138,14 @@ fi
 # but no sooner than --retry-after since it last started.
 if [ -n "$LAST_ATTEMPT" ] && [ $(( NOW - LAST_ATTEMPT )) -lt "$RETRY_SECONDS" ]; then
     exit 0
+fi
+
+# Wake gate: let the workspace settle before a catch-up run.
+if [ "$WAKE_GRACE_SECONDS" -gt 0 ]; then
+    WOKE_AT="$(cat "$STATE_DIR/woke_at" 2>/dev/null || echo "")"
+    if [ -n "$WOKE_AT" ] && [ $(( NOW - WOKE_AT )) -lt "$WAKE_GRACE_SECONDS" ]; then
+        exit 0
+    fi
 fi
 
 printf '%s\n' "$NOW" > "$STATE_DIR/last_attempt"

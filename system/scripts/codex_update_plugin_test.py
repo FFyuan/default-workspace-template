@@ -6,7 +6,6 @@ import json
 import os
 import shutil
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -69,7 +68,6 @@ def _run(
             "CODE_GUARDIAN_MARKETPLACE": "imbue-ai/code-guardian@main",
             "SHIM_REVISION": revision,
             "CODEX_PLUGIN_SHARED_COPY_DIR": str(_shared_root(tmp_path)),
-            "CODEX_PLUGIN_REFRESH_DELAY_SECONDS": "0",
         },
         capture_output=True,
         text=True,
@@ -100,76 +98,104 @@ def _installed(home: Path) -> tuple[str, list[str]]:
     return revision, sorted(path.name for path in plugin.iterdir())
 
 
-def _hold_refresh(tmp_path: Path) -> None:
-    """Make a refresh look already running, so a provisioning run starts none."""
-    _shared_root(tmp_path).mkdir(exist_ok=True)
-    (_shared_root(tmp_path) / "refresh.pid").write_text(f"{os.getpid()}\n")
+def _refresh(
+    tmp_path: Path, revision: str, fail: str = ""
+) -> tuple[subprocess.CompletedProcess[str], list[list[object]]]:
+    """Run the hourly refresh of the shared copy, which has no agent of its own."""
+    log = tmp_path / "calls.jsonl"
+    log.unlink(missing_ok=True)
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in ("MNGR_AGENT_STATE_DIR", "CODEX_HOME")
+    }
+    result = subprocess.run(
+        ["bash", str(_SCRIPT), "--refresh-shared"],
+        env={
+            **env,
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "SHIM_LOG": str(log),
+            "SHIM_FAIL": fail,
+            "SHIM_REVISION": revision,
+            "CODEX_PLUGIN_SHARED_COPY_DIR": str(_shared_root(tmp_path)),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    calls = (
+        [json.loads(line) for line in log.read_text().splitlines()]
+        if log.exists()
+        else []
+    )
+    return result, calls
 
 
-def _wait_for_refresh(tmp_path: Path) -> None:
-    pid = int((_shared_root(tmp_path) / "refresh.pid").read_text())
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return
-        time.sleep(0.05)
-    pytest.fail("the background refresh did not finish")
-
-
-def test_the_first_install_comes_from_github_and_becomes_the_shared_copy(tmp_path: Path) -> None:
+def test_the_first_install_comes_from_github_and_becomes_the_shared_copy(
+    tmp_path: Path,
+) -> None:
     result, calls, home = _run(tmp_path)
 
     assert result.returncode == 0, result.stderr
-    assert [call[1][:2] for call in calls] == [["plugin", "marketplace"], ["plugin", "add"]]
+    assert [call[1][:2] for call in calls] == [
+        ["plugin", "marketplace"],
+        ["plugin", "add"],
+    ]
     assert _installed(_shared_copy(tmp_path)) == _installed(home) == ("1", ["1"])
 
 
-def test_a_later_agent_copies_the_shared_install_without_running_codex(tmp_path: Path) -> None:
+def test_a_later_agent_copies_the_shared_install_without_running_codex(
+    tmp_path: Path,
+) -> None:
     _run(tmp_path, agent="first agent")
-    _hold_refresh(tmp_path)
 
     result, calls, home = _run(tmp_path, agent="second agent", revision="2")
 
     assert result.returncode == 0, result.stderr
     assert calls == []
     assert _installed(home) == ("1", ["1"])
-    assert (_shared_root(tmp_path) / "refresh.pid").read_text() == f"{os.getpid()}\n"
 
 
-def test_a_later_agent_refreshes_the_shared_copy_for_the_next_one(tmp_path: Path) -> None:
-    _run(tmp_path, agent="first agent")
-    first_copy = _shared_copy(tmp_path)
+def test_a_refresh_before_any_codex_agent_does_nothing(tmp_path: Path) -> None:
+    _run(tmp_path, provisioned=False)
 
-    result, _, home = _run(tmp_path, agent="second agent", revision="2")
-    _wait_for_refresh(tmp_path)
-    refresh_calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    result, calls = _refresh(tmp_path, revision="2")
 
     assert result.returncode == 0, result.stderr
-    # mngr kills processes carrying the agent's id before starting it; the refresh must not carry it.
-    assert [call[2] for call in refresh_calls] == [None, None]
-    assert _installed(home) == ("1", ["1"])
-    assert _installed(_shared_copy(tmp_path)) == ("2", ["2"])
+    assert calls == []
+
+
+def test_a_refresh_updates_the_shared_copy_for_the_next_agent(tmp_path: Path) -> None:
+    _, _, first_home = _run(tmp_path, agent="first agent")
+    first_copy = _shared_copy(tmp_path)
+
+    result, calls = _refresh(tmp_path, revision="2")
+    _, _, second_home = _run(tmp_path, agent="second agent")
+
+    assert result.returncode == 0, result.stderr
+    # It installs into a home of its own, with the config the last agent left.
+    assert {call[0] for call in calls}.isdisjoint({str(first_home), str(second_home)})
+    assert _installed(first_home) == ("1", ["1"])
+    assert _installed(second_home) == ("2", ["2"])
     # The copy it replaced stays, since an agent may still be copying from it.
     assert first_copy.exists()
+    assert not list(_shared_root(tmp_path).glob("refresh.??????"))
 
 
-def test_a_failed_refresh_keeps_the_shared_copy(tmp_path: Path) -> None:
+def test_a_failed_refresh_keeps_the_shared_copy_and_fails(tmp_path: Path) -> None:
     _run(tmp_path, agent="first agent")
 
-    _run(tmp_path, agent="second agent", revision="2", fail="plugin add")
-    _wait_for_refresh(tmp_path)
+    result, _ = _refresh(tmp_path, revision="2", fail="plugin add")
 
+    assert result.returncode == 1
+    assert "keep the previous one" in result.stdout
     assert _installed(_shared_copy(tmp_path)) == ("1", ["1"])
-    assert "keep the previous one" in (_shared_root(tmp_path) / "refresh.log").read_text()
 
 
 def test_only_the_two_newest_shared_copies_are_kept(tmp_path: Path) -> None:
     _run(tmp_path, agent="first agent")
     for number in (2, 3):
-        _run(tmp_path, agent=f"agent {number}", revision=str(number))
-        _wait_for_refresh(tmp_path)
+        _refresh(tmp_path, revision=str(number))
 
     assert len(list(_shared_root(tmp_path).glob("copy.*"))) == 2
     assert _installed(_shared_copy(tmp_path)) == ("3", ["3"])

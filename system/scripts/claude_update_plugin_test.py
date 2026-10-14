@@ -1,5 +1,5 @@
-"""Tests for the plugin install/update script that both the SessionStart hook and
-the worker create template run.
+"""Tests for the plugin install/update script that refresh_agent_tools.sh runs for
+each Claude config dir.
 
 The script drives the real ``claude plugin`` CLI, which needs a marketplace clone and
 network, so these tests put a recording ``claude`` shim on PATH instead. What they pin

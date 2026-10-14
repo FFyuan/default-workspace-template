@@ -565,6 +565,41 @@ def test_a_failed_re_auth_restarts_nothing(tmp_path: Path) -> None:
     assert restarted == []
 
 
+def test_a_new_account_is_announced_once_with_its_harness_and_folder(tmp_path: Path) -> None:
+    """Claude's plugins install per config dir, so a new account's folder is readied for its
+    first chat as soon as it exists. A re-auth adds nothing: the folder was readied before."""
+    added: list[tuple[HarnessType, Path]] = []
+    service = AuthFlowService.create(
+        home=tmp_path,
+        work_dir=tmp_path / "work",
+        probe=lambda *_a: SignedIn.YES,
+        on_account_added=lambda harness, account_dir: added.append((harness, account_dir)),
+    )
+    started = service.start("anthropic", "api_key")
+    service.submit_key(started.flow_id, "sk-ant-api03-" + "E" * 40)
+    (account,) = read_index(tmp_path).accounts
+
+    again = service.start("anthropic", "api_key", account_id=account.id)
+    service.submit_key(again.flow_id, "sk-ant-api03-" + "F" * 40)
+
+    assert added == [(HarnessType.CLAUDE, tmp_path / ".minds" / "accounts" / account.id)]
+
+
+def test_an_account_adopted_through_imbue_is_announced_once(tmp_path: Path) -> None:
+    added: list[tuple[HarnessType, Path]] = []
+    service = AuthFlowService.create(
+        home=tmp_path,
+        work_dir=tmp_path / "work",
+        probe=lambda *_a: SignedIn.YES,
+        on_account_added=lambda harness, account_dir: added.append((harness, account_dir)),
+    )
+
+    adopted = service.adopt_claude_credentials("sk-ant-api03-" + "G" * 40)
+    service.adopt_claude_credentials("sk-ant-api03-" + "H" * 40)
+
+    assert added == [(HarnessType.CLAUDE, tmp_path / ".minds" / "accounts" / adopted.id)]
+
+
 def _agy_account(tmp_path: Path, service: AuthFlowService) -> tuple[str, Path]:
     """A committed google account with a credential file where agy keeps one."""
     process = FakePexpectProcess([(0, f"Visit {_AGY_URL}")], drain_chunks=[f"Visit {_AGY_URL}\r\n"])

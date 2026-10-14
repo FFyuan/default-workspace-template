@@ -14,17 +14,26 @@ Provisioning and utility scripts:
   `.pi/extensions/policy_guards.ts` and agy's `agy_shim/bash` feed the same
   scripts the payload they read on stdin. See `tool-call-policies.md` for what
   each one enforces.
-- Plugin provisioning: `claude_update_plugin.sh` installs project-scoped Claude
-  plugins, started for each claude session by the SessionStart hook
-  `claude_session_start_background.sh`, which also runs `uv sync --all-packages`;
-  both run detached at a lower CPU priority so the session's first message does
-  not wait on them. `codex_update_plugin.sh` installs native code-guardian into each
-  mngr Codex agent's isolated home, after its config is written and before
-  launch. Requires code-guardian 0.6.0 or newer on the marketplace's `main`.
-  A new agent copies the workspace's shared install from
-  `data/.state/codex-plugins/` instead of fetching from GitHub; a detached run
-  then refreshes that copy, so an update reaches the next new agent. Only the
-  first agent on a workspace installs from GitHub, and its install seeds the copy.
+- Agent tool upkeep: `refresh_agent_tools.sh` keeps the tools agents start
+  with up to date, off every chat's startup path. A cron entry the bootstrap
+  writes runs it hourly (through `run_job.sh`, so a run missed while the
+  workspace was off or asleep is caught up, ten minutes after it wakes): it runs
+  `uv sync --all-packages`, installs and updates the Claude plugins in every
+  Claude config dir in use (`claude_config_dirs.py` lists `~/.claude` and each
+  Claude account's folder), and refreshes the shared Codex code-guardian copy.
+  `--claude-plugins` does one config dir: the chat app runs it when a Claude
+  account is signed in, and a worker as a provision command. `--session-start`
+  is the SessionStart hook: it shows the last runs' warnings once and returns at
+  once, starting an install in the background only for a config dir that never
+  had one. `claude_update_plugin.sh` is what installs project-scoped Claude
+  plugins for one config dir. `codex_update_plugin.sh` installs native
+  code-guardian into each mngr Codex agent's isolated home, after its config is
+  written and before launch. Requires code-guardian 0.6.0 or newer on the
+  marketplace's `main`. A new agent copies the workspace's shared install from
+  `data/.state/codex-plugins/` instead of fetching from GitHub, and the hourly run
+  refreshes that copy (`--refresh-shared`), so an update reaches later agents.
+  Only the first agent on a workspace installs from GitHub, and its install seeds
+  the copy.
   Re-provisioning restores plugin enablement after mngr rewrites the config.
   Install failures warn without blocking launch; use `--strict` for verification.
   The marketplace source and plugin enablement are declared in the Codex agent

@@ -154,18 +154,21 @@ def test_worker_template_installs_claude_plugins_before_the_agent_starts() -> No
     SessionStart-hook install is therefore too late for a worker: the review gates
     its harden contract mandates (`/autofix`, `/verify-architecture`) come from the
     code-guardian plugin, so the plugins must be installed at provision time,
-    after the venv converge that precedes every other provisioning step -- and
-    NOT strictly: a plugin or marketplace outage must never make a worker
+    after the venv converge that precedes every other provisioning step -- in the
+    mode that never fails: a plugin or marketplace outage must never make a worker
     undeployable, so the install is a warning on failure, not a failed launch."""
     result = _apply(("worker",))
     commands = result["extra_provision_command"]
-    plugin_commands = [cmd for cmd in commands if "claude_update_plugin.sh" in cmd]
+    plugin_commands = [
+        cmd for cmd in commands if "refresh_agent_tools.sh --claude-plugins" in cmd
+    ]
     assert len(plugin_commands) == 1, (
         f"expected exactly one plugin-install provisioning command from worker, got {commands!r}"
     )
     assert plugin_commands[0].split() == [
         "bash",
-        "system/scripts/claude_update_plugin.sh",
+        "system/scripts/refresh_agent_tools.sh",
+        "--claude-plugins",
     ]
     sync_position = next(
         idx for idx, cmd in enumerate(commands) if cmd == "uv sync --all-packages"
@@ -191,7 +194,9 @@ def test_worker_template_installs_no_worker_skill_and_keeps_venv_and_plugins() -
     )
     sync_position = commands.index("uv sync --all-packages")
     plugin_positions = [
-        idx for idx, cmd in enumerate(commands) if "claude_update_plugin.sh" in cmd
+        idx
+        for idx, cmd in enumerate(commands)
+        if "refresh_agent_tools.sh --claude-plugins" in cmd
     ]
     assert len(plugin_positions) == 1, (
         f"expected exactly one plugin-install command from worker, got {commands!r}"

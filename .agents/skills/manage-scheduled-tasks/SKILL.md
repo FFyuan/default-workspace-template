@@ -115,13 +115,16 @@ Write the entry (durable copy, then install live, per the section above) with
 a line that ticks every minute through the wrapper and the runner:
 
 ```
-* * * * *   root   /home/user/workspace/system/libs/automations/with_agent_env.sh /home/user/workspace/system/libs/automations/run_job.sh <job-id> --every <N[mhd]> [--at <hour>] [--retry-after <N[mhd]>] <command...> >> /var/log/supervisor/<job>.log 2>&1
+* * * * *   root   /home/user/workspace/system/libs/automations/with_agent_env.sh /home/user/workspace/system/libs/automations/run_job.sh <job-id> --every <N[mhd]> [--at <hour>] [--retry-after <N[mhd]>] [--wake-grace <N[mhd]>] <command...> >> /var/log/supervisor/<job>.log 2>&1
 ```
 
 - `--every` -- the cadence: `15m`, `3h`, `1d`, `7d`, ...
 - `--at <hour>` -- for daily-or-coarser jobs, the local hour (0-23) the run is
   due. Omit for sub-daily cadences.
 - `--retry-after` -- gap before retrying a failed or killed run (default 2m).
+- `--wake-grace` -- after the workspace starts or wakes from sleep, hold a due
+  run this long, so a catch-up does not compete with someone who just opened the
+  workspace to use it. Omit it for jobs that should catch up at once.
   Runs themselves take seconds; the gap only matters when something breaks.
 
 The every-minute tick is what makes catch-up possible: the runner exits
@@ -248,7 +251,7 @@ The complete map of the scheduling machinery, for edits and debugging:
 - `/etc/cron.d/minds-caretaker` -- the Caretaker's drop-in (only exists
   while the Caretaker is enabled; see enable-caretaker/disable-caretaker).
 - `/etc/cron.d/update-apply-recover` -- the update-apply recovery guard, the
-  one permanently-installed built-in entry. The bootstrap writes it at each
+  first of the two built-in entries. The bootstrap writes it at each
   boot (so it has no durable `data/.state/cron.d/` copy -- `/etc/cron.d` lives
   on the container rootfs, and this guard has to be back the moment the
   container is recreated), just before it installs the `data/.state/cron.d/`
@@ -262,6 +265,15 @@ The complete map of the scheduling machinery, for edits and debugging:
   non-zero without them, which is exactly the state this guard exists to
   recover from. It is a silent no-op in every normal state and is not a user
   schedule -- do not remove it, and do not "fix" it onto the wrapper.
+- `/etc/cron.d/refresh-agent-tools` -- the hourly refresh of the tools agents
+  start with (`system/scripts/refresh_agent_tools.sh`: `uv sync --all-packages`,
+  the Claude plugins in every Claude config dir, the shared Codex code-guardian
+  copy). Built in like the recovery guard, so the bootstrap writes it at each
+  boot and it has no durable copy; unlike the guard it goes through the env
+  wrapper and the runner (`--every 1h --retry-after 15m --wake-grace 10m`). Not a
+  user schedule -- do not remove it. Its log is
+  `/var/log/supervisor/refresh-agent-tools.log`, and each part's own log is under
+  `data/.state/agent-tools/`.
 - `/home/user/workspace/system/libs/automations/run_job.sh` -- the runner (cadence, catch-up,
   completion tracking, and retry -- with unit tests in
   `system/libs/automations/run_job_test.py`).
