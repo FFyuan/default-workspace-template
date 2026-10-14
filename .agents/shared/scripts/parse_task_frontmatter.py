@@ -58,7 +58,8 @@ single-creation shape ``creations`` replaced.
 
 On any failure -- file missing, no/broken frontmatter, any required
 field missing, wrong type, empty string, an extra key that isn't a
-valid shell identifier, or a harden pass without ``creations`` -- prints a
+valid shell identifier, or a harden pass missing ``creations`` or
+``scope_file``, or carrying a top-level ``type`` -- prints a
 human-readable error to stderr and exits 1.
 """
 
