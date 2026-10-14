@@ -20,7 +20,7 @@ export interface UpdateNotice {
   readonly drivenBy: string;
   /**
    * The apps included in the rollback: each critical app whose program or bundle the apply changed,
-   * and any other app whose files it changed. The banner names them.
+   * and every other app of the harden pass it landed. The banner names them.
    */
   readonly apps: readonly string[];
   readonly programs: readonly string[];

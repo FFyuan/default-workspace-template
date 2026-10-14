@@ -16,6 +16,7 @@ from app_manifest.scope import CreationType
 from app_manifest.scope import ReferenceKind
 from app_manifest.scope import compute_app_scope
 from app_manifest.scope import compute_creation_scope
+from app_manifest.scope import compute_pass_scope
 from app_manifest.scope import compute_skill_scope
 from app_manifest.scope import find_referencing_manifests
 from app_manifest.scope import find_wiring_sections
@@ -616,7 +617,16 @@ def test_the_diff_can_run_to_a_ref_other_than_head_so_a_merge_answers_for_each_s
 
 
 @pytest.mark.parametrize(
-    "spec", ["news", "skill:", "widget:news", "skill:digest/scripts", "shared:../skills/digest"]
+    "spec",
+    [
+        "news",
+        "skill:",
+        "widget:news",
+        "skill:digest/scripts",
+        "shared:../skills/digest",
+        "app:.",
+        "shared:references/",
+    ],
 )
 def test_a_creation_spec_is_refused_unless_it_is_type_and_name_inside_its_directory(spec: str) -> None:
     with pytest.raises(ScopeComputationError, match="is not <type>:<name>"):
@@ -682,3 +692,11 @@ def test_a_pass_diff_counts_a_file_one_creation_excludes_when_another_owns_it(tm
 
     assert inside == ("system/apps/news/runner.py", "system/apps/daily_digest/runner.py")
     assert outside == ("docs/system/unrelated.md",)
+
+
+def test_a_pass_that_names_a_creation_twice_is_refused(tmp_path: Path) -> None:
+    build_news_workspace(tmp_path)
+    news = parse_creation_spec("app:news")
+
+    with pytest.raises(ScopeComputationError, match="names app:news more than once"):
+        compute_pass_scope(tmp_path, [news, parse_creation_spec("skill:news-refresh"), news], None, "HEAD")

@@ -363,7 +363,7 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
    BASE=$(git merge-base HEAD "mngr/update-$SLUG")
    WORK_DIR=$(mngr ls --include "name == \"update-$SLUG\"" --format json \
        | python3 -c 'import sys, json; print(json.load(sys.stdin)["agents"][0]["work_dir"])')
-   SCOPE=$(mktemp)
+   SCOPE="data/.tasks/harden/update-$SLUG/pass-scope.json"
    uv run app-manifest pass-scope $(printf -- '--creation %s ' $CREATIONS) --repo-root "$WORK_DIR" \
        --out "$SCOPE" || exit 1
    jq -r '[.creations[] | .primary[], .wiring[].path, .references[].path] | unique | .[]' "$SCOPE" \
@@ -394,8 +394,13 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
        --merge-ref "mngr/update-$SLUG" \
        --worker-bundle "system_interface=$WORK_DIR/system/apps/system_interface/imbue/system_interface/static" \
        --worker-bundle "chat=$WORK_DIR/system/apps/chat/imbue/chat/static" \
-       --keep-rollback-point
+       --keep-rollback-point --pass-scope "data/.tasks/harden/update-$SLUG/pass-scope.json"
    ```
+
+   `--pass-scope` is the file step 1 wrote: the rollback point records the
+   pass's other apps and services from it, and a rollback restarts the
+   programs its wiring names (one with none is named in the rollback's
+   outcome, for you to restart).
 
    That one command owns the whole go-live as one deterministic, self-healing
    motion: it merges the branch, classifies what changed, snapshots the built
@@ -424,12 +429,12 @@ ordinary app in the pass holds no lease, so another chat may have changed it.
 
 3. **The notice is the user's.** After a successful apply, one banner across
    the top of the workspace names every app included in the rollback (each
-   critical app the apply touched, and any other app whose files the pass
-   changed): recently updated, with "Roll back" and "Everything seems good". It
+   critical app the apply touched, and every other app in the pass): recently
+   updated, with "Roll back" and "Everything seems good". It
    rolls all of them back together. Frontend applies include both chat and
    shell because every bundle (the shell's, the chat's, and the Getting Started
-   app's, whose owner is not critical and so is named only when the pass
-   changed its own files) is replaced; an extra app restart is acceptable.
+   app's, whose owner is not critical and so is named only when it is in the
+   pass) is replaced; an extra app restart is acceptable.
    Tell the user the banner is at the top of the workspace and what it does.
    **Never confirm or roll back on the user's behalf.** Only a person closes
    it: confirming discards the kept snapshots, rolling back restores them and

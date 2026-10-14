@@ -51,13 +51,14 @@ A task that names an ``operation`` (a harden pass) must also carry
 pass covers (``app:roadmap skill:sync-roadmap``; a type is ``app``, ``skill``,
 ``service``, or ``shared`` with a path under ``.agents/shared``), and
 ``scope_file``, where the worker writes the pass's footprint; both reach the
-worker as ``CREATIONS`` and ``SCOPE_FILE`` like any other string field. Such a
-task may not carry a top-level ``type``: that is the single-creation shape
-``creations`` replaced.
+worker as ``CREATIONS`` and ``SCOPE_FILE`` like any other string field. Each
+creation's shape is checked by ``app-manifest pass-scope``, which the worker runs
+on them first. Such a task may not carry a top-level ``type``: that is the
+single-creation shape ``creations`` replaced.
 
 On any failure -- file missing, no/broken frontmatter, any required
 field missing, wrong type, empty string, an extra key that isn't a
-valid shell identifier, or a malformed ``creations`` -- prints a
+valid shell identifier, or a harden pass without ``creations`` -- prints a
 human-readable error to stderr and exits 1.
 """
 
@@ -86,26 +87,13 @@ _OPERATION_FIELD = "operation"
 _CREATIONS_FIELD = "creations"
 _SCOPE_FILE_FIELD = "scope_file"
 _SINGLE_CREATION_TYPE_FIELD = "type"
-# The creations ``app-manifest pass-scope`` computes a footprint for; only a shared
-# script's or reference's name is a path (under ``.agents/shared``).
-_CREATION_RE = re.compile(
-    r"^(?:(app|skill|service):([A-Za-z0-9][A-Za-z0-9._-]*)"
-    r"|(shared):([A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*))$"
-)
-
-
-class Creation(NamedTuple):
-    """One creation a harden pass covers."""
-
-    type: str
-    name: str
 
 
 class TaskFrontmatter(NamedTuple):
     """A parsed task file: its top-level string fields and the creations it covers."""
 
     fields: dict[str, str]
-    creations: tuple[Creation, ...]
+    creations: tuple[str, ...]
 
 
 def _split_frontmatter(text: str) -> dict[str, Any]:
@@ -131,8 +119,10 @@ def _split_frontmatter(text: str) -> dict[str, Any]:
     return parsed
 
 
-def _parse_creations(frontmatter: dict[str, Any]) -> tuple[Creation, ...]:
-    """Validate a harden pass's ``creations`` and ``scope_file``; empty for any other task."""
+def _parse_creations(frontmatter: dict[str, Any]) -> tuple[str, ...]:
+    """A harden pass's ``creations``, after checking it and ``scope_file`` are there; empty
+    for any other task. Each creation's shape is ``app-manifest pass-scope``'s to check, the
+    first command the worker runs on them."""
     if _OPERATION_FIELD not in frontmatter:
         return ()
     for field in (_CREATIONS_FIELD, _SCOPE_FILE_FIELD):
@@ -146,24 +136,7 @@ def _parse_creations(frontmatter: dict[str, Any]) -> tuple[Creation, ...]:
             f"frontmatter has a top-level `{_SINGLE_CREATION_TYPE_FIELD}`; a harden pass "
             f"names each creation's type in `{_CREATIONS_FIELD}` instead"
         )
-    tokens = frontmatter[_CREATIONS_FIELD].split()
-    creations: list[Creation] = []
-    for token in tokens:
-        match = _CREATION_RE.match(token)
-        if match is None:
-            raise ValueError(
-                f"frontmatter.{_CREATIONS_FIELD}: {token!r} is not <type>:<name> with a "
-                "type of app, skill, service, or shared"
-            )
-        creation_type = match.group(1) or match.group(3)
-        name = match.group(2) or match.group(4)
-        creations.append(Creation(type=creation_type, name=name))
-    duplicates = sorted({token for token in tokens if tokens.count(token) > 1})
-    if duplicates:
-        raise ValueError(
-            f"frontmatter.{_CREATIONS_FIELD} names {duplicates} more than once"
-        )
-    return tuple(creations)
+    return tuple(frontmatter[_CREATIONS_FIELD].split())
 
 
 def parse(task_file: Path) -> TaskFrontmatter:

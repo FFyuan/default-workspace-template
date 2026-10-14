@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import datetime
 import fcntl
+import json
 import os
 import re
 import shutil
@@ -62,11 +63,9 @@ from update_apply_contract import (
 from update_banding import ExpendWrapper, as_expendable, keep_protected
 from update_classification import (
     CLASS_DOCKERFILE,
-    CLASS_DOCS,
     ApplyPlan,
     AppTool,
     classify_path,
-    is_test_file,
     plan_apply,
     read_app_tools,
     read_provisioner_inputs,
@@ -100,7 +99,6 @@ from update_layout import (
     NPM_LOCKFILE,
     NPM_ROOT_DIR,
     PROVISIONER_SCRIPT,
-    SERVICES_DIR,
     SUPERVISORD_CONF,
     SUPERVISORD_DROPIN_DIR,
     FrontendBundle,
@@ -958,6 +956,7 @@ def apply_update(
     expend: ExpendWrapper = as_expendable,
     sweep_homes: Sequence[Path],
     keep_rollback_point: bool = False,
+    pass_scope: Sequence[PassCreation] = (),
 ) -> int:
     """Land ``merge_ref`` and make the live workspace consistent with it, as one
     atomic, idempotent, rollback-on-failure motion. Returns the process exit
@@ -975,6 +974,8 @@ def apply_update(
     place and writes the rollback-point record the shell raises its notice
     from (:func:`rollback_last`, :func:`confirm_last`); any apply, with the
     flag or without, first discards the previous record's snapshots.
+    ``pass_scope`` is the harden pass the merge lands (:func:`read_pass_scope`):
+    its ordinary apps and services join the record beside the critical apps.
     """
     resolved_base = (
         base_url or os.environ.get(ENV_WORKSPACE_URL, DEFAULT_WORKSPACE_URL)
@@ -1398,9 +1399,9 @@ def apply_update(
             # The copies stay where they are, and the record says what this apply
             # touched, so the shell can offer the previous version back until a
             # person confirms the update or the next apply replaces the point.
-            touched = _touched_apps(plan, name_status, repo_root)
-            service_programs, has_unmapped_service = _touched_service_programs(
-                name_status, repo_root
+            touched = _touched_critical_apps(plan, name_status, repo_root)
+            ride_along = _ride_along(
+                pass_scope, name_status, {name for name, _ in touched}
             )
             write_last_good(
                 LastGoodRecord(
@@ -1411,13 +1412,13 @@ def apply_update(
                     snapshots=list(marker.snapshots),
                     programs=sorted(
                         {program for _, program in touched if program is not None}
-                        | set(service_programs)
+                        | set(ride_along.programs)
                     ),
-                    apps=[name for name, _ in touched],
-                    needs_system_services_restart=has_unmapped_service
-                    or _needs_system_services_restart(
+                    apps=[name for name, _ in touched] + ride_along.apps,
+                    needs_system_services_restart=_needs_system_services_restart(
                         plan, [path for _, path in name_status]
                     ),
+                    unrestarted=ride_along.unrestarted,
                 ),
                 repo_root,
             )
@@ -1583,24 +1584,22 @@ def apply_update(
     return 0
 
 
-def _touched_apps(
+def _touched_critical_apps(
     plan: ApplyPlan,
     name_status: Sequence[tuple[str, str]],
     repo_root: Path,
 ) -> list[tuple[str, str | None]]:
-    """The apps included in this apply's rollback: ``(name, program)``.
+    """The critical apps included in this apply's rollback: ``(name, program)``.
 
-    Read off the merged tree's manifests: any app is touched when a changed path is
-    under its directory -- a critical app's pass carries every other app its change
-    touched, and a rollback reverts their source with the rest, so it has to restart
-    them too. A critical app is also touched when the bundle it owns was rebuilt, when
-    the apply reinstalled its tool environment (a shared backend manifest moves every
-    tool's closure, so ``plan.app_tools`` then names every app), or, for the shell, when
-    anything the shell's process runs changed. A frontend apply replaces every bundle,
-    so include each critical owner even if that app's source was unchanged. An extra
-    restart is acceptable; rollback targeting does not need to compare installed and
-    kept source stamps. An app the merge added has no program once a rollback removes
-    it, so it is named with ``None`` for its program: nothing to restart or wait on.
+    Read off the merged tree's manifests: an app is touched when a changed path is
+    under its directory, when the bundle it owns was rebuilt, when the apply reinstalled
+    its tool environment (a shared backend manifest moves every tool's closure, so
+    ``plan.app_tools`` then names every app), or, for the shell, when anything the
+    shell's process runs changed. A frontend apply replaces every bundle, so include
+    each critical owner even if that app's source was unchanged. An extra restart is
+    acceptable; rollback targeting does not need to compare installed and kept source
+    stamps. An app the merge added has no program once a rollback removes it, so it is
+    named with ``None`` for its program: nothing to restart or wait on.
     """
     paths = [path for _, path in name_status]
     added_paths = {path for status, path in name_status if status.startswith("A")}
@@ -1621,16 +1620,18 @@ def _touched_apps(
         except (OSError, tomllib.TOMLDecodeError):
             continue
         name = manifest.get("name")
-        if not isinstance(name, str) or not name:
+        if (
+            not isinstance(name, str)
+            or not name
+            or manifest.get("critical") is not True
+        ):
             continue
         app_directory = f"{APPS_DIR}/{directory.name}"
-        is_touched = any(path.startswith(f"{app_directory}/") for path in paths) or (
-            manifest.get("critical") is True
-            and (
-                name in rebuilt_bundle_owners
-                or app_directory in reinstalled_tool_directories
-                or (name == SHELL_PROGRAM and plan.backend)
-            )
+        is_touched = (
+            any(path.startswith(f"{app_directory}/") for path in paths)
+            or name in rebuilt_bundle_owners
+            or app_directory in reinstalled_tool_directories
+            or (name == SHELL_PROGRAM and plan.backend)
         )
         if not is_touched:
             continue
@@ -1644,67 +1645,84 @@ def _touched_apps(
     return touched
 
 
-_PROGRAM_SECTION = re.compile(r"^\[program:([^\]]+)\]", re.MULTILINE)
+class PassCreation(NamedTuple):
+    """One creation of the harden pass an apply lands, as ``app-manifest pass-scope`` wrote it."""
+
+    type: str
+    name: str
+    primary: str
+    programs: tuple[str, ...]
 
 
-def _supervisord_program_names(repo_root: Path) -> set[str]:
-    """Every program the main supervisord config and its drop-ins declare."""
-    conf_paths = [repo_root / SUPERVISORD_CONF] + sorted(
-        (repo_root / SUPERVISORD_DROPIN_DIR).glob("*.conf")
-    )
-    names: set[str] = set()
-    for conf_path in conf_paths:
-        if not conf_path.is_file():
-            continue
-        try:
-            names.update(_PROGRAM_SECTION.findall(conf_path.read_text()))
-        except OSError as exc:
-            sys.stderr.write(
-                f"note: skipping {conf_path} for the rollback's service programs: "
-                f"it could not be read ({exc}).\n"
+_PROGRAM_SECTION_PREFIX = "program:"
+# The file whose addition marks a creation the merge brought in, by type.
+_ADDED_MARKER_BY_TYPE = {"app": MANIFEST_FILENAME, "service": "pyproject.toml"}
+
+
+def read_pass_scope(path: Path) -> list[PassCreation]:
+    """The creations in a pass scope file, each with the supervisord programs its
+    footprint's wiring names. Raises ``ValueError`` on a file that is not one."""
+    try:
+        raw = json.loads(path.read_text())
+        return [
+            PassCreation(
+                type=str(entry["creation"]["type"]),
+                name=str(entry["creation"]["name"]),
+                primary=str(entry["primary"][0]),
+                programs=tuple(
+                    section.removeprefix(_PROGRAM_SECTION_PREFIX)
+                    for wiring in entry["wiring"]
+                    for section in wiring["sections"]
+                    if section.startswith(_PROGRAM_SECTION_PREFIX)
+                ),
             )
-    return names
+            for entry in raw["creations"]
+        ]
+    except (OSError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+        raise ValueError(f"{path} is not a pass scope file ({exc})") from exc
 
 
-def _touched_service_programs(
-    name_status: Sequence[tuple[str, str]], repo_root: Path
-) -> tuple[list[str], bool]:
-    """The programs of every standalone service whose files the merge changed, and
-    whether any such service has no program to restart.
+class RideAlong(NamedTuple):
+    """What the rollback takes back for the pass's creations that are not critical apps."""
 
-    A service under ``system/services/<package>/`` runs as the program named after its
-    package (``host_backup`` as ``host-backup``) and any ``<name>-<role>`` programs.
-    A rollback reverts its source with the rest, so it restarts those programs too. A
-    changed service with none (one whose programs are named otherwise, or one cron
-    runs) cannot be restarted by name, so the rollback asks for the services agent's
-    restart instead. A service the merge added is removed by the rollback: nothing to
-    restart. Docs and tests run in no program, so they touch no service.
+    apps: list[str]
+    programs: list[str]
+    unrestarted: list[str]
+
+
+def _ride_along(
+    creations: Sequence[PassCreation],
+    name_status: Sequence[tuple[str, str]],
+    critical_apps: Collection[str],
+) -> RideAlong:
+    """The ordinary apps and services of the pass: the apps the notice names, the programs
+    a rollback restarts, and the creations it has no program to restart for.
+
+    The pass scope's wiring is the one account of what runs each creation, so the
+    programs come from it. A creation the merge added is removed by the rollback, so it
+    has nothing to restart; an ordinary one with no wiring (a service cron runs, say) is
+    left for the agent to restart, and the notice names it.
     """
-    packages: set[str] = set()
-    added_packages: set[str] = set()
-    for status, path in name_status:
-        parts = path.split("/")
-        if classify_path(path).reveal_class == CLASS_DOCS or is_test_file(path):
-            continue
-        if path.startswith(f"{SERVICES_DIR}/") and len(parts) > 3:
-            packages.add(parts[2])
-            if status.startswith("A") and parts[3] == "pyproject.toml":
-                added_packages.add(parts[2])
-    declared = _supervisord_program_names(repo_root)
+    added_paths = {path for status, path in name_status if status.startswith("A")}
+    apps: list[str] = []
     programs: list[str] = []
-    has_unmapped = False
-    for package in sorted(packages - added_packages):
-        name = package.replace("_", "-")
-        owned = sorted(
-            program
-            for program in declared
-            if program == name or program.startswith(f"{name}-")
+    unrestarted: list[str] = []
+    for creation in creations:
+        if creation.type not in _ADDED_MARKER_BY_TYPE or creation.name in critical_apps:
+            continue
+        if creation.type == "app":
+            apps.append(creation.name)
+        is_added = (
+            f"{creation.primary.rstrip('/')}/{_ADDED_MARKER_BY_TYPE[creation.type]}"
+            in added_paths
         )
-        if owned:
-            programs.extend(owned)
+        if is_added:
+            continue
+        if creation.programs:
+            programs.extend(creation.programs)
         else:
-            has_unmapped = True
-    return programs, has_unmapped
+            unrestarted.append(creation.name)
+    return RideAlong(apps=apps, programs=programs, unrestarted=unrestarted)
 
 
 # The trees a rollback cannot undo by restarting programs: the bootstrap and the
@@ -1967,8 +1985,8 @@ def _run_rollback(
         _finish_rollback(
             record,
             repo_root,
-            "The previous version is restored, but this update also changed the workspace's own "
-            "setup, which only a restart of the workspace's system services finishes. Ask your "
+            "The previous version is restored, but this update also changed how the workspace "
+            "starts, which only a restart of the workspace's system services finishes. Ask your "
             "agent to run "
             f"`{SERVICES_RESTART_COMMAND}`.",
         )
@@ -2040,8 +2058,14 @@ def _run_rollback(
         sys.stderr.write(f"rollback did not restore health: {unsettled}\n")
         return 3
     refresh_workspace_view(repo_root, runner)
-    _finish_rollback(record, repo_root, "Rolled back to the previous version.")
-    sys.stderr.write("rolled back: the previous version is restored and healthy.\n")
+    outcome = "Rolled back to the previous version."
+    if record.unrestarted:
+        outcome += (
+            f" {', '.join(record.unrestarted)} did not restart with it; ask your agent "
+            "to restart them."
+        )
+    _finish_rollback(record, repo_root, outcome)
+    sys.stderr.write(f"rolled back: the previous version is restored and healthy. {outcome}\n")
     return 0
 
 

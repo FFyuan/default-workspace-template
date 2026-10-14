@@ -231,16 +231,15 @@ class LastGoodRecord:
 
     ``merge_sha`` is the merge the apply landed and ``rollback_to`` the tree it
     landed on; ``programs`` are the supervisord programs a rollback restarts (the
-    touched apps', the shell's included: each critical app whose program or bundle
-    the apply changed, and any other app whose files it changed, except an app the
-    merge added, which a rollback removes; and the programs of each standalone
-    service whose files it changed, named after its package plus any
-    ``<name>-<role>`` ones) and ``apps`` the app names the shell raises the notice
-    on, an added app included. ``needs_system_services_restart`` says the diff
-    reached the bootstrap or the services agent's own setup, or a changed service
-    that has no program by those names, which a program restart cannot undo.
-    ``progress`` is what a running rollback is doing right now and ``outcome`` how
-    it ended, both for the notice to show.
+    touched critical apps', the shell's included, and those the harden pass's scope
+    names for its other apps and services, except one the merge added, which a
+    rollback removes) and ``apps`` the app names the shell raises the notice on, an
+    added app included. ``unrestarted`` names the pass's apps and services with no
+    program to restart, which the rollback's outcome leaves to the agent.
+    ``needs_system_services_restart`` says the diff reached the bootstrap or the
+    services agent's own setup, which a program restart cannot undo. ``progress``
+    is what a running rollback is doing right now and ``outcome`` how it ended, both
+    for the notice to show.
     """
 
     merge_sha: str
@@ -253,6 +252,7 @@ class LastGoodRecord:
     needs_system_services_restart: bool
     progress: str | None = None
     outcome: str | None = None
+    unrestarted: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
         return json.dumps(
@@ -270,6 +270,7 @@ class LastGoodRecord:
                 "needs_system_services_restart": self.needs_system_services_restart,
                 "progress": self.progress,
                 "outcome": self.outcome,
+                "unrestarted": list(self.unrestarted),
             },
             indent=2,
         )
@@ -298,6 +299,7 @@ class LastGoodRecord:
                 raw.get("needs_system_services_restart", False)
             ),
             progress=str(progress) if progress is not None else None,
+            unrestarted=[str(name) for name in raw.get("unrestarted", [])],
             outcome=str(outcome) if outcome is not None else None,
         )
 

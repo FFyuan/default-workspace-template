@@ -66,7 +66,7 @@ class UpdateNotice(FrozenModel):
     driven_by: str = Field(description="The agent (or person) that ran the apply, as it named itself")
     apps: tuple[str, ...] = Field(
         description="The apps included in the rollback: each critical app whose program or bundle the apply "
-        "changed, and any other app whose files it changed"
+        "changed, and every other app of the harden pass it landed"
     )
     programs: tuple[str, ...] = Field(description="The supervisord programs a rollback restarts")
     needs_system_services_restart: bool = Field(

@@ -116,10 +116,6 @@ MNGR_PLUGIN_KEY = "mngr"
 # pyproject but no manifest runs ``uv run <name>`` from the root venv.
 APPS_DIR = "system/apps"
 
-# A standalone background service's package; its supervisord program is named after the
-# package (``host_backup`` runs as ``host-backup``), plus any ``<name>-<role>`` programs.
-SERVICES_DIR = "system/services"
-
 MANIFEST_FILENAME = "app.toml"
 
 # The frontend build output the backend serves at ``/``. Both ``node_modules``

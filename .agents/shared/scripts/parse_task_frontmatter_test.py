@@ -433,9 +433,9 @@ def test_a_pass_over_three_creations_reaches_the_worker_as_type_and_name(tmp_pat
         "app=roadmap|service=share_gateway|shared=references/roadmap.md|"
     )
     assert parse_task_frontmatter.parse(task).creations == (
-        parse_task_frontmatter.Creation(type="app", name="roadmap"),
-        parse_task_frontmatter.Creation(type="service", name="share_gateway"),
-        parse_task_frontmatter.Creation(type="shared", name="references/roadmap.md"),
+        "app:roadmap",
+        "service:share_gateway",
+        "shared:references/roadmap.md",
     )
 
 
@@ -458,14 +458,6 @@ def test_a_harden_task_in_the_single_creation_shape_fails_loud(tmp_path: Path) -
         ("creations: app:roadmap", "needs a non-empty string `scope_file`"),
         ("scope_file: s.json\ncreations: [app:roadmap]", "needs a non-empty string `creations`"),
         ("scope_file: s.json\ncreations: ' '", "needs a non-empty string `creations`"),
-        ("scope_file: s.json\ncreations: roadmap", "'roadmap' is not <type>:<name>"),
-        ("scope_file: s.json\ncreations: widget:roadmap", "'widget:roadmap' is not <type>:<name>"),
-        ("scope_file: s.json\ncreations: skill:a/b", "'skill:a/b' is not <type>:<name>"),
-        ("scope_file: s.json\ncreations: shared:../x", "'shared:../x' is not <type>:<name>"),
-        (
-            "scope_file: s.json\ncreations: app:roadmap skill:digest app:roadmap",
-            "names \\['app:roadmap'\\] more than once",
-        ),
     ],
 )
 def test_a_malformed_harden_task_fails_loud(
