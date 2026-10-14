@@ -20,7 +20,7 @@ from workspace_themes.primitives import (
 
 # A pixel at least this opaque counts as part of the icon.
 OPAQUE_ALPHA_THRESHOLD: Final[int] = 128
-# How close to the corner color a pixel must be, per channel distance, to be taken for flat background.
+# How close to the corner color a pixel must be, its channels' differences summed, to be taken for flat background.
 BACKGROUND_TOLERANCE: Final[int] = 48
 # The clear border left around a fitted icon, as a share of its side.
 FIT_MARGIN_FRACTION: Final[float] = 1 / 16
