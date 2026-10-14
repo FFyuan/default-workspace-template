@@ -328,7 +328,7 @@ A user starts one in a chat, in their own words ("make it look like BeOS"), or f
 
 The agent makes a theme from a description or a picture:
 
-1. `workspace-themes new <id> --base <base> --name "<name>"` lays out the folder.
+1. `workspace-themes new <id> --base <base> --name "<name>" --description "<one sentence>"` lays out the folder.
 2. The agent writes the tokens, the chrome slots, the part styles, and the icon guide, drawing on a CSS library where one fits (section 4.5).
 3. It makes the icons (section 6.2) in the background, until `workspace-themes icon missing <id>` names no app.
 4. `workspace-themes validate <id>` checks the folder against sections 3 and 4.

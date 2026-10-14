@@ -33,6 +33,7 @@ uv run workspace-themes validate [<id> ...]
 uv run workspace-themes new <id> --name "<name>" --description "<one sentence>" [--base <id>]
 uv run workspace-themes bundle <id>
 uv run workspace-themes icon spec <theme>
+uv run workspace-themes icon missing [<id> ...]
 uv run workspace-themes icon fit <candidate.png> --theme <theme> --out <fitted.png>
 uv run workspace-themes icon grid <grid.txt> --theme <theme> --legend "k=#000000,w=#ffffff" --out <icon.png>
 uv run workspace-themes icon check <icon.png> --theme <theme>
