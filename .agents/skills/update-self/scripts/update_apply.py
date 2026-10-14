@@ -1108,9 +1108,11 @@ def apply_update(
                     "and re-verify (update-self SKILL.md, 5b); "
                     "do not destroy it or resolve this by hand.\n"
                     if ff_only
-                    else "Have the worker merge the current HEAD into its branch, resolve "
-                    "the conflict there and re-verify (harden-contention.md, 'Catching up "
-                    "a stale pass'), rather than resolving it by hand.\n"
+                    else "For a worker's pass branch, have the worker merge the current HEAD "
+                    "into its branch, resolve the conflict there and re-verify "
+                    "(harden-contention.md, 'Catching up a stale pass'), rather than "
+                    "resolving it by hand; a branch with no worker (a forward revert) is "
+                    "re-created off the current HEAD.\n"
                 )
             )
             return 1
