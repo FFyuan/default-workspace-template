@@ -54,6 +54,6 @@ def test_the_reader_reads_the_live_markers_the_library_writes(tmp_path: Path) ->
 
 
 def test_the_chat_app_reads_the_marker_root_the_writers_use_by_default() -> None:
-    """The writers fall back to the library's default root when ``MINDS_BACKGROUND_TASKS_DIR`` is unset; the chat app
+    """The writers fall back to the library's default root when ``CHAT_BACKGROUND_TASKS_DIR`` is unset; the chat app
     reads its own data dir's ``background_tasks``. Both are repo-root relative and must name one directory."""
     assert DEFAULT_CHAT_DATA_DIR / BACKGROUND_TASKS_DIRNAME == markers.DEFAULT_MARKER_ROOT

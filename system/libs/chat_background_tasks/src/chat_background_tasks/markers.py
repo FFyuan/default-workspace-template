@@ -12,7 +12,7 @@ Each writer owns its own files and never reads another's:
 - ``run_in_background.py``'s detached runner (``run_in_background-*``), which outlives the agent that
   started it and reports how its command ended to the chat, even when stopping the agent ended it;
 - a harness's hooks (``harness-<harness>-*``), recording the harness's own background tasks, which
-  end with the agent's process and never report. ``claude.py`` is Claude's.
+  end with the agent's process and never report (``harnesses``).
 
 Each marker names the pid whose death makes it stale (the runner, or the harness's main process),
 and where ``/proc`` has it, that process's start time, so a pid recycled after a restart does not
@@ -21,7 +21,7 @@ bring a marker back. Readers skip a stale marker and never delete it; its writer
 The marker root is ``data/.apps/chat/background_tasks`` under the workspace's main checkout: the
 repo the caller names (by default the one this package is in), or, when that is a git worktree (a
 worker's work dir), the checkout the worktree belongs to, whose ``data/`` is the one the chat app
-reads. ``$MINDS_BACKGROUND_TASKS_DIR`` overrides it.
+reads. ``$CHAT_BACKGROUND_TASKS_DIR`` overrides it.
 """
 
 import datetime
@@ -34,7 +34,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, NamedTuple, Self
 
-MARKER_ROOT_ENV = "MINDS_BACKGROUND_TASKS_DIR"
+MARKER_ROOT_ENV = "CHAT_BACKGROUND_TASKS_DIR"
 # The chat app's default data dir (``DEFAULT_CHAT_DATA_DIR`` in its ``config.py``) plus one segment.
 DEFAULT_MARKER_ROOT = Path("data") / ".apps" / "chat" / "background_tasks"
 MARKER_SUFFIX = ".json"

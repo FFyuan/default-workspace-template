@@ -4229,13 +4229,13 @@ class AgentManager:
             self._broadcast_chats_updated()
         self._report_mid_turn_chats()
 
-    def forget_finished_tasks(self, agent_id: str, task_ids: tuple[str, ...]) -> None:
+    def forget_finished_tasks(self, agent_id: str, harness: HarnessType, task_ids: tuple[str, ...]) -> None:
         """Drop the markers of an agent's harness-native tasks its transcript reports as over.
 
-        Claude's Stop hook only copies the tasks still listed when a turn ends normally, so a
-        turn the user interrupts, or one that fails, would leave a finished task's marker live
-        until Claude's next Stop, or its exit. Its transcript records every task's end, whatever
-        the turn then does.
+        A harness's turn-end hook only copies the tasks still listed when a turn ends normally, so
+        a turn the user interrupts, or one that fails, would leave a finished task's marker live
+        until the next turn end, or the harness's exit. The transcript records every task's end,
+        whatever the turn then does.
         """
         reader = self._background_tasks
         if reader is None:
@@ -4243,7 +4243,7 @@ class AgentManager:
         with self._lock:
             chat_id = self._chat_id_of_agent_locked(agent_id)
         try:
-            reader.remove_claude_tasks(chat_id, task_ids)
+            reader.remove_harness_tasks(chat_id, harness, task_ids)
         except OSError as e:
             _loguru_logger.warning(
                 "Could not remove the finished background tasks {} of {}: {}", task_ids, agent_id, e

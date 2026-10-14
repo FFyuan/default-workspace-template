@@ -17,15 +17,22 @@ task's completion will start the next one.
 - `listing` -- which chats are busy and on what: the chat app's
   `GET /api/agents?tracked=true` answer, which also counts a turn in flight, or
   the marker files when the chat app cannot answer.
-- `claude` -- Claude's adapter: what its Stop hook records from the
-  `background_tasks` list Claude Code hands it, what its SessionStart hook clears
-  and, on a resume, tells Claude the restart ended, and which Claude may write at
-  all (the agent's main Claude, never a nested one).
+- `harnesses/base` -- what a harness's hooks do with its own background tasks,
+  whatever the harness: the turn-end hook makes the chat's `harness-<harness>-*`
+  markers match the task list the harness hands it, and the session-start hook
+  clears the markers a new process cannot have and, on a resume, names the tasks
+  the restart ended. `HarnessTaskHooks` is the abstraction a harness implements:
+  which process a hook speaks for, the shape of its task list, and how a resume
+  is told apart.
+- `harnesses/claude` -- Claude's `HarnessTaskHooks`: the `background_tasks`
+  list Claude Code hands its Stop hook, SessionStart's `resume` source, and which
+  Claude may write at all (the agent's main Claude, never a nested one).
 
 ## Consumers
 
-- `system/scripts/background_tasks.py` -- the CLI (`list`, `is-busy`) and the
-  Claude hook entry points `.claude/settings.json` wires.
+- `system/scripts/background_tasks.py` -- the CLI (`list`, `is-busy`).
+- `system/scripts/claude_background_task_hooks.py` -- Claude's Stop and
+  SessionStart hooks, which `.claude/settings.json` wires.
 - The chat app -- reads the markers on its state poller, shows the `background`
   status, and removes a Claude marker once the transcript reports the task over.
 - The shell's avatar, which keeps working while a chat is busy.

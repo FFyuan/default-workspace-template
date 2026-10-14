@@ -534,8 +534,8 @@ class BackgroundTaskSnapshot(FrozenModel):
     kind: str = Field(description="The harness's type for a harness task; '' otherwise")
     description: str = Field(description="What the task is, as its writer described it")
     started_at: str = Field(
-        description="When the task started (ISO 8601, UTC); for a Claude task, when its Stop hook first recorded "
-        "it, at the end of the turn that started it"
+        description="When the task started (ISO 8601, UTC); for a harness task, when its turn-end hook first "
+        "recorded it, at the end of the turn that started it"
     )
 
 

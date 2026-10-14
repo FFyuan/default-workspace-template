@@ -11,17 +11,17 @@ harness's hooks. This module wraps what the library reads in this app's types.
 from pathlib import Path
 from typing import Final
 
-from chat_background_tasks import claude as claude_tasks
 from chat_background_tasks import markers
 from chat_background_tasks.markers import TaskSource
 from loguru import logger
 from pydantic import Field
 
+from imbue.chat.harnesses.harness_type import HarnessType
 from imbue.chat.primitives import ChatId
 from imbue.imbue_common.frozen_model import FrozenModel
 
 # The markers' root under the chat's data dir; the library's default and the agents'
-# ``MINDS_BACKGROUND_TASKS_DIR`` name the same directory.
+# ``CHAT_BACKGROUND_TASKS_DIR`` name the same directory.
 BACKGROUND_TASKS_DIRNAME: Final[str] = "background_tasks"
 
 
@@ -36,8 +36,8 @@ class BackgroundTask(FrozenModel):
     id: str = Field(description="The task's id within its source")
     description: str = Field(description="What the task is, as its writer described it")
     started_at: str = Field(
-        description="When the task started (ISO 8601, UTC); for a Claude task, when its Stop hook first recorded "
-        "it, at the end of the turn that started it"
+        description="When the task started (ISO 8601, UTC); for a harness task, when its turn-end hook first "
+        "recorded it, at the end of the turn that started it"
     )
     pid: int = Field(description="The process whose exit makes the marker stale")
     harness: str = Field(default="", description="The harness that recorded a harness task; '' otherwise")
@@ -61,10 +61,10 @@ class BackgroundTaskReader(FrozenModel):
         """The chat's tasks whose pid is alive, oldest first; malformed and stale markers are skipped."""
         return tuple(BackgroundTask(**task._asdict()) for task in markers.live_tasks_in(self.chat_dir(chat_id)))
 
-    def remove_claude_tasks(self, chat_id: ChatId, task_ids: tuple[str, ...]) -> None:
-        """Remove the chat's markers for these Claude tasks, which Claude has reported as over."""
+    def remove_harness_tasks(self, chat_id: ChatId, harness: HarnessType, task_ids: tuple[str, ...]) -> None:
+        """Remove the chat's markers for these tasks of the harness, which it has reported as over."""
         for task_id in task_ids:
-            claude_tasks.remove_finished_task(self.root, str(chat_id), task_id)
+            markers.remove_marker(self.root, str(chat_id), TaskSource.HARNESS, task_id, harness.value)
 
     def create_root(self) -> None:
         """Create the marker root, so the shell's avatar, which watches it only once it exists, sees the first task

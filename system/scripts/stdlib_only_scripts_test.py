@@ -21,6 +21,7 @@ _SCRIPTS_DIR = Path(__file__).parent
 
 _SCRIPTS_RUN_WITH_SYSTEM_PYTHON = (
     "background_tasks.py",
+    "claude_background_task_hooks.py",
     "collect_bug_report_diagnostics.py",
     "forward_port.py",
     "install_mngr.py",
@@ -95,7 +96,7 @@ def _library_modules_outside_the_stdlib(library: str) -> set[str]:
     library nor the library itself."""
     return {
         module
-        for source in _STDLIB_ONLY_LIBRARIES[library].glob("*.py")
+        for source in _STDLIB_ONLY_LIBRARIES[library].rglob("*.py")
         if not source.name.endswith("_test.py") and source.name != "conftest.py"
         for module in _imported_top_level_modules(source)
         if module not in sys.stdlib_module_names and module != library

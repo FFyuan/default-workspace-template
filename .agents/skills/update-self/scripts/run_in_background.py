@@ -91,7 +91,7 @@ MESSAGE_CHAT_REL = Path("system") / "scripts" / "message_chat.py"
 
 # The marker layout ``system/libs/chat_background_tasks`` reads, copied because update-self's
 # staged copy runs in trees that may predate that library; a test pins the two together.
-MARKER_ROOT_ENV = "MINDS_BACKGROUND_TASKS_DIR"
+MARKER_ROOT_ENV = "CHAT_BACKGROUND_TASKS_DIR"
 DEFAULT_MARKER_ROOT = Path("data") / ".apps" / "chat" / "background_tasks"
 MARKER_SOURCE = "run_in_background"
 _UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]")

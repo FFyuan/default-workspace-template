@@ -12,6 +12,7 @@ import re
 from enum import auto
 from typing import Any
 
+from chat_background_tasks.harnesses.claude import CLAUDE_FINISHED_STATUSES
 from loguru import logger as _loguru_logger
 from pydantic import Field
 
@@ -728,8 +729,6 @@ _LEAVE_OPERATIONS = frozenset({"dequeue", "remove", "popAll"})
 TASK_NOTIFICATION_CONTENT_PREFIX = "<task-notification>"
 _TASK_NOTIFICATION_ID_RE = re.compile(r"<task-id>\s*([^<\s]+)\s*</task-id>")
 _TASK_NOTIFICATION_STATUS_RE = re.compile(r"<status>\s*([^<\s]+)\s*</status>")
-# The statuses Claude Code gives a task that is over; any other one leaves its marker standing.
-_FINISHED_TASK_STATUSES = frozenset({"completed", "failed", "killed"})
 
 
 class QueueSignalKind(UpperCaseStrEnum):
@@ -810,6 +809,6 @@ def finished_task_id(content: str) -> str | None:
         return None
     task_id = _TASK_NOTIFICATION_ID_RE.search(content)
     status = _TASK_NOTIFICATION_STATUS_RE.search(content)
-    if task_id is None or status is None or status.group(1) not in _FINISHED_TASK_STATUSES:
+    if task_id is None or status is None or status.group(1) not in CLAUDE_FINISHED_STATUSES:
         return None
     return task_id.group(1)

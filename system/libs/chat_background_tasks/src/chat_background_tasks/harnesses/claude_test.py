@@ -4,12 +4,16 @@ from typing import Any
 
 import pytest
 
-from chat_background_tasks import claude, markers
+from chat_background_tasks import markers
+from chat_background_tasks.harnesses import claude
+from chat_background_tasks.harnesses.base import HookCaller
+from chat_background_tasks.harnesses.claude import ClaudeTaskHooks
 from chat_background_tasks.markers import BackgroundTask, TaskSource
 from chat_background_tasks.testing import main_claude_env, runner_task, shell_entry
 
 _CHAT_ID = "agent-0123456789abcdef0123456789abcdef"
 _OTHER_CHAT_ID = "agent-fedcba9876543210fedcba9876543210"
+_HOOKS = ClaudeTaskHooks()
 
 
 def _main_claude_env(work_dir: Path, **extra: str) -> dict[str, str]:
@@ -27,21 +31,16 @@ def _env_with_recorded_main_claude(
 
 def _stop(root: Path, env: dict[str, str], *entries: dict[str, Any]) -> None:
     """What the Stop hook does with ``env`` and a Stop input listing ``entries``."""
-    chat_id = claude.hook_chat_id(env)
-    if chat_id:
-        claude.record_stop(
-            root,
-            chat_id,
-            {"background_tasks": list(entries)},
-            claude.hook_claude_pid(env),
-        )
+    caller = _HOOKS.hook_caller(env)
+    if caller is not None:
+        _HOOKS.record_turn_end(root, caller, {"background_tasks": list(entries)})
 
 
 def _clear(root: Path, env: dict[str, str]) -> None:
     """What the SessionStart hook does with ``env``."""
-    chat_id = claude.hook_chat_id(env)
-    if chat_id:
-        claude.clear(root, chat_id, claude.hook_claude_pid(env))
+    caller = _HOOKS.hook_caller(env)
+    if caller is not None:
+        _HOOKS.clear(root, caller)
 
 
 def _live_ids(root: Path, chat_id: str = _CHAT_ID) -> list[str]:
@@ -69,7 +68,9 @@ def test_a_stop_records_every_waking_kind_and_skips_the_rest(
         ("workflow-1", "workflow"),
         ("agent-1", "subagent"),
     }
-    assert all(claude.is_claude_task(task) and task.pid == os.getpid() for task in live)
+    assert all(
+        _HOOKS.is_harness_task(task) and task.pid == os.getpid() for task in live
+    )
     [shell] = [task for task in live if task.id == "shell-1"]
     assert (shell.description, shell.command) == ("tail logs", "tail -f log")
 
@@ -108,12 +109,12 @@ def test_a_stop_with_no_task_list_leaves_the_markers_alone(
     env = _main_claude_env(tmp_path)
     _stop(marker_root, env, shell_entry("one"))
 
-    claude.record_stop(marker_root, _CHAT_ID, payload, claude.hook_claude_pid(env))
+    _HOOKS.record_turn_end(marker_root, HookCaller(_CHAT_ID, os.getpid()), payload)
 
     assert _live_ids(marker_root) == ["one"]
 
 
-def test_clearing_removes_only_the_claude_markers(
+def test_clearing_and_stopping_leave_the_runners_and_other_harnesses_markers(
     marker_root: Path, tmp_path: Path
 ) -> None:
     env = _main_claude_env(tmp_path)
@@ -121,12 +122,27 @@ def test_clearing_removes_only_the_claude_markers(
     markers.write_marker(
         marker_root, _CHAT_ID, runner_task("runner", "2026-10-08T10:00:00+00:00")
     )
+    # Same id and same process as Claude's own task: only the harness tells them apart.
+    markers.write_marker(
+        marker_root,
+        _CHAT_ID,
+        BackgroundTask(
+            source=TaskSource.HARNESS,
+            id="one",
+            description="",
+            started_at="2026-10-08T10:00:00+00:00",
+            pid=os.getpid(),
+            harness="other",
+        ),
+    )
 
     _clear(marker_root, env)
+    _stop(marker_root, env)
 
-    assert [task.source for task in markers.list_live_tasks(marker_root, _CHAT_ID)] == [
-        TaskSource.RUN_IN_BACKGROUND
-    ]
+    assert {
+        (task.source, task.harness)
+        for task in markers.list_live_tasks(marker_root, _CHAT_ID)
+    } == {(TaskSource.RUN_IN_BACKGROUND, ""), (TaskSource.HARNESS, "other")}
 
 
 @pytest.mark.parametrize(
@@ -149,7 +165,7 @@ def test_clearing_removes_only_the_claude_markers(
 def test_a_claude_that_is_not_the_agents_main_session_writes_nothing(
     tmp_path: Path, overrides: dict[str, str]
 ) -> None:
-    assert claude.hook_chat_id(_main_claude_env(tmp_path) | overrides) == ""
+    assert _HOOKS.hook_caller(_main_claude_env(tmp_path) | overrides) is None
 
 
 def test_the_chat_app_stamped_chat_id_keys_the_claude_markers(

@@ -3537,7 +3537,7 @@ def test_only_a_harness_task_keeps_a_waiting_chat_from_ageing_toward_the_memory_
 
         assert ChatId("agent-1") in manager._oom_prioritizer._running
 
-        manager.forget_finished_tasks("agent-1", ("claude-task",))
+        manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("claude-task",))
 
         assert ChatId("agent-1") not in manager._oom_prioritizer._running
     finally:
@@ -3585,13 +3585,13 @@ def test_a_claude_task_its_transcript_reports_over_stops_counting_with_no_stop_h
         write_background_task_marker(reader, "agent-1", "bg-other", os.getpid(), harness="claude")
         manager._agent_state_poller.poll_once()
 
-        manager.forget_finished_tasks("agent-1", ("bg-done",))
+        manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("bg-done",))
 
         (snapshot,) = manager.get_chat_snapshots()
         assert [task.id for task in snapshot.active_agent.background_tasks] == ["bg-other"]
         assert not (reader.chat_dir(ChatId("agent-1")) / "harness-claude-bg-done.json").exists()
 
-        manager.forget_finished_tasks("agent-1", ("bg-other",))
+        manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("bg-other",))
 
         (snapshot,) = manager.get_chat_snapshots()
         assert snapshot.status is ChatStatus.IDLE

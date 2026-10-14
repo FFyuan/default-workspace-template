@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""The background tasks chats are waiting on, and whether a chat is busy; and Claude's hooks that
-record its own background tasks.
+"""The background tasks chats are waiting on, and whether a chat is busy.
 
     python3 system/scripts/background_tasks.py list [--chat <chat-id>] [--format json|tsv]
     python3 system/scripts/background_tasks.py is-busy <chat-id>    # exit 0 busy, 1 not
@@ -10,13 +9,8 @@ record its own background tasks.
 chat app first and read the marker files only when it cannot answer; ``is_busy`` from the chat
 app also counts a turn in flight, which the files cannot see.
 
-``record-claude-stop`` and ``clear-claude`` are the Stop and SessionStart hooks
-``.claude/settings.json`` wires. Each exits 0 on every condition it handles, so it never blocks
-Claude's stop. On a resume, ``clear-claude`` prints which of Claude's background tasks the restart
-ended, and SessionStart adds what it prints to Claude's context.
-
 The markers and their readers are ``system/libs/chat_background_tasks``, which this script puts
-on ``sys.path``: skills run it with a bare ``python3`` and the hooks run it before any venv exists.
+on ``sys.path``: skills run it with a bare ``python3``.
 """
 
 import argparse
@@ -25,7 +19,6 @@ import os
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import IO
 
 sys.path.insert(
     0,
@@ -33,7 +26,6 @@ sys.path.insert(
 )
 
 import message_chat
-from chat_background_tasks import claude
 from chat_background_tasks.listing import (
     AGENTS_PATH,
     ChatAppUnavailableError,
@@ -88,57 +80,6 @@ def cmd_is_busy(chat_id: str, environ: Mapping[str, str], cwd: Path) -> int:
     )
 
 
-def cmd_record_claude_stop(stdin: IO[str], environ: Mapping[str, str]) -> int:
-    chat_id = claude.hook_chat_id(environ)
-    if not chat_id:
-        return 0
-    try:
-        payload = json.loads(stdin.read() or "null")
-    except ValueError as exc:
-        print(
-            f"background_tasks.py: the Stop input is not JSON ({exc})", file=sys.stderr
-        )
-        return 0
-    try:
-        claude.record_stop(
-            marker_root(environ), chat_id, payload, claude.hook_claude_pid(environ)
-        )
-    except OSError as exc:
-        print(
-            f"background_tasks.py: could not record the Claude tasks: {exc}",
-            file=sys.stderr,
-        )
-    return 0
-
-
-def cmd_clear_claude(stdin: IO[str], environ: Mapping[str, str]) -> int:
-    """On a resume, prints what the restart ended, which SessionStart adds to Claude's context."""
-    chat_id = claude.hook_chat_id(environ)
-    if not chat_id:
-        return 0
-    try:
-        payload = json.loads(stdin.read() or "null")
-    except ValueError as exc:
-        print(
-            f"background_tasks.py: the SessionStart input is not JSON ({exc})",
-            file=sys.stderr,
-        )
-        payload = None
-    try:
-        removed = claude.clear(
-            marker_root(environ), chat_id, claude.hook_claude_pid(environ)
-        )
-    except OSError as exc:
-        print(
-            f"background_tasks.py: could not clear the Claude tasks: {exc}",
-            file=sys.stderr,
-        )
-        return 0
-    if isinstance(payload, dict) and payload.get("source") == "resume" and removed:
-        print(claude.lost_tasks_notice(removed))
-    return 0
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="The background tasks chats are waiting on, and whether a chat is busy."
@@ -153,34 +94,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "is-busy", help="Exit 0 when the chat is busy, 1 when it is not."
     )
     is_busy_parser.add_argument("chat_id")
-    commands.add_parser(
-        "record-claude-stop",
-        help="Claude's Stop hook: copy the input's background tasks into markers.",
-    )
-    commands.add_parser(
-        "clear-claude",
-        help="Claude's SessionStart hook: clear this Claude's markers and dead ones; on a "
-        "resume, name the tasks the restart ended.",
-    )
     return parser
 
 
 def main(
-    argv: Sequence[str] | None = None,
-    environ: Mapping[str, str] | None = None,
-    stdin: IO[str] | None = None,
+    argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = None
 ) -> int:
     args = _build_parser().parse_args(argv)
     resolved_environ = os.environ if environ is None else environ
     if args.command == "list":
         return cmd_list(args.chat, args.format, resolved_environ, Path.cwd())
-    if args.command == "is-busy":
-        return cmd_is_busy(args.chat_id, resolved_environ, Path.cwd())
-    if args.command == "record-claude-stop":
-        return cmd_record_claude_stop(
-            sys.stdin if stdin is None else stdin, resolved_environ
-        )
-    return cmd_clear_claude(sys.stdin if stdin is None else stdin, resolved_environ)
+    return cmd_is_busy(args.chat_id, resolved_environ, Path.cwd())
 
 
 if __name__ == "__main__":

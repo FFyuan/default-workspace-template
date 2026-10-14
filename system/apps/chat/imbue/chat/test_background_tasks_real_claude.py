@@ -1,7 +1,7 @@
 """A chat waiting on a Claude-native background command, with the real claude binary and the repo's own Stop hook.
 
 Claude Code hands its Stop hook the turn's still-running tasks (``background_tasks`` in the hook input),
-and the template's Stop hook (``background_tasks.py record-claude-stop``, wired in ``.claude/settings.json``)
+and the template's Stop hook (``claude_background_task_hooks.py stop``, wired in ``.claude/settings.json``)
 copies them into the chat's markers. Nothing documents that field, so this runs the pinned claude with the
 hook wired exactly as the repo wires it: one turn starts a background Bash command and ends, the command's
 completion starts the next turn, and that turn's Stop hands over an empty list. The chat app must read the
@@ -44,7 +44,7 @@ from imbue.system_interface.testing import find_free_port
 pytestmark = pytest.mark.real_claude
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
-_HOOK_SCRIPT_MARK = "background_tasks.py record-claude-stop"
+_HOOK_SCRIPT_MARK = "claude_background_task_hooks.py stop"
 _COMMAND_SECONDS = 20
 _RUN_TIMEOUT_SECONDS = 240
 
@@ -132,7 +132,7 @@ def test_a_claude_turn_that_ends_on_a_background_bash_command_leaves_its_chat_wa
         env.update(
             {
                 "MINDS_CHAT_ID": FIXTURE_AGENT_ID,
-                "MINDS_BACKGROUND_TASKS_DIR": str(marker_root),
+                "CHAT_BACKGROUND_TASKS_DIR": str(marker_root),
                 "MAIN_CLAUDE_SESSION_ID": "real-claude-background-task-test",
                 "MNGR_AGENT_WORK_DIR": str(project),
             }

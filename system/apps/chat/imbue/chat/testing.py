@@ -966,7 +966,7 @@ def running_workspace(
     accounts in (a chat switches harness to one of them); ``messenger`` replaces the recording
     messenger the manager sends through. The chat's layout client is the served shell, so a route that asks the
     shell for a window lands it there. ``background_tasks_root`` is where the chat reads its chats'
-    background-task markers, and the agents' runner and hooks write them (``MINDS_BACKGROUND_TASKS_DIR``);
+    background-task markers, and the agents' runner and hooks write them (``CHAT_BACKGROUND_TASKS_DIR``);
     without it the chat reads none.
     """
     shell_url = f"http://127.0.0.1:{shell_port}"
@@ -1036,7 +1036,7 @@ def running_workspace(
                 "MINDS_APPS_FILE": str(registry_path),
                 "MINDS_WORKSPACE_SERVER_URL": shell_url,
                 **(
-                    {} if background_tasks_root is None else {"MINDS_BACKGROUND_TASKS_DIR": str(background_tasks_root)}
+                    {} if background_tasks_root is None else {"CHAT_BACKGROUND_TASKS_DIR": str(background_tasks_root)}
                 ),
             },
         ),
