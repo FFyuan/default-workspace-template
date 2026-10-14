@@ -1487,7 +1487,7 @@ class AgentManager:
         """
         if harness is not HarnessType.CLAUDE:
             return
-        work_dir = Path(self._own_work_dir) if self._own_work_dir else Path.cwd()
+        work_dir = self._own_work_dir_path()
         self._creation_cg.run_process_in_background(
             command=["bash", str(work_dir / _REFRESH_AGENT_TOOLS_SCRIPT), "--claude-plugins", str(account_dir)],
             cwd=work_dir,
@@ -2080,7 +2080,7 @@ class AgentManager:
         deps = HandoffDeps(
             mngr_binary=self._mngr_binary,
             host_dir=self._host_dir,
-            work_dir=Path(self._own_work_dir) if self._own_work_dir else Path.cwd(),
+            work_dir=self._own_work_dir_path(),
             chat_files_root=self._chat_files_root,
             prompt_template_path=self._prompt_template_path,
             shutdown_event=self._shutdown_event,
@@ -3305,6 +3305,10 @@ class AgentManager:
             name=f"create-{agent_id[:8]}",
             is_checked=False,
         )
+
+    def _own_work_dir_path(self) -> Path:
+        """The workspace this app runs from: its agent's work dir, else the current directory."""
+        return Path(self._own_work_dir) if self._own_work_dir else Path.cwd()
 
     def _resolve_agent_work_dir(self, agent_id: str) -> str | None:
         """Resolve an agent's work directory. Must be called with lock held."""
