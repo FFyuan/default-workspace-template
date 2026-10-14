@@ -77,6 +77,22 @@ def test_a_model_s_drawing_is_limited_to_the_theme_s_color_count() -> None:
     assert check_icon_image(fitted, spec) == []
 
 
+def test_a_drawing_s_clear_pixels_take_no_color_from_its_limited_colors() -> None:
+    drawing = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    for y in range(4, 28):
+        for x in range(4, 28):
+            drawing.putpixel((x, y), (255, 0, 0, 255) if x < 16 else (255, 255, 0, 255))
+
+    fitted = fit_icon_image(drawing, _spec(max_colors=2))
+
+    opaque = {
+        (red, green, blue)
+        for red, green, blue, alpha in rgba_pixels(fitted)
+        if alpha >= 128
+    }
+    assert opaque == {(255, 0, 0), (255, 255, 0)}
+
+
 def test_an_opaque_background_is_drawn_in_the_theme_s_palette() -> None:
     spec = _spec(palette=("#000000", "#c81e1e"), background=IconBackground.OPAQUE)
 

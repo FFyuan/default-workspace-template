@@ -160,13 +160,24 @@ def _apply_palette(image: Image.Image, palette: Sequence[HexColor]) -> Image.Ima
 
 
 def _limit_colors(image: Image.Image, max_colors: int) -> Image.Image:
-    alpha = image.getchannel("A")
+    """The image in at most ``max_colors`` colors, chosen from its opaque pixels: what lies under a clear pixel is
+    never seen, so it takes no color from the ones that are."""
+    opaque = [
+        (red, green, blue)
+        for red, green, blue, alpha in rgba_pixels(image)
+        if alpha >= OPAQUE_ALPHA_THRESHOLD
+    ]
+    if not opaque:
+        return image
+    strip = Image.new("RGB", (len(opaque), 1))
+    strip.putdata(opaque)
+    palette = strip.quantize(colors=max_colors, dither=Image.Dither.NONE)
     reduced = (
         image.convert("RGB")
-        .quantize(colors=max_colors, dither=Image.Dither.NONE)
+        .quantize(palette=palette, dither=Image.Dither.NONE)
         .convert("RGBA")
     )
-    reduced.putalpha(alpha)
+    reduced.putalpha(image.getchannel("A"))
     return reduced
 
 
