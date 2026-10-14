@@ -156,6 +156,25 @@ def test_a_later_agent_copies_the_shared_install_without_running_codex(
     assert _installed(home) == ("1", ["1"])
 
 
+def test_a_copy_that_fails_partway_falls_back_to_installing_from_github(
+    tmp_path: Path,
+) -> None:
+    _run(tmp_path, agent="first agent")
+    # A file where the marketplace snapshot's parent folder goes: only the plugin
+    # cache could be copied.
+    blocked_home = get_codex_home(tmp_path / "second agent")
+    blocked_home.mkdir(parents=True)
+    (blocked_home / ".tmp").write_text("")
+
+    result, calls, _ = _run(tmp_path, agent="second agent")
+
+    assert result.returncode == 0, result.stderr
+    assert [call[1][:2] for call in calls] == [
+        ["plugin", "marketplace"],
+        ["plugin", "add"],
+    ]
+
+
 def test_a_refresh_before_any_codex_agent_does_nothing(tmp_path: Path) -> None:
     _run(tmp_path, provisioned=False)
 

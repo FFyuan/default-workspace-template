@@ -42,7 +42,8 @@ plugin_paths() {
 }
 
 # Copy the marketplace snapshot and the installed plugin from one Codex home to
-# another, replacing whatever the destination had.
+# another, replacing whatever the destination had. Every caller tests its status,
+# which turns errexit off in here, so each step returns on failure itself.
 copy_install() {
     local source_home="$1"
     local destination_home="$2"
@@ -51,9 +52,10 @@ copy_install() {
         [[ -d "$source_home/$path" ]] || return 1
     done < <(plugin_paths)
     while read -r path; do
-        rm -rf "${destination_home:?}/$path"
-        mkdir -p "$(dirname "$destination_home/$path")"
-        cp -a "$source_home/$path" "$destination_home/$path"
+        rm -rf "${destination_home:?}/$path" \
+            && mkdir -p "$(dirname "$destination_home/$path")" \
+            && cp -a "$source_home/$path" "$destination_home/$path" \
+            || return 1
     done < <(plugin_paths)
 }
 
