@@ -294,7 +294,7 @@ Under a theme, the shell draws an app's icon as the first of: the theme's curate
 The `app-icon` part's `data-icon-source` says which it drew.
 
 When an app is built (the `build-app` skill) and when a theme is made (the `create-theme` skill), the agent makes the missing icons in the background; the derived icon shows until they land, and neither is finished until every theme with icons of its own has one for every app.
-`workspace-themes icon missing [<id>...]` lists, for each such theme (every available one when none is named), the apps it has no icon for, and exits 1 when there are any; a theme that keeps the standard icons has none to draw.
+`workspace-themes icon missing [<id>...]` lists, for each such theme (every one with icons of its own when none is named, including one still unavailable for want of its generic program icon), the apps it has no icon for, and exits 1 when there are any; a theme that keeps the standard icons has none to draw.
 Every built-in theme with icons of its own ships, committed in its folder, an icon for every built-in app a user sees; a test reads the app manifests, so a new built-in app fails it until each such theme has one.
 
 ## 7. Apps
