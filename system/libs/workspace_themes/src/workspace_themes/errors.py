@@ -6,12 +6,12 @@ class InvalidThemeValueError(WorkspaceThemesError, ValueError):
     """A theme manifest value does not satisfy its rule."""
 
 
-class ThemeNotFoundError(WorkspaceThemesError, KeyError):
-    """No available theme has the requested id."""
+class ThemeNotFoundError(WorkspaceThemesError, LookupError):
+    """No theme has the requested id."""
 
     def __init__(self, theme_id: str) -> None:
         self.theme_id = theme_id
-        super().__init__(f"no available theme {theme_id!r}")
+        super().__init__(f"there is no theme {theme_id!r}")
 
 
 class ThemeFileNotFoundError(WorkspaceThemesError, FileNotFoundError):

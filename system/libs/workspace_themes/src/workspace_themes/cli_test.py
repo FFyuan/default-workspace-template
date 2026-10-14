@@ -470,3 +470,12 @@ def test_a_theme_with_its_own_icons_draws_its_generic_icon_with_the_icon_tools(
     assert installed.exit_code == 0, installed.output
     assert Path(installed.output.strip()) == folder / "icons" / "app.png"
     assert available.exit_code == 0, available.output
+
+
+def test_a_theme_that_does_not_exist_is_named_plainly(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+
+    bundled = CliRunner().invoke(main, ["bundle", "nosuch", "--repo-root", str(root)])
+
+    assert bundled.exit_code == 1
+    assert bundled.output == "Error: there is no theme 'nosuch'\n"
