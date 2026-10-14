@@ -47,7 +47,7 @@ def load_icon_image(path: Path) -> Image.Image:
     try:
         with Image.open(path) as opened:
             return opened.convert("RGBA")
-    except (OSError, UnidentifiedImageError) as error:
+    except (OSError, UnidentifiedImageError, Image.DecompressionBombError) as error:
         raise IconImageError(f"{path} cannot be read as an image: {error}") from error
 
 

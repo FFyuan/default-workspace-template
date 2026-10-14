@@ -21,6 +21,7 @@ from workspace_themes.validation import (
     check_style_sheet,
     read_theme_manifest,
 )
+from workspace_themes.testing import write_png_header_only
 
 
 def _context(
@@ -236,3 +237,24 @@ def test_a_theme_s_own_svg_icons_are_held_to_the_svg_icon_rules(tmp_path: Path) 
     assert problems == [
         "icons/chat.svg: the icon has a <script> element, which an icon may not"
     ]
+
+
+def test_a_theme_s_png_icon_too_large_to_open_is_a_problem_not_a_crash(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "icons").mkdir()
+    (tmp_path / "icons" / "guide.md").write_text("Pixel glyphs.\n")
+    write_png_header_only(tmp_path / "icons" / "app.png", 20000)
+    spec = ThemeIconSpec(
+        guide=ThemeRelativePath("icons/guide.md"),
+        format=IconFormat.PNG,
+        size=32,
+        rendering=IconRendering.PIXELATED,
+        background=IconBackground.TRANSPARENT,
+        derive=IconDerivation.NONE,
+    )
+
+    problems = check_icon_files(tmp_path, "paper", spec)
+
+    assert len(problems) == 1
+    assert problems[0].startswith("icons/app.png: cannot be read as an image")

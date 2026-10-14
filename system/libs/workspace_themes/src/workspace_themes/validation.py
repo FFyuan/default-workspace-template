@@ -532,7 +532,7 @@ def _check_png_size(path: Path, relative: str, size: int) -> list[str]:
         with Image.open(path) as image:
             width, height = image.size
             image_format = image.format
-    except (OSError, UnidentifiedImageError) as error:
+    except (OSError, UnidentifiedImageError, Image.DecompressionBombError) as error:
         return [f"{relative}: cannot be read as an image: {error}"]
     if image_format != "PNG":
         return [f"{relative}: is {image_format}, not PNG"]

@@ -1,3 +1,5 @@
+import struct
+import zlib
 from pathlib import Path
 from typing import Final
 
@@ -39,6 +41,22 @@ def write_test_icon(path: Path, size: int) -> None:
                 (x, y), (255, 255, 255, 255) if is_center else (0, 0, 0, 255)
             )
     image.save(path, format="PNG")
+
+
+def write_png_header_only(path: Path, side: int) -> None:
+    """A tiny PNG file whose header declares a ``side`` x ``side`` image, with no pixel data: what an image library
+    reads first, before deciding whether the image is too large to open."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = struct.pack(">IIBBBBB", side, side, 8, 6, 0, 0, 0)
+    chunk_type = b"IHDR"
+    chunk = (
+        struct.pack(">I", len(header))
+        + chunk_type
+        + header
+        + struct.pack(">I", zlib.crc32(chunk_type + header))
+    )
+    end = struct.pack(">I", 0) + b"IEND" + struct.pack(">I", zlib.crc32(b"IEND"))
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk + end)
 
 
 def write_standard_theme(repo_root: Path) -> Path:

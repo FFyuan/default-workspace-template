@@ -8,6 +8,7 @@ from workspace_themes.errors import IconImageError
 from workspace_themes.icons import (
     check_icon_image,
     fit_icon_image,
+    load_icon_image,
     preview_icon_image,
     render_pixel_grid,
     rgba_pixels,
@@ -20,6 +21,7 @@ from workspace_themes.primitives import (
     IconRendering,
     ThemeRelativePath,
 )
+from workspace_themes.testing import write_png_header_only
 from workspace_themes.validation import check_svg_icon
 
 
@@ -97,6 +99,14 @@ def test_an_icon_that_misses_the_limits_is_told_why() -> None:
     )
     assert any("outside the theme's palette" in problem for problem in problems)
     assert any("one flat tone" in problem for problem in problems)
+
+
+def test_an_image_too_large_to_open_is_an_icon_error(tmp_path: Path) -> None:
+    path = tmp_path / "huge.png"
+    write_png_header_only(path, 20000)
+
+    with pytest.raises(IconImageError, match="cannot be read as an image"):
+        load_icon_image(path)
 
 
 def test_an_empty_drawing_cannot_be_fitted() -> None:
