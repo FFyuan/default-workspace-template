@@ -18,10 +18,10 @@ README for details.
 - `automations/` - The machinery that runs automations (skills on a
   schedule): the durable recurring-job runner, the cron env wrapper, and the
   automation-agent waker (see the manage-scheduled-tasks skill).
-- `chat_background_tasks/` - The marker files recording the background tasks
-  each chat waits on, their readers, and Claude's hooks that write them.
 - `bootstrap/` - First-boot setup; then launches supervisord, which supervises
   the apps and services.
+- `chat_background_tasks/` - The marker files recording the background tasks
+  each chat waits on, their readers, and Claude's hooks that write them.
 - `github_sync/` - The opt-in GitHub auto-push wiring (a git hook, not a
   daemon; see the github-sync skill).
 - `mngr_cli_contract/` - Shared validator that checks mngr CLI argvs against
