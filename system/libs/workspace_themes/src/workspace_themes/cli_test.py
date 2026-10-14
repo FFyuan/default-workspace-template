@@ -414,3 +414,56 @@ def test_icon_missing_lists_the_apps_a_theme_draws_no_icon_for_and_skips_themes_
     assert missing.output == "paper: files\n"
     assert covered.exit_code == 0
     assert covered.output == "every theme has an icon for every app\n"
+
+
+def test_a_theme_with_its_own_icons_draws_its_generic_icon_with_the_icon_tools(
+    tmp_path: Path,
+) -> None:
+    root = _workspace(tmp_path)
+    folder = write_test_theme(root / "themes", "inky", "")
+    (folder / "icons" / "app.png").unlink()
+    grid = tmp_path / "app.txt"
+    grid.write_text("kkkk\nkwwk\nkwwk\nkkkk\n")
+    drawn = tmp_path / "app.png"
+    runner = CliRunner()
+
+    unavailable = runner.invoke(main, ["validate", "inky", "--repo-root", str(root)])
+    missing = runner.invoke(main, ["icon", "missing", "--repo-root", str(root)])
+    gridded = runner.invoke(
+        main,
+        [
+            "icon",
+            "grid",
+            str(grid),
+            "--theme",
+            "inky",
+            "--legend",
+            "k=#000000,w=#ffffff",
+            "--out",
+            str(drawn),
+            "--repo-root",
+            str(root),
+        ],
+    )
+    installed = runner.invoke(
+        main,
+        [
+            "icon",
+            "install",
+            str(drawn),
+            "--theme",
+            "inky",
+            "--app",
+            "app",
+            "--repo-root",
+            str(root),
+        ],
+    )
+    available = runner.invoke(main, ["validate", "inky", "--repo-root", str(root)])
+
+    assert unavailable.exit_code == 1
+    assert missing.exit_code == 1 and "inky: app, files\n" in missing.output
+    assert gridded.exit_code == 0, gridded.output
+    assert installed.exit_code == 0, installed.output
+    assert Path(installed.output.strip()) == folder / "icons" / "app.png"
+    assert available.exit_code == 0, available.output

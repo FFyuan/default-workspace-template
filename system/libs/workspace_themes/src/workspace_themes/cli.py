@@ -82,10 +82,18 @@ def _require_theme(catalog: ThemeCatalog, theme_id: str) -> ThemeEntry:
     return entry
 
 
-def _require_icons(entry: ThemeEntry) -> ThemeIcons:
+def _require_icon_theme(
+    catalog: ThemeCatalog, theme_id: str
+) -> tuple[ThemeEntry, ThemeIcons]:
+    """A theme whose icon spec resolved, available or not: a theme with [icons] of its own is unavailable until it
+    has its generic program icon, which these commands are how it gets one."""
+    entry = catalog.find(theme_id)
+    if entry is None:
+        raise click.ClickException(str(ThemeNotFoundError(theme_id)))
     if entry.icons is None:
-        raise click.ClickException(f"theme {str(entry.id)!r} has no icon spec")
-    return entry.icons
+        reason = "; ".join(entry.problems) if entry.problems else "it has no icon spec"
+        raise click.ClickException(f"theme {theme_id!r} has no icons to draw: {reason}")
+    return entry, entry.icons
 
 
 @click.group()
@@ -287,16 +295,17 @@ def _app_names(repo_root: Path) -> list[str]:
 
 
 def _apps_without_icon(
-    catalog: ThemeCatalog, entry: ThemeEntry, app_names: Sequence[str]
+    catalog: ThemeCatalog, icons: ThemeIcons, app_names: Sequence[str]
 ) -> list[str]:
-    """The apps a theme draws no icon for. None for a theme whose icons are the standard ones (each app's own
-    icon.svg): the standard theme, and a theme that takes its icons from it."""
-    icons = _require_icons(entry)
+    """The apps a theme draws no icon for, and ``app`` when it has no generic program icon. None for a theme whose
+    icons are the standard ones (each app's own icon.svg): the standard theme, and a theme that takes its icons from
+    it."""
     standard = catalog.find(STANDARD_THEME_ID)
     if standard is not None and icons.spec_folder == standard.folder:
         return []
     covered = {*icons.curated_by_app, *icons.generated_by_app}
-    return [name for name in app_names if name not in covered]
+    missing = [name for name in app_names if name not in covered]
+    return missing if icons.fallback is not None else [FALLBACK_ICON_STEM, *missing]
 
 
 @icon_group.command("spec")
@@ -312,9 +321,8 @@ def icon_spec(theme_id: str, repo_root: str) -> None:
     """Print what a model needs to draw this theme's icons, and which apps still lack one."""
     root = Path(repo_root).resolve()
     catalog = _load_catalog(repo_root)
-    entry = _require_theme(catalog, theme_id)
-    icons = _require_icons(entry)
-    apps_without_icon = _apps_without_icon(catalog, entry, _app_names(root))
+    entry, icons = _require_icon_theme(catalog, theme_id)
+    apps_without_icon = _apps_without_icon(catalog, icons, _app_names(root))
     report = {
         "theme": entry.id,
         "spec": icons.spec.model_dump(mode="json"),
@@ -339,18 +347,21 @@ def icon_spec(theme_id: str, repo_root: str) -> None:
     help="The workspace root",
 )
 def icon_missing(theme_ids: tuple[str, ...], repo_root: str) -> None:
-    """List, for every available theme (or those named), the apps it draws no icon for; exits 1 when any."""
+    """List, for every theme with icons to draw (or those named), the apps it draws no icon for, and ``app`` for a
+    missing generic program icon; exits 1 when any."""
     root = Path(repo_root).resolve()
     catalog = _load_catalog(repo_root)
-    entries = (
-        [_require_theme(catalog, theme_id) for theme_id in theme_ids]
+    icons_by_theme = (
+        [_require_icon_theme(catalog, theme_id) for theme_id in theme_ids]
         if theme_ids
-        else [entry for entry in catalog.entries if entry.is_available]
+        else [
+            (entry, entry.icons) for entry in catalog.entries if entry.icons is not None
+        ]
     )
     app_names = _app_names(root)
     missing_by_theme = {
-        str(entry.id): _apps_without_icon(catalog, entry, app_names)
-        for entry in entries
+        str(entry.id): _apps_without_icon(catalog, icons, app_names)
+        for entry, icons in icons_by_theme
     }
     lines = [
         f"{theme_id}: {', '.join(apps)}"
@@ -408,7 +419,7 @@ def icon_fit(
 
 def _require_png_icons(theme_id: str, repo_root: str) -> ThemeIcons:
     """The icons of a theme that draws png icons, which are the only ones fitted or drawn from a grid."""
-    icons = _require_icons(_require_theme(_load_catalog(repo_root), theme_id))
+    _, icons = _require_icon_theme(_load_catalog(repo_root), theme_id)
     if icons.spec.format != IconFormat.PNG:
         raise click.ClickException(
             f"theme {theme_id!r} draws svg icons; write the svg yourself, following its guide, and check it with "
@@ -527,7 +538,7 @@ def _icon_problems(path: Path, icons: ThemeIcons) -> list[str]:
 )
 def icon_check(icon_path: str, theme_id: str, repo_root: str) -> None:
     """Check an icon against the theme's limits; exits 1 when it misses any."""
-    icons = _require_icons(_require_theme(_load_catalog(repo_root), theme_id))
+    _, icons = _require_icon_theme(_load_catalog(repo_root), theme_id)
     _report_icon_problems(_icon_problems(Path(icon_path), icons), icon_path)
 
 
@@ -550,8 +561,7 @@ def icon_check(icon_path: str, theme_id: str, repo_root: str) -> None:
 def icon_install(icon_path: str, theme_id: str, app_name: str, repo_root: str) -> None:
     """Put a checked icon where the shell finds it: a workspace theme's folder, or data/ for a built-in theme."""
     root = Path(repo_root).resolve()
-    entry = _require_theme(_load_catalog(repo_root), theme_id)
-    icons = _require_icons(entry)
+    entry, icons = _require_icon_theme(_load_catalog(repo_root), theme_id)
     if app_name not in _app_names(root) and app_name != FALLBACK_ICON_STEM:
         raise click.ClickException(f"there is no app {app_name!r} here")
     # An icon installed for a built-in theme only fills a gap: the shell draws the theme's shipped icon first, and

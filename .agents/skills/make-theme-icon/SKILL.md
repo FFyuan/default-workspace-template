@@ -23,7 +23,8 @@ the app's own `icon.svg`, drawn to `docs/system/app-icons.md`.
 uv run workspace-themes icon missing
 ```
 
-names every theme with icons of its own and the apps it has none for. For each theme:
+names every theme with icons of its own and the apps it has none for, with `app` when the theme still
+lacks its generic program icon (installed with `--app app`). For each theme:
 
 ```bash
 uv run workspace-themes icon spec <theme-id>
