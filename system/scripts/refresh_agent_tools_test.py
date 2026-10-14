@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from imbue.mngr.utils.polling import wait_for
@@ -92,25 +93,11 @@ def _env(
 
 
 def _run(
-    tmp_path: Path,
-    *args: str,
-    config_dir: str = "default-config",
-    config_dirs: tuple[str, ...] = ("default-config",),
-    delay_seconds: int = 0,
-    failing_args: str = "",
-    codex_exit: int = 0,
-    job_timeout_seconds: int = 60,
+    tmp_path: Path, *args: str, **env_options: Any
 ) -> tuple[subprocess.CompletedProcess[str], float]:
+    """Run the script with ``args``, in the environment ``_env`` builds from ``env_options``."""
     script = _install(tmp_path)
-    env = _env(
-        tmp_path,
-        config_dir=config_dir,
-        config_dirs=config_dirs,
-        delay_seconds=delay_seconds,
-        failing_args=failing_args,
-        codex_exit=codex_exit,
-        job_timeout_seconds=job_timeout_seconds,
-    )
+    env = _env(tmp_path, **env_options)
     started = time.monotonic()
     result = subprocess.run(
         ["bash", str(script), *args],
