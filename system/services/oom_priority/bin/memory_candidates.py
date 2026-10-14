@@ -12,9 +12,8 @@ It joins three sources, each read independently so one failing leaves the others
   (``user_created``) or worker (``agent_created``) whose state is ``WAITING``, whose chat is not
   busy, and whose latest activity is at least ``IDLE_AFTER_SECONDS`` old. A chat is busy while a
   background task will wake its agent, which ``chat_background_tasks`` reads from the chats'
-  marker files. Its memory is the
-  summed RSS of its process trees, rooted at the pid mngr reports plus every live pid the
-  agent-pid registry holds for it;
+  marker files. Its memory is the summed RSS of its process trees, rooted at the pid mngr
+  reports plus every live pid the agent-pid registry holds for it;
 - browsers, from the browser service's ``GET /browsers``: a ``running`` browser that no desktop
   window shows, per the shell's ``GET /api/desktops``. Its memory is the summed RSS of every
   Chromium process on its profile.
