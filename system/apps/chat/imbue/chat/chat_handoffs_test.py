@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from chat_background_tasks.markers import TaskSource
 from mngr_cli_contract.contract import assert_mngr_argv_valid
 from pydantic import Field
 from pydantic import PrivateAttr
@@ -639,22 +640,23 @@ def test_the_prompt_names_an_earlier_predecessor_by_the_archival_name_it_was_giv
 
 
 def test_the_prompt_says_which_waited_on_tasks_the_switch_stopped_and_which_still_report(tmp_path: Path) -> None:
-    """The switch stops the retiring agent, which ends Claude's own background tasks; a command started through the
-    runner outlives it and reports to the chat. The successor is told which is which, so it restarts what was lost
-    and waits for what is coming."""
+    """The switch stops the retiring agent, which ends its background tasks. Claude's own end unreported; a command
+    started through the runner still reports to the chat, saying how it ended. The successor is told which is which,
+    so it restarts what was lost and waits for what is coming."""
     workspace, _, _ = _workspace(tmp_path, phase=HandoffPhase.SUMMARIZING)
     tasks = (
         BackgroundTask(
-            source="claude",
+            source=TaskSource.HARNESS,
             id="bg-1",
             description="Run the test suite",
             started_at="2026-10-08T12:00:00+00:00",
             pid=1,
+            harness="claude",
             kind="shell",
             command="pytest -q",
         ),
         BackgroundTask(
-            source="run_in_background",
+            source=TaskSource.RUN_IN_BACKGROUND,
             id="task-1",
             description="Rebuild the worker image",
             started_at="2026-10-08T12:01:00+00:00",
@@ -666,7 +668,10 @@ def test_the_prompt_says_which_waited_on_tasks_the_switch_stopped_and_which_stil
 
     prompt = workspace.delivered_prompt()
     assert "- Stopped by the switch; start it again if it is still needed: Run the test suite (`pytest -q`)" in prompt
-    assert "- Still running; its report arrives in this chat as a message: Rebuild the worker image" in prompt
+    assert (
+        "- Its report, saying how it ended, arrives in this chat as a message (the switch stopped it if it was still "
+        "running): Rebuild the worker image"
+    ) in prompt
 
 
 def test_the_prompt_leaves_out_a_seeded_chats_seed_segment(tmp_path: Path) -> None:

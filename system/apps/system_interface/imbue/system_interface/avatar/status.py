@@ -11,11 +11,9 @@ error. Past ten minutes (twice the snapshot interval) the status is stale; a mis
 
 An agent that ends its turn to wait on a background task reads WAITING to mngr, but the task's completion will start
 its next turn, so its chat is busy and the avatar keeps working. The markers are read through
-``system/scripts/background_tasks.py``, loaded by path so the scripts directory's generic module names stay off
-``sys.path``; a marker whose process has died is skipped, which the periodic re-check picks up.
+``chat_background_tasks``; a marker whose process has died is skipped, which the periodic re-check picks up.
 """
 
-import importlib.util
 import json
 import os
 import re
@@ -27,10 +25,10 @@ from datetime import timedelta
 from datetime import timezone
 from enum import auto
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 from typing import Final
 
+from chat_background_tasks import markers
 from loguru import logger
 from pydantic import Field
 from pydantic import PrivateAttr
@@ -56,7 +54,6 @@ DEFAULT_MNGR_HOST_DIRNAME: Final[str] = ".mngr"
 AGENT_EVENTS_RELATIVE_PATH: Final[Path] = Path("events") / "mngr" / "agents" / "events.jsonl"
 PRIMARY_LABEL_KEY: Final[str] = "is_primary"
 WORKING_AGENT_STATES: Final[frozenset[str]] = frozenset({"RUNNING", "RUNNING_UNKNOWN_AGENT_TYPE"})
-BACKGROUND_TASKS_SCRIPT: Final[Path] = WORKSPACE_ROOT_DIRECTORY / "system" / "scripts" / "background_tasks.py"
 # Twice the observer's snapshot interval.
 STALE_AFTER: Final[timedelta] = timedelta(minutes=10)
 
@@ -71,17 +68,6 @@ STALE_CHECK_INTERVAL_SECONDS: Final[float] = 30.0
 _TIMESTAMP_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$"
 )
-
-
-def _load_background_tasks() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("background_tasks_for_avatar", BACKGROUND_TASKS_SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-_background_tasks: Final[ModuleType] = _load_background_tasks()
 
 
 class AgentEventType(UpperCaseStrEnum):
@@ -125,12 +111,12 @@ def agent_events_path_from_environment() -> Path:
 
 def background_tasks_root_from_environment() -> Path:
     """The directory the chats' background task markers live under, by this process's environment."""
-    return _background_tasks.marker_root(os.environ)
+    return markers.marker_root(os.environ, WORKSPACE_ROOT_DIRECTORY)
 
 
 def is_any_chat_busy(background_tasks_root: Path) -> bool:
     """Whether any chat has a live background task marker, one whose process is still alive."""
-    return bool(_background_tasks.live_tasks_by_chat(background_tasks_root))
+    return bool(markers.live_tasks_by_chat(background_tasks_root))
 
 
 @pure

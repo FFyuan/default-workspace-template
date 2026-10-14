@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 import pytest
+from chat_background_tasks.listing import chats_from_agents_payload
 from flask import Flask
 from flask.testing import FlaskClient
 from mngr_cli_contract.contract import assert_mngr_argv_valid
@@ -225,7 +226,7 @@ def test_the_agent_and_chat_listings_carry_each_chats_busy_verdict_and_pending_t
     }
     (task,) = by_id["agent-waiting"]["background_tasks"]
     assert (task["source"], task["id"], task["pid"]) == ("run_in_background", "task-1", os.getpid())
-    parsed = {chat.chat_id: chat for chat in reader.script.chats_from_agents_payload(agents_payload)}
+    parsed = {chat.chat_id: chat for chat in chats_from_agents_payload(agents_payload)}
     assert [task.id for task in parsed["agent-waiting"].tasks] == ["task-1"]
     assert parsed["agent-turn"].is_busy and not parsed["agent-turn"].tasks
 
@@ -240,6 +241,7 @@ def test_the_agent_and_chat_listings_carry_each_chats_busy_verdict_and_pending_t
         {
             "id": "task-1",
             "source": "run_in_background",
+            "harness": "",
             "kind": "",
             "description": "Rebuild the worker image",
             "started_at": "2026-10-08T12:00:00+00:00",

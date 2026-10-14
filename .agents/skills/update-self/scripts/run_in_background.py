@@ -27,8 +27,8 @@ While the command runs, the chat it reports to is busy: before this script retur
 process has a marker in ``data/.apps/chat/background_tasks/<chat-id>/`` naming the run, which the
 chat app reads to show the chat as waiting on a background task rather than done. The marker goes
 once the report is delivered or given up on, and a marker whose runner has died is ignored.
-``system/scripts/background_tasks.py`` reads them, and pins this script's copy of their layout to
-its own. Each run's marker is named for its task directory and its runner's pid, so two runs
+``system/libs/chat_background_tasks`` reads them, and a test pins this script's copy of their
+layout to its own. Each run's marker is named for its task directory and its runner's pid, so two runs
 sharing a ``--task-dir`` each keep their own.
 
 ``--keep-host-awake`` touches the caller's agent activity file every minute while the command
@@ -89,8 +89,8 @@ RUNNER_LOG_FILE_NAME = "runner.log"
 
 MESSAGE_CHAT_REL = Path("system") / "scripts" / "message_chat.py"
 
-# The marker layout ``system/scripts/background_tasks.py`` reads, copied because update-self's
-# staged copy runs in trees that may predate that module; a test pins the two together.
+# The marker layout ``system/libs/chat_background_tasks`` reads, copied because update-self's
+# staged copy runs in trees that may predate that library; a test pins the two together.
 MARKER_ROOT_ENV = "MINDS_BACKGROUND_TASKS_DIR"
 DEFAULT_MARKER_ROOT = Path("data") / ".apps" / "chat" / "background_tasks"
 MARKER_SOURCE = "run_in_background"

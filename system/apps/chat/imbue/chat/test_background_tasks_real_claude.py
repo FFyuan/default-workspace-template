@@ -167,17 +167,17 @@ def test_a_claude_turn_that_ends_on_a_background_bash_command_leaves_its_chat_wa
             )
             assert run.poll() is None, f"claude exited before its command finished:\n{run.communicate()[0]}"
             (task,) = _chat(workspace.chat_url)["active_agent"]["background_tasks"]
-            assert (task["source"], task["kind"]) == ("claude", "shell")
-            (marker_path,) = (marker_root / FIXTURE_AGENT_ID).glob("claude-*.json")
+            assert (task["source"], task["harness"], task["kind"]) == ("harness", "claude", "shell")
+            (marker_path,) = (marker_root / FIXTURE_AGENT_ID).glob("harness-claude-*.json")
             marker = json.loads(marker_path.read_text())
             assert marker["pid"] == run.pid
             assert marker["command"] == f"sleep {_COMMAND_SECONDS}"
-            assert marker_path.name == f"claude-{task['id']}.json"
+            assert marker_path.name == f"harness-claude-{task['id']}.json"
 
             output, _ = run.communicate(timeout=_RUN_TIMEOUT_SECONDS)
             assert run.returncode == 0, output
             # The command's completion started a turn, whose Stop handed over no tasks.
-            assert list((marker_root / FIXTURE_AGENT_ID).glob("claude-*.json")) == []
+            assert list((marker_root / FIXTURE_AGENT_ID).glob("harness-claude-*.json")) == []
             wait_for(lambda: _chat(workspace.chat_url)["status"] == "idle", timeout=3.0, poll_interval=0.1)
             assert task["id"] in _finished_task_ids_in_transcript(session_id)
         finally:

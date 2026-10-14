@@ -143,9 +143,9 @@ A chat is busy when its agent will resume on its own: a turn is in flight, or a
 background task is pending whose completion starts one. The pending tasks are
 one marker file each under `data/.apps/chat/background_tasks/<chat-id>/`,
 written by `system/scripts/run_in_background.py` and by Claude's Stop hook, and
-read through `system/scripts/background_tasks.py` (`background_tasks.py` here
-loads it by path; it creates the directory's root at startup so the shell's
-avatar can watch it). The state poller reads each chat's directory beside its
+read through the `system/libs/chat_background_tasks` library (`background_tasks.py`
+here wraps it, and creates the directory's root at startup so the shell's avatar
+can watch it). The state poller reads each chat's directory beside its
 agent's model-state file, re-reads it when its entries change, and rechecks the
 pids of every chat with markers on each pass, so a killed runner returns its
 chat to idle within a second. In a chat whose transcript this app is tailing
@@ -169,10 +169,14 @@ the recompute that sees a turn end reads its chat's markers before it publishes
 the end (the Stop hook writes them before mngr clears the `active` marker), so a
 turn that ends to wait reads `background` at once, never `idle` first. The tasks
 are the chat's, so a handoff moves nothing: the successor reads the same
-directory. The switch dialog says what the switch does to the tasks: the agent's
-own (Claude's) stop with it, and commands started through the runner keep
-running and report to the chat. The handoff prompt tells the successor which
-was which. The memory prioritizer treats a busy chat as mid-turn.
+directory. A switch stops the agent, which ends its tasks: the harness's own end
+unreported, while the runner reports how its command ended to the chat. The
+handoff prompt tells the successor which was which, and a Claude that resumes
+after a restart (a rebind, or any other) is told by its SessionStart hook which
+of its own tasks the restart ended. The memory prioritizer treats a chat waiting
+on one of the harness's own tasks as mid-turn; one waiting only on runner
+commands ages as an idle chat does, since its runner outlives a shed of the
+agent's process and its report revives the chat.
 
 A chat is a sequence of agent transcripts run by one agent at a time
 (`docs/system/blueprint/chat-agent-split/`); its id is its first agent's id, a

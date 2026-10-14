@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import auto
 from pathlib import Path
 
+from chat_background_tasks.markers import TaskSource
 from pydantic import Field
 from pydantic import SecretStr
 
@@ -528,8 +529,9 @@ class BackgroundTaskSnapshot(FrozenModel):
     """One pending background task as the chat pages show it."""
 
     id: str = Field(description="The task's id within its source")
-    source: str = Field(description="Who wrote the task's marker: run_in_background, or claude")
-    kind: str = Field(description="Claude's task type; '' otherwise")
+    source: TaskSource = Field(description="Who recorded it: run_in_background, or harness (the harness's own)")
+    harness: str = Field(description="The harness that recorded a harness task; '' otherwise")
+    kind: str = Field(description="The harness's type for a harness task; '' otherwise")
     description: str = Field(description="What the task is, as its writer described it")
     started_at: str = Field(
         description="When the task started (ISO 8601, UTC); for a Claude task, when its Stop hook first recorded "

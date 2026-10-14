@@ -11,8 +11,8 @@ It joins three sources, each read independently so one failing leaves the others
 - agents, from ``mngr list --provider local`` rendered through a ``--format`` template: a chat
   (``user_created``) or worker (``agent_created``) whose state is ``WAITING``, whose chat is not
   busy, and whose latest activity is at least ``IDLE_AFTER_SECONDS`` old. A chat is busy while a
-  background task will wake its agent, which ``system/scripts/background_tasks.py`` reads from the
-  chats' marker files (loaded by path; a tree without it has no busy chats). Its memory is the
+  background task will wake its agent, which ``chat_background_tasks`` reads from the chats'
+  marker files. Its memory is the
   summed RSS of its process trees, rooted at the pid mngr reports plus every live pid the
   agent-pid registry holds for it;
 - browsers, from the browser service's ``GET /browsers``: a ``running`` browser that no desktop
@@ -22,13 +22,12 @@ It joins three sources, each read independently so one failing leaves the others
 A source that cannot be read is reported as unknown (``null`` candidates plus a note), never as
 "nothing to stop".
 
-Self-contained beyond the stdlib-only ``oom_priority`` package (imported via a ``sys.path``
-insert), so it runs under a plain ``python3``.
+Self-contained beyond the stdlib-only ``oom_priority`` and ``chat_background_tasks`` packages
+(imported via ``sys.path`` inserts), so it runs under a plain ``python3``.
 """
 
 import argparse
 import http.client
-import importlib.util
 import json
 import os
 import subprocess
@@ -39,13 +38,15 @@ import urllib.request
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Final, NamedTuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(
-    0, str(Path(__file__).resolve().parents[1] / "src")
+    0,
+    str(Path(__file__).resolve().parents[3] / "libs" / "chat_background_tasks" / "src"),
 )
 
+from chat_background_tasks import markers
 from oom_priority import app_registry
 from oom_priority.agent_identity import (
     CHAT_LABEL,
@@ -123,10 +124,11 @@ MEMINFO_FALLBACK_FIELD: Final[str] = "MemFree"
 MEMINFO_TOTAL_FIELD: Final[str] = "MemTotal"
 RSS_STATUS_FIELD: Final[str] = "VmRSS"
 KIB_PER_MIB: Final[int] = 1024
-README_SECTION: Final[str] = 'system/services/oom_priority/README.md, "Memory candidates"'
+README_SECTION: Final[str] = (
+    'system/services/oom_priority/README.md, "Memory candidates"'
+)
 
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[4]
-BACKGROUND_TASKS_SCRIPT: Final[Path] = _REPO_ROOT / "system" / "scripts" / "background_tasks.py"
 _PROC_DIR: Final[Path] = Path("/proc")
 
 RunCommand = Callable[[Sequence[str], float], "subprocess.CompletedProcess[str]"]
@@ -235,7 +237,11 @@ def read_free_memory(meminfo_path: Path) -> FreeMemory | None:
             values_kib[key.strip()] = int(fields[0])
     for field in (MEMINFO_PREFERRED_FIELD, MEMINFO_FALLBACK_FIELD):
         if field in values_kib:
-            return FreeMemory(field=field, free_kib=values_kib[field], total_kib=values_kib.get(MEMINFO_TOTAL_FIELD))
+            return FreeMemory(
+                field=field,
+                free_kib=values_kib[field],
+                total_kib=values_kib.get(MEMINFO_TOTAL_FIELD),
+            )
     return None
 
 
@@ -266,7 +272,11 @@ def process_trees_rss_kib(root_pids: Iterable[int], proc_dir: Path) -> int | Non
     for root in root_pids:
         pids.add(root)
         pids.update(list_descendant_pids(root, proc_dir=proc_dir))
-    readings = [rss for rss in (read_rss_kib(pid, proc_dir) for pid in sorted(pids)) if rss is not None]
+    readings = [
+        rss
+        for rss in (read_rss_kib(pid, proc_dir) for pid in sorted(pids))
+        if rss is not None
+    ]
     return sum(readings) if readings else None
 
 
@@ -285,7 +295,8 @@ def parse_listed_agent(line: str) -> ListedAgent | None:
     activity_times = [
         parsed
         for parsed in (
-            _parse_timestamp(values[field]) for field in ("user_activity_time", "agent_activity_time", "start_time")
+            _parse_timestamp(values[field])
+            for field in ("user_activity_time", "agent_activity_time", "start_time")
         )
         if parsed is not None
     ]
@@ -305,7 +316,9 @@ def parse_listed_agent(line: str) -> ListedAgent | None:
     )
 
 
-def run_mngr_list(run_command: RunCommand) -> tuple[list[ListedAgent] | None, list[str]]:
+def run_mngr_list(
+    run_command: RunCommand,
+) -> tuple[list[ListedAgent] | None, list[str]]:
     """The agents ``mngr list`` rendered, or None when it could not tell, plus notes on what went wrong.
 
     With ``--on-error continue`` mngr still renders every agent it could list when something fails,
@@ -328,10 +341,16 @@ def run_mngr_list(run_command: RunCommand) -> tuple[list[ListedAgent] | None, li
             agents.append(agent)
     notes: list[str] = []
     if result.returncode != 0:
-        stderr_lines = [line.strip() for line in result.stderr.splitlines() if line.strip()]
-        notes.append(f"mngr list exited {result.returncode}: {'; '.join(stderr_lines) or 'no output'}")
+        stderr_lines = [
+            line.strip() for line in result.stderr.splitlines() if line.strip()
+        ]
+        notes.append(
+            f"mngr list exited {result.returncode}: {'; '.join(stderr_lines) or 'no output'}"
+        )
     if unparsed:
-        notes.append(f"{len(unparsed)} line(s) of `mngr list` output did not parse as an agent, first: {unparsed[0]!r}")
+        notes.append(
+            f"{len(unparsed)} line(s) of `mngr list` output did not parse as an agent, first: {unparsed[0]!r}"
+        )
     is_unknown = not agents and (result.returncode != 0 or bool(unparsed))
     return (None if is_unknown else agents), notes
 
@@ -371,7 +390,11 @@ def idle_agent_candidates(
     candidates: list[AgentCandidate] = []
     for agent in agents:
         kind = agent_kind(agent.labels)
-        if kind is None or agent.state != IDLE_AGENT_STATE or agent.last_activity is None:
+        if (
+            kind is None
+            or agent.state != IDLE_AGENT_STATE
+            or agent.last_activity is None
+        ):
             continue
         idle_seconds = (now - agent.last_activity).total_seconds()
         if idle_seconds < IDLE_AFTER_SECONDS or is_chat_busy(agent.chat_id):
@@ -391,18 +414,27 @@ def idle_agent_candidates(
                 last_activity=agent.last_activity,
                 idle_seconds=idle_seconds,
                 pids=tuple(sorted(root_pids)),
-                rss_kib=process_trees_rss_kib(root_pids, proc_dir) if root_pids else None,
+                rss_kib=process_trees_rss_kib(root_pids, proc_dir)
+                if root_pids
+                else None,
             )
         )
-    return sorted(candidates, key=lambda c: (c.rss_kib is None, -(c.rss_kib or 0), -c.idle_seconds))
+    return sorted(
+        candidates,
+        key=lambda c: (c.rss_kib is None, -(c.rss_kib or 0), -c.idle_seconds),
+    )
 
 
 def collect_agent_section(sources: Sources) -> AgentSection:
     agents, notes = run_mngr_list(sources.run_command)
     if agents is None:
         return AgentSection(candidates=None, notes=tuple(notes))
-    registry_pids = live_pids_by_agent_id(is_alive=lambda pid: (sources.proc_dir / str(pid)).is_dir())
-    candidates = idle_agent_candidates(agents, registry_pids, sources.proc_dir, sources.now, sources.is_chat_busy)
+    registry_pids = live_pids_by_agent_id(
+        is_alive=lambda pid: (sources.proc_dir / str(pid)).is_dir()
+    )
+    candidates = idle_agent_candidates(
+        agents, registry_pids, sources.proc_dir, sources.now, sources.is_chat_busy
+    )
     return AgentSection(candidates=tuple(candidates), notes=tuple(notes))
 
 
@@ -427,7 +459,9 @@ def browser_names_shown_by_windows(desktops: Any) -> set[str] | None:
         return None
     shown: set[str] = set()
     for desktop in desktops["desktops"]:
-        if not isinstance(desktop, dict) or not isinstance(desktop.get("windows"), list):
+        if not isinstance(desktop, dict) or not isinstance(
+            desktop.get("windows"), list
+        ):
             return None
         for window in desktop["windows"]:
             if not isinstance(window, dict):
@@ -438,13 +472,18 @@ def browser_names_shown_by_windows(desktops: Any) -> set[str] | None:
                 not isinstance(window.get("app"), str)
                 or not isinstance(window_path, str)
                 or not isinstance(client_paths, dict)
-                or not all(isinstance(client_path, str) for client_path in client_paths.values())
+                or not all(
+                    isinstance(client_path, str)
+                    for client_path in client_paths.values()
+                )
             ):
                 return None
             if window["app"] != BROWSER_APP_NAME:
                 continue
             for path in (window_path, *client_paths.values()):
-                values = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query).get(BROWSER_SESSION_QUERY_KEY)
+                values = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query).get(
+                    BROWSER_SESSION_QUERY_KEY
+                )
                 if values:
                     shown.add(values[0])
     return shown
@@ -466,7 +505,11 @@ def chromium_pids_for_browser(browser_name: str, proc_dir: Path) -> tuple[int, .
             argv = (entry / "cmdline").read_bytes().decode(errors="replace").split("\0")
         except OSError:
             continue
-        if any(arg.startswith(USER_DATA_DIR_FLAG) and arg.rstrip("/").endswith(profile_suffix) for arg in argv):
+        if any(
+            arg.startswith(USER_DATA_DIR_FLAG)
+            and arg.rstrip("/").endswith(profile_suffix)
+            for arg in argv
+        ):
             pids.append(int(entry.name))
     return tuple(sorted(pids))
 
@@ -474,7 +517,9 @@ def chromium_pids_for_browser(browser_name: str, proc_dir: Path) -> tuple[int, .
 def _browser_controller(browser: Mapping[str, Any]) -> str:
     """Who controls the browser, in the fleet CLI's ``ls`` words."""
     if browser.get("controller") == "agent":
-        return f"agent {browser.get('owner_name') or browser.get('owner_agent_id') or '?'}"
+        return (
+            f"agent {browser.get('owner_name') or browser.get('owner_agent_id') or '?'}"
+        )
     return "human" if browser.get("human_pinned") else "free"
 
 
@@ -485,12 +530,19 @@ def unviewed_browser_candidates(
     candidates: list[BrowserCandidate] = []
     for browser in browsers:
         name = browser.get("id")
-        if not isinstance(name, str) or browser.get("lifecycle") != BROWSER_RUNNING_LIFECYCLE:
+        if (
+            not isinstance(name, str)
+            or browser.get("lifecycle") != BROWSER_RUNNING_LIFECYCLE
+        ):
             continue
         if name in shown_names:
             continue
         raw_tabs = browser.get("tabs")
-        tabs = [tab for tab in raw_tabs if isinstance(tab, dict)] if isinstance(raw_tabs, list) else []
+        tabs = (
+            [tab for tab in raw_tabs if isinstance(tab, dict)]
+            if isinstance(raw_tabs, list)
+            else []
+        )
         active = next((tab for tab in tabs if tab.get("active")), None)
         active_url = active.get("url") if active is not None else None
         pids = chromium_pids_for_browser(name, proc_dir)
@@ -499,7 +551,9 @@ def unviewed_browser_candidates(
                 name=name,
                 controller=_browser_controller(browser),
                 tab_count=len(tabs),
-                active_url=active_url if isinstance(active_url, str) and active_url else None,
+                active_url=active_url
+                if isinstance(active_url, str) and active_url
+                else None,
                 pids=pids,
                 rss_kib=process_trees_rss_kib(pids, proc_dir) if pids else None,
             )
@@ -518,12 +572,21 @@ def collect_browser_section(sources: Sources) -> BrowserSection:
     fleet_url = f"{sources.browser_service_url}/browsers"
     fleet, fleet_error = _fetch(sources.fetch_json, fleet_url)
     if fleet_error is not None:
-        return BrowserSection(None, (f"could not reach the browser service at {fleet_url}: {fleet_error}",))
+        return BrowserSection(
+            None,
+            (f"could not reach the browser service at {fleet_url}: {fleet_error}",),
+        )
     browsers = fleet.get("browsers") if isinstance(fleet, dict) else None
     if not isinstance(browsers, list):
-        return BrowserSection(None, (f"the browser service at {fleet_url} answered without a browsers list",))
+        return BrowserSection(
+            None,
+            (f"the browser service at {fleet_url} answered without a browsers list",),
+        )
     browser_records = [browser for browser in browsers if isinstance(browser, dict)]
-    if not any(browser.get("lifecycle") == BROWSER_RUNNING_LIFECYCLE for browser in browser_records):
+    if not any(
+        browser.get("lifecycle") == BROWSER_RUNNING_LIFECYCLE
+        for browser in browser_records
+    ):
         return BrowserSection((), ())
 
     # Only a running browser holds memory, and only the shell knows which ones a window shows.
@@ -533,9 +596,14 @@ def collect_browser_section(sources: Sources) -> BrowserSection:
     if shown is None:
         reason = desktops_error or "not a desktops document"
         return BrowserSection(
-            None, (f"could not read the shell's windows at {desktops_url} ({reason}), so which browsers no window shows is unknown",)
+            None,
+            (
+                f"could not read the shell's windows at {desktops_url} ({reason}), so which browsers no window shows is unknown",
+            ),
         )
-    return BrowserSection(tuple(unviewed_browser_candidates(browser_records, shown, sources.proc_dir)), ())
+    return BrowserSection(
+        tuple(unviewed_browser_candidates(browser_records, shown, sources.proc_dir)), ()
+    )
 
 
 # The report
@@ -563,7 +631,12 @@ def report_to_json(report: Report) -> dict[str, object]:
         "idle_after_seconds": IDLE_AFTER_SECONDS,
         "free_memory": None
         if free is None
-        else {"field": free.field, "free_kib": free.free_kib, "total_kib": free.total_kib, "source": "/proc/meminfo"},
+        else {
+            "field": free.field,
+            "free_kib": free.free_kib,
+            "total_kib": free.total_kib,
+            "source": "/proc/meminfo",
+        },
         "agents": {
             "candidates": None
             if agents is None
@@ -619,7 +692,10 @@ def _duration(seconds: float) -> str:
 
 def _table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> list[str]:
     widths = [max(len(cell) for cell in column) for column in zip(header, *rows)]
-    return ["  " + "  ".join(cell.ljust(width) for cell, width in zip(row, widths)).rstrip() for row in (header, *rows)]
+    return [
+        "  " + "  ".join(cell.ljust(width) for cell, width in zip(row, widths)).rstrip()
+        for row in (header, *rows)
+    ]
 
 
 def render_table(report: Report) -> str:
@@ -628,8 +704,14 @@ def render_table(report: Report) -> str:
     if free is None:
         lines.append("Free memory: unknown (no readable /proc/meminfo)")
     else:
-        total = "" if free.total_kib is None else f"; {MEMINFO_TOTAL_FIELD} {_mib(free.total_kib)}"
-        lines.append(f"Free memory: {_mib(free.free_kib)} ({free.field} from /proc/meminfo{total})")
+        total = (
+            ""
+            if free.total_kib is None
+            else f"; {MEMINFO_TOTAL_FIELD} {_mib(free.total_kib)}"
+        )
+        lines.append(
+            f"Free memory: {_mib(free.free_kib)} ({free.field} from /proc/meminfo{total})"
+        )
 
     lines += [
         "",
@@ -650,7 +732,9 @@ def render_table(report: Report) -> str:
                     agent.name,
                     agent.display_name or "-",
                     _duration(agent.idle_seconds),
-                    agent.last_activity.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                    agent.last_activity.astimezone(timezone.utc).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
                     _mib(agent.rss_kib),
                 )
                 for agent in agents
@@ -668,7 +752,13 @@ def render_table(report: Report) -> str:
         lines += _table(
             ("NAME", "CONTROLLER", "TABS", "ACTIVE PAGE", "MEMORY"),
             [
-                (browser.name, browser.controller, str(browser.tab_count), browser.active_url or "-", _mib(browser.rss_kib))
+                (
+                    browser.name,
+                    browser.controller,
+                    str(browser.tab_count),
+                    browser.active_url or "-",
+                    _mib(browser.rss_kib),
+                )
                 for browser in browsers
             ],
         )
@@ -685,8 +775,12 @@ def render_table(report: Report) -> str:
 # Entry point
 
 
-def _run_command(argv: Sequence[str], timeout_seconds: float) -> "subprocess.CompletedProcess[str]":
-    return subprocess.run(list(argv), capture_output=True, text=True, timeout=timeout_seconds, check=False)
+def _run_command(
+    argv: Sequence[str], timeout_seconds: float
+) -> "subprocess.CompletedProcess[str]":
+    return subprocess.run(
+        list(argv), capture_output=True, text=True, timeout=timeout_seconds, check=False
+    )
 
 
 def resolve_browser_service_url() -> str:
@@ -697,31 +791,27 @@ def resolve_browser_service_url() -> str:
     registry = app_registry.registry_path()
     if not registry.is_absolute():
         registry = _REPO_ROOT / registry
-    return app_registry.read_app_url(registry, BROWSER_APP_NAME) or DEFAULT_BROWSER_SERVICE_URL
+    return (
+        app_registry.read_app_url(registry, BROWSER_APP_NAME)
+        or DEFAULT_BROWSER_SERVICE_URL
+    )
 
 
-def _load_background_tasks(script: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location("background_tasks_for_memory_candidates", script)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def busy_chat_check(script: Path, environ: Mapping[str, str]) -> IsChatBusy:
-    """Whether a chat has a live background task, from its marker files; never, in a tree without the reader."""
-    if not script.is_file():
-        return lambda chat_id: False
-    background_tasks = _load_background_tasks(script)
-    root = background_tasks.marker_root(environ)
-    return lambda chat_id: background_tasks.is_busy(root, chat_id)
+def busy_chat_check(environ: Mapping[str, str]) -> IsChatBusy:
+    """Whether a chat has a live background task, from its marker files."""
+    root = markers.marker_root(environ, _REPO_ROOT)
+    return lambda chat_id: markers.is_busy(root, chat_id)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="List idle chats and workers, and browsers no window shows, alongside free memory. Stops nothing."
     )
-    parser.add_argument("--json", action="store_true", help="Print the report as JSON instead of a table")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the report as JSON instead of a table",
+    )
     args = parser.parse_args()
     sources = Sources(
         proc_dir=_PROC_DIR,
@@ -730,10 +820,14 @@ def main() -> None:
         browser_service_url=resolve_browser_service_url(),
         shell_url=os.environ.get(ENV_SHELL_URL, DEFAULT_SHELL_URL).rstrip("/"),
         now=datetime.now(timezone.utc),
-        is_chat_busy=busy_chat_check(BACKGROUND_TASKS_SCRIPT, os.environ),
+        is_chat_busy=busy_chat_check(os.environ),
     )
     report = collect_report(sources)
-    output = json.dumps(report_to_json(report), indent=2) + "\n" if args.json else render_table(report)
+    output = (
+        json.dumps(report_to_json(report), indent=2) + "\n"
+        if args.json
+        else render_table(report)
+    )
     sys.stdout.write(output)
 
 

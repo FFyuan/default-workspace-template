@@ -320,6 +320,7 @@ describe("ActivityIndicator — what the strip actually renders", () => {
       {
         id: "task-1",
         source: "run_in_background",
+        harness: "",
         kind: "",
         description: "Rebuild the worker image",
         started_at: "2027-01-15T08:00:00Z",

@@ -49,6 +49,7 @@ from imbue.chat.testing import RecordingMngrMessenger
 from imbue.chat.testing import RunningWorkspace
 from imbue.chat.testing import SummaryWritingMngrMessenger
 from imbue.chat.testing import is_e2e_browser_installed
+from imbue.chat.testing import remove_background_task_marker
 from imbue.chat.testing import running_workspace
 from imbue.chat.testing import seed_agent_state
 from imbue.chat.testing import write_background_task_marker
@@ -388,8 +389,8 @@ def test_a_chat_waiting_on_background_tasks_shows_the_wait_in_the_list_and_the_s
         page.emulate_media(reduced_motion="reduce")
         assert ring.evaluate("e => getComputedStyle(e).animationName") == "none"
 
-        reader.script.remove_marker(reader.root, FIXTURE_AGENT_ID, "run_in_background", "build")
-        reader.script.remove_marker(reader.root, FIXTURE_AGENT_ID, "run_in_background", "migrate")
+        remove_background_task_marker(reader, FIXTURE_AGENT_ID, "build")
+        remove_background_task_marker(reader, FIXTURE_AGENT_ID, "migrate")
         expect(row).to_have_attribute("data-status", "idle", timeout=15000)
         expect(_chat(page).locator(".background-tasks-line")).to_have_count(0)
 

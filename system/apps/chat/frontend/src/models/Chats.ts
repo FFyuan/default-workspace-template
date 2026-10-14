@@ -46,13 +46,19 @@ export interface ActiveAgent {
   background_tasks: BackgroundTask[];
 }
 
+/** Who recorded a background task: the workspace's runner (``run_in_background.py``), which outlives the agent and
+ *  reports how its command ended to the chat, or the harness's own task list, whose tasks end with the agent's
+ *  process, unreported. */
+export type BackgroundTaskSource = "run_in_background" | "harness";
+
 /** One background task a chat waits on (the backend's ``BackgroundTaskSnapshot``): a command the agent
  *  started whose completion will start its next turn. */
 export interface BackgroundTask {
   id: string;
-  // Who recorded it: "run_in_background" (the workspace's runner) or "claude" (Claude's own task list).
-  source: string;
-  // Claude's task type; empty for the runner's.
+  source: BackgroundTaskSource;
+  // The harness that recorded a "harness" task ("claude", ...); empty for the runner's.
+  harness: string;
+  // The harness's type for a "harness" task; empty for the runner's.
   kind: string;
   description: string;
   // When it started (ISO 8601, UTC); for Claude's, when its Stop hook first recorded it, at the end of the

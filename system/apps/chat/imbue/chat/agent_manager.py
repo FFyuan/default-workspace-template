@@ -15,6 +15,7 @@ from typing import Final
 from typing import Self
 from uuid import uuid4
 
+from chat_background_tasks.markers import TaskSource
 from loguru import logger as _loguru_logger
 from oom_priority.bands import set_oom_score_adj
 from oom_priority.registry import lookup_pid_by_agent_id
@@ -537,7 +538,12 @@ def chat_status_for_agent(
 @pure
 def background_task_snapshot(task: BackgroundTask) -> BackgroundTaskSnapshot:
     return BackgroundTaskSnapshot(
-        id=task.id, source=task.source, kind=task.kind, description=task.description, started_at=task.started_at
+        id=task.id,
+        source=task.source,
+        harness=task.harness,
+        kind=task.kind,
+        description=task.description,
+        started_at=task.started_at,
     )
 
 
@@ -3810,10 +3816,16 @@ class AgentManager:
         self._report_mid_turn_chats()
 
     def _report_mid_turn_chats(self) -> None:
-        """Tell the OOM prioritizer which chats are mid-turn: those running a turn, and the busy ones, which a pending
-        background task will wake, so a chat waiting on one is not aged toward the shed."""
+        """Tell the OOM prioritizer which chats are mid-turn: those running a turn, and those waiting on one of the
+        harness's own background tasks, which a shed of the agent's process would end unreported. A chat waiting only
+        on ``run_in_background`` commands ages as an idle one does: the command outlives a shed, and its report
+        revives the chat."""
         with self._lock:
-            mid_turn_ids = self._running_chat_ids | self._background_tasks_by_chat.keys()
+            mid_turn_ids = self._running_chat_ids | {
+                chat_id
+                for chat_id, tasks in self._background_tasks_by_chat.items()
+                if any(task.source is TaskSource.HARNESS for task in tasks)
+            }
         self._oom_prioritizer.record_running_chats(mid_turn_ids)
 
     def _evict_chat_transcripts(self, agent_id: str) -> None:

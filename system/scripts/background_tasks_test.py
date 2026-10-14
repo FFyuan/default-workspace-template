@@ -1,20 +1,20 @@
-"""Tests for background_tasks.py: the markers, the Claude hooks that write them, and the CLI that
-reads them through the chat app or, failing that, the files."""
+"""Tests for background_tasks.py: the Claude hooks as ``.claude/settings.json`` wires them, and the
+CLI that reads the markers through the chat app or, failing that, the files."""
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import socket
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
 import pytest
-from script_modules_testing import background_tasks, run_in_background
+from chat_background_tasks import markers
+from chat_background_tasks.listing import AGENTS_PATH
+from chat_background_tasks.markers import BackgroundTask, TaskSource
 
 _CHAT_ID = "agent-0123456789abcdef0123456789abcdef"
 _OTHER_CHAT_ID = "agent-fedcba9876543210fedcba9876543210"
@@ -22,18 +22,13 @@ _SCRIPT = Path(__file__).parent / "background_tasks.py"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _task(
-    task_id: str,
-    started_at: str,
-    pid: int | None = None,
-    source: str = background_tasks.SOURCE_RUN_IN_BACKGROUND,
-) -> Any:
-    return background_tasks.BackgroundTask(
-        source=source,
+def _task(task_id: str, started_at: str) -> BackgroundTask:
+    return BackgroundTask(
+        source=TaskSource.RUN_IN_BACKGROUND,
         id=task_id,
         description=f"Task {task_id}",
         started_at=started_at,
-        pid=os.getpid() if pid is None else pid,
+        pid=os.getpid(),
     )
 
 
@@ -44,15 +39,9 @@ def _main_claude_env(work_dir: Path, **extra: str) -> dict[str, str]:
         "MNGR_AGENT_WORK_DIR": str(work_dir),
         "CLAUDE_PROJECT_DIR": str(work_dir),
         "CLAUDE_PID": str(os.getpid()),
-        background_tasks.MARKER_ROOT_ENV: os.environ[background_tasks.MARKER_ROOT_ENV],
+        markers.MARKER_ROOT_ENV: os.environ[markers.MARKER_ROOT_ENV],
         **extra,
     }
-
-
-def _stop_input(*entries: dict[str, Any]) -> io.StringIO:
-    return io.StringIO(
-        json.dumps({"hook_event_name": "Stop", "background_tasks": list(entries)})
-    )
 
 
 def _shell_entry(task_id: str, description: str = "tail logs") -> dict[str, Any]:
@@ -63,318 +52,6 @@ def _shell_entry(task_id: str, description: str = "tail logs") -> dict[str, Any]
         "description": description,
         "command": "tail -f log",
     }
-
-
-def test_only_live_well_formed_markers_count_oldest_first(
-    background_task_markers: Path, exited_pid: int
-) -> None:
-    root = background_task_markers
-    background_tasks.write_marker(
-        root, _CHAT_ID, _task("newer", "2026-10-08T10:05:00+00:00")
-    )
-    background_tasks.write_marker(
-        root, _CHAT_ID, _task("older", "2026-10-08T10:00:00+00:00")
-    )
-    background_tasks.write_marker(
-        root, _CHAT_ID, _task("stale", "2026-10-08T09:00:00+00:00", pid=exited_pid)
-    )
-    chat_dir = background_tasks.chat_dir(root, _CHAT_ID)
-    (chat_dir / "run_in_background-garbled.json").write_text("{not json")
-    (chat_dir / "run_in_background-nopid.json").write_text(
-        json.dumps(
-            {
-                "source": "run_in_background",
-                "id": "nopid",
-                "description": "",
-                "started_at": "",
-            }
-        )
-    )
-
-    live = background_tasks.list_live_tasks(root, _CHAT_ID)
-
-    assert [task.id for task in live] == ["older", "newer"]
-    assert background_tasks.is_busy(root, _CHAT_ID)
-    assert not background_tasks.is_busy(root, _OTHER_CHAT_ID)
-    # A reader never deletes a stale marker; its writer does.
-    assert (
-        chat_dir / background_tasks.marker_file_name("run_in_background", "stale")
-    ).exists()
-
-
-def test_a_chat_whose_only_marker_is_stale_is_not_busy_and_not_listed(
-    background_task_markers: Path, exited_pid: int
-) -> None:
-    root = background_task_markers
-    background_tasks.write_marker(
-        root, _CHAT_ID, _task("stale", "2026-10-08T09:00:00+00:00", pid=exited_pid)
-    )
-    background_tasks.write_marker(
-        root, _OTHER_CHAT_ID, _task("live", "2026-10-08T09:00:00+00:00")
-    )
-
-    assert not background_tasks.is_busy(root, _CHAT_ID)
-    assert list(background_tasks.live_tasks_by_chat(root)) == [_OTHER_CHAT_ID]
-
-
-def test_a_rewritten_marker_replaces_the_old_one_and_leaves_no_temp_file(
-    background_task_markers: Path,
-) -> None:
-    root = background_task_markers
-    background_tasks.write_marker(
-        root, _CHAT_ID, _task("one", "2026-10-08T10:00:00+00:00")
-    )
-    replacement = background_tasks.BackgroundTask(
-        source="run_in_background",
-        id="one",
-        description="Renamed",
-        started_at="2026-10-08T10:00:00+00:00",
-        pid=os.getpid(),
-    )
-    background_tasks.write_marker(root, _CHAT_ID, replacement)
-
-    assert background_tasks.list_live_tasks(root, _CHAT_ID) == [replacement]
-    assert [
-        path.name for path in background_tasks.chat_dir(root, _CHAT_ID).iterdir()
-    ] == ["run_in_background-one.json"]
-
-
-def test_a_stop_records_every_waking_kind_and_skips_the_rest(
-    background_task_markers: Path, tmp_path: Path
-) -> None:
-    stdin = _stop_input(
-        _shell_entry("shell-1"),
-        {"id": "monitor-1", "type": "monitor", "description": "watch CI"},
-        {"id": "workflow-1", "type": "workflow", "description": "review"},
-        {"id": "agent-1", "type": "subagent", "description": "explore"},
-        {"id": "cloud-1", "type": "cloud session", "description": "elsewhere"},
-        {"type": "shell", "description": "no id"},
-    )
-
-    assert (
-        background_tasks.main(["record-claude-stop"], _main_claude_env(tmp_path), stdin)
-        == 0
-    )
-
-    live = background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
-    assert {(task.id, task.kind) for task in live} == {
-        ("shell-1", "shell"),
-        ("monitor-1", "monitor"),
-        ("workflow-1", "workflow"),
-        ("agent-1", "subagent"),
-    }
-    assert all(task.source == "claude" and task.pid == os.getpid() for task in live)
-    [shell] = [task for task in live if task.id == "shell-1"]
-    assert (shell.description, shell.command) == ("tail logs", "tail -f log")
-
-
-def test_a_later_stop_keeps_a_listed_tasks_start_and_prunes_the_unlisted_ones(
-    background_task_markers: Path, tmp_path: Path
-) -> None:
-    env = _main_claude_env(tmp_path)
-    root = background_task_markers
-    background_tasks.main(
-        ["record-claude-stop"],
-        env,
-        _stop_input(_shell_entry("kept"), _shell_entry("done")),
-    )
-    [kept_before] = [
-        t for t in background_tasks.list_live_tasks(root, _CHAT_ID) if t.id == "kept"
-    ]
-    background_tasks.write_marker(
-        root, _CHAT_ID, _task("runner", "2026-10-08T10:00:00+00:00")
-    )
-    # Its start is backdated, so a rewrite with a fresh start would show.
-    background_tasks.write_marker(
-        root,
-        _CHAT_ID,
-        background_tasks.BackgroundTask(
-            source="claude",
-            id="kept",
-            description=kept_before.description,
-            started_at="2026-10-08T09:00:00+00:00",
-            pid=kept_before.pid,
-            kind="shell",
-            command=kept_before.command,
-        ),
-    )
-
-    background_tasks.main(
-        ["record-claude-stop"], env, _stop_input(_shell_entry("kept"))
-    )
-
-    live = {task.id: task for task in background_tasks.list_live_tasks(root, _CHAT_ID)}
-    assert set(live) == {"kept", "runner"}
-    assert live["kept"].started_at == "2026-10-08T09:00:00+00:00"
-
-
-def test_a_stop_with_no_task_list_leaves_the_markers_alone(
-    background_task_markers: Path, tmp_path: Path
-) -> None:
-    env = _main_claude_env(tmp_path)
-    background_tasks.main(["record-claude-stop"], env, _stop_input(_shell_entry("one")))
-
-    background_tasks.main(
-        ["record-claude-stop"],
-        env,
-        io.StringIO(json.dumps({"hook_event_name": "Stop"})),
-    )
-    background_tasks.main(["record-claude-stop"], env, io.StringIO("not json"))
-
-    assert [
-        t.id
-        for t in background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
-    ] == ["one"]
-
-
-def test_clearing_removes_only_the_claude_markers(
-    background_task_markers: Path, tmp_path: Path
-) -> None:
-    env = _main_claude_env(tmp_path)
-    root = background_task_markers
-    background_tasks.main(["record-claude-stop"], env, _stop_input(_shell_entry("one")))
-    background_tasks.write_marker(
-        root, _CHAT_ID, _task("runner", "2026-10-08T10:00:00+00:00")
-    )
-
-    assert background_tasks.main(["clear-claude"], env) == 0
-
-    assert [t.source for t in background_tasks.list_live_tasks(root, _CHAT_ID)] == [
-        "run_in_background"
-    ]
-
-
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"MNGR_CLAUDE_SUBAGENT_PROXY_CHILD": "1"},
-        {"MAIN_CLAUDE_SESSION_ID": ""},
-        {"CLAUDE_PROJECT_DIR": "/somewhere/else"},
-        {"MNGR_AGENT_ID": ""},
-        {"CLAUDE_PID": ""},
-    ],
-    ids=[
-        "subagent-proxy-child",
-        "no-main-session",
-        "other-project-dir",
-        "not-an-agent",
-        "no-claude-pid",
-    ],
-)
-def test_a_claude_that_is_not_the_agents_main_session_writes_nothing(
-    background_task_markers: Path, tmp_path: Path, overrides: dict[str, str]
-) -> None:
-    env = _main_claude_env(tmp_path) | overrides
-
-    assert (
-        background_tasks.main(
-            ["record-claude-stop"], env, _stop_input(_shell_entry("one"))
-        )
-        == 0
-    )
-
-    assert not background_task_markers.exists()
-
-
-def test_the_chat_app_stamped_chat_id_keys_the_claude_markers(
-    background_task_markers: Path, tmp_path: Path
-) -> None:
-    env = _main_claude_env(tmp_path, MINDS_CHAT_ID=_OTHER_CHAT_ID)
-
-    background_tasks.main(["record-claude-stop"], env, _stop_input(_shell_entry("one")))
-
-    assert background_tasks.is_busy(background_task_markers, _OTHER_CHAT_ID)
-    assert not background_tasks.is_busy(background_task_markers, _CHAT_ID)
-
-
-def _env_with_recorded_main_claude(
-    tmp_path: Path, main_pid: int, **extra: str
-) -> dict[str, str]:
-    state_dir = tmp_path / "agent-state"
-    state_dir.mkdir(exist_ok=True)
-    (state_dir / background_tasks.CLAUDE_MAIN_PID_FILE_NAME).write_text(f"{main_pid}\n")
-    return _main_claude_env(tmp_path, MNGR_AGENT_STATE_DIR=str(state_dir), **extra)
-
-
-def test_a_nested_claude_neither_records_nor_clears_while_the_main_claude_lives(
-    background_task_markers: Path, tmp_path: Path, live_claude_pid: int
-) -> None:
-    main_env = _main_claude_env(tmp_path, CLAUDE_PID=str(live_claude_pid))
-    background_tasks.main(
-        ["record-claude-stop"], main_env, _stop_input(_shell_entry("main-task"))
-    )
-    nested_env = _env_with_recorded_main_claude(tmp_path, live_claude_pid)
-
-    background_tasks.main(["clear-claude"], nested_env)
-    background_tasks.main(
-        ["record-claude-stop"], nested_env, _stop_input(_shell_entry("nested-task"))
-    )
-
-    assert [
-        task.id
-        for task in background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
-    ] == ["main-task"]
-
-
-@pytest.mark.parametrize("owner", ["exited", "not-claude"])
-def test_a_recorded_main_claude_that_is_gone_does_not_block_its_successor(
-    background_task_markers: Path,
-    tmp_path: Path,
-    exited_pid: int,
-    live_other_pid: int,
-    owner: str,
-) -> None:
-    recorded = exited_pid if owner == "exited" else live_other_pid
-    env = _env_with_recorded_main_claude(tmp_path, recorded)
-
-    background_tasks.main(["record-claude-stop"], env, _stop_input(_shell_entry("one")))
-
-    assert background_tasks.is_busy(background_task_markers, _CHAT_ID)
-
-
-def test_a_stop_leaves_another_live_claudes_markers_and_prunes_dead_ones(
-    background_task_markers: Path,
-    tmp_path: Path,
-    live_claude_pid: int,
-    exited_pid: int,
-) -> None:
-    root = background_task_markers
-    for task_id, pid in (("successor", live_claude_pid), ("gone", exited_pid)):
-        background_tasks.write_marker(
-            root,
-            _CHAT_ID,
-            _task(
-                task_id,
-                "2026-10-08T09:00:00+00:00",
-                pid,
-                background_tasks.SOURCE_CLAUDE,
-            ),
-        )
-
-    background_tasks.main(
-        ["record-claude-stop"], _main_claude_env(tmp_path), _stop_input()
-    )
-
-    assert [task.id for task in background_tasks.read_markers(root / _CHAT_ID)] == [
-        "successor"
-    ]
-
-
-def test_a_stop_does_not_record_a_task_it_lists_as_over(
-    background_task_markers: Path, tmp_path: Path
-) -> None:
-    stdin = _stop_input(
-        _shell_entry("running"),
-        {**_shell_entry("completed"), "status": "completed"},
-        {**_shell_entry("killed"), "status": "killed"},
-    )
-
-    background_tasks.main(["record-claude-stop"], _main_claude_env(tmp_path), stdin)
-
-    assert [
-        task.id
-        for task in background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
-    ] == ["running"]
 
 
 def _wired_command(event: str) -> str:
@@ -389,35 +66,51 @@ def _wired_command(event: str) -> str:
     return command
 
 
-def test_the_wired_claude_hooks_record_a_stop_and_clear_at_the_next_session_start(
-    background_task_markers: Path,
+def _run_wired_hook(
+    event: str, payload: dict[str, Any], env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["sh", "-c", _wired_command(event)],
+        input=json.dumps(payload),
+        text=True,
+        env=env,
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        check=True,
+    )
+
+
+@pytest.mark.parametrize("source", ["resume", "startup"])
+def test_the_wired_claude_hooks_record_a_stop_and_a_restarted_claude_hears_what_it_lost(
+    background_task_markers: Path, source: str
 ) -> None:
-    """Runs the hook commands exactly as ``.claude/settings.json`` spells them, as Claude does."""
-    env = os.environ | _main_claude_env(_REPO_ROOT)
-    stop_input = json.dumps(
-        {"background_tasks": [_shell_entry("one", "Build the site")]}
+    """Runs the hook commands exactly as ``.claude/settings.json`` spells them, as Claude does. A
+    resumed session is the same conversation, so Claude is told which of its tasks the restart
+    ended (SessionStart's stdout is added to its context); a new one starts clean."""
+    old_claude = subprocess.Popen(["sleep", "60"])
+    try:
+        _run_wired_hook(
+            "Stop",
+            {"background_tasks": [_shell_entry("one", "Build the site")]},
+            os.environ | _main_claude_env(_REPO_ROOT, CLAUDE_PID=str(old_claude.pid)),
+        )
+        [task] = markers.list_live_tasks(background_task_markers, _CHAT_ID)
+        assert (task.description, task.pid) == ("Build the site", old_claude.pid)
+    finally:
+        old_claude.kill()
+        old_claude.wait()
+
+    started = _run_wired_hook(
+        "SessionStart",
+        {"hook_event_name": "SessionStart", "source": source},
+        os.environ | _main_claude_env(_REPO_ROOT),
     )
 
-    subprocess.run(
-        ["sh", "-c", _wired_command("Stop")],
-        input=stop_input,
-        text=True,
-        env=env,
-        cwd=_REPO_ROOT,
-        check=True,
-    )
-    [task] = background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
-    assert (task.description, task.pid) == ("Build the site", os.getpid())
-
-    subprocess.run(
-        ["sh", "-c", _wired_command("SessionStart")],
-        input=json.dumps({"hook_event_name": "SessionStart", "source": "resume"}),
-        text=True,
-        env=env,
-        cwd=_REPO_ROOT,
-        check=True,
-    )
-    assert background_tasks.list_live_tasks(background_task_markers, _CHAT_ID) == []
+    assert list(markers.chat_dir(background_task_markers, _CHAT_ID).iterdir()) == []
+    if source == "resume":
+        assert "- Build the site (`tail -f log`)" in started.stdout
+    else:
+        assert started.stdout == ""
 
 
 @pytest.mark.parametrize("event", ["Stop", "SessionStart"])
@@ -459,7 +152,7 @@ def test_list_answers_from_the_chat_app_with_agent_names(
     fake_chat_app: Any, background_task_markers: Path, tmp_path: Path
 ) -> None:
     marker = _task("from-app", "2026-10-08T10:00:00+00:00").to_json()
-    fake_chat_app.get_answers[background_tasks.AGENTS_PATH] = _agents_answer(
+    fake_chat_app.get_answers[AGENTS_PATH] = _agents_answer(
         {
             "id": "agent-active",
             "name": "lead",
@@ -478,7 +171,7 @@ def test_list_answers_from_the_chat_app_with_agent_names(
         },
     )
     # The files disagree; the chat app is the authority while it answers.
-    background_tasks.write_marker(
+    markers.write_marker(
         background_task_markers,
         _OTHER_CHAT_ID,
         _task("on-disk", "2026-10-08T10:00:00+00:00"),
@@ -493,7 +186,7 @@ def test_list_answers_from_the_chat_app_with_agent_names(
 def test_is_busy_counts_a_turn_in_flight_the_chat_app_reports(
     fake_chat_app: Any, tmp_path: Path
 ) -> None:
-    fake_chat_app.get_answers[background_tasks.AGENTS_PATH] = _agents_answer(
+    fake_chat_app.get_answers[AGENTS_PATH] = _agents_answer(
         {
             "id": _CHAT_ID,
             "name": "lead",
@@ -511,10 +204,10 @@ def test_is_busy_counts_a_turn_in_flight_the_chat_app_reports(
 def test_a_chat_app_from_before_the_busy_fields_falls_back_to_the_files(
     fake_chat_app: Any, background_task_markers: Path, tmp_path: Path
 ) -> None:
-    fake_chat_app.get_answers[background_tasks.AGENTS_PATH] = _agents_answer(
+    fake_chat_app.get_answers[AGENTS_PATH] = _agents_answer(
         {"id": _CHAT_ID, "name": "lead", "state": "WAITING"}
     )
-    background_tasks.write_marker(
+    markers.write_marker(
         background_task_markers, _CHAT_ID, _task("on-disk", "2026-10-08T10:00:00+00:00")
     )
 
@@ -543,7 +236,7 @@ def test_an_unreachable_chat_app_falls_back_to_the_files(
         port = probe.getsockname()[1]
     registry.write_text(f'[[apps]]\nname = "chat"\nurl = "http://127.0.0.1:{port}"\n')
     monkeypatch.setenv("MINDS_APPS_FILE", str(registry))
-    background_tasks.write_marker(
+    markers.write_marker(
         background_task_markers, _CHAT_ID, _task("on-disk", "2026-10-08T10:00:00+00:00")
     )
 
@@ -551,86 +244,3 @@ def test_an_unreachable_chat_app_falls_back_to_the_files(
 
     assert listed.stdout.splitlines() == [f"{_CHAT_ID}\t{_CHAT_ID}\t\ttrue\t1"]
     assert _run_cli("is-busy", _OTHER_CHAT_ID, cwd=tmp_path).returncode == 1
-
-
-def test_a_worktrees_markers_resolve_to_the_main_checkout(
-    tmp_path: Path, main_checkout_and_worktree: tuple[Path, Path]
-) -> None:
-    """A worker runs the scripts from its own worktree; its markers must land in the checkout the
-    chat app reads."""
-    main, worktree = main_checkout_and_worktree
-
-    assert background_tasks.main_checkout(worktree) == main.resolve()
-    assert background_tasks.main_checkout(main) == main
-    assert background_tasks.main_checkout(tmp_path) == tmp_path
-
-
-@pytest.mark.skipif(
-    not Path("/proc/self/stat").exists(),
-    reason="needs Linux's /proc/<pid>/stat for a process's start time",
-)
-def test_a_marker_whose_pid_now_belongs_to_another_process_is_stale(
-    background_task_markers: Path,
-) -> None:
-    """After a restart pids are handed out again; a marker naming a recycled pid must not count."""
-    own_start = background_tasks.process_start_time(os.getpid())
-    for task_id, pid_start in (
-        ("same", own_start),
-        ("recycled", str(int(own_start) + 1)),
-    ):
-        background_tasks.write_marker(
-            background_task_markers,
-            _CHAT_ID,
-            background_tasks.BackgroundTask(
-                source="run_in_background",
-                id=task_id,
-                description="",
-                started_at="2026-10-08T10:00:00+00:00",
-                pid=os.getpid(),
-                pid_start=pid_start,
-            ),
-        )
-
-    assert [
-        t.id
-        for t in background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
-    ] == ["same"]
-
-
-def test_a_marker_whose_pid_no_process_can_have_is_stale(
-    background_task_markers: Path,
-) -> None:
-    background_tasks.write_marker(
-        background_task_markers,
-        _CHAT_ID,
-        _task("overflow", "2026-10-08T10:00:00+00:00", pid=2**63),
-    )
-
-    assert background_tasks.list_live_tasks(background_task_markers, _CHAT_ID) == []
-
-
-@pytest.mark.skipif(
-    not Path("/proc/self/stat").exists(),
-    reason="needs Linux's /proc/<pid>/stat for a process's start time",
-)
-def test_a_process_whose_name_is_not_utf8_still_has_a_start_time(
-    tmp_path: Path,
-) -> None:
-    """The kernel names a process after the file it ran, byte for byte, so a recycled pid can
-    belong to a process whose ``/proc/<pid>/stat`` is not UTF-8."""
-    oddly_named = os.fsencode(tmp_path) + b"/py\xffthon"
-    os.symlink(os.path.realpath(sys.executable), oddly_named)
-    process = subprocess.Popen([oddly_named, "-c", "import time; time.sleep(30)"])
-    try:
-        comm = Path(f"/proc/{process.pid}/comm")
-        deadline = time.monotonic() + 10
-        while not comm.read_bytes().startswith(b"py\xff"):
-            assert time.monotonic() < deadline, "the process never took its name"
-            time.sleep(0.05)
-        assert background_tasks.process_start_time(process.pid) != ""
-        assert run_in_background.process_start_time(
-            process.pid
-        ) == background_tasks.process_start_time(process.pid)
-    finally:
-        process.kill()
-        process.wait()

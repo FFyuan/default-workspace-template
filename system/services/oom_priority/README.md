@@ -344,8 +344,7 @@ It lists:
     next turn, so stopping it would lose work in flight. The chat is the
     agent's `chat_id` label, else the agent's own id, and it is busy while it
     holds a live marker under the chats' marker root, read through
-    `system/scripts/background_tasks.py`. A tree without that script has no
-    busy chats;
+    `system/libs/chat_background_tasks`;
   - has had no activity for `IDLE_AFTER_SECONDS` (15 minutes). Its last
     activity is the latest of mngr's `user_activity_time`, `agent_activity_time`
     and `start_time`. mngr's own `idle_seconds` is not used, because it also

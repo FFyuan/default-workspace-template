@@ -25,14 +25,13 @@ from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
 import pytest
+from chat_background_tasks import markers
+from chat_background_tasks.markers import TaskSource
 from mngr_cli_contract.contract import assert_mngr_argv_valid
 
 _SCRIPT = Path(__file__).parent / "create_worker.py"
 _MESSAGE_CHAT_SCRIPT = (
     Path(__file__).resolve().parents[4] / "system" / "scripts" / "message_chat.py"
-)
-_BACKGROUND_TASKS_SCRIPT = (
-    Path(__file__).resolve().parents[4] / "system" / "scripts" / "background_tasks.py"
 )
 _WORKER_ID = "agent-00000000000000000000000000abcdef"
 _CREATED_EVENT = (
@@ -43,12 +42,6 @@ _spec = importlib.util.spec_from_file_location("create_worker", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 create_worker_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(create_worker_mod)
-_tasks_spec = importlib.util.spec_from_file_location(
-    "background_tasks", _BACKGROUND_TASKS_SCRIPT
-)
-assert _tasks_spec is not None and _tasks_spec.loader is not None
-background_tasks = importlib.util.module_from_spec(_tasks_spec)
-_tasks_spec.loader.exec_module(background_tasks)
 
 
 @dataclass
@@ -2072,11 +2065,11 @@ def test_a_worker_whose_own_chat_is_busy_is_not_idle() -> None:
 
 
 def _write_marker(root: Path, chat_id: str, task_id: str, pid: int) -> None:
-    background_tasks.write_marker(
+    markers.write_marker(
         root,
         chat_id,
-        background_tasks.BackgroundTask(
-            source=background_tasks.SOURCE_RUN_IN_BACKGROUND,
+        markers.BackgroundTask(
+            source=TaskSource.RUN_IN_BACKGROUND,
             id=task_id,
             description="Run the test suite",
             started_at="2026-10-08T09:00:00+00:00",
@@ -2092,7 +2085,7 @@ def test_the_default_busy_check_reads_the_worker_markers(
     background runner writes: a live marker keeps the worker busy, and once it
     is gone -- or its runner has died -- the worker is idle."""
     root = tmp_path / "background_tasks"
-    monkeypatch.setenv(background_tasks.MARKER_ROOT_ENV, str(root))
+    monkeypatch.setenv(markers.MARKER_ROOT_ENV, str(root))
     worker = _unique("worker")
     runner = _RecordingRunner()
     runner.respond(("mngr", "list"), _listing(_agent_record(worker, "WAITING")))
@@ -2104,8 +2097,8 @@ def test_the_default_busy_check_reads_the_worker_markers(
 
     _write_marker(root, _agent_id(worker), "tests", os.getpid())
     assert _is_idle() is False
-    background_tasks.remove_marker(
-        root, _agent_id(worker), background_tasks.SOURCE_RUN_IN_BACKGROUND, "tests"
+    markers.remove_marker(
+        root, _agent_id(worker), TaskSource.RUN_IN_BACKGROUND, "tests"
     )
     assert _is_idle() is True
     exited = subprocess.Popen([sys.executable, "-c", "pass"])
@@ -2117,10 +2110,10 @@ def test_the_default_busy_check_reads_the_worker_markers(
 def test_a_tree_without_the_background_task_reader_reads_not_busy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A launcher in a tree from before ``background_tasks.py`` reads every
-    chat as not busy rather than failing the poll."""
+    """A launcher in a tree from before the ``chat_background_tasks`` library
+    reads every chat as not busy rather than failing the poll."""
     root = tmp_path / "background_tasks"
-    monkeypatch.setenv(background_tasks.MARKER_ROOT_ENV, str(root))
+    monkeypatch.setenv(markers.MARKER_ROOT_ENV, str(root))
     _write_marker(root, "agent-parked", "tests", os.getpid())
     tree = tmp_path / "older-tree"
     (tree / "system" / "scripts").mkdir(parents=True)

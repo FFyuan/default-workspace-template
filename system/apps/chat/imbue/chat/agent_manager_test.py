@@ -117,6 +117,7 @@ from imbue.chat.testing import make_chat_rebind_record
 from imbue.chat.testing import make_two_member_chat_record
 from imbue.chat.testing import observer_holding_the_lock
 from imbue.chat.testing import read_create_defaults_type
+from imbue.chat.testing import remove_background_task_marker
 from imbue.chat.testing import seed_agent_state
 from imbue.chat.testing import seed_failed_chat
 from imbue.chat.testing import wait_until_true
@@ -3503,16 +3504,40 @@ def test_a_marker_makes_an_idle_chat_background_on_the_next_poll_and_its_removal
         ]
         pushed = _last_chats_updated(_drain(client_queue))
         assert pushed is not None and pushed["chats"][0]["status"] == "background"
-        # The memory shedder's prioritizer treats the waiting chat as mid-turn.
-        assert ChatId("agent-1") in manager._oom_prioritizer._running
 
-        reader.script.remove_marker(reader.root, "agent-1", reader.script.SOURCE_RUN_IN_BACKGROUND, "task-1")
+        remove_background_task_marker(reader, "agent-1", "task-1")
         manager._agent_state_poller.poll_once()
 
         (snapshot,) = manager.get_chat_snapshots()
         assert snapshot.status is ChatStatus.IDLE
         assert not snapshot.active_agent.is_busy
         assert snapshot.active_agent.background_tasks == ()
+    finally:
+        manager.stop()
+
+
+def test_only_a_harness_task_keeps_a_waiting_chat_from_ageing_toward_the_memory_shed(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    """A shed kills the chat's agent process. A ``run_in_background`` command outlives it and its report revives the
+    chat, so its wait is no reason to protect the agent; one of the harness's own tasks dies with the process and
+    never reports, so it is."""
+    manager, reader = _manager_reading_tasks(broadcaster, tmp_path)
+    try:
+        seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING", activity_state=ActivityState.IDLE)
+        write_background_task_marker(reader, "agent-1", "runner-task", os.getpid())
+        manager._agent_state_poller.poll_once()
+
+        assert [snapshot.status for snapshot in manager.get_chat_snapshots()] == [ChatStatus.BACKGROUND]
+        assert ChatId("agent-1") not in manager._oom_prioritizer._running
+
+        write_background_task_marker(reader, "agent-1", "claude-task", os.getpid(), harness="claude")
+        manager._agent_state_poller.poll_once()
+
+        assert ChatId("agent-1") in manager._oom_prioritizer._running
+
+        manager.forget_finished_tasks("agent-1", ("claude-task",))
+
         assert ChatId("agent-1") not in manager._oom_prioritizer._running
     finally:
         manager.stop()
@@ -3553,18 +3578,17 @@ def test_a_claude_task_its_transcript_reports_over_stops_counting_with_no_stop_h
     """A turn the user interrupts, or one that fails, runs no Stop hook, so the finished task's marker would stay
     live until Claude's next Stop, or its exit. The transcript's notice of its end removes it."""
     manager, reader = _manager_reading_tasks(broadcaster, tmp_path)
-    claude = reader.script.SOURCE_CLAUDE
     try:
         seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING", activity_state=ActivityState.IDLE)
-        write_background_task_marker(reader, "agent-1", "bg-done", os.getpid(), source=claude)
-        write_background_task_marker(reader, "agent-1", "bg-other", os.getpid(), source=claude)
+        write_background_task_marker(reader, "agent-1", "bg-done", os.getpid(), harness="claude")
+        write_background_task_marker(reader, "agent-1", "bg-other", os.getpid(), harness="claude")
         manager._agent_state_poller.poll_once()
 
         manager.forget_finished_tasks("agent-1", ("bg-done",))
 
         (snapshot,) = manager.get_chat_snapshots()
         assert [task.id for task in snapshot.active_agent.background_tasks] == ["bg-other"]
-        assert not (reader.chat_dir(ChatId("agent-1")) / "claude-bg-done.json").exists()
+        assert not (reader.chat_dir(ChatId("agent-1")) / "harness-claude-bg-done.json").exists()
 
         manager.forget_finished_tasks("agent-1", ("bg-other",))
 
@@ -3598,7 +3622,7 @@ def test_a_slow_marker_read_never_overwrites_a_newer_one(broadcaster: WebSocketB
         broadcaster,
         chat_files_root=tmp_path / "chats",
         chat_record_store=InMemoryChatRecordStore(),
-        background_tasks=_SequencedReader(root=files.root, script=files.script),
+        background_tasks=_SequencedReader(root=files.root),
     )
     try:
         seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING", activity_state=ActivityState.IDLE)

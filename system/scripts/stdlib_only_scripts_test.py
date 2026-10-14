@@ -35,6 +35,16 @@ _SCRIPTS_RUN_WITH_SYSTEM_PYTHON = (
     "tool_env.py",
 )
 
+# The stdlib-only workspace libraries a script may put on ``sys.path`` and import, by package,
+# each held to the same rule.
+_STDLIB_ONLY_LIBRARIES = {
+    "chat_background_tasks": _SCRIPTS_DIR.parent
+    / "libs"
+    / "chat_background_tasks"
+    / "src"
+    / "chat_background_tasks",
+}
+
 
 def _imported_top_level_modules(script: Path) -> set[str]:
     """The first segment of every module the script imports at any depth (a function-local import runs too)."""
@@ -63,6 +73,12 @@ def _modules_outside_the_stdlib(
     for module in _imported_top_level_modules(script):
         if module in sys.stdlib_module_names:
             continue
+        if module in _STDLIB_ONLY_LIBRARIES:
+            offenders.update(
+                f"{module} -> {nested}"
+                for nested in _library_modules_outside_the_stdlib(module)
+            )
+            continue
         sibling = script.parent / f"{module}.py"
         if not sibling.is_file():
             offenders.add(module)
@@ -72,6 +88,18 @@ def _modules_outside_the_stdlib(
                 for nested in _modules_outside_the_stdlib(sibling, visited)
             )
     return offenders
+
+
+def _library_modules_outside_the_stdlib(library: str) -> set[str]:
+    """Every module a stdlib-only library's own (non-test) code imports that is neither standard
+    library nor the library itself."""
+    return {
+        module
+        for source in _STDLIB_ONLY_LIBRARIES[library].glob("*.py")
+        if not source.name.endswith("_test.py") and source.name != "conftest.py"
+        for module in _imported_top_level_modules(source)
+        if module not in sys.stdlib_module_names and module != library
+    }
 
 
 @pytest.mark.parametrize("script_name", _SCRIPTS_RUN_WITH_SYSTEM_PYTHON)

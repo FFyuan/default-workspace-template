@@ -214,7 +214,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import functools
-import importlib.util
 import io
 import json
 import os
@@ -231,8 +230,8 @@ _COMMON_TRANSCRIPT_REL = Path("commands/common_transcript.sh")
 
 # The in-workspace chat messenger, relative to the repo root (see ``_repo_root``).
 _MESSAGE_CHAT_SCRIPT_REL = Path("system") / "scripts" / "message_chat.py"
-# The reader of the background tasks each chat waits on, relative to the repo root.
-_BACKGROUND_TASKS_SCRIPT_REL = Path("system") / "scripts" / "background_tasks.py"
+# The stdlib-only library of the background tasks each chat waits on, relative to the repo root.
+_BACKGROUND_TASKS_SRC_REL = Path("system") / "libs" / "chat_background_tasks" / "src"
 
 _LEAD_AGENT_FIELD = "lead_agent"
 _LEAD_WORK_DIR_FIELD = "lead_work_dir"
@@ -1309,22 +1308,20 @@ def _chat_is_busy(chat_id: str) -> bool:
     """Whether a live background task will wake the chat's agent: a command it
     started through ``run_in_background.py``, or one of Claude's own.
 
-    Read from the marker files through ``system/scripts/background_tasks.py``,
-    loaded by path (the scripts are not a package). The files are enough here:
-    the chat app's busy verdict adds only a turn in flight, which an agent in an
-    idle state has not got. A tree from before that script has no markers, so
-    there every chat reads as not busy.
+    Read from the marker files through the ``chat_background_tasks`` library,
+    imported via a ``sys.path`` insert as ``oom_priority`` is. The files are
+    enough here: the chat app's busy verdict adds only a turn in flight, which
+    an agent in an idle state has not got. A tree from before that library has
+    no markers, so there every chat reads as not busy.
     """
-    script = _repo_root() / _BACKGROUND_TASKS_SCRIPT_REL
-    if not script.is_file():
+    src = _repo_root() / _BACKGROUND_TASKS_SRC_REL
+    if not src.is_dir():
         return False
-    spec = importlib.util.spec_from_file_location(
-        "background_tasks_for_create_worker", script
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return bool(module.is_busy(module.marker_root(os.environ), chat_id))
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    from chat_background_tasks import markers
+
+    return markers.is_busy(markers.marker_root(os.environ, _repo_root()), chat_id)
 
 
 # The lifecycle state mngr reports after ``mngr stop``.

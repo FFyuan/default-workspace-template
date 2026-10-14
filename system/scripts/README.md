@@ -37,8 +37,9 @@ Provisioning and utility scripts:
   through), `background_tasks.py` (the background tasks each chat is waiting
   on, one marker file per task under `data/.apps/chat/background_tasks/<chat-id>/`,
   written by `run_in_background.py` and by Claude's Stop hook; `list` and
-  `is-busy` ask the chat app and fall back to the files, and the chat app, the
-  avatar, the memory-candidate scan and the worker idle check import it),
+  `is-busy` ask the chat app and fall back to the files, and Claude's Stop and
+  SessionStart hooks run it; a thin entry point over the
+  `system/libs/chat_background_tasks` library, which everything else imports),
   `with_secrets.py` (run a
   command with one `data/.secrets/<name>.env` file's variables in its
   environment; the one sanctioned reader of that directory, which

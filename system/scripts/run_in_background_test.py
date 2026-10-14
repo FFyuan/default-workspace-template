@@ -21,9 +21,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from chat_background_tasks import markers
+from chat_background_tasks.markers import BackgroundTask, TaskSource
 from mngr_cli_contract.contract import assert_mngr_argv_valid
 from oom_priority import bands
-from script_modules_testing import background_tasks, run_in_background
+from script_modules_testing import run_in_background
 
 _CHAT_ID = "agent-0123456789abcdef0123456789abcdef"
 _SCRIPT = Path(__file__).parent / "run_in_background.py"
@@ -520,7 +522,7 @@ def _wait_until(condition: Any, what: str) -> None:
 
 
 def _marker_gone(root: Path, chat_id: str) -> bool:
-    chat_dir = background_tasks.chat_dir(root, chat_id)
+    chat_dir = markers.chat_dir(root, chat_id)
     return not chat_dir.is_dir() or not any(chat_dir.iterdir())
 
 
@@ -535,8 +537,8 @@ def test_the_chat_is_busy_from_before_the_caller_returns_until_the_report_lands(
     )
 
     assert started.returncode == 0, started.stderr
-    [task] = background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
-    assert task.source == background_tasks.SOURCE_RUN_IN_BACKGROUND
+    [task] = markers.list_live_tasks(background_task_markers, _CHAT_ID)
+    assert task.source == TaskSource.RUN_IN_BACKGROUND
     assert task.id == f"{_task_dir_from(started.stdout, tmp_path).name}-{task.pid}"
     assert task.description == "Build the site"
     _wait_for_posts(fake_chat_app, 1)
@@ -561,8 +563,8 @@ def test_a_named_chat_carries_the_wait_and_gets_the_report(
     )
 
     assert started.returncode == 0, started.stderr
-    assert background_tasks.is_busy(background_task_markers, worker_chat_id)
-    assert not background_tasks.is_busy(background_task_markers, _CHAT_ID)
+    assert markers.is_busy(background_task_markers, worker_chat_id)
+    assert not markers.is_busy(background_task_markers, _CHAT_ID)
     [(path, _)] = _wait_for_posts(fake_chat_app, 1)
     assert path == f"/api/chats/{worker_chat_id}/message"
 
@@ -599,13 +601,13 @@ def test_a_killed_runner_leaves_a_marker_no_reader_counts(
         tmp_path, _agent_env(MNGR_AGENT_ID=_CHAT_ID), "Wait a while", "sleep", "60"
     )
     assert started.returncode == 0, started.stderr
-    [task] = background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
+    [task] = markers.list_live_tasks(background_task_markers, _CHAT_ID)
 
     # The runner leads a session of its own, with its command in it.
     os.killpg(task.pid, signal.SIGKILL)
 
     _wait_until(
-        lambda: not background_tasks.is_busy(background_task_markers, _CHAT_ID),
+        lambda: not markers.is_busy(background_task_markers, _CHAT_ID),
         "a dead runner's marker still counts",
     )
 
@@ -658,19 +660,16 @@ def test_the_runners_marker_is_where_and_what_the_reader_expects(
     path = run_in_background.marker_path(os.environ, chat_id, task_id)
     run_in_background.write_marker(path, task_id, "Build the site", os.getpid())
 
-    [task] = background_tasks.list_live_tasks(background_task_markers, chat_id)
-    assert (
-        path
-        == background_tasks.chat_dir(background_task_markers, chat_id) / task.file_name
-    )
+    [task] = markers.list_live_tasks(background_task_markers, chat_id)
+    assert path == markers.chat_dir(background_task_markers, chat_id) / task.file_name
     assert (task.source, task.id, task.description, task.pid) == (
-        background_tasks.SOURCE_RUN_IN_BACKGROUND,
+        TaskSource.RUN_IN_BACKGROUND,
         task_id,
         "Build the site",
         os.getpid(),
     )
-    assert run_in_background.MARKER_ROOT_ENV == background_tasks.MARKER_ROOT_ENV
-    assert run_in_background.DEFAULT_MARKER_ROOT == background_tasks.DEFAULT_MARKER_ROOT
+    assert run_in_background.MARKER_ROOT_ENV == markers.MARKER_ROOT_ENV
+    assert run_in_background.DEFAULT_MARKER_ROOT == markers.DEFAULT_MARKER_ROOT
 
 
 @pytest.mark.usefixtures("fake_mngr")
@@ -699,11 +698,10 @@ def test_two_runs_sharing_a_task_dir_each_keep_the_chat_busy_until_their_own_rep
 
     _wait_for_posts(fake_chat_app, 1)
     _wait_until(
-        lambda: len(background_tasks.list_live_tasks(background_task_markers, _CHAT_ID))
-        == 1,
+        lambda: len(markers.list_live_tasks(background_task_markers, _CHAT_ID)) == 1,
         "the quick run's marker outlived its report",
     )
-    [pending] = background_tasks.list_live_tasks(background_task_markers, _CHAT_ID)
+    [pending] = markers.list_live_tasks(background_task_markers, _CHAT_ID)
     assert pending.description == "Slow one"
 
 
@@ -711,12 +709,12 @@ def test_two_runs_sharing_a_task_dir_each_keep_the_chat_busy_until_their_own_rep
 def test_a_new_run_clears_its_chats_markers_from_runners_that_died(
     fake_chat_app: Any, background_task_markers: Path, tmp_path: Path, exited_pid: int
 ) -> None:
-    chat_dir = background_tasks.chat_dir(background_task_markers, _CHAT_ID)
-    background_tasks.write_marker(
+    chat_dir = markers.chat_dir(background_task_markers, _CHAT_ID)
+    markers.write_marker(
         background_task_markers,
         _CHAT_ID,
-        background_tasks.BackgroundTask(
-            source="run_in_background",
+        BackgroundTask(
+            source=TaskSource.RUN_IN_BACKGROUND,
             id="killed-earlier",
             description="Killed for memory",
             started_at="2026-10-08T09:00:00+00:00",
@@ -732,7 +730,7 @@ def test_a_new_run_clears_its_chats_markers_from_runners_that_died(
     )
 
     assert started.returncode == 0, started.stderr
-    [task] = background_tasks.read_markers(chat_dir)
+    [task] = markers.read_markers(chat_dir)
     assert [path.name for path in chat_dir.iterdir()] == [
         f"run_in_background-{_task_dir_from(started.stdout, tmp_path).name}-{task.pid}.json"
     ]
@@ -745,7 +743,34 @@ def test_the_runner_finds_the_main_checkout_as_the_reader_does(
     main, worktree = main_checkout_and_worktree
 
     for checkout in (worktree, main, tmp_path):
-        assert run_in_background.main_checkout(
+        assert run_in_background.main_checkout(checkout) == markers.main_checkout(
             checkout
-        ) == background_tasks.main_checkout(checkout)
+        )
     assert run_in_background.main_checkout(worktree) == main.resolve()
+
+
+@pytest.mark.skipif(
+    not Path("/proc/self/stat").exists(),
+    reason="needs Linux's /proc/<pid>/stat for a process's start time",
+)
+def test_a_process_whose_name_is_not_utf8_still_has_a_start_time(
+    tmp_path: Path,
+) -> None:
+    """The kernel names a process after the file it ran, byte for byte, so a recycled pid can
+    belong to a process whose ``/proc/<pid>/stat`` is not UTF-8."""
+    oddly_named = os.fsencode(tmp_path) + b"/py\xffthon"
+    os.symlink(os.path.realpath(sys.executable), oddly_named)
+    process = subprocess.Popen([oddly_named, "-c", "import time; time.sleep(30)"])
+    try:
+        comm = Path(f"/proc/{process.pid}/comm")
+        deadline = time.monotonic() + 10
+        while not comm.read_bytes().startswith(b"py\xff"):
+            assert time.monotonic() < deadline, "the process never took its name"
+            time.sleep(0.05)
+        assert markers.process_start_time(process.pid) != ""
+        assert run_in_background.process_start_time(
+            process.pid
+        ) == markers.process_start_time(process.pid)
+    finally:
+        process.kill()
+        process.wait()

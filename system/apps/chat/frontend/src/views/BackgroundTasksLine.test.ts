@@ -11,7 +11,7 @@ import { BackgroundTasksLine, formatElapsed } from "./BackgroundTasksLine";
 const NOW = Date.parse("2026-10-08T12:10:00Z");
 
 function task(id: string, description: string, startedAt: string): BackgroundTask {
-  return { id, source: "run_in_background", kind: "", description, started_at: startedAt };
+  return { id, source: "run_in_background", harness: "", kind: "", description, started_at: startedAt };
 }
 
 let root: HTMLElement;

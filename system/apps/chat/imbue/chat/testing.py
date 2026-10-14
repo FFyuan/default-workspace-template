@@ -46,6 +46,8 @@ import httpx
 import pexpect
 import pytest
 import simple_websocket
+from chat_background_tasks import markers
+from chat_background_tasks.markers import TaskSource
 from flask import Flask
 from flask import request
 from pydantic import Field
@@ -59,7 +61,6 @@ from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import MngrMessenger
 from imbue.chat.agent_discovery import SendFailure
 from imbue.chat.agent_manager import AgentManager
-from imbue.chat.background_tasks import BACKGROUND_TASKS_SCRIPT_PATH
 from imbue.chat.background_tasks import BackgroundTaskReader
 from imbue.chat.chat_naming import ChatNamer
 from imbue.chat.chat_records import ChatAgentEntry
@@ -261,13 +262,8 @@ CONTINUE_CHAT_TEMPLATE_PATH: Final[Path] = (
 )
 
 
-# The repo's own background-tasks script: tests write markers through it, as the agents' runner and hooks do.
-BACKGROUND_TASKS_SCRIPT_REPO_PATH: Final[Path] = Path(__file__).resolve().parents[5] / BACKGROUND_TASKS_SCRIPT_PATH
-
-
 def build_background_task_reader(root: Path) -> BackgroundTaskReader:
-    """A reader over ``root`` through the repo's script (production names it relative to the repo root)."""
-    return BackgroundTaskReader.load(root, BACKGROUND_TASKS_SCRIPT_REPO_PATH)
+    return BackgroundTaskReader(root=root)
 
 
 def write_background_task_marker(
@@ -277,18 +273,24 @@ def write_background_task_marker(
     pid: int,
     description: str = "Rebuild the worker image",
     started_at: str = "2026-10-08T12:00:00+00:00",
-    source: str | None = None,
+    harness: str = "",
 ) -> None:
-    """Write a marker (``run_in_background``'s unless ``source`` names another writer) into the chat's directory
-    with the script's own writer."""
-    task = reader.script.BackgroundTask(
-        source=reader.script.SOURCE_RUN_IN_BACKGROUND if source is None else source,
+    """Write a marker into the chat's directory with the library's own writer: ``run_in_background``'s, or the
+    named harness's."""
+    task = markers.BackgroundTask(
+        source=TaskSource.HARNESS if harness else TaskSource.RUN_IN_BACKGROUND,
         id=task_id,
         description=description,
         started_at=started_at,
         pid=pid,
+        harness=harness,
     )
-    reader.script.write_marker(reader.root, chat_id, task)
+    markers.write_marker(reader.root, chat_id, task)
+
+
+def remove_background_task_marker(reader: BackgroundTaskReader, chat_id: str, task_id: str) -> None:
+    """Remove a ``run_in_background`` marker, as the runner does once its report is delivered."""
+    markers.remove_marker(reader.root, chat_id, TaskSource.RUN_IN_BACKGROUND, task_id)
 
 
 def write_summary_for_request(text: str) -> None:

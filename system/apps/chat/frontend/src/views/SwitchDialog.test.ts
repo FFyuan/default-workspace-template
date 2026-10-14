@@ -85,7 +85,7 @@ vi.mock("../models/AccountModelOptions", () => ({
 }));
 
 import m from "mithril";
-import type { BackgroundTask, ChatSnapshot } from "../models/Chats";
+import type { ChatSnapshot } from "../models/Chats";
 import { chatSnapshotFixture } from "../models/chatSnapshotFixture";
 import { getPendingAccountId, getPendingPick, setPendingAccount } from "../models/PendingLane";
 import type { ProviderAccount } from "../models/Providers";
@@ -134,7 +134,7 @@ function render(): void {
 function workingChat(): ChatSnapshot {
   return chatSnapshotFixture("agent-1", {
     status: "working",
-    active_agent: { harness: "claude", account_id: OWN.id, activity_state: "THINKING", is_busy: true },
+    active_agent: { harness: "claude", account_id: OWN.id },
   });
 }
 
@@ -339,56 +339,6 @@ describe("the switch dialog", () => {
     render();
     choose("switch-dialog-model", "gpt-6-sol");
     expect(ROOT().querySelector<HTMLSelectElement>("select.switch-dialog-effort")?.value).toBe("medium");
-  });
-
-  function chatWaitingOn(...tasks: BackgroundTask[]): ChatSnapshot {
-    return chatSnapshotFixture("agent-1", {
-      status: "background",
-      active_agent: {
-        harness: "claude",
-        account_id: OWN.id,
-        activity_state: "IDLE",
-        is_busy: true,
-        background_tasks: tasks,
-      },
-    });
-  }
-
-  const RUNNER_TASK: BackgroundTask = {
-    id: "task-1",
-    source: "run_in_background",
-    kind: "",
-    description: "Rebuild the worker image",
-    started_at: "2026-10-08T12:00:00Z",
-  };
-  const CLAUDE_TASK: BackgroundTask = {
-    id: "bg-1",
-    source: "claude",
-    kind: "shell",
-    description: "Run the test suite",
-    started_at: "2026-10-08T12:01:00Z",
-  };
-
-  it("says what a switch does to the tasks a chat between turns is waiting on, without a wrap-up", () => {
-    // Between turns, but its pending tasks would start the next one: the switch stops the agent, which ends
-    // its own task, while the runner's command outlives it and reports to the chat.
-    state.chat = chatWaitingOn(RUNNER_TASK, CLAUDE_TASK);
-    beginSwitchTo("agent-1", CODEX as ProviderAccount);
-    render();
-    const text = ROOT().textContent ?? "";
-    expect(text).toContain("Claude Code hands the conversation to OpenAI (Codex)");
-    expect(text).not.toContain("wraps up");
-    expect(text).toContain("Its background task stops with the switch.");
-    expect(text).toContain(
-      "The background command it is waiting on keeps running, and its result arrives in this chat.",
-    );
-  });
-
-  it("says the same of a rebind, which restarts the agent", () => {
-    state.chat = chatWaitingOn(CLAUDE_TASK, { ...CLAUDE_TASK, id: "bg-2" });
-    openSwitchDialog("agent-1", OTHER_CLAUDE as ProviderAccount);
-    render();
-    expect(ROOT().textContent).toContain("Its 2 background tasks stop with the switch.");
   });
 
   it("does not say an idle agent wraps up what it is doing", async () => {

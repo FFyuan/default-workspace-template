@@ -28,6 +28,7 @@ from typing import Any
 from typing import Final
 from typing import assert_never
 
+from chat_background_tasks.markers import TaskSource
 from loguru import logger as _loguru_logger
 from pydantic import Field
 
@@ -40,7 +41,6 @@ from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import SendFailedError
 from imbue.chat.agent_discovery import agent_state_dir
 from imbue.chat.background_tasks import BackgroundTask
-from imbue.chat.background_tasks import RUN_IN_BACKGROUND_SOURCE
 from imbue.chat.chat_records import ChatAgentEntry
 from imbue.chat.chat_records import ChatHandoffRecord
 from imbue.chat.chat_records import ChatRecord
@@ -209,15 +209,18 @@ def summary_section(path: Path, text: str) -> str:
 def background_tasks_section(tasks: tuple[BackgroundTask, ...]) -> str:
     """The prompt's passage on the tasks the chat waited on as it moved, or '' when there were none.
 
-    A command the retiring agent started through ``run_in_background.py`` outlives it and reports to the chat, so to
-    the successor; any other (Claude's own) ended with the agent the switch stopped.
+    Stopping the retiring agent ends all of them. A command it started through ``run_in_background.py`` still reports
+    to the chat, so to the successor, saying how it ended; any other (the harness's own) ends unreported.
     """
     if not tasks:
         return ""
     lines = ["Background tasks your predecessor was waiting on when the chat moved to you:"]
     for task in tasks:
-        if task.source == RUN_IN_BACKGROUND_SOURCE:
-            lines.append(f"- Still running; its report arrives in this chat as a message: {task.description}")
+        if task.source is TaskSource.RUN_IN_BACKGROUND:
+            lines.append(
+                f"- Its report, saying how it ended, arrives in this chat as a message (the switch stopped it if it "
+                f"was still running): {task.description}"
+            )
         else:
             command = f" (`{task.command}`)" if task.command else ""
             lines.append(f"- Stopped by the switch; start it again if it is still needed: {task.description}{command}")

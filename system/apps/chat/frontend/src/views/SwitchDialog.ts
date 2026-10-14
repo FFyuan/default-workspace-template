@@ -20,7 +20,7 @@ import { inputClass } from "@imbue/workspace-ui/src/components/Input";
 import { describeRequestError } from "@imbue/workspace-ui/src/models/request-error";
 import { fetchAccountModelOptions } from "../models/AccountModelOptions";
 import { getChatById } from "../models/Chats";
-import type { BackgroundTask, ChatSnapshot, TransitionKind } from "../models/Chats";
+import type { ChatSnapshot, TransitionKind } from "../models/Chats";
 import { switchChat } from "../models/Handoffs";
 import { effortInEffect, getHarnessCatalog, startingEffort } from "../models/HarnessCatalog";
 import type { CatalogModelOption } from "../models/HarnessCatalog";
@@ -330,25 +330,6 @@ async function startNewChat(dialog: OpenDialog): Promise<void> {
   m.redraw();
 }
 
-/** What a switch does to the background tasks the chat waits on: the agent it stops takes its own (Claude's) with it,
- *  while a command started through the runner keeps running and reports to the chat, whichever agent it runs on. */
-function backgroundTaskNotes(tasks: readonly BackgroundTask[]): string[] {
-  const stopped = tasks.filter((task) => task.source !== "run_in_background").length;
-  const reporting = tasks.length - stopped;
-  const notes: string[] = [];
-  if (stopped === 1) notes.push("Its background task stops with the switch.");
-  if (stopped > 1) notes.push(`Its ${stopped} background tasks stop with the switch.`);
-  if (reporting === 1) {
-    notes.push("The background command it is waiting on keeps running, and its result arrives in this chat.");
-  }
-  if (reporting > 1) {
-    notes.push(
-      `The ${reporting} background commands it is waiting on keep running, and their results arrive in this chat.`,
-    );
-  }
-  return notes;
-}
-
 export function SwitchDialog(): m.Component<{ chatId: string }> {
   const dialog = makeNoticeDialog();
   return {
@@ -365,18 +346,14 @@ export function SwitchDialog(): m.Component<{ chatId: string }> {
           ? `${from} wraps up what it is doing and hands the conversation to ${target.label}, ` +
             "starting with your next message."
           : `${from} hands the conversation to ${target.label}, starting with your next message.`;
-      const taskNotes = backgroundTaskNotes(chat?.active_agent.background_tasks ?? []);
       return m(
         dialog,
         {
           title: `Switch to ${isRebind ? target.label : harnessLabel(target.harness)}?`,
           body: [
-            [
-              isRebind
-                ? `${from} restarts on ${target.label} and keeps this conversation, starting with your next message.`
-                : handoffBody,
-              ...taskNotes,
-            ].join(" "),
+            isRebind
+              ? `${from} restarts on ${target.label} and keeps this conversation, starting with your next message.`
+              : handoffBody,
           ],
           dismissLabel: "Cancel",
           isDismissable: !current.isBusy,

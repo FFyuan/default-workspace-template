@@ -100,7 +100,7 @@ export function BackgroundTasksLine(): m.Component<BackgroundTasksLineAttrs> {
                 return m(
                   "li",
                   {
-                    key: `${task.source}-${task.id}`,
+                    key: `${task.source}-${task.harness}-${task.id}`,
                     class:
                       "background-tasks-line__task flex items-center gap-2 text-(length:--font-size-helper) text-secondary",
                   },
