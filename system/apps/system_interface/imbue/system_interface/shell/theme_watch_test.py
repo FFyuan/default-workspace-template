@@ -1,5 +1,6 @@
 """Tests for the theme watch: every window is told when the workspace's theme catalog changes, and only then."""
 
+import contextlib
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,36 @@ def test_a_check_tells_the_windows_only_when_the_catalog_changed(tmp_path: Path)
         watch.check_now()
 
         assert changes == [0]
+    finally:
+        watch.stop()
+
+
+class _FailingOnceBroadcast(Exception):
+    """The broadcast's failure in the test below."""
+
+
+def test_a_change_whose_broadcast_failed_is_told_on_the_next_check(tmp_path: Path) -> None:
+    attempts: list[int] = []
+
+    def broadcast() -> None:
+        attempts.append(len(attempts))
+        if len(attempts) == 1:
+            raise _FailingOnceBroadcast("the socket is down")
+
+    write_standard_theme(tmp_path)
+    watch = ThemeCatalogWatch(
+        repo_root=tmp_path, loader=CachingThemeCatalogLoader(repo_root=tmp_path), on_catalog_changed=broadcast
+    )
+    watch.start()
+    try:
+        write_test_theme(tmp_path / WORKSPACE_THEMES_DIRECTORY, "paper", "")
+        # The watch's own settled check may make the failing attempt first; either way the next check tells.
+        with contextlib.suppress(_FailingOnceBroadcast):
+            watch.check_now()
+        watch.check_now()
+        watch.check_now()
+
+        assert attempts == [0, 1]
     finally:
         watch.stop()
 

@@ -167,6 +167,8 @@ class ThemeCatalogWatch(MutableModel):
             with self._lock:
                 if signature == self._last_signature:
                     return
-                self._last_signature = signature
             logger.info("The theme catalog changed; telling every window")
             self.on_catalog_changed()
+            # Only once told: a broadcast that failed is sent again by the next check.
+            with self._lock:
+                self._last_signature = signature
