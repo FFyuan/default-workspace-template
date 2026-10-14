@@ -66,6 +66,15 @@ _STARTER_PARTS: Final[
 """
 
 
+_REPO_ROOT_OPTION: Final = click.option(
+    "--repo-root",
+    default=".",
+    show_default=True,
+    type=click.Path(file_okay=False),
+    help="The workspace root",
+)
+
+
 def _load_catalog(repo_root: str) -> ThemeCatalog:
     return CachingThemeCatalogLoader(repo_root=Path(repo_root).resolve()).load()
 
@@ -102,13 +111,7 @@ def main() -> None:
 
 
 @main.command("list")
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 @click.option(
     "--json", "is_json", is_flag=True, default=False, help="Print the catalog as JSON"
 )
@@ -146,13 +149,7 @@ def list_themes(repo_root: str, is_json: bool) -> None:
 
 @main.command("validate")
 @click.argument("theme_ids", nargs=-1)
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def validate_themes(theme_ids: Sequence[str], repo_root: str) -> None:
     """Check themes against the contract (every theme when none is named); exits 1 when any has a problem."""
     catalog = _load_catalog(repo_root)
@@ -223,13 +220,7 @@ def _starter_manifest(
     show_default=True,
     help="The theme to start from",
 )
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def new_theme(
     theme_id: str, name: str, description: str, base: str, repo_root: str
 ) -> None:
@@ -267,13 +258,7 @@ def new_theme(
 
 @main.command("bundle")
 @click.argument("theme_id")
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def print_bundle(theme_id: str, repo_root: str) -> None:
     """Print the bundle a page loads for a theme."""
     click.echo(
@@ -310,13 +295,7 @@ def _apps_without_icon(
 
 @icon_group.command("spec")
 @click.argument("theme_id")
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def icon_spec(theme_id: str, repo_root: str) -> None:
     """Print what a model needs to draw this theme's icons, and which apps still lack one."""
     root = Path(repo_root).resolve()
@@ -339,13 +318,7 @@ def icon_spec(theme_id: str, repo_root: str) -> None:
 
 @icon_group.command("missing")
 @click.argument("theme_ids", nargs=-1)
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def icon_missing(theme_ids: tuple[str, ...], repo_root: str) -> None:
     """List, for every theme with icons to draw (or those named), the apps it draws no icon for, and ``app`` for a
     missing generic program icon; exits 1 when any."""
@@ -393,13 +366,7 @@ def icon_missing(theme_ids: tuple[str, ...], repo_root: str) -> None:
     type=click.Path(dir_okay=False),
     help="Also write an enlarged copy to look at",
 )
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def icon_fit(
     candidate: str,
     theme_id: str,
@@ -464,13 +431,7 @@ def _parse_legend(legend: str) -> dict[str, HexColor]:
     type=click.Path(dir_okay=False),
     help="Also write an enlarged copy to look at",
 )
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def icon_grid(
     grid_file: str,
     theme_id: str,
@@ -529,13 +490,7 @@ def _icon_problems(path: Path, icons: ThemeIcons) -> list[str]:
 @click.option(
     "--theme", "theme_id", required=True, help="The theme whose limits to check against"
 )
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def icon_check(icon_path: str, theme_id: str, repo_root: str) -> None:
     """Check an icon against the theme's limits; exits 1 when it misses any."""
     _, icons = _require_icon_theme(_load_catalog(repo_root), theme_id)
@@ -551,13 +506,7 @@ def icon_check(icon_path: str, theme_id: str, repo_root: str) -> None:
     required=True,
     help="The app the icon is for, by its registered name",
 )
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def icon_install(icon_path: str, theme_id: str, app_name: str, repo_root: str) -> None:
     """Put a checked icon where the shell finds it: a workspace theme's folder, or data/ for a built-in theme."""
     root = Path(repo_root).resolve()
@@ -584,13 +533,7 @@ def icon_install(icon_path: str, theme_id: str, app_name: str, repo_root: str) -
 
 @main.command("lint-app")
 @click.argument("app_package")
-@click.option(
-    "--repo-root",
-    default=".",
-    show_default=True,
-    type=click.Path(file_okay=False),
-    help="The workspace root",
-)
+@_REPO_ROOT_OPTION
 def lint_app(app_package: str, repo_root: str) -> None:
     """Find literal colors, fonts, and shadows in a tokens-mode app's frontend; exits 1 when there are any."""
     app_directory = Path(repo_root).resolve().joinpath(*APPS_DIRECTORY, app_package)
