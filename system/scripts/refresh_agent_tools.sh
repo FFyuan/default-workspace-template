@@ -75,12 +75,13 @@ refresh_claude_plugins() {
     state_dir="$(claude_state_dir "$config_dir")"
     mkdir -p "$state_dir"
     (
+        # fd 8 is closed for the install below, so nothing it leaves running holds the lock.
         if command -v flock >/dev/null 2>&1; then
             flock -n 8 || exit 0
         fi
         status=0
         (cd "$repo_root" && run_capped env CLAUDE_CONFIG_DIR="$config_dir" bash "$script_dir/claude_update_plugin.sh" --strict) \
-            >"$state_dir/plugin_update.log" 2>"$state_dir/plugin_update.stderr.log" || status=$?
+            >"$state_dir/plugin_update.log" 2>"$state_dir/plugin_update.stderr.log" 8>&- || status=$?
         if [[ $status -eq 0 ]]; then
             touch "$state_dir/installed"
         elif [[ $status -eq 124 ]]; then

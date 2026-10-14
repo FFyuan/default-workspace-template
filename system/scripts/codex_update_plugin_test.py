@@ -15,8 +15,13 @@ _SCRIPT = Path(__file__).with_name("codex_update_plugin.sh")
 _SHIM = """#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
+try:
+    os.fstat(9)
+    is_fd_9_open = True
+except OSError:
+    is_fd_9_open = False
 with open(os.environ["SHIM_LOG"], "a") as log:
-    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:], os.environ.get("MNGR_AGENT_ID")]) + "\\n")
+    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:], os.environ.get("MNGR_AGENT_ID"), is_fd_9_open]) + "\\n")
 if " ".join(sys.argv[1:3]) == os.environ.get("SHIM_FAIL"):
     sys.exit(1)
 home = Path(os.environ["CODEX_HOME"])
@@ -199,6 +204,8 @@ def test_a_refresh_updates_the_shared_copy_for_the_next_agent(tmp_path: Path) ->
     # The copy it replaced stays, since an agent may still be copying from it.
     assert first_copy.exists()
     assert not list(_shared_root(tmp_path).glob("refresh.??????"))
+    # codex never inherits the refresh's lock.
+    assert calls and not any(call[3] for call in calls)
 
 
 def test_a_failed_refresh_keeps_the_shared_copy_and_fails(tmp_path: Path) -> None:

@@ -25,9 +25,13 @@ _JOB_WAIT_SECONDS = 30.0
 pytestmark = pytest.mark.timeout(_JOB_WAIT_SECONDS * 3)
 
 # Each shim appends "<name> <niceness> <config dir> <args>" to $SHIM_LOG after
-# $SHIM_DELAY seconds. `uv run` prints $SHIM_CONFIG_DIRS, standing in for
+# $SHIM_DELAY seconds, and creates $SHIM_LOG.lock-inherited if it was handed the
+# plugin refresh's lock (fd 8). `uv run` prints $SHIM_CONFIG_DIRS, standing in for
 # claude_config_dirs.py. A call whose args start with $SHIM_FAIL_ARGS fails.
 _SHIM = """#!/usr/bin/env bash
+if { : >&8; } 2>/dev/null; then
+    touch "$SHIM_LOG.lock-inherited"
+fi
 sleep "${SHIM_DELAY:-0}"
 niceness=$(python3 -c 'import os; print(os.nice(0))')
 printf '%s %s %s %s\\n' "$(basename "$0")" "$niceness" "${CLAUDE_CONFIG_DIR:--}" "$*" >> "$SHIM_LOG"
@@ -147,6 +151,7 @@ def test_the_hourly_run_refreshes_the_venv_every_claude_config_dir_and_codex(
     assert all(
         (state_dir / "installed").exists() for state_dir in _claude_state_dirs(tmp_path)
     )
+    assert not (tmp_path / "shim.log.lock-inherited").exists()
 
 
 def test_the_hourly_run_works_at_a_lower_priority(tmp_path: Path) -> None:

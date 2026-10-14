@@ -83,10 +83,11 @@ install_from_github() {
     # The marketplace source and plugin enablement live in mngr config_overrides,
     # so a config rewrite cannot strand the cached Git marketplace. Upgrade also
     # fetches the initial snapshot for a newly provisioned home.
-    if ! CODEX_HOME="$home" codex plugin marketplace upgrade "$MARKETPLACE"; then
+    # fd 9 is closed for codex so nothing it leaves running holds a refresh's lock.
+    if ! CODEX_HOME="$home" codex plugin marketplace upgrade "$MARKETPLACE" 9>&-; then
         echo "warning: could not refresh code-guardian; attempting the cached marketplace" >&2
     fi
-    CODEX_HOME="$home" codex plugin add "$PLUGIN"
+    CODEX_HOME="$home" codex plugin add "$PLUGIN" 9>&-
 }
 
 # Install the latest code-guardian into a fresh home, then make it the shared copy.
