@@ -14,6 +14,7 @@ MAX_THEME_NAME_LENGTH: Final[int] = 48
 MAX_THEME_DESCRIPTION_LENGTH: Final[int] = 200
 MAX_THEME_AUTHOR_LENGTH: Final[int] = 80
 HEX_COLOR_PATTERN: Final[re.Pattern[str]] = re.compile(r"^#[0-9a-fA-F]{6}$")
+_CONTROL_CHARACTER_PATTERN: Final[re.Pattern[str]] = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def _string_schema(cls: type) -> CoreSchema:
@@ -109,6 +110,10 @@ class ThemeRelativePath(str):
         if not value or value.startswith("/") or "\\" in value:
             raise InvalidThemeValueError(
                 f"path {value!r} must be relative to the theme folder and use /"
+            )
+        if _CONTROL_CHARACTER_PATTERN.search(value) is not None:
+            raise InvalidThemeValueError(
+                f"path {value!r} may not hold control characters"
             )
         parts = PurePosixPath(value).parts
         if any(part in ("..", ".") for part in parts) or not parts:

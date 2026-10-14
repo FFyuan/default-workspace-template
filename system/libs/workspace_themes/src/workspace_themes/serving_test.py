@@ -64,6 +64,7 @@ def test_a_served_file_is_a_style_or_asset_file_inside_its_theme_folder(
         "paper/icons/guide.md",
         "paper/../standard/theme.toml",
         "paper/%2e%2e/standard/theme.toml",
+        "paper/a\x00.css",
         "paper/missing.css",
         "unknown/theme.css",
         "Paper/theme.css",
