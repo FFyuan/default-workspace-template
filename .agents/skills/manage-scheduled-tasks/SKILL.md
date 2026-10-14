@@ -122,10 +122,10 @@ a line that ticks every minute through the wrapper and the runner:
 - `--at <hour>` -- for daily-or-coarser jobs, the local hour (0-23) the run is
   due. Omit for sub-daily cadences.
 - `--retry-after` -- gap before retrying a failed or killed run (default 2m).
+  Runs themselves take seconds; the gap only matters when something breaks.
 - `--wake-grace` -- after the workspace starts or wakes from sleep, hold a due
   run this long, so a catch-up does not compete with someone who just opened the
   workspace to use it. Omit it for jobs that should catch up at once.
-  Runs themselves take seconds; the gap only matters when something breaks.
 
 The every-minute tick is what makes catch-up possible: the runner exits
 instantly on every tick where nothing is due, and a lock held for the run's
