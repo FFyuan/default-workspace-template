@@ -22,12 +22,17 @@ The server is `datalib-http` from the datalib release pinned in
 skill; `test_datalib_pin.py` checks the two agree). That script installs the
 release into `~/.local/share/datalib/<version>/` and links it into
 `~/.local/bin`. Nothing runs it at boot: the skill runs it the first time it
-is used, so a workspace that never uses datalib downloads nothing. The launcher does three things, in order:
+is used, so a workspace that never uses datalib downloads nothing. The launcher does four things, in order:
 
 1. Reads the API token (see below).
 2. Registers the app and the datalib-http port 8731 through
    `system/scripts/forward_port.py`.
-3. Replaces itself with `~/.local/bin/datalib-http --no-open
+3. Sets its own `oom_score_adj` to the agent-subprocess band (900), which
+   datalib-http and every sync step it starts inherit. Under memory pressure
+   datalib is then shed before any agent or service. The program line starts
+   it in the `user` band (200), the band the manifest's `priority` names; the
+   OOM backstop only ever raises a process to its band, so it leaves 900 alone.
+4. Replaces itself with `~/.local/bin/datalib-http --no-open
    data/.skills/datalib`, with `DATALIB_BIND=127.0.0.1:8731` and the token in
    `DATALIB_TOKEN`. From then on supervisord supervises datalib-http directly.
 

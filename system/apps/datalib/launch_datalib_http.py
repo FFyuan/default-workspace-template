@@ -13,7 +13,9 @@ Usage (the ``datalib`` program line, from the repo root):
     python3 system/apps/datalib/launch_datalib_http.py
 
 Standard-library only, like forward_port.py: the program line runs it under a
-plain ``python3``, so the app never depends on the root venv being intact.
+plain ``python3``, so the app never depends on the root venv being intact. The
+one import beyond the standard library is the stdlib-only ``oom_priority``
+package, by path, the way ``oom_tag_service.py`` imports it.
 """
 
 import argparse
@@ -27,6 +29,12 @@ import sys
 import tomllib
 from pathlib import Path
 from typing import Final
+
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[2] / "services" / "oom_priority" / "src")
+)
+
+from oom_priority import bands  # noqa: E402
 
 # The app's fixed wiring, relative to the repo root every supervised program runs from.
 MANIFEST_PATH: Final[Path] = Path("system/apps/datalib/app.toml")
@@ -66,6 +74,12 @@ TOKEN_FILE_RELATIVE_PATH: Final[Path] = Path("system") / "api-token"
 DATALIB_HTTP_RELATIVE_TO_HOME: Final[Path] = Path(".local") / "bin" / "datalib-http"
 
 EXIT_NOT_READY: Final[int] = 1
+
+# datalib is not announced to users yet, so under memory pressure it goes before every agent and
+# every service: the band of an agent's own subprocesses. A sync's steps inherit it from
+# datalib-http. The program line's `user` band is the floor the backstop holds it to, and the
+# backstop only ever raises a process, so it leaves this higher value alone.
+OOM_SCORE_ADJ: Final[int] = bands.AGENT_SUBPROCESS
 
 # Diagnostics go to stderr, which supervisord captures as the program's log.
 logger: Final[logging.Logger] = logging.getLogger("launch_datalib_http")
@@ -201,6 +215,11 @@ def launch(arguments: argparse.Namespace) -> None:
         arguments.manifest, token, arguments.state_directory
     )
     register_app(arguments.forward_port, registered_manifest_path, arguments.port)
+    if not bands.set_oom_score_adj(os.getpid(), OOM_SCORE_ADJ):
+        logger.warning(
+            "Could not set oom_score_adj to %d; datalib-http keeps the band it was started in",
+            OOM_SCORE_ADJ,
+        )
     # The token goes through the environment, never the command line, which any process listing shows.
     environment = {**os.environ, **child_environment(arguments.port, token)}
     argv = build_datalib_http_argv(arguments.datalib_http, arguments.data_root)

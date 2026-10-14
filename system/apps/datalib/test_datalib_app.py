@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 from typing import Final
 
+import pytest
 from datalib_launcher_testing import (
     ENV_FAKE_DATALIB_HTTP_DIR,
     FAKE_DATALIB_HTTP_EXIT_STATUS,
@@ -16,6 +17,7 @@ from datalib_launcher_testing import (
     launcher,
     read_fake_datalib_http_argv,
     read_fake_datalib_http_environment,
+    read_fake_datalib_http_oom_score_adj,
 )
 
 # system/apps/datalib/test_datalib_app.py -> the repository root.
@@ -25,6 +27,8 @@ _PUBLISHED_TOKEN: Final[str] = "published-token.0123_abc~"
 # forward_port.py's override for where the registry lives.
 _ENV_APPS_FILE: Final[str] = "MINDS_APPS_FILE"
 _RUN_TIMEOUT_SECONDS: Final[float] = 60.0
+# A host without it (macOS) cannot band a process, and the launcher only warns there.
+_HAS_WRITABLE_PROC_OOM: Final[bool] = os.access("/proc/self/oom_score_adj", os.W_OK)
 
 
 def _run_launcher(
@@ -131,3 +135,21 @@ def test_the_launcher_exits_without_registering_when_the_binary_is_missing(
     assert "is not installed yet" in result.stderr
     assert _registered_rows(tmp_path) == []
     assert read_fake_datalib_http_argv(record_dir) is None
+
+
+@pytest.mark.skipif(
+    not _HAS_WRITABLE_PROC_OOM,
+    reason="no writable /proc/self/oom_score_adj on this host",
+)
+def test_datalib_http_runs_in_the_agent_subprocess_band(tmp_path: Path) -> None:
+    """Guards the dark launch: datalib, and every sync step it starts, is shed before any agent or service."""
+    executable, record_dir = install_fake_datalib_http(tmp_path / "fake")
+
+    result = _run_launcher(tmp_path, executable, record_dir)
+
+    assert result.returncode == FAKE_DATALIB_HTTP_EXIT_STATUS, result.stderr
+    assert (
+        read_fake_datalib_http_oom_score_adj(record_dir)
+        == launcher.bands.AGENT_SUBPROCESS
+        == 900
+    )

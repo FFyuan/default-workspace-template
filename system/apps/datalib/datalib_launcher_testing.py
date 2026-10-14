@@ -23,6 +23,7 @@ _FAKE_DATALIB_HTTP_SCRIPT: Final[str] = f"""#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\\n' "$@" > "${ENV_FAKE_DATALIB_HTTP_DIR}/argv"
 printf 'DATALIB_BIND=%s\\nDATALIB_TOKEN=%s\\n' "${{DATALIB_BIND:-}}" "${{DATALIB_TOKEN:-}}" > "${ENV_FAKE_DATALIB_HTTP_DIR}/environment"
+if [ -r /proc/self/oom_score_adj ]; then cat /proc/self/oom_score_adj > "${ENV_FAKE_DATALIB_HTTP_DIR}/oom_score_adj"; fi
 exit {FAKE_DATALIB_HTTP_EXIT_STATUS}
 """
 
@@ -58,6 +59,14 @@ def read_fake_datalib_http_argv(record_dir: Path) -> list[str] | None:
     if not argv_path.exists():
         return None
     return argv_path.read_text().splitlines()
+
+
+def read_fake_datalib_http_oom_score_adj(record_dir: Path) -> int | None:
+    """The ``oom_score_adj`` the fake datalib-http ran with, or None when it has not started or the host has no ``/proc``."""
+    path = record_dir / "oom_score_adj"
+    if not path.exists():
+        return None
+    return int(path.read_text())
 
 
 def read_fake_datalib_http_environment(record_dir: Path) -> dict[str, str] | None:
