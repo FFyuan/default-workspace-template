@@ -239,10 +239,10 @@ def _task_starter(task: BackgroundTask) -> str:
         case TaskSource.RUN_IN_BACKGROUND:
             return "run_in_background.py"
         case TaskSource.HARNESS:
-            try:
-                harness = HARNESS_LABEL[HarnessType(task.harness)]
-            except (ValueError, KeyError):
-                harness = task.harness
+            harness = next(
+                (label for harness_type, label in HARNESS_LABEL.items() if harness_type.value == task.harness),
+                task.harness,
+            )
             return f"{harness}'s own background {task.kind}" if task.kind else f"{harness}'s own background task"
         case _ as unreachable:
             assert_never(unreachable)
