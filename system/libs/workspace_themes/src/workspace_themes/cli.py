@@ -178,14 +178,26 @@ def _validation_label(catalog: ThemeCatalog, entry: ThemeEntry) -> str:
 
 
 @pure
+def _toml_string(value: str) -> str:
+    """A TOML basic string: JSON's escapes are TOML's, as long as no character is written as a surrogate pair."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+@pure
+def _css_comment_text(value: str) -> str:
+    """Text that cannot end the CSS comment it is put in."""
+    return value.replace("*/", "* /")
+
+
+@pure
 def _starter_manifest(
     theme_id: ThemeId, name: ThemeName, description: ThemeDescription, base: ThemeId
 ) -> str:
     return (
         f"contract = {CONTRACT_VERSION}\n"
         f'id = "{theme_id}"\n'
-        f"name = {json.dumps(str(name))}\n"
-        f"description = {json.dumps(str(description))}\n"
+        f"name = {_toml_string(str(name))}\n"
+        f"description = {_toml_string(str(description))}\n"
         f'base = "{base}"\n'
         "\n[styles]\n"
         'files = ["tokens.css", "parts.css"]\n'
@@ -237,10 +249,10 @@ def new_theme(
         encoding="utf-8",
     )
     (folder / "tokens.css").write_text(
-        _STARTER_TOKENS.format(name=parsed_name), encoding="utf-8"
+        _STARTER_TOKENS.format(name=_css_comment_text(parsed_name)), encoding="utf-8"
     )
     (folder / "parts.css").write_text(
-        _STARTER_PARTS.format(name=parsed_name), encoding="utf-8"
+        _STARTER_PARTS.format(name=_css_comment_text(parsed_name)), encoding="utf-8"
     )
     click.echo(str(folder))
 
