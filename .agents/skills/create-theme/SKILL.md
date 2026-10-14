@@ -60,7 +60,7 @@ style, chrome setting, and icon its base has, and sets only what differs.
   with its own `[icons]` also needs `icons/app.<format>`, the generic program icon.
 - **`apps/<app>.css`**, optional: styles for parts an app declares in its `app.toml`
   (`[theming] mode = "parts"`; chat declares `chat.user-message`, `chat.composer`,
-  `chat.tool-call`). List each such file under `[styles] apps`.
+  `chat.tool-call`). List each such app by its name under `[styles] apps` (`apps = ["chat"]`).
 - **A CSS library**, when one exists for the look (98.css, 7.css, XP.css, ...): vendor it
   rather than redraw it. Write `vendor/<library>.vendor.json` -- the pinned source and its
   sha256, and a `selectorMap` from the library's classes to parts -- then run
