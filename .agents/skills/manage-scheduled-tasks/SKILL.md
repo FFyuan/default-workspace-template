@@ -236,8 +236,10 @@ enable-caretaker skill) writes the single line in
 - **Check a runner job's state:** read `data/.state/jobs/<job-id>/` --
   `last_success` (epoch of the last completed run), `last_attempt` (epoch of
   the last start), `failures` (consecutive failed attempts, absent when
-  healthy). Deleting `last_success` makes the job due again; deleting the
-  whole directory resets it entirely.
+  healthy), and for a `--wake-grace` job `last_tick` (epoch of the last tick)
+  and `woke_at` (epoch the workspace last woke). Deleting `last_success` makes
+  the job due again (a `--wake-grace` job still waits out its grace after a
+  wake); deleting the whole directory resets it entirely.
 
 ## Where the configuration lives
 
@@ -278,7 +280,8 @@ The complete map of the scheduling machinery, for edits and debugging:
   completion tracking, and retry -- with unit tests in
   `system/libs/automations/run_job_test.py`).
 - `/home/user/workspace/data/.state/jobs/<job-id>/` -- each runner job's state
-  (`last_attempt`, `last_success`, `failures`, `lock`).
+  (`last_attempt`, `last_success`, `failures`, `lock`, and `last_tick` and
+  `woke_at` for a `--wake-grace` job).
 - `supervisord.conf.d/cron.conf` -- `[program:cron]` is the cron daemon (check it with
   `supervisorctl status cron`).
 - `/var/log/supervisor/<job>.log` -- each job's own output (per the redirect
