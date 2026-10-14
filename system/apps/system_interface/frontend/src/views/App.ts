@@ -860,6 +860,7 @@ export function App(): m.Component<AppAttrs> {
               void current.draftIntoPinnedWindow(THEME_DESIGN_PROMPT);
             },
       onPreviewTheme: (choice) => current.previewDesktopTheme(desktop.id, choice),
+      isDesktopShown: activeDesktop(current.getState())?.id === desktop.id,
       onClearPreview: () => current.clearThemePreview(),
     });
   }

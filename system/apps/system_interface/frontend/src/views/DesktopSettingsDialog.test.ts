@@ -4,7 +4,12 @@ import { mountView, unmountViews } from "@imbue/workspace-ui/src/testing/mount";
 import m from "mithril";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { appRecord, desktopRecord, themeCatalog, themeRecord } from "../testing/records";
-import { DesktopSettingsDialog, MAKE_THEME_IN_CHAT_HINT, isSameWallpaper } from "./DesktopSettingsDialog";
+import {
+  DesktopSettingsDialog,
+  MAKE_THEME_IN_CHAT_HINT,
+  THEME_PREVIEW_ELSEWHERE_HINT,
+  isSameWallpaper,
+} from "./DesktopSettingsDialog";
 import type { DesktopSettingsDialogAttrs } from "./DesktopSettingsDialog";
 
 afterEach(unmountViews);
@@ -18,6 +23,7 @@ function render(overrides: Partial<DesktopSettingsDialogAttrs> = {}): DesktopSet
     onDelete: vi.fn(async () => undefined),
     onCancel: vi.fn(),
     onPreviewTheme: vi.fn(),
+    isDesktopShown: true,
     onClearPreview: vi.fn(),
     previewApp: null,
     onMakeTheme: null,
@@ -93,6 +99,15 @@ describe("DesktopSettingsDialog", () => {
     expect(attrs.onSave).not.toHaveBeenCalled();
     unmountViews();
     expect(attrs.onClearPreview).toHaveBeenCalledOnce();
+  });
+
+  it("says a picked theme shows only once the user is on the desktop, for a desktop not on screen", () => {
+    render();
+    expect(card().querySelector("[data-theme-preview-hint]")).toBeNull();
+    unmountViews();
+
+    render({ isDesktopShown: false });
+    expect(card().querySelector("[data-theme-preview-hint]")?.textContent).toBe(THEME_PREVIEW_ELSEWHERE_HINT);
   });
 
   it("lists the workspace default by the theme it is, and a theme that fails its checks as unavailable", () => {

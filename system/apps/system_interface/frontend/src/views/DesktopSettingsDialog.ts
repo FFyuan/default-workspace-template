@@ -46,6 +46,8 @@ export interface DesktopSettingsDialogAttrs {
   readonly previewApp: Pick<AppRecord, "name" | "icon"> | null;
   /** Show a picked theme (a theme id, or null for the workspace's default) before it is saved. */
   readonly onPreviewTheme: (choice: string | null) => void;
+  /** Whether the desktop is the one on screen, where a picked theme shows before it is saved. */
+  readonly isDesktopShown: boolean;
   /** The dialog closed: put back whatever the desktop has saved by then. */
   readonly onClearPreview: () => void;
 }
@@ -63,6 +65,9 @@ export const THEME_PREVIEW_APP = "files";
 export const THEME_DESIGN_PROMPT =
   "I'd like to make my own workspace theme. Design it, show me how it looks, and let me try it " +
   "in Desktop settings before anything changes. Here's the look I want: ";
+
+/** Under the Theme row of a desktop that is not on screen, where a picked theme cannot show before it is saved. */
+export const THEME_PREVIEW_ELSEWHERE_HINT = "Switch to this desktop to see a theme before you save it.";
 
 /** Where "Make your own..." would be, when no window on this desktop takes a draft. */
 export const MAKE_THEME_IN_CHAT_HINT = "To make your own theme, describe the look you want in a chat.";
@@ -335,6 +340,13 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
       attrs.onMakeTheme === null
         ? m("p", { "data-make-theme-hint": "", class: "mb-2 type-helper text-secondary" }, MAKE_THEME_IN_CHAT_HINT)
         : null,
+      attrs.isDesktopShown
+        ? null
+        : m(
+            "p",
+            { "data-theme-preview-hint": "", class: "mb-2 type-helper text-secondary" },
+            THEME_PREVIEW_ELSEWHERE_HINT,
+          ),
       unavailableChoiceNote(catalog),
       availableTheme(catalog, theme) === null
         ? null
