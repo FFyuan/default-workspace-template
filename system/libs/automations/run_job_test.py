@@ -275,6 +275,24 @@ def test_state_left_under_system_data_is_dropped_once_the_job_has_its_own(
     assert not (tmp_path / "system" / "data").exists()
 
 
+def test_state_left_under_system_data_wins_when_it_is_newer(tmp_path: Path) -> None:
+    # A job enabled before the runner kept its state under system/data has an older
+    # copy in data/.state as well.
+    current = tmp_path / "data" / ".state" / "jobs" / "job"
+    current.mkdir(parents=True)
+    (current / "last_success").write_text(f"{_BASE_NOW - 30 * _DAY}\n")
+    legacy = tmp_path / "system" / "data" / ".state" / "jobs" / "job"
+    legacy.mkdir(parents=True)
+    (legacy / "last_success").write_text(f"{_BASE_NOW}\n")
+
+    result = _run_in_workspace(tmp_path, now=_BASE_NOW + 60)
+
+    assert result.returncode == 0, result.stderr
+    assert _runs(tmp_path) == 0
+    assert (current / "last_success").read_text() == f"{_BASE_NOW}\n"
+    assert not (tmp_path / "system" / "data").exists()
+
+
 def test_bad_duration_is_a_usage_error(tmp_path: Path) -> None:
     result = _run(tmp_path, "--every", "7x")
     assert result.returncode == 2
