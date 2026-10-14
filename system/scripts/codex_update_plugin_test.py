@@ -44,6 +44,8 @@ def _run(
     provisioned: bool = True,
     agent: str = "agent state",
     revision: str = "1",
+    script: Path = _SCRIPT,
+    is_shared_root_pinned: bool = True,
 ) -> tuple[subprocess.CompletedProcess[str], list[list[object]], Path]:
     state = tmp_path / agent
     home = get_codex_home(state)
@@ -60,10 +62,17 @@ def _run(
     shim.chmod(0o755)
     log = tmp_path / "calls.jsonl"
     log.unlink(missing_ok=True)
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key != "CODEX_PLUGIN_SHARED_COPY_DIR"
+    }
+    if is_shared_root_pinned:
+        env["CODEX_PLUGIN_SHARED_COPY_DIR"] = str(_shared_root(tmp_path))
     result = subprocess.run(
-        ["bash", str(_SCRIPT), *args],
+        ["bash", str(script), *args],
         env={
-            **os.environ,
+            **env,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
             "MNGR_AGENT_STATE_DIR": str(state),
             "CODEX_HOME": str(shared),
@@ -71,7 +80,6 @@ def _run(
             "SHIM_FAIL": fail,
             "CODE_GUARDIAN_MARKETPLACE": "imbue-ai/code-guardian@main",
             "SHIM_REVISION": revision,
-            "CODEX_PLUGIN_SHARED_COPY_DIR": str(_shared_root(tmp_path)),
         },
         capture_output=True,
         text=True,
@@ -177,6 +185,28 @@ def test_a_copy_that_fails_partway_falls_back_to_installing_from_github(
         ["plugin", "marketplace"],
         ["plugin", "add"],
     ]
+
+
+def test_an_agent_in_a_worktree_shares_the_main_checkouts_copy(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    script = workspace / "system" / "scripts" / _SCRIPT.name
+    script.parent.mkdir(parents=True)
+    shutil.copy2(_SCRIPT, script)
+    git = ["git", "-c", "user.name=test", "-c", "user.email=test@example.com"]
+    for command in (
+        ["init", "-q"],
+        ["add", "."],
+        ["commit", "-q", "-m", "workspace"],
+        ["worktree", "add", "-q", str(tmp_path / "worker"), "-b", "worker"],
+    ):
+        subprocess.run([*git, *command], cwd=workspace, check=True)
+    worker_script = tmp_path / "worker" / "system" / "scripts" / _SCRIPT.name
+
+    result, _, _ = _run(tmp_path, script=worker_script, is_shared_root_pinned=False)
+
+    assert result.returncode == 0, result.stderr
+    assert (workspace / "data/.state/codex-plugins/current").is_dir()
+    assert not (tmp_path / "worker" / "data").exists()
 
 
 def test_an_unwritable_shared_folder_still_provisions_the_agent(tmp_path: Path) -> None:

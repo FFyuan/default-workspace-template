@@ -28,7 +28,14 @@ PLUGIN="imbue-code-guardian@imbue-code-guardian"
 
 script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 repo_root="$(cd "$(dirname "$script_path")/../.." && pwd)"
-shared_root="${CODEX_PLUGIN_SHARED_COPY_DIR:-$repo_root/data/.state/codex-plugins}"
+# A worker runs this from its own git worktree, whose data/ is its own; the
+# shared copy is the main checkout's, so every agent in the workspace uses one.
+workspace_root="$repo_root"
+if git_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+    && [[ "$(basename "$git_common_dir")" == ".git" ]]; then
+    workspace_root="$(dirname "$git_common_dir")"
+fi
+shared_root="${CODEX_PLUGIN_SHARED_COPY_DIR:-$workspace_root/data/.state/codex-plugins}"
 # A symlink to the newest complete copy, a Codex home holding just the
 # marketplace snapshot and the installed plugin.
 shared_current="$shared_root/current"

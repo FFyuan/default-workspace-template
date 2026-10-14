@@ -6,6 +6,6 @@ A new chat no longer waits for the plugin install/update or `uv sync --all-packa
 
 - The SessionStart hook is now `refresh_agent_tools.sh --session-start`. It returns at once, shows the warnings the last run logged to one session, and starts an install in the background only for a config dir that has never had one.
 
-- A new Codex chat no longer clones code-guardian from GitHub before it starts (about 1.5 s on a cloud workspace, and once 93 s when the fetch hung). It copies the workspace's shared install from `data/.state/codex-plugins/` in tens of milliseconds. Only the first Codex agent on a workspace still installs from GitHub, and its install becomes the shared copy.
+- A new Codex chat no longer clones code-guardian from GitHub before it starts (about 1.5 s on a cloud workspace, and once 93 s when the fetch hung). It copies the workspace's shared install from `data/.state/codex-plugins/` in tens of milliseconds, and so does a Codex worker in its own worktree. Only the first Codex agent on a workspace still installs from GitHub, and its install becomes the shared copy.
 
 - Workers install their Claude plugins through `refresh_agent_tools.sh --claude-plugins`, which still never fails a worker's launch.
