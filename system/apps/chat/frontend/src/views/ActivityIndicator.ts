@@ -22,7 +22,7 @@
  * decision land and then apparent silence. Through that gap the strip says
  * `WAKE_LABEL`, bounded by `WAKE_SPINNER_MS`.
  *
- * Below the activity line, whatever it says, sits the wait line (`BackgroundTasksLine`) while
+ * Above the activity line, whatever it says, sits the wait line (`BackgroundTasksLine`) while
  * the chat has background tasks pending: the agent may be between turns, but one of them will
  * start the next.
  */
@@ -296,8 +296,8 @@ export function ActivityIndicator(): m.Component<ActivityIndicatorAttrs> {
       const tasks = getChatById(vnode.attrs.chatId)?.active_agent.background_tasks ?? [];
       if (tasks.length === 0) return activityStrip(vnode.attrs, STRIP_COLUMN_CLASS);
       return m("div", { class: `agent-activity-stack ${STRIP_COLUMN_CLASS} flex flex-col gap-1` }, [
-        activityStrip(vnode.attrs, ""),
         m(BackgroundTasksLine, { tasks }),
+        activityStrip(vnode.attrs, ""),
       ]);
     },
   };

@@ -315,7 +315,7 @@ describe("ActivityIndicator — what the strip actually renders", () => {
     expect(labelTextOf(strip)).toBe("Confirming permission changes…");
   });
 
-  it("puts the wait line under the activity line while tasks are pending, whatever the activity", () => {
+  it("puts the wait line over the activity line while tasks are pending, whatever the activity", () => {
     agentState.background_tasks = [
       {
         id: "task-1",
@@ -329,7 +329,7 @@ describe("ActivityIndicator — what the strip actually renders", () => {
 
     agentState.activity_state = "THINKING";
     const working = render();
-    const [activityLine, waitLine] = (working?.children ?? []) as (m.Vnode | null)[];
+    const [waitLine, activityLine] = (working?.children ?? []) as (m.Vnode | null)[];
     expect((activityLine?.attrs as Record<string, unknown>)["data-state"]).toBe("THINKING");
     expect(waitLine?.tag).toBe(BackgroundTasksLine);
     expect((waitLine?.attrs as { tasks: BackgroundTask[] }).tasks).toEqual(agentState.background_tasks);
@@ -338,8 +338,8 @@ describe("ActivityIndicator — what the strip actually renders", () => {
     agentState.activity_state = "IDLE";
     const waiting = render();
     expect(((waiting?.children ?? []) as (m.Vnode | null)[]).map((child) => child?.tag ?? null)).toEqual([
-      null,
       BackgroundTasksLine,
+      null,
     ]);
   });
 
