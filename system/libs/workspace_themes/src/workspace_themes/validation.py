@@ -2,7 +2,7 @@ import posixpath
 import re
 import tomllib
 from collections.abc import Iterable, Mapping, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Final
 from urllib.parse import unquote
 from xml.etree import ElementTree
@@ -33,6 +33,7 @@ from workspace_themes.contract import (
     METRIC_TOKEN_PIXEL_RANGES,
     OPTIONAL_CHROME_SLOTS,
     PRIVATE_TOKEN_PREFIX,
+    SERVED_FILE_SUFFIXES,
     STANDARD_THEME_ID,
     STYLE_FILE_SUFFIX,
     THEME_MANIFEST_FILENAME,
@@ -222,6 +223,10 @@ def _check_url(reference: str, context: StyleSheetContext, line: int) -> list[st
     if not path.is_file():
         return [
             f"{context.label}:{line}: url({stripped}) names {relative}, which does not exist"
+        ]
+    if PurePosixPath(relative).suffix.lower() not in SERVED_FILE_SUFFIXES:
+        return [
+            f"{context.label}:{line}: url({stripped}) names {relative}, a kind of file a theme does not serve"
         ]
     return []
 

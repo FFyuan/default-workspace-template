@@ -138,6 +138,18 @@ def test_css_that_steps_outside_the_contract_is_named(
     assert any(expected in problem for problem in problems), problems
 
 
+def test_a_url_may_name_only_a_kind_of_file_a_theme_serves(tmp_path: Path) -> None:
+    (tmp_path / "notes.md").write_text("# Notes\n", encoding="utf-8")
+
+    problems = check_style_sheet(
+        '[data-part="window"] { background: url("notes.md"); }', _context(tmp_path)
+    )
+
+    assert problems == [
+        "parts.css:1: url(notes.md) names notes.md, a kind of file a theme does not serve"
+    ]
+
+
 def test_an_app_overlay_may_style_the_parts_its_app_declares(tmp_path: Path) -> None:
     allowed = frozenset(CORE_PARTS) | {"chat.user-message"}
 
