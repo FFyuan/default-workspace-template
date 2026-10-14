@@ -842,9 +842,9 @@ def build_shell_state(
     ``on_registry_read``, what the built inventory tells every registry read, is the production shell's services
     event writer), and either way the shell's desktop reconcile listens to its registry changes;
     ``agent_events_path`` (the mngr observer's file the avatar's mood is read from) defaults to the one the
-    environment names; ``repo_root`` (the workspace the update notice's record and script, and the
-    share materials the lifecycle manager reads the per-app grants from, live under) is the served tree by
-    default; ``profiles`` (the resolver the composition root shares with presence) defaults to one that can reach
+    environment names; ``repo_root`` (the workspace the update notice's record and script, the
+    share materials the lifecycle manager reads the per-app grants from, and the theme folders the catalog is read
+    from and watched in, live under) is the served tree by default; ``profiles`` (the resolver the composition root shares with presence) defaults to one that can reach
     no connector, so a shell built without one names visitors by email; ``launch_poster`` (how a POST launch path
     is asked for its page) defaults to the loopback POST; ``is_lifecycle_enabled`` is whether the lifecycle
     manager owns the live workspace's apps, sweeping them and waking one for a POST launch (the production shell's
