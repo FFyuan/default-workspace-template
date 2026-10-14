@@ -53,6 +53,7 @@ from workspace_themes.primitives import (
 from workspace_themes.validation import (
     check_attribution_files,
     check_folder_files,
+    check_icon_file_formats,
     check_icon_files,
     check_manifest_rules,
     check_resolved_chrome,
@@ -398,7 +399,9 @@ def _entry_for(
     problems.extend(check_attribution_files(theme.folder, theme.manifest))
     if theme.manifest.icons is not None:
         problems.extend(check_icon_files(theme.folder, theme.id, theme.manifest.icons))
-    if icons is None:
+    elif icons is not None:
+        problems.extend(check_icon_file_formats(theme.folder, icons.spec))
+    else:
         problems.append("icons: neither the theme nor its bases declare [icons]")
     return ThemeEntry(
         id=theme.id,

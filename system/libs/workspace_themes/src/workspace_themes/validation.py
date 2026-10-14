@@ -557,16 +557,23 @@ def check_icon_files(folder: Path, theme_id: str, icons: ThemeIconSpec) -> list[
         problems.append(
             f"icons: the generic program icon {ICONS_DIRECTORY}/{FALLBACK_ICON_STEM}{suffix} is missing"
         )
+    problems.extend(check_icon_file_formats(folder, icons))
+    return problems
+
+
+def check_icon_file_formats(folder: Path, icons: ThemeIconSpec) -> list[str]:
+    """The folder's icons in the spec's format match it: a png icon's format and size, an svg icon's rules. A theme
+    that inherits its base's [icons] draws its own icons to that spec, so they are held to it too."""
+    problems: list[str] = []
     icons_directory = folder / ICONS_DIRECTORY
-    if icons_directory.is_dir():
-        for path in sorted(icons_directory.glob(f"*{suffix}")):
-            label = path.relative_to(folder).as_posix()
-            if icons.format == IconFormat.PNG:
-                problems.extend(_check_png_size(path, label, icons.size))
-            else:
-                problems.extend(
-                    f"{label}: {problem}" for problem in check_svg_icon(path)
-                )
+    if not icons_directory.is_dir():
+        return problems
+    for path in sorted(icons_directory.glob(f"*.{icons.format}")):
+        label = path.relative_to(folder).as_posix()
+        if icons.format == IconFormat.PNG:
+            problems.extend(_check_png_size(path, label, icons.size))
+        else:
+            problems.extend(f"{label}: {problem}" for problem in check_svg_icon(path))
     return problems
 
 

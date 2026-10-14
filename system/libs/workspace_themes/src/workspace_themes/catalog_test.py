@@ -109,6 +109,33 @@ def test_a_theme_that_inherits_its_icon_spec_draws_its_own_icons_before_its_base
     assert entry.icons.fallback == child / "icons" / "app.png"
 
 
+def test_a_theme_that_inherits_its_icon_spec_has_its_own_icons_checked_against_it(
+    tmp_path: Path,
+) -> None:
+    write_standard_theme(tmp_path)
+    write_test_theme(tmp_path / BUILTIN_THEMES_DIRECTORY, "paper", _PARTS_CSS)
+    child = tmp_path / WORKSPACE_THEMES_DIRECTORY / "dark-paper"
+    child.mkdir(parents=True)
+    (child / "theme.toml").write_text(
+        'contract = 1\nid = "dark-paper"\nname = "Dark paper"\ndescription = "Paper at night."\n'
+        'base = "paper"\n',
+        encoding="utf-8",
+    )
+    write_test_icon(child / "icons" / "chat.png", 48)
+    (child / "icons" / "app.png").write_text("not an image", encoding="utf-8")
+
+    entry = _catalog(tmp_path).find("dark-paper")
+
+    assert entry is not None and not entry.is_available
+    assert any(
+        problem.startswith("icons/app.png: cannot be read as an image")
+        for problem in entry.problems
+    )
+    assert (
+        "icons/chat.png: is 48x48, but the theme's icons are 32x32" in entry.problems
+    )
+
+
 def test_a_broken_chain_makes_a_theme_unavailable_with_the_reason(
     tmp_path: Path,
 ) -> None:
