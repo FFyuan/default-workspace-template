@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
+from imbue.mngr.utils.polling import wait_for
 from imbue.mngr_codex.codex_config import get_codex_home
 
 _SCRIPT = Path(__file__).with_name("codex_update_plugin.sh")
@@ -207,6 +210,30 @@ def test_an_agent_in_a_worktree_shares_the_main_checkouts_copy(tmp_path: Path) -
     assert result.returncode == 0, result.stderr
     assert (workspace / "data/.state/codex-plugins/current").is_dir()
     assert not (tmp_path / "worker" / "data").exists()
+
+
+def _read_or_empty(path: Path) -> str:
+    return path.read_text() if path.exists() else ""
+
+
+def test_a_publish_waits_for_the_one_already_going(tmp_path: Path) -> None:
+    if shutil.which("flock") is None:
+        pytest.skip("publish serialization needs flock(1), which macOS lacks")
+    _shared_root(tmp_path).mkdir()
+    with (_shared_root(tmp_path) / "publish.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        agent = threading.Thread(target=_run, args=(tmp_path,))
+        agent.start()
+        wait_for(
+            lambda: '"plugin", "add"' in _read_or_empty(tmp_path / "calls.jsonl"),
+            timeout=5,
+            error_message="the agent never installed code-guardian",
+        )
+        assert agent.is_alive()
+        assert not (_shared_root(tmp_path) / "current").exists()
+    agent.join(timeout=5)
+
+    assert _installed(_shared_copy(tmp_path)) == ("1", ["1"])
 
 
 def test_an_unwritable_shared_folder_still_provisions_the_agent(tmp_path: Path) -> None:

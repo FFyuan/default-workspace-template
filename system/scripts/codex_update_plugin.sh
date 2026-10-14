@@ -68,12 +68,24 @@ copy_install() {
 
 # Make a copy of the install in `source_home` the shared copy, and drop every
 # older copy but the one it replaces (an agent may still be copying from that).
+# One publish runs at a time, so a prune never drops a copy another publish is
+# still writing; flock(1) is missing on macOS, which then gets no protection.
 # Every caller tests its status, so each step returns on failure itself.
 publish_shared_copy() {
     local source_home="$1"
+    mkdir -p "$shared_root" || return 1
+    (
+        if command -v flock >/dev/null 2>&1; then
+            flock -w 60 7 || exit 1
+        fi
+        publish_shared_copy_locked "$source_home"
+    ) 7>"$shared_root/publish.lock"
+}
+
+publish_shared_copy_locked() {
+    local source_home="$1"
     local previous=""
     local copy
-    mkdir -p "$shared_root" || return 1
     copy="$(mktemp -d "$shared_root/copy.XXXXXX")" || return 1
     copy_install "$source_home" "$copy" || { rm -rf "$copy"; return 1; }
     if [[ -L "$shared_current" ]]; then
