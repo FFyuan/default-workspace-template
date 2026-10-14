@@ -41,6 +41,7 @@ members = [
     "pytest-workspace-env",
     "share-gateway",
     "system-interface",
+    "system-monitor",
     "terminal-app",
     "tk-command-parsing",
     "workspace-layout",
@@ -3519,6 +3520,33 @@ dev = [
     { name = "ruff", specifier = "~=0.12.8" },
     { name = "ty", specifier = "==0.0.85" },
 ]
+
+[[package]]
+name = "system-monitor"
+version = "0.1.0"
+source = { editable = "system/apps/system_monitor" }
+dependencies = [
+    { name = "app-manifest" },
+    { name = "flask" },
+    { name = "oom-priority" },
+    { name = "werkzeug" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "app-manifest", editable = "system/libs/app_manifest" },
+    { name = "flask", specifier = ">=3.0" },
+    { name = "oom-priority", editable = "system/services/oom_priority" },
+    { name = "werkzeug", specifier = ">=3.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ty", specifier = "==0.0.85" }]
 
 [[package]]
 name = "tabulate"
