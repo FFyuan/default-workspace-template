@@ -285,7 +285,8 @@ command = "sleep infinity"
 [agent_types.codex]
 # Extra provisioning runs after mngr writes this agent's isolated Codex config,
 # before startup. Applies to chats and workers; reviewer settings still decide
-# which gates run. Do not install into the shared account/auth CODEX_HOME.
+# which gates run. Do not install into the shared account/auth CODEX_HOME. A new
+# agent waits for this, so the script copies a shared install rather than fetching.
 extra_provision_command__extend = ["bash system/scripts/codex_update_plugin.sh"]
 # Launch through the OOM band wrapper, exactly as claude does above -- without it an
 # agent runs unbanded and earlyoom sheds it by kernel score instead of by our tiering.

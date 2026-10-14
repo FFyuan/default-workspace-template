@@ -9,3 +9,4 @@ Machine state the workspace services read and write:
 - `last-restic-prune` - Backup maintenance timestamp.
 - `user_timezone` - The last timezone the bootstrap applied, re-applied at boot when the fetch from the user's computer fails.
 - `isolated-instances/` - State for temporarily booted app instances.
+- `codex-plugins/` - The installed code-guardian copy new Codex agents start from, and the log of its last background refresh (`system/scripts/codex_update_plugin.sh`).

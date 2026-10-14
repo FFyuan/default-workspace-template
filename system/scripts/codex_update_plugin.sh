@@ -5,10 +5,138 @@ set -euo pipefail
 # Never install into an inherited CODEX_HOME: that may be the account's shared
 # authentication home, or the parent agent's home. mngr only sets CODEX_HOME on
 # the launched Codex process, not on extra provisioning commands.
+#
+# A new chat waits for this script, so it does not fetch anything when it can
+# avoid it. The workspace keeps one installed copy of code-guardian under
+# data/.state/codex-plugins/, and a new agent gets a copy of that. A detached run
+# of this script (--refresh) then brings the shared copy up to date from GitHub,
+# so an update reaches the next new agent, not the one being created. Only the
+# first agent on a workspace, which has no shared copy yet, installs from GitHub
+# itself, and its install becomes the shared copy.
+#
 # Like the Claude installer, outages warn without preventing agent creation;
 # --strict is available for verification. No cache is deleted.
+MARKETPLACE="imbue-code-guardian"
+PLUGIN="imbue-code-guardian@imbue-code-guardian"
+# The refresh waits this long before fetching, so it stays off the new chat's
+# first turn.
+REFRESH_DELAY_SECONDS="${CODEX_PLUGIN_REFRESH_DELAY_SECONDS:-60}"
+REFRESH_TIMEOUT_SECONDS=600
+
+script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+repo_root="$(cd "$(dirname "$script_path")/../.." && pwd)"
+shared_root="${CODEX_PLUGIN_SHARED_COPY_DIR:-$repo_root/data/.state/codex-plugins}"
+# A symlink to the newest complete copy, a Codex home holding just the
+# marketplace snapshot and the installed plugin.
+shared_current="$shared_root/current"
+
+export GIT_TERMINAL_PROMPT=0
+export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=5'
+
+plugin_paths() {
+    printf '%s\n' ".tmp/marketplaces/$MARKETPLACE" "plugins/cache/$MARKETPLACE"
+}
+
+# Copy the marketplace snapshot and the installed plugin from one Codex home to
+# another, replacing whatever the destination had.
+copy_install() {
+    local source_home="$1"
+    local destination_home="$2"
+    local path
+    while read -r path; do
+        [[ -d "$source_home/$path" ]] || return 1
+    done < <(plugin_paths)
+    while read -r path; do
+        rm -rf "${destination_home:?}/$path"
+        mkdir -p "$(dirname "$destination_home/$path")"
+        cp -a "$source_home/$path" "$destination_home/$path"
+    done < <(plugin_paths)
+}
+
+# Make a copy of the install in `source_home` the shared copy, and drop every
+# older copy but the one it replaces (an agent may still be copying from that).
+publish_shared_copy() {
+    local source_home="$1"
+    local previous=""
+    local copy
+    mkdir -p "$shared_root"
+    copy="$(mktemp -d "$shared_root/copy.XXXXXX")"
+    copy_install "$source_home" "$copy" || { rm -rf "$copy"; return 1; }
+    if [[ -L "$shared_current" ]]; then
+        previous="$(readlink "$shared_current")"
+    fi
+    ln -sfn "$(basename "$copy")" "$shared_current"
+    for old in "$shared_root"/copy.*; do
+        [[ "$(basename "$old")" == "$(basename "$copy")" || "$(basename "$old")" == "$previous" ]] || rm -rf "$old"
+    done
+}
+
+# Install from GitHub into `home`: fetch the marketplace, then add the plugin.
+install_from_github() {
+    local home="$1"
+    # The marketplace source and plugin enablement live in mngr config_overrides,
+    # so a config rewrite cannot strand the cached Git marketplace. Upgrade also
+    # fetches the initial snapshot for a newly provisioned home.
+    if ! CODEX_HOME="$home" codex plugin marketplace upgrade "$MARKETPLACE"; then
+        echo "warning: could not refresh code-guardian; attempting the cached marketplace" >&2
+    fi
+    CODEX_HOME="$home" codex plugin add "$PLUGIN"
+}
+
+# The detached half: install the latest code-guardian into a fresh home, then
+# make it the shared copy. `config` is a copy of the provisioning agent's
+# config.toml, which declares the marketplace.
+refresh_shared_copy() {
+    local config="$1"
+    local home
+    sleep "$REFRESH_DELAY_SECONDS"
+    home="$(mktemp -d "$shared_root/refresh.XXXXXX")"
+    mv "$config" "$home/config.toml"
+    if install_from_github "$home"; then
+        publish_shared_copy "$home" || echo "warning: could not publish the refreshed code-guardian copy" >&2
+    else
+        echo "warning: could not refresh the shared code-guardian copy; new agents keep the previous one" >&2
+    fi
+    rm -rf "$home"
+}
+
+# Start a detached refresh unless one is already pending or running, so creating
+# several agents at once fetches once.
+start_refresh() {
+    local pid_file="$shared_root/refresh.pid"
+    local running_pid=""
+    local config
+    mkdir -p "$shared_root"
+    if [[ -f "$pid_file" ]]; then
+        read -r running_pid < "$pid_file" || true
+    fi
+    if [[ -n "$running_pid" ]] && kill -0 "$running_pid" 2>/dev/null; then
+        return 0
+    fi
+    config="$(mktemp "$shared_root/refresh-config.XXXXXX")"
+    cp "$CODEX_HOME/config.toml" "$config"
+    local time_limit=""
+    if command -v timeout >/dev/null 2>&1; then
+        time_limit="timeout $((REFRESH_DELAY_SECONDS + REFRESH_TIMEOUT_SECONDS))"
+    fi
+    # Every descriptor is redirected so mngr, which reads this script's output to
+    # its end, is never left waiting on the detached run's copy of it.
+    # shellcheck disable=SC2086
+    if command -v setsid >/dev/null 2>&1; then
+        setsid nohup $time_limit bash "$script_path" --refresh "$config" \
+            >"$shared_root/refresh.log" 2>&1 </dev/null &
+    else
+        nohup $time_limit bash "$script_path" --refresh "$config" \
+            >"$shared_root/refresh.log" 2>&1 </dev/null &
+    fi
+    echo "$!" > "$pid_file"
+}
+
 STRICT=0
-if [[ $# -eq 1 && "$1" == "--strict" ]]; then
+if [[ $# -eq 2 && "$1" == "--refresh" ]]; then
+    refresh_shared_copy "$2"
+    exit 0
+elif [[ $# -eq 1 && "$1" == "--strict" ]]; then
     STRICT=1
 elif [[ $# -ne 0 ]]; then
     echo "usage: $0 [--strict]" >&2
@@ -30,16 +158,13 @@ if ! command -v codex &>/dev/null; then
     exit "$STRICT"
 fi
 
-export GIT_TERMINAL_PROMPT=0
-export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=5'
-# The marketplace source and plugin enablement live in mngr config_overrides,
-# so a config rewrite cannot strand the cached Git marketplace. Upgrade also
-# fetches the initial snapshot for a newly provisioned home.
-if ! codex plugin marketplace upgrade imbue-code-guardian; then
-    echo "warning: could not refresh code-guardian; attempting the cached marketplace" >&2
+if [[ -L "$shared_current" ]] && copy_install "$(cd "$shared_current" && pwd -P)" "$CODEX_HOME"; then
+    start_refresh
+    exit 0
 fi
 
-if ! codex plugin add imbue-code-guardian@imbue-code-guardian; then
+if ! install_from_github "$CODEX_HOME"; then
     echo "warning: code-guardian installation failed; this Codex agent may lack review skills and Stop checks" >&2
     exit "$STRICT"
 fi
+publish_shared_copy "$CODEX_HOME" || echo "warning: could not keep a shared copy of code-guardian for new agents" >&2

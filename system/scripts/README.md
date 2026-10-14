@@ -21,6 +21,10 @@ Provisioning and utility scripts:
   not wait on them. `codex_update_plugin.sh` installs native code-guardian into each
   mngr Codex agent's isolated home, after its config is written and before
   launch. Requires code-guardian 0.6.0 or newer on the marketplace's `main`.
+  A new agent copies the workspace's shared install from
+  `data/.state/codex-plugins/` instead of fetching from GitHub; a detached run
+  then refreshes that copy, so an update reaches the next new agent. Only the
+  first agent on a workspace installs from GitHub, and its install seeds the copy.
   Re-provisioning restores plugin enablement after mngr rewrites the config.
   Install failures warn without blocking launch; use `--strict` for verification.
   The marketplace source and plugin enablement are declared in the Codex agent

@@ -11,6 +11,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import time
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,16 @@ def test_first_session_and_reprovision_load_native_reviews(tmp_path: Path) -> No
     shared = tmp_path / "account home"
     shared.mkdir()
     (shared / "config.toml").write_text("# account config\n")
-    env = {**os.environ, "MNGR_AGENT_STATE_DIR": str(state), "CODEX_HOME": str(shared)}
+    # The second pass installs from the shared copy the first one leaves, so the
+    # copied install is what its skills and hooks are checked against.
+    shared_copies = tmp_path / "plugin copies"
+    env = {
+        **os.environ,
+        "MNGR_AGENT_STATE_DIR": str(state),
+        "CODEX_HOME": str(shared),
+        "CODEX_PLUGIN_SHARED_COPY_DIR": str(shared_copies),
+        "CODEX_PLUGIN_REFRESH_DELAY_SECONDS": "0",
+    }
     agent_config = tomllib.loads((_ROOT / ".mngr/settings.toml").read_text())[
         "agent_types"
     ]["codex"]
@@ -141,3 +151,15 @@ def test_first_session_and_reprovision_load_native_reviews(tmp_path: Path) -> No
                 assert "stop_hook_entrypoint.sh" in guardian_hooks[0]["command"]
             finally:
                 process.terminate()
+    assert (shared_copies / "current").is_dir()
+    # The second pass started a refresh of the shared copy; it must not outlive the test.
+    refresh_pid = int((shared_copies / "refresh.pid").read_text())
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        try:
+            os.kill(refresh_pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        pytest.fail("the shared code-guardian refresh did not finish")
