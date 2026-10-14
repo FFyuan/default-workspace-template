@@ -1,6 +1,5 @@
 import re
 from enum import auto
-from pathlib import PurePosixPath
 from typing import Any, Final, Self
 
 from imbue.imbue_common.enums import LowerCaseStrEnum
@@ -119,10 +118,10 @@ class ThemeRelativePath(str):
             raise InvalidThemeValueError(
                 f"path {value!r} may not hold control characters"
             )
-        parts = PurePosixPath(value).parts
-        if any(part in ("..", ".") for part in parts) or not parts:
+        # Split by hand: PurePosixPath drops '.' and empty segments and a trailing slash, which a URL keeps.
+        if any(segment in ("", ".", "..") for segment in value.split("/")):
             raise InvalidThemeValueError(
-                f"path {value!r} must stay inside the theme folder"
+                f"path {value!r} must name a file inside the theme folder, with no '.', '..', or empty segment"
             )
         return super().__new__(cls, value)
 
