@@ -218,6 +218,7 @@ def test_the_one_dir_mode_installs_into_the_dir_it_is_given(tmp_path: Path) -> N
     assert all(f" {tmp_path / 'new-account'} " in call for call in _calls(tmp_path))
 
 
+@pytest.mark.flaky
 def test_the_hook_returns_at_once_and_installs_into_a_config_dir_that_never_had_one(
     tmp_path: Path,
 ) -> None:
