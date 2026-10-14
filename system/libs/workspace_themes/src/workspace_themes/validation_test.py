@@ -13,6 +13,7 @@ from workspace_themes.primitives import (
     ThemeRelativePath,
     TitleAlign,
 )
+from workspace_themes.testing import write_png_header_only
 from workspace_themes.validation import (
     StyleSheetContext,
     check_folder_files,
@@ -21,7 +22,6 @@ from workspace_themes.validation import (
     check_style_sheet,
     read_theme_manifest,
 )
-from workspace_themes.testing import write_png_header_only
 
 
 def _context(

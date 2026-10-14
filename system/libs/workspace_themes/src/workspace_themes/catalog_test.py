@@ -131,9 +131,7 @@ def test_a_theme_that_inherits_its_icon_spec_has_its_own_icons_checked_against_i
         problem.startswith("icons/app.png: cannot be read as an image")
         for problem in entry.problems
     )
-    assert (
-        "icons/chat.png: is 48x48, but the theme's icons are 32x32" in entry.problems
-    )
+    assert "icons/chat.png: is 48x48, but the theme's icons are 32x32" in entry.problems
 
 
 def test_a_broken_chain_makes_a_theme_unavailable_with_the_reason(
