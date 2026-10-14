@@ -43,7 +43,7 @@ JOB_TIMEOUT_SECONDS="${AGENT_TOOLS_JOB_TIMEOUT_SECONDS:-600}"
 
 script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 script_dir="$(dirname "$script_path")"
-repo_root="$(cd "$script_dir/../.." && pwd)"
+repo_root="$(cd "$script_dir/../.." && pwd -P)"
 state_root="$repo_root/data/.state/agent-tools"
 uv_log="$state_root/uv_sync.log"
 uv_stderr_log="$state_root/uv_sync.stderr.log"
