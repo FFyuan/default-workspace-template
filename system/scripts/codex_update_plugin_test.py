@@ -21,7 +21,7 @@ try:
 except OSError:
     is_fd_9_open = False
 with open(os.environ["SHIM_LOG"], "a") as log:
-    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:], os.environ.get("MNGR_AGENT_ID"), is_fd_9_open]) + "\\n")
+    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:], is_fd_9_open]) + "\\n")
 if " ".join(sys.argv[1:3]) == os.environ.get("SHIM_FAIL"):
     sys.exit(1)
 home = Path(os.environ["CODEX_HOME"])
@@ -66,7 +66,6 @@ def _run(
             **os.environ,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
             "MNGR_AGENT_STATE_DIR": str(state),
-            "MNGR_AGENT_ID": f"agent-{agent.replace(' ', '-')}",
             "CODEX_HOME": str(shared),
             "SHIM_LOG": str(log),
             "SHIM_FAIL": fail,
@@ -215,7 +214,7 @@ def test_a_refresh_updates_the_shared_copy_for_the_next_agent(tmp_path: Path) ->
     assert first_copy.exists()
     assert not list(_shared_root(tmp_path).glob("refresh.??????"))
     # codex never inherits the refresh's lock.
-    assert calls and not any(call[3] for call in calls)
+    assert calls and not any(call[2] for call in calls)
 
 
 def test_a_failed_refresh_keeps_the_shared_copy_and_fails(tmp_path: Path) -> None:
