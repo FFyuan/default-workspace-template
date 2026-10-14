@@ -2058,14 +2058,18 @@ def _run_rollback(
         sys.stderr.write(f"rollback did not restore health: {unsettled}\n")
         return 3
     refresh_workspace_view(repo_root, runner)
-    outcome = "Rolled back to the previous version."
-    if record.unrestarted:
-        outcome += (
-            f" {', '.join(record.unrestarted)} did not restart with it; ask your agent "
-            "to restart them."
-        )
-    _finish_rollback(record, repo_root, outcome)
-    sys.stderr.write(f"rolled back: the previous version is restored and healthy. {outcome}\n")
+    unrestarted_note = (
+        f" {', '.join(record.unrestarted)} did not restart with it; ask your agent "
+        "to restart them."
+        if record.unrestarted
+        else ""
+    )
+    _finish_rollback(
+        record, repo_root, f"Rolled back to the previous version.{unrestarted_note}"
+    )
+    sys.stderr.write(
+        f"rolled back: the previous version is restored and healthy.{unrestarted_note}\n"
+    )
     return 0
 
 
