@@ -16,8 +16,6 @@ from mngr_cli_contract.contract import assert_mngr_argv_valid
 from bootstrap.manager import (
     _DRI_WAKE_TIMEOUT_SECONDS,
     _UPDATE_RECOVER_TIMEOUT_SECONDS,
-    AGENT_TOOLS_CRON_NAME,
-    AGENT_TOOLS_SCRIPT,
     UPDATE_APPLY_MARKER,
     UPDATE_APPLY_SCRIPT,
     UPDATE_RECOVER_CRON_NAME,
@@ -36,7 +34,6 @@ from bootstrap.manager import (
     _recover_interrupted_update,
     _set_container_timezone,
     _wake_update_dri_agent,
-    _write_agent_tools_cron_entry,
     _write_update_recovery_cron_entry,
     main,
 )
@@ -408,45 +405,6 @@ def test_update_recovery_cron_entry_tolerates_an_unwritable_target(
     # This runs on the path to supervisord; a boot that reaches the services is
     # worth more than the guard.
     _write_update_recovery_cron_entry(target_dir=tmp_path / "missing")
-
-
-# _write_agent_tools_cron_entry
-
-
-def test_agent_tools_cron_entry_runs_the_refresh_hourly_through_the_runner(
-    tmp_path: Path,
-) -> None:
-    target = tmp_path / "etc-cron-d"
-    target.mkdir()
-    installed = target / AGENT_TOOLS_CRON_NAME
-    installed.write_text("* * * * * root true  # a stale entry\n")
-
-    _write_agent_tools_cron_entry(target_dir=target)
-
-    entry = installed.read_text()
-    assert "stale entry" not in entry
-    assert (installed.stat().st_mode & 0o777) == 0o644
-    assert entry.startswith("* * * * * root ")
-    command = entry.removeprefix("* * * * * root ").split()
-    assert (
-        command[0] == f"{WORKSPACE_ROOT_DIR}/system/libs/automations/with_agent_env.sh"
-    )
-    assert command[1] == f"{WORKSPACE_ROOT_DIR}/system/libs/automations/run_job.sh"
-    assert command[2:9] == [
-        AGENT_TOOLS_CRON_NAME,
-        "--every",
-        "1h",
-        "--retry-after",
-        "15m",
-        "--wake-grace",
-        "10m",
-    ]
-    assert command[9:11] == ["bash", str(WORKSPACE_ROOT_DIR / AGENT_TOOLS_SCRIPT)]
-    assert (Path(__file__).parents[5] / AGENT_TOOLS_SCRIPT).is_file()
-
-
-def test_agent_tools_cron_entry_tolerates_an_unwritable_target(tmp_path: Path) -> None:
-    _write_agent_tools_cron_entry(target_dir=tmp_path / "missing")
 
 
 # _apply_container_timezone
@@ -895,7 +853,6 @@ def _prepare_boot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _StubSubpr
     for name in (
         "_migrate_legacy_claude_state_best_effort",
         "_write_update_recovery_cron_entry",
-        "_write_agent_tools_cron_entry",
         "_ensure_supervisor_log_dir",
     ):
         monkeypatch.setattr(f"bootstrap.manager.{name}", lambda: None)

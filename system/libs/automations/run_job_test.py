@@ -10,7 +10,6 @@ bash snippet that records its invocations to a marker file.
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Iterable
 from pathlib import Path
 
 _SCRIPT = Path(__file__).parent / "run_job.sh"
@@ -103,9 +102,7 @@ def test_due_day_waits_for_hour_but_extra_day_fires_any_hour(tmp_path: Path) -> 
     assert _runs(tmp_path) == 2
 
 
-def test_failed_run_leaves_window_uncovered_and_retries_after_gap(
-    tmp_path: Path,
-) -> None:
+def test_failed_run_leaves_window_uncovered_and_retries_after_gap(tmp_path: Path) -> None:
     failing = ["bash", "-c", "exit 1"]
     result = _run(tmp_path, "--every", "7d", command=failing)
     assert result.returncode == 1
@@ -149,48 +146,6 @@ def test_custom_retry_gap(tmp_path: Path) -> None:
     assert _runs(tmp_path) == 1
 
 
-_GRACE = ("--every", "1h", "--wake-grace", "10m")
-
-
-def _tick_at(tmp_path: Path, start: int, minutes: Iterable[int]) -> None:
-    """Tick at each of ``minutes`` after ``start``.
-
-    Ticks under five minutes apart keep the workspace awake for the runner, as cron's
-    every-minute ticks do, at a fraction of the subprocesses.
-    """
-    for minute in minutes:
-        _run(tmp_path, *_GRACE, now=start + minute * 60)
-
-
-def test_wake_grace_holds_the_first_run_after_a_fresh_start(tmp_path: Path) -> None:
-    # No tick has been recorded yet, which is what a new workspace looks like.
-    _tick_at(tmp_path, _BASE_NOW, [0, 4, 8])
-    assert _runs(tmp_path) == 0
-    _run(tmp_path, *_GRACE, now=_BASE_NOW + 10 * 60)
-    assert _runs(tmp_path) == 1
-
-
-def test_wake_grace_holds_a_catch_up_run_after_the_machine_slept(
-    tmp_path: Path,
-) -> None:
-    _tick_at(tmp_path, _BASE_NOW, [0, 4, 8, 10])
-    assert _runs(tmp_path) == 1
-    woke = _BASE_NOW + 10 * 60 + 3 * 3600
-
-    _tick_at(tmp_path, woke, [0, 4, 8])
-    assert _runs(tmp_path) == 1
-    _run(tmp_path, *_GRACE, now=woke + 10 * 60)
-    assert _runs(tmp_path) == 2
-
-
-def test_wake_grace_does_not_hold_a_run_that_comes_due_while_awake(
-    tmp_path: Path,
-) -> None:
-    # The first run lands at minute 10 and the next is due at minute 70.
-    _tick_at(tmp_path, _BASE_NOW, [0, 4, 8, 10, *range(14, 71, 4)])
-    assert _runs(tmp_path) == 2
-
-
 def test_overlapping_tick_skips_while_lock_held(tmp_path: Path) -> None:
     import fcntl
     import shutil
@@ -198,9 +153,7 @@ def test_overlapping_tick_skips_while_lock_held(tmp_path: Path) -> None:
     import pytest
 
     if shutil.which("flock") is None:
-        pytest.skip(
-            "flock(1) not available (macOS); overlap protection is container-only"
-        )
+        pytest.skip("flock(1) not available (macOS); overlap protection is container-only")
 
     state = tmp_path / "state" / "job"
     state.mkdir(parents=True)
@@ -221,82 +174,6 @@ def test_lock_fd_is_closed_for_the_command(tmp_path: Path) -> None:
     result = _run(tmp_path, "--every", "7d", command=probe)
     assert result.returncode == 0, result.stderr
     assert _state(tmp_path, "last_success") is not None
-
-
-def _run_in_workspace(workspace: Path, now: int = _BASE_NOW) -> subprocess.CompletedProcess[str]:
-    """Run a copy of the runner placed in ``workspace``, with its default state root."""
-    script = workspace / "system" / "libs" / "automations" / "run_job.sh"
-    script.parent.mkdir(parents=True, exist_ok=True)
-    script.write_text(_SCRIPT.read_text())
-    return subprocess.run(
-        [
-            "bash",
-            str(script),
-            "job",
-            "--every",
-            "1h",
-            "bash",
-            "-c",
-            f"echo run >> {workspace / 'ran'}",
-        ],
-        env={"PATH": "/usr/bin:/bin", "MINDS_JOB_NOW_EPOCH": str(now)},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def test_state_lives_under_the_workspaces_data_dir(tmp_path: Path) -> None:
-    result = _run_in_workspace(tmp_path)
-
-    assert result.returncode == 0, result.stderr
-    assert (tmp_path / "data" / ".state" / "jobs" / "job" / "last_success").is_file()
-
-
-def test_state_left_under_system_data_is_moved_into_place(tmp_path: Path) -> None:
-    legacy = tmp_path / "system" / "data" / ".state" / "jobs" / "job"
-    legacy.mkdir(parents=True)
-    (legacy / "last_success").write_text(f"{_BASE_NOW}\n")
-
-    result = _run_in_workspace(tmp_path, now=_BASE_NOW + 60)
-
-    assert result.returncode == 0, result.stderr
-    assert _runs(tmp_path) == 0
-    assert (
-        tmp_path / "data" / ".state" / "jobs" / "job" / "last_success"
-    ).read_text() == f"{_BASE_NOW}\n"
-    assert not (tmp_path / "system" / "data").exists()
-
-
-def test_state_left_under_system_data_is_dropped_once_the_job_has_its_own(
-    tmp_path: Path,
-) -> None:
-    _run_in_workspace(tmp_path)
-    (tmp_path / "system" / "data" / ".state" / "jobs" / "job").mkdir(parents=True)
-
-    result = _run_in_workspace(tmp_path, now=_BASE_NOW + 60)
-
-    assert result.returncode == 0, result.stderr
-    assert _runs(tmp_path) == 1
-    assert not (tmp_path / "system" / "data").exists()
-
-
-def test_state_left_under_system_data_wins_when_it_is_newer(tmp_path: Path) -> None:
-    # A job enabled before the runner kept its state under system/data has an older
-    # copy in data/.state as well.
-    current = tmp_path / "data" / ".state" / "jobs" / "job"
-    current.mkdir(parents=True)
-    (current / "last_success").write_text(f"{_BASE_NOW - 30 * _DAY}\n")
-    legacy = tmp_path / "system" / "data" / ".state" / "jobs" / "job"
-    legacy.mkdir(parents=True)
-    (legacy / "last_success").write_text(f"{_BASE_NOW}\n")
-
-    result = _run_in_workspace(tmp_path, now=_BASE_NOW + 60)
-
-    assert result.returncode == 0, result.stderr
-    assert _runs(tmp_path) == 0
-    assert (current / "last_success").read_text() == f"{_BASE_NOW}\n"
-    assert not (tmp_path / "system" / "data").exists()
 
 
 def test_bad_duration_is_a_usage_error(tmp_path: Path) -> None:

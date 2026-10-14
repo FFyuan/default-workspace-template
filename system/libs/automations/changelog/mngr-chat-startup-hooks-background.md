@@ -1,3 +1,0 @@
-- `run_job.sh` takes `--wake-grace <N[mhd]>`: after the workspace starts or wakes from sleep (no tick for five minutes), a due run waits that long, so a catch-up run does not compete with someone who just opened the workspace. The built-in hourly tool refresh uses ten minutes.
-
-- `run_job.sh` keeps its state in `data/.state/jobs/<job-id>/` as documented. Since the runner moved into `system/libs/automations/` it had been writing to `system/data/.state/jobs/`, which git neither tracks nor ignores, so a commit of everything could pick it up. A job's state left there is moved into place at its next tick, so an enabled Caretaker keeps its record of the last run.

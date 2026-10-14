@@ -1,170 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# codex_update_plugin.sh [--strict]
-# codex_update_plugin.sh --refresh-shared
-#
-# Without --refresh-shared: run after mngr writes the per-agent config, before the
-# first Codex process. Never install into an inherited CODEX_HOME: that may be the
-# account's shared authentication home, or the parent agent's home. mngr only sets
-# CODEX_HOME on the launched Codex process, not on extra provisioning commands.
-#
-# A new chat waits for this script, so it does not fetch anything when it can
-# avoid it. The workspace keeps one installed copy of code-guardian under
-# data/.state/codex-plugins/, and a new agent gets a copy of that. Only the first
-# agent on a workspace, which has no shared copy yet, installs from GitHub itself,
-# and its install becomes the shared copy. Each agent also leaves its config.toml
-# there, which declares the marketplace a refresh installs from.
-#
-# --refresh-shared installs the latest code-guardian from GitHub into a fresh home
-# and makes it the shared copy, so an update reaches the next new agent. The hourly
-# refresh_agent_tools.sh runs it; it does nothing until a Codex agent has been
-# created here.
-#
+# Run after mngr writes the per-agent config, before the first Codex process.
+# Never install into an inherited CODEX_HOME: that may be the account's shared
+# authentication home, or the parent agent's home. mngr only sets CODEX_HOME on
+# the launched Codex process, not on extra provisioning commands.
 # Like the Claude installer, outages warn without preventing agent creation;
 # --strict is available for verification. No cache is deleted.
-MARKETPLACE="imbue-code-guardian"
-PLUGIN="imbue-code-guardian@imbue-code-guardian"
-
-script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-repo_root="$(cd "$(dirname "$script_path")/../.." && pwd)"
-# A worker runs this from its own git worktree, whose data/ is its own; the
-# shared copy is the main checkout's, so every agent in the workspace uses one.
-workspace_root="$repo_root"
-if git_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
-    && [[ "$(basename "$git_common_dir")" == ".git" ]]; then
-    workspace_root="$(dirname "$git_common_dir")"
-fi
-shared_root="${CODEX_PLUGIN_SHARED_COPY_DIR:-$workspace_root/data/.state/codex-plugins}"
-# A symlink to the newest complete copy, a Codex home holding just the
-# marketplace snapshot and the installed plugin.
-shared_current="$shared_root/current"
-shared_config="$shared_root/config.toml"
-
-export GIT_TERMINAL_PROMPT=0
-export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=5'
-
-plugin_paths() {
-    printf '%s\n' ".tmp/marketplaces/$MARKETPLACE" "plugins/cache/$MARKETPLACE"
-}
-
-# Copy the marketplace snapshot and the installed plugin from one Codex home to
-# another, replacing whatever the destination had. Every caller tests its status,
-# which turns errexit off in here, so each step returns on failure itself.
-copy_install() {
-    local source_home="$1"
-    local destination_home="$2"
-    local path
-    while read -r path; do
-        [[ -d "$source_home/$path" ]] || return 1
-    done < <(plugin_paths)
-    while read -r path; do
-        rm -rf "${destination_home:?}/$path" \
-            && mkdir -p "$(dirname "$destination_home/$path")" \
-            && cp -a "$source_home/$path" "$destination_home/$path" \
-            || return 1
-    done < <(plugin_paths)
-}
-
-# Make a copy of the install in `source_home` the shared copy, and drop every
-# older copy but the one it replaces (an agent may still be copying from that).
-# One publish runs at a time, so a prune never drops a copy another publish is
-# still writing; flock(1) is missing on macOS, which then gets no protection.
-# Every caller tests its status, so each step returns on failure itself.
-publish_shared_copy() {
-    local source_home="$1"
-    mkdir -p "$shared_root" || return 1
-    (
-        if command -v flock >/dev/null 2>&1; then
-            flock -w 60 7 || exit 1
-        fi
-        publish_shared_copy_locked "$source_home"
-    ) 7>"$shared_root/publish.lock"
-}
-
-publish_shared_copy_locked() {
-    local source_home="$1"
-    local previous=""
-    local copy
-    copy="$(mktemp -d "$shared_root/copy.XXXXXX")" || return 1
-    copy_install "$source_home" "$copy" || { rm -rf "$copy"; return 1; }
-    if [[ -L "$shared_current" ]]; then
-        previous="$(readlink "$shared_current")"
-    fi
-    ln -sfn "$(basename "$copy")" "$shared_current" || { rm -rf "$copy"; return 1; }
-    # Another agent publishing at the same time may have swapped `current` since.
-    local now_current
-    local old
-    now_current="$(readlink "$shared_current" || true)"
-    for old in "$shared_root"/copy.*; do
-        case "$(basename "$old")" in
-            "$(basename "$copy")" | "$previous" | "$now_current") ;;
-            *) rm -rf "$old" ;;
-        esac
-    done
-}
-
-# Install from GitHub into `home`: fetch the marketplace, then add the plugin.
-install_from_github() {
-    local home="$1"
-    # The marketplace source and plugin enablement live in mngr config_overrides,
-    # so a config rewrite cannot strand the cached Git marketplace. Upgrade also
-    # fetches the initial snapshot for a newly provisioned home.
-    # fd 9 is closed for codex so nothing it leaves running holds a refresh's lock.
-    if ! CODEX_HOME="$home" codex plugin marketplace upgrade "$MARKETPLACE" 9>&-; then
-        echo "warning: could not refresh code-guardian; attempting the cached marketplace" >&2
-    fi
-    CODEX_HOME="$home" codex plugin add "$PLUGIN" 9>&-
-}
-
-# Install the latest code-guardian into a fresh home, then make it the shared copy.
-refresh_shared_copy() {
-    local home
-    if ! command -v codex &>/dev/null || [[ ! -f "$shared_config" ]]; then
-        return 0
-    fi
-    exec 9>"$shared_root/refresh.lock"
-    if command -v flock >/dev/null 2>&1; then
-        flock -n 9 || return 0
-    fi
-    # Whatever an earlier refresh that was stopped left behind.
-    rm -rf "$shared_root"/refresh.??????
-    home="$(mktemp -d "$shared_root/refresh.XXXXXX")"
-    cp "$shared_config" "$home/config.toml"
-    if ! install_from_github "$home"; then
-        echo "warning: could not refresh the shared code-guardian copy; new agents keep the previous one"
-        rm -rf "$home"
-        return 1
-    fi
-    if ! publish_shared_copy "$home"; then
-        echo "warning: could not publish the refreshed code-guardian copy"
-        rm -rf "$home"
-        return 1
-    fi
-    rm -rf "$home"
-}
-
-# Keep this agent's config as the one a refresh installs with. It is moved into
-# place whole, so a refresh never reads a half-written file. Its caller tests its
-# status, so each step returns on failure itself.
-save_shared_config() {
-    local staged
-    mkdir -p "$shared_root" || return 1
-    staged="$(mktemp "$shared_root/config.XXXXXX")" || return 1
-    if ! cp "$CODEX_HOME/config.toml" "$staged" || ! mv "$staged" "$shared_config"; then
-        rm -f "$staged"
-        return 1
-    fi
-}
-
 STRICT=0
-if [[ $# -eq 1 && "$1" == "--refresh-shared" ]]; then
-    refresh_shared_copy
-    exit $?
-elif [[ $# -eq 1 && "$1" == "--strict" ]]; then
+if [[ $# -eq 1 && "$1" == "--strict" ]]; then
     STRICT=1
 elif [[ $# -ne 0 ]]; then
-    echo "usage: $0 [--strict | --refresh-shared]" >&2
+    echo "usage: $0 [--strict]" >&2
     exit 2
 fi
 
@@ -183,14 +30,9 @@ if ! command -v codex &>/dev/null; then
     exit "$STRICT"
 fi
 
-save_shared_config || echo "warning: could not keep this agent's config for refreshing code-guardian" >&2
-
-if [[ -d "$shared_current" ]] && copy_install "$(cd "$shared_current" && pwd -P)" "$CODEX_HOME"; then
-    exit 0
-fi
-
-if ! install_from_github "$CODEX_HOME"; then
+# The marketplace source (the local copy install_agent_plugins.sh pins) and the
+# plugin enablement live in mngr config_overrides, so this needs no network.
+if ! codex plugin add imbue-code-guardian@imbue-code-guardian; then
     echo "warning: code-guardian installation failed; this Codex agent may lack review skills and Stop checks" >&2
     exit "$STRICT"
 fi
-publish_shared_copy "$CODEX_HOME" || echo "warning: could not keep a shared copy of code-guardian for new agents" >&2

@@ -2,41 +2,24 @@
 
 from __future__ import annotations
 
-import fcntl
 import json
 import os
-import shutil
 import subprocess
-import threading
 from pathlib import Path
 
 import pytest
-from imbue.mngr.utils.polling import wait_for
 from imbue.mngr_codex.codex_config import get_codex_home
 
 _SCRIPT = Path(__file__).with_name("codex_update_plugin.sh")
-_PUBLISH_WAIT_SECONDS = 30.0
 _SHIM = """#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
-try:
-    os.fstat(9)
-    is_fd_9_open = True
-except OSError:
-    is_fd_9_open = False
 with open(os.environ["SHIM_LOG"], "a") as log:
-    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:], is_fd_9_open]) + "\\n")
+    log.write(json.dumps([os.environ["CODEX_HOME"], sys.argv[1:]]) + "\\n")
 if " ".join(sys.argv[1:3]) == os.environ.get("SHIM_FAIL"):
     sys.exit(1)
-home = Path(os.environ["CODEX_HOME"])
-revision = os.environ.get("SHIM_REVISION", "1")
-if sys.argv[1:3] == ["plugin", "marketplace"]:
-    marketplace = home / ".tmp/marketplaces/imbue-code-guardian"
-    marketplace.mkdir(parents=True, exist_ok=True)
-    (marketplace / "revision").write_text(revision)
 if sys.argv[1:3] == ["plugin", "add"]:
-    (home / "plugins/cache/imbue-code-guardian/imbue-code-guardian" / revision).mkdir(parents=True, exist_ok=True)
-    with (home / "config.toml").open("a") as config:
+    with (Path(os.environ["CODEX_HOME"]) / "config.toml").open("a") as config:
         config.write('\\n[plugins."imbue-code-guardian@imbue-code-guardian"]\\nenabled = true\\n')
 """
 
@@ -46,12 +29,8 @@ def _run(
     *args: str,
     fail: str = "",
     provisioned: bool = True,
-    agent: str = "agent state",
-    revision: str = "1",
-    script: Path = _SCRIPT,
-    is_shared_root_pinned: bool = True,
 ) -> tuple[subprocess.CompletedProcess[str], list[list[object]], Path]:
-    state = tmp_path / agent
+    state = tmp_path / "agent state"
     home = get_codex_home(state)
     home.mkdir(parents=True, exist_ok=True)
     if provisioned:
@@ -66,262 +45,38 @@ def _run(
     shim.chmod(0o755)
     log = tmp_path / "calls.jsonl"
     log.unlink(missing_ok=True)
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key != "CODEX_PLUGIN_SHARED_COPY_DIR"
-    }
-    if is_shared_root_pinned:
-        env["CODEX_PLUGIN_SHARED_COPY_DIR"] = str(_shared_root(tmp_path))
     result = subprocess.run(
-        ["bash", str(script), *args],
+        ["bash", str(_SCRIPT), *args],
         env={
-            **env,
+            **os.environ,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
             "MNGR_AGENT_STATE_DIR": str(state),
             "CODEX_HOME": str(shared),
             "SHIM_LOG": str(log),
             "SHIM_FAIL": fail,
-            "CODE_GUARDIAN_MARKETPLACE": "imbue-ai/code-guardian@main",
-            "SHIM_REVISION": revision,
         },
         capture_output=True,
         text=True,
         check=False,
     )
     assert (shared / "config.toml").read_text() == "# untouched\n"
-    return result, _read_calls(log), home
-
-
-def _read_calls(log: Path) -> list[list[object]]:
-    """The codex calls the shim recorded, each ``[CODEX_HOME, args, is_fd_9_open]``."""
     return (
+        result,
         [json.loads(line) for line in log.read_text().splitlines()]
         if log.exists()
-        else []
+        else [],
+        home,
     )
-
-
-def _shared_root(tmp_path: Path) -> Path:
-    return tmp_path / "plugin copies"
-
-
-def _shared_copy(tmp_path: Path) -> Path:
-    return (_shared_root(tmp_path) / "current").resolve()
-
-
-def _installed(home: Path) -> tuple[str, list[str]]:
-    """The marketplace revision and the plugin versions installed in a Codex home."""
-    revision = (home / ".tmp/marketplaces/imbue-code-guardian/revision").read_text()
-    plugin = home / "plugins/cache/imbue-code-guardian/imbue-code-guardian"
-    return revision, sorted(path.name for path in plugin.iterdir())
-
-
-def _refresh(
-    tmp_path: Path, revision: str, fail: str = ""
-) -> tuple[subprocess.CompletedProcess[str], list[list[object]]]:
-    """Run the hourly refresh of the shared copy, which has no agent of its own."""
-    log = tmp_path / "calls.jsonl"
-    log.unlink(missing_ok=True)
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in ("MNGR_AGENT_STATE_DIR", "CODEX_HOME")
-    }
-    result = subprocess.run(
-        ["bash", str(_SCRIPT), "--refresh-shared"],
-        env={
-            **env,
-            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
-            "SHIM_LOG": str(log),
-            "SHIM_FAIL": fail,
-            "SHIM_REVISION": revision,
-            "CODEX_PLUGIN_SHARED_COPY_DIR": str(_shared_root(tmp_path)),
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return result, _read_calls(log)
-
-
-def test_the_first_install_comes_from_github_and_becomes_the_shared_copy(
-    tmp_path: Path,
-) -> None:
-    result, calls, home = _run(tmp_path)
-
-    assert result.returncode == 0, result.stderr
-    assert [call[1][:2] for call in calls] == [
-        ["plugin", "marketplace"],
-        ["plugin", "add"],
-    ]
-    assert _installed(_shared_copy(tmp_path)) == _installed(home) == ("1", ["1"])
-
-
-def test_a_later_agent_copies_the_shared_install_without_running_codex(
-    tmp_path: Path,
-) -> None:
-    _run(tmp_path, agent="first agent")
-
-    result, calls, home = _run(tmp_path, agent="second agent", revision="2")
-
-    assert result.returncode == 0, result.stderr
-    assert calls == []
-    assert _installed(home) == ("1", ["1"])
-
-
-def test_a_copy_that_fails_partway_falls_back_to_installing_from_github(
-    tmp_path: Path,
-) -> None:
-    _run(tmp_path, agent="first agent")
-    # A file where the marketplace snapshot's parent folder goes: only the plugin
-    # cache could be copied.
-    blocked_home = get_codex_home(tmp_path / "second agent")
-    blocked_home.mkdir(parents=True)
-    (blocked_home / ".tmp").write_text("")
-
-    result, calls, _ = _run(tmp_path, agent="second agent")
-
-    assert result.returncode == 0, result.stderr
-    assert [call[1][:2] for call in calls] == [
-        ["plugin", "marketplace"],
-        ["plugin", "add"],
-    ]
-
-
-def test_a_shared_copy_that_is_gone_falls_back_to_installing_from_github(
-    tmp_path: Path,
-) -> None:
-    _run(tmp_path, agent="first agent")
-    shutil.rmtree(_shared_copy(tmp_path))
-
-    result, calls, home = _run(tmp_path, agent="second agent")
-
-    assert result.returncode == 0, result.stderr
-    assert "cd:" not in result.stderr
-    assert [call[1][:2] for call in calls] == [
-        ["plugin", "marketplace"],
-        ["plugin", "add"],
-    ]
-    assert _installed(home) == ("1", ["1"])
-
-
-def test_an_agent_in_a_worktree_shares_the_main_checkouts_copy(tmp_path: Path) -> None:
-    workspace = tmp_path / "workspace"
-    script = workspace / "system" / "scripts" / _SCRIPT.name
-    script.parent.mkdir(parents=True)
-    shutil.copy2(_SCRIPT, script)
-    git = ["git", "-c", "user.name=test", "-c", "user.email=test@example.com"]
-    for command in (
-        ["init", "-q"],
-        ["add", "."],
-        ["commit", "-q", "-m", "workspace"],
-        ["worktree", "add", "-q", str(tmp_path / "worker"), "-b", "worker"],
-    ):
-        subprocess.run([*git, *command], cwd=workspace, check=True)
-    worker_script = tmp_path / "worker" / "system" / "scripts" / _SCRIPT.name
-
-    result, _, _ = _run(tmp_path, script=worker_script, is_shared_root_pinned=False)
-
-    assert result.returncode == 0, result.stderr
-    assert (workspace / "data/.state/codex-plugins/current").is_dir()
-    assert not (tmp_path / "worker" / "data").exists()
-
-
-def _read_or_empty(path: Path) -> str:
-    return path.read_text() if path.exists() else ""
-
-
-def test_a_publish_waits_for_the_one_already_going(tmp_path: Path) -> None:
-    if shutil.which("flock") is None:
-        pytest.skip("publish serialization needs flock(1), which macOS lacks")
-    _shared_root(tmp_path).mkdir()
-    with (_shared_root(tmp_path) / "publish.lock").open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        agent = threading.Thread(target=_run, args=(tmp_path,))
-        agent.start()
-        wait_for(
-            lambda: '"plugin", "add"' in _read_or_empty(tmp_path / "calls.jsonl"),
-            timeout=_PUBLISH_WAIT_SECONDS,
-            error_message="the agent never installed code-guardian",
-        )
-        assert agent.is_alive()
-        assert not (_shared_root(tmp_path) / "current").exists()
-    agent.join(timeout=_PUBLISH_WAIT_SECONDS)
-
-    assert not agent.is_alive()
-    assert _installed(_shared_copy(tmp_path)) == ("1", ["1"])
-
-
-def test_an_unwritable_shared_folder_still_provisions_the_agent(tmp_path: Path) -> None:
-    _shared_root(tmp_path).write_text("")
-
-    result, _, home = _run(tmp_path)
-
-    assert result.returncode == 0, result.stderr
-    assert "could not keep a shared copy" in result.stderr
-    assert _installed(home) == ("1", ["1"])
-
-
-def test_a_refresh_before_any_codex_agent_does_nothing(tmp_path: Path) -> None:
-    _run(tmp_path, provisioned=False)
-
-    result, calls = _refresh(tmp_path, revision="2")
-
-    assert result.returncode == 0, result.stderr
-    assert calls == []
-
-
-def test_a_refresh_updates_the_shared_copy_for_the_next_agent(tmp_path: Path) -> None:
-    _, _, first_home = _run(tmp_path, agent="first agent")
-    first_copy = _shared_copy(tmp_path)
-
-    result, calls = _refresh(tmp_path, revision="2")
-    _, _, second_home = _run(tmp_path, agent="second agent")
-
-    assert result.returncode == 0, result.stderr
-    # It installs into a home of its own, with the config the last agent left.
-    assert {call[0] for call in calls}.isdisjoint({str(first_home), str(second_home)})
-    assert _installed(first_home) == ("1", ["1"])
-    assert _installed(second_home) == ("2", ["2"])
-    # The copy it replaced stays, since an agent may still be copying from it.
-    assert first_copy.exists()
-    assert not list(_shared_root(tmp_path).glob("refresh.??????"))
-    # codex never inherits the refresh's lock.
-    assert calls and not any(call[2] for call in calls)
-
-
-def test_a_failed_refresh_keeps_the_shared_copy_and_fails(tmp_path: Path) -> None:
-    _run(tmp_path, agent="first agent")
-
-    result, _ = _refresh(tmp_path, revision="2", fail="plugin add")
-
-    assert result.returncode == 1
-    assert "keep the previous one" in result.stdout
-    assert _installed(_shared_copy(tmp_path)) == ("1", ["1"])
-
-
-@pytest.mark.flaky
-def test_only_the_two_newest_shared_copies_are_kept(tmp_path: Path) -> None:
-    _run(tmp_path, agent="first agent")
-    for number in (2, 3):
-        _refresh(tmp_path, revision=str(number))
-
-    assert len(list(_shared_root(tmp_path).glob("copy.*"))) == 2
-    assert _installed(_shared_copy(tmp_path)) == ("3", ["3"])
 
 
 def test_install_and_reprovision_target_mngrs_home(tmp_path: Path) -> None:
     for _ in range(2):
-        # Without a shared copy, so each run installs from GitHub.
-        shutil.rmtree(_shared_root(tmp_path), ignore_errors=True)
         result, calls, home = _run(tmp_path)
         assert result.returncode == 0, result.stderr
         assert all(call[0] == str(home) for call in calls)
-        assert calls[-1][1] == [
-            "plugin",
-            "add",
-            "imbue-code-guardian@imbue-code-guardian",
+        # Only the add, from the local marketplace: nothing is fetched.
+        assert [call[1] for call in calls] == [
+            ["plugin", "add", "imbue-code-guardian@imbue-code-guardian"]
         ]
         assert "enabled = true" in (home / "config.toml").read_text()
         assert 'model = "example"' in (home / "config.toml").read_text()
@@ -334,13 +89,6 @@ def test_install_outage_warns_and_strict_fails(
     result, _, _ = _run(tmp_path, *args, fail="plugin add")
     assert result.returncode == expected
     assert "installation failed" in result.stderr
-
-
-def test_marketplace_outage_still_attempts_cached_install(tmp_path: Path) -> None:
-    result, calls, _ = _run(tmp_path, "--strict", fail="plugin marketplace")
-    assert result.returncode == 0, result.stderr
-    assert "cached marketplace" in result.stderr
-    assert calls[-1][1] == ["plugin", "add", "imbue-code-guardian@imbue-code-guardian"]
 
 
 def test_refuses_install_before_mngr_writes_config(tmp_path: Path) -> None:

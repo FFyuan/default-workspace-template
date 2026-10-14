@@ -277,10 +277,6 @@ class AuthFlowService:
     # Returns nothing: the restart runs on its own thread, because it is serial subprocesses
     # with a 60s timeout each and this service holds one lock across every route.
     _restart_bound_agents: Callable[[str], None]
-    # Told about each account a sign-in adds, with its harness and folder, so the folder can be
-    # readied for its first chat (claude's plugins install per config dir). Must return at once:
-    # it is called under the service lock.
-    _on_account_added: Callable[[HarnessType, Path], None]
     _lock: threading.Lock
     _session: _Session | None
     _spawner: Callable[..., Any]
@@ -297,7 +293,6 @@ class AuthFlowService:
         spawner: Callable[..., Any] | None = None,
         probe: Callable[[HarnessType, Path], SignedIn] | None = None,
         restart_bound_agents: Callable[[str], None] | None = None,
-        on_account_added: Callable[[HarnessType, Path], None] | None = None,
         fetch_callback: CallbackFetcher | None = None,
         clock: Callable[[], float] | None = None,
         login_client_connector: Callable[[Path], CodexLoginClient] | None = None,
@@ -317,7 +312,6 @@ class AuthFlowService:
         service._spawner = spawner or spawn_pty
         service._probe = probe or is_signed_in
         service._restart_bound_agents = restart_bound_agents or (lambda _account_id: None)
-        service._on_account_added = on_account_added or (lambda _harness, _account_dir: None)
         service._fetch_callback = fetch_callback or fetch_loopback_callback
         service._clock = clock or time.monotonic
         service._connect_login_client = login_client_connector or connect_login_client
@@ -647,9 +641,7 @@ class AuthFlowService:
             account_id, path = accounts.mint_account_dir(self._home)
             build_account_binding(lane.harness).seed_account(path, self._work_dir)
             write_claude_env(path, managed_env)
-            account = accounts.commit_account(account_id, lane.id, ADOPTED_DISPLAY, self._home)
-            self._on_account_added(lane.harness, path)
-            return account
+            return accounts.commit_account(account_id, lane.id, ADOPTED_DISPLAY, self._home)
 
     def poll(self, flow_id: str) -> FlowStatus:
         with self._lock:
@@ -854,8 +846,6 @@ class AuthFlowService:
             # poll, submit and abort for eight minutes. The user could not even close the modal,
             # because the abort needs the same lock.
             self._restart_bound_agents(account.id)
-        else:
-            self._on_account_added(session.lane.harness, accounts.account_dir(account.id, self._home))
         session.state = FlowState.OK
         self._teardown_locked(session, keep_folder=True)
         return FlowStatus(state=FlowState.OK, account_id=account.id)

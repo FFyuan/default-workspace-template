@@ -9,10 +9,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${MNGR_AGENT_WORK_DIR:-.}/system/scripts/refresh_agent_tools.sh --session-start"
-          },
-          {
-            "type": "command",
             "command": "${MNGR_AGENT_WORK_DIR:-.}/system/scripts/ensure_tk_on_path.sh"
           },
           {
@@ -88,19 +84,19 @@
   },
   "enabledPlugins": {
     "imbue-code-guardian@imbue-code-guardian": true,
-    "frontend-design@claude-code-plugins": true
+    "frontend-design@claude-code-plugins-pinned": true
   },
   "extraKnownMarketplaces": {
     "imbue-code-guardian": {
       "source": {
-        "source": "github",
-        "repo": "imbue-ai/code-guardian"
+        "source": "directory",
+        "path": "/opt/agent-plugins/imbue-code-guardian"
       }
     },
-    "claude-code-plugins": {
+    "claude-code-plugins-pinned": {
       "source": {
-        "source": "github",
-        "repo": "anthropics/claude-code"
+        "source": "directory",
+        "path": "/opt/agent-plugins/claude-code-plugins-pinned"
       }
     }
   },

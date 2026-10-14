@@ -14,9 +14,8 @@ The pieces, each invoked from cron by absolute path:
 - `run_job.sh` -- durable, completion-tracked runner for recurring jobs.
   Invoked every minute by a cron line; runs the given command at most once per
   interval (`--every 15m` / `3h` / `7d`, optional `--at <hour>`), catches up
-  after downtime (`--wake-grace <N[mhd]>` holds that catch-up for a while after
-  the workspace wakes), and retries a run that failed or was killed mid-flight. A
-  run only counts once it completes. State lives under `data/.state/jobs/<job-id>/`.
+  after downtime, and retries a run that failed or was killed mid-flight. A run
+  only counts once it completes. State lives under `data/.state/jobs/<job-id>/`.
 - `run_automation.sh` -- wakes a singleton "automation agent" for one run:
   creates it on the first run (labelled `automation=<skill>`, default create
   template `automation`), and on later runs clears its chat and re-sends

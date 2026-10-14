@@ -405,12 +405,6 @@ another account in that menu switches the chat to it (through the dialog, or at
 once for a chat with nothing to hand over -- see the switch above).
 `system/scripts/migrate_claude_auth.py` imports this package from the root venv.
 
-Claude installs plugins per config dir, and a Claude account's folder is one, so a
-new Claude account (from a sign-in flow or the Imbue keys page) starts
-`system/scripts/refresh_agent_tools.sh --claude-plugins <folder>` in the
-background to install the workspace's Claude plugins there. A re-auth or a re-key
-starts nothing, since the folder already has them.
-
 Removing (signing out of) an account deletes its credential files and its index
 row; its chats keep running, since their harness already holds the credential,
 but take no more of the user's messages. The message route and the intake answer
