@@ -71,4 +71,19 @@ describe("TitleBar", () => {
     expect(bar.getAttribute("data-focused")).toBe("false");
     expect(slotOrder(bar)).toEqual(["close", "minimize", "restore", "window-title"]);
   });
+
+  it("gives the first slot drawn in a run no leading margin when the slots before it are not drawn", () => {
+    const chrome: ThemeChrome = {
+      title_align: "center",
+      leading: ["title", "refresh", "maximize", "close"],
+      trailing: ["minimize"],
+    };
+
+    const background = render({ chrome, isFocused: false });
+    const focused = render({ chrome });
+
+    expect(background.querySelector('[data-control="maximize"]')?.className).not.toContain("ml-1");
+    expect(focused.querySelector('[data-control="refresh"]')?.className).not.toContain("ml-2");
+    expect(focused.querySelector('[data-control="maximize"]')?.className).toContain("ml-1");
+  });
 });

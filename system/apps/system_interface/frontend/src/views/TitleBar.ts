@@ -108,6 +108,29 @@ export function TitleBar(): m.Component<TitleBarAttrs> {
       const isMaximized = state === "MAXIMIZED";
       const isTitleCentered = chrome.title_align === "center";
 
+      // The two title actions belong to the window you are in. An unfocused bar drops them rather than fading
+      // them -- a greyed pair of buttons is still two things to look at -- and they come back with the click that
+      // focuses the window. A centred title is laid over the middle of the bar instead, below. A slot not drawn
+      // leaves no gap: the first one drawn in its run takes no margin.
+      function isSlotShown(name: ChromeSlot): boolean {
+        switch (name) {
+          case "title":
+            return !isTitleCentered;
+          case "refresh":
+          case "menu":
+            return isFocused;
+          case "icon":
+          case "minimize":
+          case "maximize":
+          case "close":
+            return true;
+        }
+      }
+
+      function slotRun(names: readonly ChromeSlot[]): m.Children[] {
+        return names.filter(isSlotShown).map((name, index) => slot(name, index === 0));
+      }
+
       function slot(name: ChromeSlot, isFirst: boolean): m.Children {
         const margin = slotMargin(name, isFirst);
         switch (name) {
@@ -125,23 +148,22 @@ export function TitleBar(): m.Component<TitleBarAttrs> {
               m.trust(appGlyph(app, APP_GLYPH_SIZE)),
             );
           case "title":
-            // A centred title is laid over the middle of the bar instead, below.
-            return isTitleCentered ? null : titleSpan(margin);
-          // The two title actions belong to the window you are in. An unfocused bar drops them rather than
-          // fading them -- a greyed pair of buttons is still two things to look at -- and they come back with
-          // the click that focuses the window.
+            return titleSpan(margin);
           case "refresh":
-            return isFocused
-              ? control("refresh", "Refresh", icon("refresh", { size: TITLE_ACTION_GLYPH_SIZE }), false, onControl, {
-                  extra: margin,
-                })
-              : null;
+            return control(
+              "refresh",
+              "Refresh",
+              icon("refresh", { size: TITLE_ACTION_GLYPH_SIZE }),
+              false,
+              onControl,
+              {
+                extra: margin,
+              },
+            );
           case "menu":
-            return isFocused
-              ? control("menu", "Window menu", glyph("kebab", TITLE_ACTION_GLYPH_SIZE), isMenuOpen, onControl, {
-                  extra: margin,
-                })
-              : null;
+            return control("menu", "Window menu", glyph("kebab", TITLE_ACTION_GLYPH_SIZE), isMenuOpen, onControl, {
+              extra: margin,
+            });
           case "minimize":
             return control("minimize", "Minimize", glyph("minimize", CONTROL_GLYPH_SIZE), false, onControl, {
               extra: margin,
@@ -198,9 +220,9 @@ export function TitleBar(): m.Component<TitleBarAttrs> {
           },
         },
         [
-          ...chrome.leading.map((name, index) => slot(name, index === 0)),
+          ...slotRun(chrome.leading),
           m("span", { class: "flex-1" }),
-          ...chrome.trailing.map((name, index) => slot(name, index === 0)),
+          ...slotRun(chrome.trailing),
           isTitleCentered ? titleSpan("") : null,
         ],
       );
