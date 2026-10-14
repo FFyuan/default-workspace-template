@@ -79,9 +79,10 @@ publish_shared_copy() {
     if [[ -L "$shared_current" ]]; then
         previous="$(readlink "$shared_current")"
     fi
-    ln -sfn "$(basename "$copy")" "$shared_current"
+    ln -sfn "$(basename "$copy")" "$shared_current" || { rm -rf "$copy"; return 1; }
     # Another agent publishing at the same time may have swapped `current` since.
     local now_current
+    local old
     now_current="$(readlink "$shared_current" || true)"
     for old in "$shared_root"/copy.*; do
         case "$(basename "$old")" in
