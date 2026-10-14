@@ -38,8 +38,8 @@ export interface DesktopSettingsDialogAttrs {
   ) => Promise<void>;
   readonly onDelete: () => Promise<void>;
   readonly onCancel: () => void;
-  /** The workspace's themes, for the Theme row. */
-  readonly themes: ThemeCatalog;
+  /** The workspace's themes, for the Theme row; null until they have been read. */
+  readonly themes: ThemeCatalog | null;
   /** Draft the theme prompt into the chat and close the dialog; null when no window on this desktop takes a draft. */
   readonly onMakeTheme: (() => void) | null;
   /** The app whose icon pictures each theme in the Theme row, as that theme draws it (null when absent). */
@@ -99,7 +99,8 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
     try {
       await attrs.onSave(chosen, color, glyphIndex, resolvedWallpaper(attrs.wallpapers), {
         theme,
-        isWorkspaceDefault: isWorkspaceDefault && availableTheme(attrs.themes, theme) !== null,
+        isWorkspaceDefault:
+          isWorkspaceDefault && attrs.themes !== null && availableTheme(attrs.themes, theme) !== null,
       });
     } catch (e) {
       error = (e as Error).message;
@@ -313,6 +314,9 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
 
   function themeRow(attrs: DesktopSettingsDialogAttrs): m.Children {
     const catalog = attrs.themes;
+    if (catalog === null) {
+      return m("p", { "data-themes-loading": "", class: "mb-3 type-helper text-faint" }, "Loading themes…");
+    }
     const defaultTheme = resolveDesktopTheme(catalog, null);
     const tiles = [
       themeTile(attrs, null, `Workspace default (${defaultTheme.name})`, defaultTheme, null),

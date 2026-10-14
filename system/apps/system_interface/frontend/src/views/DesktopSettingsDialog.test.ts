@@ -113,6 +113,20 @@ describe("DesktopSettingsDialog", () => {
     expect(brokenAttrs.onPreviewTheme).not.toHaveBeenCalled();
   });
 
+  it("says the themes are loading, rather than judging the desktop's theme, until they have been read", async () => {
+    const attrs = render({ desktop: desktopRecord("home", { name: "Home", theme: "mac-classic" }), themes: null });
+
+    expect(card().querySelector("[data-themes-loading]")?.textContent).toBe("Loading themes…");
+    expect(card().querySelector("[data-theme-unavailable]")).toBeNull();
+    expect(card().querySelector("[data-theme]")).toBeNull();
+    pressEnterInNameField();
+    await settled();
+    expect(attrs.onSave).toHaveBeenCalledWith("Home", expect.any(String), expect.any(Number), null, {
+      theme: "mac-classic",
+      isWorkspaceDefault: false,
+    });
+  });
+
   it("pictures an unavailable theme without loading its icons, which are not served", () => {
     render({ themes: themeCatalog(themeRecord("broken", { available: false, problems: ["no icons"] })) });
     const brokenTile = card().querySelector('[data-theme="broken"]') as HTMLButtonElement;

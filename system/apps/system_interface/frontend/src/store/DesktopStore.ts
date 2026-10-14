@@ -1515,6 +1515,11 @@ export class DesktopStore {
     return this.hasThemeCatalog && activeDesktop(this.state) !== null;
   }
 
+  /** Whether the workspace's themes have been read; until then `getThemeCatalog()` answers an empty catalog. */
+  isThemeCatalogKnown(): boolean {
+    return this.hasThemeCatalog;
+  }
+
   getThemeCatalog(): ThemeCatalog {
     return this.themeCatalog;
   }

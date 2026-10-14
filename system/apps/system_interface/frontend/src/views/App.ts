@@ -850,7 +850,7 @@ export function App(): m.Component<AppAttrs> {
       onCancel: () => {
         settingsDialog = null;
       },
-      themes: current.getThemeCatalog(),
+      themes: current.isThemeCatalogKnown() ? current.getThemeCatalog() : null,
       previewApp: appByName(current.getState(), THEME_PREVIEW_APP) ?? null,
       onMakeTheme:
         draftTargetOf(current.getState()) === null
