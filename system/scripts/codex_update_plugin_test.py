@@ -90,12 +90,15 @@ def _run(
         check=False,
     )
     assert (shared / "config.toml").read_text() == "# untouched\n"
+    return result, _read_calls(log), home
+
+
+def _read_calls(log: Path) -> list[list[object]]:
+    """The codex calls the shim recorded, each ``[CODEX_HOME, args, is_fd_9_open]``."""
     return (
-        result,
         [json.loads(line) for line in log.read_text().splitlines()]
         if log.exists()
-        else [],
-        home,
+        else []
     )
 
 
@@ -139,12 +142,7 @@ def _refresh(
         text=True,
         check=False,
     )
-    calls = (
-        [json.loads(line) for line in log.read_text().splitlines()]
-        if log.exists()
-        else []
-    )
-    return result, calls
+    return result, _read_calls(log)
 
 
 def test_the_first_install_comes_from_github_and_becomes_the_shared_copy(
