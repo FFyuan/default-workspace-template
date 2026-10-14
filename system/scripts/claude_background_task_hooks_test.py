@@ -23,11 +23,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def _main_claude_env(work_dir: Path, **extra: str) -> dict[str, str]:
     """The environment of an agent's main Claude, whose hooks may write: this test process is its
-    Claude. It names the marker root the test's own fixture points at."""
+    Claude. It names the marker root the test's own fixture points at, and blanks the agent
+    identity a suite run inside an mngr agent inherits, whose recorded main claude would make
+    this one read as nested."""
     return {
         "MAIN_CLAUDE_SESSION_ID": "session-1",
         "MNGR_AGENT_ID": _CHAT_ID,
         "MNGR_AGENT_WORK_DIR": str(work_dir),
+        "MNGR_AGENT_STATE_DIR": "",
+        "MNGR_CLAUDE_SUBAGENT_PROXY_CHILD": "",
         "CLAUDE_PROJECT_DIR": str(work_dir),
         "CLAUDE_PID": str(os.getpid()),
         markers.MARKER_ROOT_ENV: os.environ[markers.MARKER_ROOT_ENV],
