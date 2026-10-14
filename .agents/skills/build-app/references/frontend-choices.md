@@ -15,7 +15,7 @@ Use the workspace's design tokens, never a literal, so the page wears the user's
 Don't over-use visible cards in your design.
 
 ## Dark mode
-Do NOT worry about implementing dark mode for initial UI mocks, unless the user requests it. You can include it for the final app.
+Do NOT build a dark mode of the app's own. A dark look comes from the workspace's theme, which sets the tokens the page draws with (`theming.md`); an app that switches its own colours fights the theme the user wears. A user who wants it darker wants a dark theme (the `create-theme` skill).
 
 ## On writing
 Words appear in a design for one reason: to make it easier to understand and use. They are design content, not decoration. Bring the same intentionality and minimalism to copywriting that you would bring to spacing and color. Before writing anything, ask what the design needs to say, and how it can best be said to help the person navigate the experience.
