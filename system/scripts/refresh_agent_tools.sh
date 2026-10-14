@@ -157,20 +157,25 @@ session_start() {
     fi
 }
 
+usage() {
+    echo "usage: $0 [--claude-plugins [<config-dir>] | --session-start]" >&2
+    exit 2
+}
+
 case "${1:-}" in
     "")
-        [[ $# -eq 0 ]] || { echo "usage: $0 [--claude-plugins [<config-dir>] | --session-start]" >&2; exit 2; }
+        [[ $# -eq 0 ]] || usage
         refresh_all
         ;;
     --claude-plugins)
-        [[ $# -le 2 ]] || { echo "usage: $0 --claude-plugins [<config-dir>]" >&2; exit 2; }
+        [[ $# -le 2 ]] || usage
         refresh_claude_plugins "${2:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}}" || true
         ;;
     --session-start)
+        [[ $# -eq 1 ]] || usage
         session_start
         ;;
     *)
-        echo "usage: $0 [--claude-plugins [<config-dir>] | --session-start]" >&2
-        exit 2
+        usage
         ;;
 esac
