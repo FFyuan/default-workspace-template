@@ -150,11 +150,15 @@ agent's model-state file, re-reads it when its entries change, and rechecks the
 pids of every chat with markers on each pass, so a killed runner returns its
 chat to idle within a second. In a chat whose transcript this app is tailing
 (one a page has shown, or that the app has sent to, interrupted or switched),
-the Claude watcher removes a Claude task's marker as soon as the transcript's
+the Claude watcher removes a Claude task's marker once the transcript's
 `<task-notification>` reports the task completed, failed or killed: a turn the
 user interrupts, or one that fails, runs no Stop hook, and the finished task
 would otherwise read as pending until the next Stop or Claude's exit, as it
-still does in a chat the app is not tailing. A busy chat with no turn in flight
+still does in a chat the app is not tailing. With no turn in flight the removal
+waits for the turn the notice starts and goes out with it, so the chat goes from
+`background` to `working` without reading idle in between; a notice that starts
+no turn (a task stopped from Claude's `/tasks`) ends the wait three poller passes
+later. A busy chat with no turn in flight
 is `background`: the rail draws a dashed ring that turns slowly, and the strip
 above the composer adds a line, "Waiting on N background tasks", that opens
 into one row per task. Each snapshot's `active_agent` carries `is_busy` and

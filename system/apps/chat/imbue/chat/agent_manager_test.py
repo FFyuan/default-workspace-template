@@ -34,6 +34,7 @@ from imbue.chat.agent_manager import AgentManager
 from imbue.chat.agent_manager import FULL_SNAPSHOTS_BEFORE_A_CREATED_AGENT_IS_LET_GO
 from imbue.chat.agent_manager import HandoffCapabilities
 from imbue.chat.agent_manager import SKIP_CLAUDE_INSTALLATION_CHECK_SETTING
+from imbue.chat.agent_manager import _FINISHED_TASK_TURN_GRACE_PASSES
 from imbue.chat.agent_manager import _SwitchTarget
 from imbue.chat.agent_manager import _build_chat_create_command
 from imbue.chat.agent_manager import _build_chat_display_label_command
@@ -3485,6 +3486,12 @@ def _manager_reading_tasks(
     return manager, reader
 
 
+def _let_unclaimed_finished_tasks_lapse(manager: AgentManager) -> None:
+    """Run the state-poller passes after which a finished task's held removal goes with no turn to claim it."""
+    for _ in range(_FINISHED_TASK_TURN_GRACE_PASSES):
+        manager._agent_state_poller.poll_once()
+
+
 def test_a_marker_makes_an_idle_chat_background_on_the_next_poll_and_its_removal_idle_again(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
@@ -3538,6 +3545,7 @@ def test_only_a_harness_task_keeps_a_waiting_chat_from_ageing_toward_the_memory_
         assert ChatId("agent-1") in manager._oom_prioritizer._running
 
         manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("claude-task",))
+        _let_unclaimed_finished_tasks_lapse(manager)
 
         assert ChatId("agent-1") not in manager._oom_prioritizer._running
     finally:
@@ -3586,12 +3594,14 @@ def test_a_claude_task_its_transcript_reports_over_stops_counting_with_no_stop_h
         manager._agent_state_poller.poll_once()
 
         manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("bg-done",))
+        _let_unclaimed_finished_tasks_lapse(manager)
 
         (snapshot,) = manager.get_chat_snapshots()
         assert [task.id for task in snapshot.active_agent.background_tasks] == ["bg-other"]
         assert not (reader.chat_dir(ChatId("agent-1")) / "harness-claude-bg-done.json").exists()
 
         manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("bg-other",))
+        _let_unclaimed_finished_tasks_lapse(manager)
 
         (snapshot,) = manager.get_chat_snapshots()
         assert snapshot.status is ChatStatus.IDLE
@@ -3672,6 +3682,63 @@ def test_a_turn_that_ends_to_wait_is_published_with_its_wait_never_idle_in_betwe
 
         pushed = [message for message in _drain(client_queue) if message.get("type") == "chats_updated"]
         assert [message["chats"][0]["status"] for message in pushed] == ["background"]
+    finally:
+        manager.stop()
+
+
+def test_a_finished_tasks_notice_goes_out_with_the_turn_it_starts_never_idle_in_between(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Claude writes a finished task's notice a moment before the turn it starts reads as in flight. Removing the
+    marker at the notice would publish the waiting chat as ``idle`` until that turn shows, marking it done; the
+    removal waits for the turn and goes out with it."""
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    manager, reader = _manager_reading_tasks(broadcaster, tmp_path)
+    state_dir = tmp_path / "agents" / "agent-1"
+    state_dir.mkdir(parents=True)
+    try:
+        seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING")
+        manager._ensure_activity_tracking("agent-1")
+        write_background_task_marker(reader, "agent-1", "bg-1", os.getpid(), harness="claude")
+        manager._agent_state_poller.poll_once()
+        assert [snapshot.status for snapshot in manager.get_chat_snapshots()] == [ChatStatus.BACKGROUND]
+        client_queue = broadcaster.register()
+
+        manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("bg-1",))
+        manager.update_session_events(
+            "agent-1",
+            [{"type": "user_message", "timestamp": "2026-07-28T00:00:00Z", "content": "<task-notification>"}],
+        )
+        (state_dir / "active").touch()
+        manager._recompute_activity_state("agent-1", broadcast_on_change=True)
+
+        pushed = [message for message in _drain(client_queue) if message.get("type") == "chats_updated"]
+        assert [message["chats"][0]["status"] for message in pushed] == ["working"]
+        assert pushed[0]["chats"][0]["active_agent"]["background_tasks"] == []
+        assert not (reader.chat_dir(ChatId("agent-1")) / "harness-claude-bg-1.json").exists()
+    finally:
+        manager.stop()
+
+
+def test_a_finished_tasks_notice_that_starts_no_turn_still_ends_the_wait(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    """A task the user stops from Claude's own task list writes its notice and starts no turn, so its held removal
+    goes a few poller passes later rather than leaving the chat waiting on it until the next turn."""
+    manager, reader = _manager_reading_tasks(broadcaster, tmp_path)
+    try:
+        seed_agent_state(manager, "agent-1", name="Chat-1", state="WAITING", activity_state=ActivityState.IDLE)
+        write_background_task_marker(reader, "agent-1", "bg-1", os.getpid(), harness="claude")
+        manager._agent_state_poller.poll_once()
+
+        manager.forget_finished_tasks("agent-1", HarnessType.CLAUDE, ("bg-1",))
+        for _ in range(_FINISHED_TASK_TURN_GRACE_PASSES - 1):
+            manager._agent_state_poller.poll_once()
+        assert [snapshot.status for snapshot in manager.get_chat_snapshots()] == [ChatStatus.BACKGROUND]
+        manager._agent_state_poller.poll_once()
+
+        assert [snapshot.status for snapshot in manager.get_chat_snapshots()] == [ChatStatus.IDLE]
+        assert not (reader.chat_dir(ChatId("agent-1")) / "harness-claude-bg-1.json").exists()
     finally:
         manager.stop()
 

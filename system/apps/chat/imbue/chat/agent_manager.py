@@ -214,6 +214,11 @@ _SESSION_SWEEP_INTERVAL_SECONDS: Final[float] = 10.0
 # user is waiting on, so they are bounded rather than left to hang.
 _RENAME_TIMEOUT_SECONDS: Final[float] = 30.0
 
+# A finished harness task's notice normally starts a turn at once; the marker of one whose notice
+# starts none (a task the user stopped from the harness's own task list) goes after this many
+# state-poller passes instead.
+_FINISHED_TASK_TURN_GRACE_PASSES: Final[int] = 3
+
 # Cap on the `mngr destroy` subprocess. A destroy measured ~16s idle on this
 # class of host (mngr CLI startup + discovery + teardown + inline worktree gc)
 # and degrades under load, so a tight cap would SIGTERM real destroys mid-
@@ -555,6 +560,14 @@ class AgentBusyState(FrozenModel):
     background_tasks: tuple[BackgroundTask, ...] = Field(
         description="The chat's pending tasks, oldest first; empty unless the agent is the chat's active agent"
     )
+
+
+class _FinishedTasksAwaitingTurn(FrozenModel):
+    """Harness tasks the transcript reported over while no turn was in flight, held for the turn their notice starts."""
+
+    harness: HarnessType = Field(description="The harness whose markers they are")
+    task_ids: tuple[str, ...] = Field(description="The finished tasks, in the order the transcript reported them")
+    passes_left: int = Field(description="State-poller passes still to wait for that turn before removing them anyway")
 
 
 class _ResolvedChat(FrozenModel):
@@ -937,6 +950,9 @@ class AgentManager:
     # Held across one marker read and the store of what it read, so a slow read cannot overwrite
     # a newer one; separate from ``_lock`` so the file reads never hold up the rest of the manager.
     _background_tasks_read_lock: threading.Lock
+    # Per agent, the finished harness tasks whose markers wait for the turn their notice starts, so
+    # the chat goes from background to working in one update rather than reading idle in between.
+    _finished_tasks_awaiting_turn_by_agent: dict[str, _FinishedTasksAwaitingTurn]
     # The chats whose agent the observe stream last reported in a running lifecycle state.
     _running_chat_ids: frozenset[ChatId]
     # When each chat was last messaged from the UI, kept on disk so a restart seeds the OOM
@@ -1077,6 +1093,7 @@ class AgentManager:
         manager._background_tasks = background_tasks
         manager._background_tasks_by_chat = {}
         manager._background_tasks_read_lock = threading.Lock()
+        manager._finished_tasks_awaiting_turn_by_agent = {}
         manager._running_chat_ids = frozenset()
         manager._agent_state_poller = AgentStatePoller.build(
             list_watched_paths=manager._list_watched_paths,
@@ -4208,8 +4225,24 @@ class AgentManager:
         """
         with self._lock:
             busy_chat_ids = list(self._background_tasks_by_chat)
+            unclaimed = self._age_finished_tasks_awaiting_turn_locked()
+        for agent_id, held in unclaimed:
+            self._remove_finished_tasks(agent_id, held.harness, held.task_ids, broadcast_on_change=True)
         for chat_id in busy_chat_ids:
             self._recompute_background_tasks(chat_id)
+
+    def _age_finished_tasks_awaiting_turn_locked(self) -> list[tuple[str, _FinishedTasksAwaitingTurn]]:
+        """Count one pass against every held removal, and take out the ones no turn claimed in time."""
+        unclaimed: list[tuple[str, _FinishedTasksAwaitingTurn]] = []
+        for agent_id, held in list(self._finished_tasks_awaiting_turn_by_agent.items()):
+            if held.passes_left <= 1:
+                del self._finished_tasks_awaiting_turn_by_agent[agent_id]
+                unclaimed.append((agent_id, held))
+            else:
+                self._finished_tasks_awaiting_turn_by_agent[agent_id] = held.model_copy_update(
+                    to_update(held.field_ref().passes_left, held.passes_left - 1)
+                )
+        return unclaimed
 
     def _recompute_background_tasks(self, chat_id: ChatId, *, broadcast_on_change: bool = True) -> None:
         """Re-read a chat's live background tasks, and push the chats and the mid-turn set when they changed."""
@@ -4236,7 +4269,28 @@ class AgentManager:
         a turn the user interrupts, or one that fails, would leave a finished task's marker live
         until the next turn end, or the harness's exit. The transcript records every task's end,
         whatever the turn then does.
+
+        The notice lands a moment before the turn it starts reads as in flight, so with no turn in
+        flight the removal waits for that turn's start and goes out with it: the chat goes from
+        background to working, never through idle (which would flash the chat list's done check).
         """
+        if self._background_tasks is None:
+            return
+        with self._lock:
+            if not is_turn_in_flight(self._activity_state_by_agent.get(agent_id)):
+                earlier = self._finished_tasks_awaiting_turn_by_agent.get(agent_id)
+                earlier_ids = earlier.task_ids if earlier is not None else ()
+                self._finished_tasks_awaiting_turn_by_agent[agent_id] = _FinishedTasksAwaitingTurn(
+                    harness=harness,
+                    task_ids=tuple(dict.fromkeys(earlier_ids + task_ids)),
+                    passes_left=_FINISHED_TASK_TURN_GRACE_PASSES,
+                )
+                return
+        self._remove_finished_tasks(agent_id, harness, task_ids, broadcast_on_change=True)
+
+    def _remove_finished_tasks(
+        self, agent_id: str, harness: HarnessType, task_ids: tuple[str, ...], *, broadcast_on_change: bool
+    ) -> None:
         reader = self._background_tasks
         if reader is None:
             return
@@ -4249,7 +4303,7 @@ class AgentManager:
                 "Could not remove the finished background tasks {} of {}: {}", task_ids, agent_id, e
             )
             return
-        self._recompute_background_tasks(chat_id)
+        self._recompute_background_tasks(chat_id, broadcast_on_change=broadcast_on_change)
 
     def _background_tasks_of_chat(self, chat_id: ChatId) -> tuple[BackgroundTask, ...]:
         with self._lock:
@@ -4469,6 +4523,13 @@ class AgentManager:
                 ended_chat_id = self._chat_id_of_agent_if_active_locked(agent_id)
             if ended_chat_id is not None:
                 self._recompute_background_tasks(ended_chat_id, broadcast_on_change=False)
+        # The turn a finished task's notice started: its markers go now, in the broadcast that
+        # shows the turn.
+        if not is_turn_in_flight(old_state) and is_turn_in_flight(new_state):
+            with self._lock:
+                claimed = self._finished_tasks_awaiting_turn_by_agent.pop(agent_id, None)
+            if claimed is not None:
+                self._remove_finished_tasks(agent_id, claimed.harness, claimed.task_ids, broadcast_on_change=False)
         if handled_snapshot is not None:
             handled_queue = tuple(_queued_message_state(entry) for entry in handled_snapshot)
             with self._lock:
