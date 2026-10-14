@@ -41,7 +41,8 @@ Provisioning and utility scripts:
   the `system/libs/chat_background_tasks` library, which everything else imports),
   `claude_background_task_hooks.py` (Claude's Stop and SessionStart hooks,
   wired in `.claude/settings.json`, that record Claude's own background tasks as
-  markers through the same library),
+  markers; the Claude-specific logic lives in this script, over the same
+  library's markers),
   `with_secrets.py` (run a
   command with one `data/.secrets/<name>.env` file's variables in its
   environment; the one sanctioned reader of that directory, which

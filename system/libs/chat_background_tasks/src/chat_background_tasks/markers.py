@@ -12,7 +12,8 @@ Each writer owns its own files and never reads another's:
 - ``run_in_background.py``'s detached runner (``run_in_background-*``), which outlives the agent that
   started it and reports how its command ended to the chat, even when stopping the agent ended it;
 - a harness's hooks (``harness-<harness>-*``), recording the harness's own background tasks, which
-  end with the agent's process and never report (``harnesses``).
+  end with the agent's process and never report.
+  ``system/scripts/claude_background_task_hooks.py`` is Claude's.
 
 Each marker names the pid whose death makes it stale (the runner, or the harness's main process),
 and where ``/proc`` has it, that process's start time, so a pid recycled after a restart does not

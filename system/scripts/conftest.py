@@ -1,16 +1,18 @@
 """Fixtures for the scripts' tests: a fake chat app and a fake ``mngr`` for message_chat.py and
 run_in_background.py, a marker root of its own for every test, so no test marks a chat busy
-in the real checkout, and the exited pid and worktree the marker tests build on."""
+in the real checkout, and the exited pid, live processes and worktree the marker tests build on."""
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import socket
 import stat
 import subprocess
 import sys
 import threading
+from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -49,6 +51,35 @@ def exited_pid() -> int:
     process = subprocess.Popen([sys.executable, "-c", "pass"])
     process.wait()
     return process.pid
+
+
+def _sleeping_process_named(directory: Path, name: str) -> subprocess.Popen[bytes]:
+    sleep = shutil.which("sleep")
+    assert sleep is not None
+    directory.mkdir()
+    executable = directory / name
+    # A link, not a copy: macOS kills a copied system binary, and a process run through a link is
+    # named after the link.
+    executable.symlink_to(sleep)
+    return subprocess.Popen([str(executable), "60"])
+
+
+@pytest.fixture
+def live_claude_pid(tmp_path: Path) -> Iterator[int]:
+    """The pid of a live process whose executable is named ``claude``, as an agent's main claude is."""
+    process = _sleeping_process_named(tmp_path / "claude-bin", "claude")
+    yield process.pid
+    process.kill()
+    process.wait()
+
+
+@pytest.fixture
+def live_other_pid(tmp_path: Path) -> Iterator[int]:
+    """The pid of a live process that is not a claude."""
+    process = _sleeping_process_named(tmp_path / "other-bin", "sleeper")
+    yield process.pid
+    process.kill()
+    process.wait()
 
 
 @pytest.fixture

@@ -96,7 +96,7 @@ def _library_modules_outside_the_stdlib(library: str) -> set[str]:
     library nor the library itself."""
     return {
         module
-        for source in _STDLIB_ONLY_LIBRARIES[library].rglob("*.py")
+        for source in _STDLIB_ONLY_LIBRARIES[library].glob("*.py")
         if not source.name.endswith("_test.py") and source.name != "conftest.py"
         for module in _imported_top_level_modules(source)
         if module not in sys.stdlib_module_names and module != library
