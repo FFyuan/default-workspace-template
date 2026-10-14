@@ -345,7 +345,8 @@ def test_lint_app_finds_literal_looks_in_a_tokens_mode_app(tmp_path: Path) -> No
         ".z { font-family: var(--font-sans); }\nbutton { font-family: inherit; }\n"
         ".r { box-shadow: var(--c-shadow-raised); }\n.n { box-shadow: none; }\n"
         ".s { box-shadow: 0 1px 2px black; }\n* { box-shadow: 0 0 2px black; }\n"
-        " * a #fff comment line is fine\n",
+        " * a #fff comment line is fine\n*[data-x] { box-shadow: 0 0 2px black; }\n"
+        "*.a { color: #ffffff; }\n",
         "utf-8",
     )
 
@@ -358,6 +359,8 @@ def test_lint_app_finds_literal_looks_in_a_tokens_mode_app(tmp_path: Path) -> No
     assert "frontend/src/style.css:7: a literal shadow" in linted.output
     assert "frontend/src/style.css:8: a literal shadow" in linted.output
     assert "style.css:9" not in linted.output
+    assert "frontend/src/style.css:10: a literal shadow" in linted.output
+    assert "frontend/src/style.css:11: a literal color" in linted.output
     assert not any(f"style.css:{line}:" in linted.output for line in range(3, 7))
 
 
