@@ -66,6 +66,7 @@ def test_a_served_file_is_a_style_or_asset_file_inside_its_theme_folder(
         "paper/%2e%2e/paper/parts.css",
         "paper/a\x00.css",
         "paper/missing.css",
+        f"paper/{'a' * 300}.css",
         "unknown/theme.css",
         "Paper/theme.css",
         "paper",

@@ -383,3 +383,21 @@ def test_linked_icons_are_left_out(tmp_path: Path) -> None:
     assert set(paper.icons.generated_by_app) == {"chat"}
     assert standard is not None and standard.icons is not None
     assert standard.icons.generated_by_app == {}
+
+
+def test_a_path_too_long_to_look_up_makes_only_its_theme_unavailable(
+    tmp_path: Path,
+) -> None:
+    write_standard_theme(tmp_path)
+    root = tmp_path / BUILTIN_THEMES_DIRECTORY
+    write_test_theme(root, "paper", _PARTS_CSS)
+    write_test_theme(
+        root, "long", f'[data-part="window"] {{ background: url({"a" * 300}.png); }}\n'
+    )
+
+    catalog = _catalog(tmp_path)
+
+    long_entry = catalog.find("long")
+    assert long_entry is not None and not long_entry.is_available
+    assert any("cannot be read" in problem for problem in long_entry.problems)
+    assert catalog.find_available("paper") is not None

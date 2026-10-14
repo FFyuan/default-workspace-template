@@ -57,6 +57,14 @@ def build_bundle_css(entry: ThemeEntry) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _is_existing_file(path: Path) -> bool:
+    """Whether the path names a file; one the system cannot look up (a name too long) names none."""
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def _theme_file_path(entry: ThemeEntry, relative: str) -> Path:
     """A served file in the theme's own folder; raises ThemeFileNotFoundError for anything else."""
     try:
@@ -71,7 +79,7 @@ def _theme_file_path(entry: ThemeEntry, relative: str) -> Path:
         )
     folder = entry.folder.resolve()
     path = (folder / relative_path).resolve()
-    if not path.is_relative_to(folder) or not path.is_file():
+    if not path.is_relative_to(folder) or not _is_existing_file(path):
         raise ThemeFileNotFoundError(
             f"theme {str(entry.id)!r} has no file {relative!r}"
         )

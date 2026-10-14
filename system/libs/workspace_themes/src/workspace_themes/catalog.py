@@ -353,6 +353,29 @@ def _revision_of(folders: Sequence[Path]) -> ThemeRevision:
     return ThemeRevision(digest.hexdigest()[:_REVISION_LENGTH])
 
 
+def _contract_problems(
+    folder: Path,
+    theme_id: ThemeId,
+    manifest: ThemeManifest,
+    chrome: ResolvedChrome,
+    icons: ThemeIcons | None,
+    app_parts_by_app: Mapping[AppName, frozenset[str]],
+) -> list[str]:
+    problems = [
+        *check_folder_files(folder),
+        *check_style_files(folder, manifest, app_parts_by_app),
+        *check_resolved_chrome(chrome),
+        *check_attribution_files(folder, manifest),
+    ]
+    if manifest.icons is not None:
+        problems.extend(check_icon_files(folder, theme_id, manifest.icons))
+    elif icons is not None:
+        problems.extend(check_icon_file_formats(folder, icons.spec))
+    else:
+        problems.append("icons: neither the theme nor its bases declare [icons]")
+    return problems
+
+
 def _entry_for(
     theme: _FoundTheme,
     found_by_id: Mapping[str, _FoundTheme],
@@ -393,16 +416,16 @@ def _entry_for(
     ]
     chrome = _resolve_chrome(manifests)
     icons = _resolve_icons(chain_themes, generated_icons_root)
-    problems.extend(check_folder_files(theme.folder))
-    problems.extend(check_style_files(theme.folder, theme.manifest, app_parts_by_app))
-    problems.extend(check_resolved_chrome(chrome))
-    problems.extend(check_attribution_files(theme.folder, theme.manifest))
-    if theme.manifest.icons is not None:
-        problems.extend(check_icon_files(theme.folder, theme.id, theme.manifest.icons))
-    elif icons is not None:
-        problems.extend(check_icon_file_formats(theme.folder, icons.spec))
-    else:
-        problems.append("icons: neither the theme nor its bases declare [icons]")
+    # A path the system cannot look up (a name too long, a folder it may not enter) makes this theme unavailable,
+    # not the whole catalog unreadable.
+    try:
+        problems.extend(
+            _contract_problems(
+                theme.folder, theme.id, theme.manifest, chrome, icons, app_parts_by_app
+            )
+        )
+    except OSError as error:
+        problems.append(f"the theme's files cannot be read: {error}")
     return ThemeEntry(
         id=theme.id,
         folder=theme.folder,
