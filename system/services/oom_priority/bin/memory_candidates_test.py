@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import pytest
 from chat_background_tasks import markers
-from chat_background_tasks.markers import TaskSource
+from chat_background_tasks.testing import runner_task
 from imbue.mngr.cli.field_catalog import FieldContext, build_list_field_catalog
 from mngr_cli_contract.contract import assert_mngr_argv_valid
 
@@ -211,13 +211,7 @@ def _write_marker(root: Path, chat_id: str, pid: int) -> None:
     markers.write_marker(
         root,
         chat_id,
-        markers.BackgroundTask(
-            source=TaskSource.RUN_IN_BACKGROUND,
-            id=f"task-{uuid4().hex[:8]}",
-            description="Wait for the background agent",
-            started_at="2026-09-24T10:00:00+00:00",
-            pid=pid,
-        ),
+        runner_task(f"task-{uuid4().hex[:8]}", "2026-09-24T10:00:00+00:00", pid=pid),
     )
 
 

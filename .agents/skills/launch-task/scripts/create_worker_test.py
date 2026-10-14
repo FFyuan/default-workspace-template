@@ -27,6 +27,7 @@ from uuid import uuid4
 import pytest
 from chat_background_tasks import markers
 from chat_background_tasks.markers import TaskSource
+from chat_background_tasks.testing import runner_task
 from mngr_cli_contract.contract import assert_mngr_argv_valid
 
 _SCRIPT = Path(__file__).parent / "create_worker.py"
@@ -2066,15 +2067,7 @@ def test_a_worker_whose_own_chat_is_busy_is_not_idle() -> None:
 
 def _write_marker(root: Path, chat_id: str, task_id: str, pid: int) -> None:
     markers.write_marker(
-        root,
-        chat_id,
-        markers.BackgroundTask(
-            source=TaskSource.RUN_IN_BACKGROUND,
-            id=task_id,
-            description="Run the test suite",
-            started_at="2026-10-08T09:00:00+00:00",
-            pid=pid,
-        ),
+        root, chat_id, runner_task(task_id, "2026-10-08T09:00:00+00:00", pid=pid)
     )
 
 

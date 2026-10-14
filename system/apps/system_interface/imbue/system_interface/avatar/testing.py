@@ -10,6 +10,7 @@ from typing import Final
 
 from chat_background_tasks import markers
 from chat_background_tasks.markers import TaskSource
+from chat_background_tasks.testing import runner_task
 
 from imbue.system_interface.avatar.catalog import DesignRegistration
 from imbue.system_interface.avatar.primitives import DesignId
@@ -59,17 +60,7 @@ def png_top_left_rgba(png: bytes) -> tuple[int, int, int, int]:
 
 def write_background_task_marker(root: Path, chat_id: str, task_id: str, pid: int) -> None:
     """A ``run_in_background`` marker for ``chat_id`` under ``root``, kept live by ``pid``, as the runner writes it."""
-    markers.write_marker(
-        root,
-        chat_id,
-        markers.BackgroundTask(
-            source=TaskSource.RUN_IN_BACKGROUND,
-            id=task_id,
-            description="Wait for the background agent",
-            started_at="2026-10-08T09:00:00+00:00",
-            pid=pid,
-        ),
-    )
+    markers.write_marker(root, chat_id, runner_task(task_id, "2026-10-08T09:00:00+00:00", pid=pid))
 
 
 def remove_background_task_marker(root: Path, chat_id: str, task_id: str) -> None:
