@@ -69,7 +69,7 @@ import re
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any
 
 import yaml
 
@@ -87,13 +87,6 @@ _OPERATION_FIELD = "operation"
 _CREATIONS_FIELD = "creations"
 _SCOPE_FILE_FIELD = "scope_file"
 _SINGLE_CREATION_TYPE_FIELD = "type"
-
-
-class TaskFrontmatter(NamedTuple):
-    """A parsed task file: its top-level string fields and the creations it covers."""
-
-    fields: dict[str, str]
-    creations: tuple[str, ...]
 
 
 def _split_frontmatter(text: str) -> dict[str, Any]:
@@ -119,12 +112,12 @@ def _split_frontmatter(text: str) -> dict[str, Any]:
     return parsed
 
 
-def _parse_creations(frontmatter: dict[str, Any]) -> tuple[str, ...]:
-    """A harden pass's ``creations``, after checking it and ``scope_file`` are there; empty
-    for any other task. Each creation's shape is ``app-manifest pass-scope``'s to check, the
-    first command the worker runs on them."""
+def _check_harden_pass(frontmatter: dict[str, Any]) -> None:
+    """Check a harden pass carries ``creations`` and ``scope_file`` and no top-level ``type``.
+    Each creation's shape is ``app-manifest pass-scope``'s to check, the first command the
+    worker runs on them."""
     if _OPERATION_FIELD not in frontmatter:
-        return ()
+        return
     for field in (_CREATIONS_FIELD, _SCOPE_FILE_FIELD):
         if not isinstance(frontmatter.get(field), str) or not frontmatter[field].strip():
             raise ValueError(
@@ -136,12 +129,10 @@ def _parse_creations(frontmatter: dict[str, Any]) -> tuple[str, ...]:
             f"frontmatter has a top-level `{_SINGLE_CREATION_TYPE_FIELD}`; a harden pass "
             f"names each creation's type in `{_CREATIONS_FIELD}` instead"
         )
-    return tuple(frontmatter[_CREATIONS_FIELD].split())
 
 
-def parse(task_file: Path) -> TaskFrontmatter:
-    """Return all top-level string fields after validating the well-known ones,
-    and a harden pass's ``creations`` (empty for any other task).
+def parse(task_file: Path) -> dict[str, str]:
+    """Return all top-level string fields after validating the well-known ones.
 
     Required fields (``finish_report_path``) must be present, string-typed,
     and non-empty -- any violation raises ``ValueError``. ``lead_agent`` and
@@ -195,11 +186,11 @@ def parse(task_file: Path) -> TaskFrontmatter:
                 f"using snake_case so downstream `eval` can consume the "
                 f"rendered KEY=value line."
             )
-    return TaskFrontmatter(fields=result, creations=_parse_creations(frontmatter))
+    _check_harden_pass(frontmatter)
+    return result
 
 
-def _render(task: TaskFrontmatter) -> str:
-    fields = task.fields
+def _render(fields: dict[str, str]) -> str:
     extras = sorted(key for key in fields if key not in _ORDERED_KNOWN_FIELDS)
     ordered = [*_ORDERED_KNOWN_FIELDS, *extras]
     lines = [
@@ -222,11 +213,11 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        task = parse(args.task_file)
+        fields = parse(args.task_file)
     except ValueError as exc:
         print(f"invalid task frontmatter: {exc}", file=sys.stderr)
         return 1
-    sys.stdout.write(_render(task))
+    sys.stdout.write(_render(fields))
     return 0
 
 

@@ -40,7 +40,7 @@ def _write_task(tmp_path: Path, text: str) -> Path:
 def test_happy_path(tmp_path: Path) -> None:
     task = _write_task(tmp_path, _VALID_FRONTMATTER)
     result = parse_task_frontmatter.parse(task)
-    assert result.fields == {
+    assert result == {
         "lead_agent": "crystallize-test",
         "finish_report_path": "data/.tasks/harden/update-foo/reports/report.md",
     }
@@ -48,8 +48,8 @@ def test_happy_path(tmp_path: Path) -> None:
 
 def test_render_shell_evalable(tmp_path: Path) -> None:
     task = _write_task(tmp_path, _VALID_FRONTMATTER)
-    parsed = parse_task_frontmatter.parse(task)
-    rendered = parse_task_frontmatter._render(parsed)
+    fields = parse_task_frontmatter.parse(task)
+    rendered = parse_task_frontmatter._render(fields)
     assert "LEAD_AGENT=crystallize-test\n" in rendered
     assert (
         "FINISH_REPORT_PATH=data/.tasks/harden/update-foo/reports/report.md\n"
@@ -67,8 +67,8 @@ finish_report_path: path/with$dollar/
 body
 """,
     )
-    parsed = parse_task_frontmatter.parse(task)
-    rendered = parse_task_frontmatter._render(parsed)
+    fields = parse_task_frontmatter.parse(task)
+    rendered = parse_task_frontmatter._render(fields)
     # shlex.quote wraps values containing shell metachars in single quotes
     assert "LEAD_AGENT='agent with spaces'\n" in rendered
     assert "FINISH_REPORT_PATH='path/with$dollar/'\n" in rendered
@@ -95,7 +95,7 @@ def test_a_glob_pattern_is_not_expanded(tmp_path: Path) -> None:
         parse_task_frontmatter.parse(tmp_path / "*" / "task.md")
 
     # ...and the same file, named exactly, parses.
-    assert parse_task_frontmatter.parse(task).fields["lead_agent"] == "crystallize-test"
+    assert parse_task_frontmatter.parse(task)["lead_agent"] == "crystallize-test"
 
 
 def test_no_frontmatter_delimiter(tmp_path: Path) -> None:
@@ -138,10 +138,10 @@ def test_missing_lead_agent_warns_but_parses(
     worker-reporting.md instead of being structurally unable to report.
     """
     task = _write_task(tmp_path, "---\nfinish_report_path: b\n---\nbody\n")
-    parsed = parse_task_frontmatter.parse(task)
-    assert parsed.fields == {"finish_report_path": "b"}
+    fields = parse_task_frontmatter.parse(task)
+    assert fields == {"finish_report_path": "b"}
     assert "no `lead_agent`" in capsys.readouterr().err
-    rendered = parse_task_frontmatter._render(parsed)
+    rendered = parse_task_frontmatter._render(fields)
     assert "LEAD_AGENT" not in rendered
     assert "FINISH_REPORT_PATH=b" in rendered
 
@@ -158,9 +158,9 @@ finish_report_path: data/.tasks/harden/update-foo/reports/report.md
 body
 """,
     )
-    parsed = parse_task_frontmatter.parse(task)
-    assert parsed.fields["task_file"] == "data/.tasks/harden/update-foo/task.md"
-    rendered = parse_task_frontmatter._render(parsed)
+    fields = parse_task_frontmatter.parse(task)
+    assert fields["task_file"] == "data/.tasks/harden/update-foo/task.md"
+    rendered = parse_task_frontmatter._render(fields)
     assert "TASK_FILE=data/.tasks/harden/update-foo/task.md\n" in rendered
 
 
@@ -173,10 +173,10 @@ def test_missing_task_file_parses_without_warning(
     task = _write_task(
         tmp_path, "---\nlead_agent: a\nfinish_report_path: b\n---\nbody\n"
     )
-    parsed = parse_task_frontmatter.parse(task)
-    assert parsed.fields == {"lead_agent": "a", "finish_report_path": "b"}
+    fields = parse_task_frontmatter.parse(task)
+    assert fields == {"lead_agent": "a", "finish_report_path": "b"}
     assert capsys.readouterr().err == ""
-    assert "TASK_FILE" not in parse_task_frontmatter._render(parsed)
+    assert "TASK_FILE" not in parse_task_frontmatter._render(fields)
 
 
 def test_task_file_wrong_type_fails_loud(tmp_path: Path) -> None:
@@ -267,7 +267,7 @@ body
 """,
     )
     result = parse_task_frontmatter.parse(task)
-    assert result.fields == {
+    assert result == {
         "lead_agent": "a",
         "finish_report_path": "b",
         "ticket_id": "task-42",
@@ -315,7 +315,7 @@ body
 """,
     )
     result = parse_task_frontmatter.parse(task)
-    assert set(result.fields.keys()) == {"lead_agent", "finish_report_path"}
+    assert set(result.keys()) == {"lead_agent", "finish_report_path"}
 
 
 def test_extra_key_with_invalid_shell_identifier_fails_loud(tmp_path: Path) -> None:
@@ -368,8 +368,8 @@ lead_agent: a
 body
 """,
     )
-    parsed = parse_task_frontmatter.parse(task)
-    rendered = parse_task_frontmatter._render(parsed)
+    fields = parse_task_frontmatter.parse(task)
+    rendered = parse_task_frontmatter._render(fields)
     assert rendered == (
         "LEAD_AGENT=a\nTASK_FILE=t/task.md\nFINISH_REPORT_PATH=b\n"
         "FLOW=verify\nTICKET_ID=task-42\n"
@@ -431,11 +431,6 @@ def test_a_pass_over_three_creations_reaches_the_worker_as_type_and_name(tmp_pat
     assert result.stdout == (
         "update|data/.tasks/harden/update-roadmap-sync/scope.json|"
         "app=roadmap|service=share_gateway|shared=references/roadmap.md|"
-    )
-    assert parse_task_frontmatter.parse(task).creations == (
-        "app:roadmap",
-        "service:share_gateway",
-        "shared:references/roadmap.md",
     )
 
 
