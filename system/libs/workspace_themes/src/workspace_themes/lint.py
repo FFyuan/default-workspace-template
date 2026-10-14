@@ -57,8 +57,11 @@ _LITERAL_PATTERNS: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
         "a font family in a utility; use font-sans or font-mono",
     ),
 )
-# A line comment in TypeScript or CSS, or in Python (`# ` with its space: a CSS id selector has none).
-_COMMENT_LINE_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\s*(?://|/?\*|#\s)")
+# A line comment in TypeScript or CSS, a block comment's line, or a Python comment (`# ` with its space: a CSS id
+# selector has none). A `*` that goes on as a selector (`* {`, `*, a`, `*::before`) is the universal selector.
+_COMMENT_LINE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^\s*(?://|/\*|\*(?!\s*(?:[{,>+~]|::?[a-zA-Z-]))|#\s)"
+)
 
 
 class ThemingLintFinding(FrozenModel):
