@@ -565,9 +565,10 @@ def test_a_failed_re_auth_restarts_nothing(tmp_path: Path) -> None:
     assert restarted == []
 
 
-def test_a_new_account_is_announced_once_with_its_harness_and_folder(tmp_path: Path) -> None:
-    """Claude's plugins install per config dir, so a new account's folder is readied for its
-    first chat as soon as it exists. A re-auth adds nothing: the folder was readied before."""
+def _service_recording_added_accounts(
+    tmp_path: Path,
+) -> tuple[AuthFlowService, list[tuple[HarnessType, Path]]]:
+    """A service whose every sign-in is accepted, and the accounts it announces as added."""
     added: list[tuple[HarnessType, Path]] = []
     service = AuthFlowService.create(
         home=tmp_path,
@@ -575,6 +576,13 @@ def test_a_new_account_is_announced_once_with_its_harness_and_folder(tmp_path: P
         probe=lambda *_a: SignedIn.YES,
         on_account_added=lambda harness, account_dir: added.append((harness, account_dir)),
     )
+    return service, added
+
+
+def test_a_new_account_is_announced_once_with_its_harness_and_folder(tmp_path: Path) -> None:
+    """Claude's plugins install per config dir, so a new account's folder is readied for its
+    first chat as soon as it exists. A re-auth adds nothing: the folder was readied before."""
+    service, added = _service_recording_added_accounts(tmp_path)
     started = service.start("anthropic", "api_key")
     service.submit_key(started.flow_id, "sk-ant-api03-" + "E" * 40)
     (account,) = read_index(tmp_path).accounts
@@ -586,13 +594,7 @@ def test_a_new_account_is_announced_once_with_its_harness_and_folder(tmp_path: P
 
 
 def test_an_account_adopted_through_imbue_is_announced_once(tmp_path: Path) -> None:
-    added: list[tuple[HarnessType, Path]] = []
-    service = AuthFlowService.create(
-        home=tmp_path,
-        work_dir=tmp_path / "work",
-        probe=lambda *_a: SignedIn.YES,
-        on_account_added=lambda harness, account_dir: added.append((harness, account_dir)),
-    )
+    service, added = _service_recording_added_accounts(tmp_path)
 
     adopted = service.adopt_claude_credentials("sk-ant-api03-" + "G" * 40)
     service.adopt_claude_credentials("sk-ant-api03-" + "H" * 40)
