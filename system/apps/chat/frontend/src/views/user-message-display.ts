@@ -62,7 +62,7 @@ export function renderNotice(label: string, body: string): m.Vnode {
   ]);
 }
 
-/** A notice that is not on the transcript yet (queued, or held by a switch) as a row of its own. */
+/** A notice that is not on the transcript yet, as a row of its own. */
 export function renderNoticeRow(key: string, rowClass: string, cls: UserMessageClass): m.Vnode {
   return m("div", { class: rowClass, key }, [renderNotice(cls.label ?? NOTICE_FALLBACK_LABEL, cls.body)]);
 }

@@ -75,8 +75,8 @@ export function classifyUserMessage(event: ClassifiableUserMessage): UserMessage
   }
 }
 
-/** Classify a message that is not on the transcript yet (queued, held by a switch, or just sent)
- *  from the decision the backend made for its text (``decision`` is undefined for a plain one). */
+/** Classify a message that is not on the transcript yet from the decision the backend made for
+ *  its text (``decision`` is undefined for a plain one). */
 export function classifyDecidedMessage(content: string, decision: DisplayDecision | undefined): UserMessageClass {
   return classifyUserMessage({
     content,
