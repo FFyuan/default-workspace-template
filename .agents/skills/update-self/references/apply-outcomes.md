@@ -149,6 +149,16 @@ git log --first-parent --merges -1 --format=%H --fixed-strings \
     --grep "update-self: merge upstream template"
 ```
 
+The worker's own commits on top of that merge (a mirror edit, a re-fit, a gate
+fix) are part of the update too: revert each of them first, newest first, then
+the merge. They are the non-merge commits on the first-parent line from the
+merge to the landed tip (the sha the version-history entry records); the
+catch-up merges between them are the workspace's own work and stay:
+
+```bash
+git log --first-parent --no-merges --format=%H <merge sha>..<landed tip>
+```
+
 Land the revert with the same machinery, in ordinary merge mode (no
 `--target-ref`), so it gets the same refresh, restart and health-probe motion
 the update got:
