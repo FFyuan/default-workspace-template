@@ -111,12 +111,51 @@ function adoptBootedThemeOnce(doc: Document): void {
   adoptBootedTheme(doc);
 }
 
-/** The theme the page started in: what the boot script put on `<html>`, or the standard look. */
+/** The theme the page started in: what the boot script put on `<html>`, or the standard look. The boot script's
+ *  stylesheet may still be loading (a script-inserted stylesheet holds back no module script), so it is tracked
+ *  like one this client put on: wearing the same theme waits for it. */
 function adoptBootedTheme(doc: Document): void {
   const id = doc.documentElement.getAttribute(THEME_ATTRIBUTE);
   const revision = doc.documentElement.getAttribute(THEME_REVISION_ATTRIBUTE) ?? "";
   const booted = { id: id ?? STANDARD_THEME_ID, revision };
   current = isThemeRef(booted) ? booted : STANDARD_THEME;
+  const loading = themeLinks(doc).find((link) => link.sheet === null);
+  if (loading !== undefined) void trackThemeLink(loading, []);
+}
+
+/**
+ * Make `link` the theme stylesheet still loading: once it loads, the `replaced` stylesheets go; if it fails, it goes
+ * itself, leaving the standard look. The returned promise settles then, or once a later change supersedes it.
+ */
+function trackThemeLink(link: HTMLLinkElement, replaced: readonly HTMLLinkElement[]): Promise<void> {
+  let isSettled = false;
+  let resolveShown: () => void = () => undefined;
+  const shown = new Promise<void>((resolve) => {
+    resolveShown = resolve;
+  });
+  const settle = (isLoaded: boolean): void => {
+    if (isSettled) return;
+    isSettled = true;
+    if (pending?.link === link) pending = null;
+    for (const old of replaced) old.remove();
+    if (!isLoaded) link.remove();
+    resolveShown();
+  };
+  link.addEventListener("load", () => settle(true), { once: true });
+  link.addEventListener("error", () => settle(false), { once: true });
+  pending = {
+    link,
+    shown,
+    supersede: () => {
+      // Settled here, so the removed link's late error (some browsers fire one) cannot drop the stylesheets the
+      // page wears meanwhile.
+      if (isSettled) return;
+      isSettled = true;
+      link.remove();
+      resolveShown();
+    },
+  };
+  return shown;
 }
 
 export interface WearThemeOptions {
@@ -170,33 +209,7 @@ export function wearTheme(theme: ThemeRef, doc: Document = document, options: We
   link.setAttribute(THEME_LINK_ATTRIBUTE, theme.id);
   // Set before the link is inserted: whether a stylesheet holds the first frame is settled when its fetch starts.
   if (options.isRenderBlocking === true) link.setAttribute("blocking", "render");
-  let isSettled = false;
-  let resolveShown: () => void = () => undefined;
-  const shown = new Promise<void>((resolve) => {
-    resolveShown = resolve;
-  });
-  const settle = (isLoaded: boolean): void => {
-    if (isSettled) return;
-    isSettled = true;
-    if (pending?.link === link) pending = null;
-    for (const old of existing) old.remove();
-    if (!isLoaded) link.remove();
-    resolveShown();
-  };
-  link.addEventListener("load", () => settle(true), { once: true });
-  link.addEventListener("error", () => settle(false), { once: true });
-  pending = {
-    link,
-    shown,
-    supersede: () => {
-      // Settled here, so the removed link's late error (some browsers fire one) cannot drop the stylesheets the
-      // page wears meanwhile.
-      if (isSettled) return;
-      isSettled = true;
-      link.remove();
-      resolveShown();
-    },
-  };
+  const shown = trackThemeLink(link, existing);
   doc.head.appendChild(link);
   return shown;
 }

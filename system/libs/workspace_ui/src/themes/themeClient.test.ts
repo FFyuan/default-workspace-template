@@ -262,13 +262,46 @@ describe("the boot script", () => {
     expect(transform()).toEqual([{ tag: "script", children: themeBootScript(), injectTo: "head" }]);
   });
 
-  it("is adopted by the theme client, which then swaps it rather than adding a second stylesheet", async () => {
+  it("is adopted by the theme client: wearing the same theme waits for its stylesheet and adds no second one", async () => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ id: "mac-classic", revision: "1" }));
+    runBootScript();
+    const [booted] = themeLinks();
+    let isShown = false;
+
+    const worn = wearTheme({ id: "mac-classic", revision: "1" }).then(() => {
+      isShown = true;
+    });
+    await Promise.resolve();
+    const isShownBeforeLoad = isShown;
+    settleLink(booted, "load");
+    await worn;
+
+    expect(isShownBeforeLoad).toBe(false);
+    expect(themeLinks()).toEqual([booted]);
+    expect(currentTheme()).toEqual({ id: "mac-classic", revision: "1" });
+  });
+
+  it("is dropped, while still loading, for another theme the page wears", () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ id: "mac-classic", revision: "1" }));
     runBootScript();
 
-    await wearTheme({ id: "mac-classic", revision: "1" });
+    void wearTheme({ id: "windows-2000", revision: "2" });
 
-    expect(themeLinks()).toHaveLength(1);
-    expect(currentTheme()).toEqual({ id: "mac-classic", revision: "1" });
+    expect(themeLinks().map((link) => link.getAttribute(THEME_LINK_ATTRIBUTE))).toEqual(["windows-2000"]);
+  });
+
+  it("stays, once loaded, until another theme the page wears has loaded", async () => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ id: "mac-classic", revision: "1" }));
+    runBootScript();
+    const [booted] = themeLinks();
+    Object.defineProperty(booted, "sheet", { value: new CSSStyleSheet() });
+
+    const worn = wearTheme({ id: "windows-2000", revision: "2" });
+    const both = themeLinks();
+    settleLink(both[1], "load");
+    await worn;
+
+    expect(both.map((link) => link.getAttribute(THEME_LINK_ATTRIBUTE))).toEqual(["mac-classic", "windows-2000"]);
+    expect(themeLinks().map((link) => link.getAttribute(THEME_LINK_ATTRIBUTE))).toEqual(["windows-2000"]);
   });
 });
