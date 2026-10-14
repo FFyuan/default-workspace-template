@@ -38,9 +38,9 @@ export interface OutgoingMessage {
 }
 
 /** Just the render decision a backend record carries, or undefined for a plain message. */
-export function displayDecisionOf(decision: DisplayDecision): DisplayDecision | undefined {
-  return decision.display
-    ? { display: decision.display, display_label: decision.display_label, display_body: decision.display_body }
+export function displayDecisionOf(record: DisplayDecision): DisplayDecision | undefined {
+  return record.display
+    ? { display: record.display, display_label: record.display_label, display_body: record.display_body }
     : undefined;
 }
 
