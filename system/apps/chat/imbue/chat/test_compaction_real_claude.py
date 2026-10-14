@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -95,7 +95,7 @@ def _subprocess_env() -> dict[str, str]:
 
 
 @contextmanager
-def _private_tmux_server(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def _private_tmux_server(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Point every tmux call (mngr's subprocesses and its in-process sends) at a server of this test's own.
 
     The directory is short because tmux refuses a socket path over about 100 bytes. The server's sessions are
@@ -159,7 +159,7 @@ def _prepare_mngr_profile(host_dir: Path, api: StandInAnthropicApi) -> None:
 
 
 @contextmanager
-def _real_claude_agent(project_dir: Path, log_path: Path, agent_name: str) -> Iterator[AgentInfo]:
+def _real_claude_agent(project_dir: Path, log_path: Path, agent_name: str) -> Generator[AgentInfo, None, None]:
     try:
         with open(log_path, "ab") as log:
             created = subprocess.run(
@@ -196,7 +196,7 @@ def _real_claude_agent(project_dir: Path, log_path: Path, agent_name: str) -> It
 
 
 @contextmanager
-def _chat_app_over(agent: AgentInfo, chats_root: Path) -> Iterator[ServedApp]:
+def _chat_app_over(agent: AgentInfo, chats_root: Path) -> Generator[ServedApp, None, None]:
     """Watches the ``compacting`` marker as ``AgentManager.start`` would."""
     manager = AgentManager.build(WebSocketBroadcaster(), chat_files_root=chats_root)
     seed_agent_state(manager, agent.id, name=agent.name, labels=agent.labels, harness=agent.harness)

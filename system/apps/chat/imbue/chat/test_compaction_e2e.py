@@ -13,7 +13,6 @@ import json
 import re
 import time
 from collections.abc import Generator
-from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from contextlib import contextmanager
@@ -127,7 +126,7 @@ def _compaction_workspace(
     tmp_path: Path,
     session_events: Sequence[Mapping[str, Any]] | None = None,
     messenger: RecordingMngrMessenger | None = None,
-) -> Iterator[RunningWorkspace]:
+) -> Generator[RunningWorkspace, None, None]:
     with running_workspace(
         tmp_path, find_free_port(), find_free_port(), session_events=session_events, messenger=messenger
     ) as server:

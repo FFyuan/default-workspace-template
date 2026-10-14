@@ -4553,7 +4553,7 @@ def _compact_sent_from_the_composer(
     messenger: RecordingMngrMessenger | None = None,
     lifecycle_state: str = "RUNNING",
     activity_state: ActivityState | None = None,
-) -> Iterator[tuple[TestResponse, AgentManager, RecordingMngrMessenger, str]]:
+) -> Generator[tuple[TestResponse, AgentManager, RecordingMngrMessenger, str], None, None]:
     """Send ``message`` from the composer of a ``harness`` chat whose transcript holds ``events``; the app stays up
     until the block ends."""
     agent_id = f"agent-{uuid4().hex}"
