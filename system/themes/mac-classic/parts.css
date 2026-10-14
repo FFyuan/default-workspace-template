@@ -146,6 +146,17 @@ kbd {
   background: #000000;
   color: #ffffff;
 }
+/* A button on a dark overlay (the image viewer) keeps a white glyph, and inverts to white while pressed. */
+[data-part="button"][data-variant="ghost-inverse"] {
+  color: #ffffff;
+}
+[data-part="button"][data-variant="ghost-inverse"]:not(:disabled):hover {
+  background: rgb(255 255 255 / 0.15);
+}
+[data-part="button"][data-variant="ghost-inverse"]:not(:disabled):active {
+  background: #ffffff;
+  color: #000000;
+}
 
 /* Check boxes: a white 12-pixel box with a one-pixel black edge, crossed by an X when checked, as System 7
    drew them; radios keep the browser's, in black. */

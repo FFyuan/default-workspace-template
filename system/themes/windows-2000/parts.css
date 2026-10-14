@@ -134,6 +134,10 @@ kbd {
   box-shadow: var(--theme-thin-pressed);
   background: transparent;
 }
+/* A button on a dark overlay (the image viewer) keeps a white glyph. */
+[data-part="button"][data-variant="ghost-inverse"] {
+  color: #ffffff;
+}
 
 /* Check boxes: a sunk white 13-pixel box with the system's black tick; radios keep the browser's, in black. */
 input[type="checkbox"] {
