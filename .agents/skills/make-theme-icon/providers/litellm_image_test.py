@@ -18,5 +18,7 @@ def test_an_inline_image_is_written_as_it_came(tmp_path: Path) -> None:
 
 
 def test_an_image_with_neither_data_nor_link_is_refused() -> None:
-    with pytest.raises(ValueError, match="neither data nor a link"):
+    with pytest.raises(
+        litellm_image.ImageCandidateError, match="neither data nor a link"
+    ):
         litellm_image.candidate_bytes(SimpleNamespace(b64_json=None, url=None))

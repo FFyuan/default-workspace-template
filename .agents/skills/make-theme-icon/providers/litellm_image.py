@@ -25,6 +25,10 @@ import litellm
 GENERATION_TIMEOUT_SECONDS: Final[float] = 180.0
 
 
+class ImageCandidateError(Exception):
+    """The model answered with an image this script cannot read."""
+
+
 def candidate_bytes(item: Any) -> bytes:
     """The image one response item carries, whether the provider returned it inline or as a link."""
     encoded = getattr(item, "b64_json", None)
@@ -32,7 +36,9 @@ def candidate_bytes(item: Any) -> bytes:
         return base64.b64decode(encoded)
     url = getattr(item, "url", None)
     if not url:
-        raise ValueError("the model returned an image with neither data nor a link")
+        raise ImageCandidateError(
+            "the model returned an image with neither data nor a link"
+        )
     response = httpx.get(url, timeout=60.0, follow_redirects=True)
     response.raise_for_status()
     return response.content
