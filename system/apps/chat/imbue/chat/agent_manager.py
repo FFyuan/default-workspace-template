@@ -612,7 +612,7 @@ def _transition_state_of(record: ChatRecord | None) -> HandoffState | None:
     # (a fresh start picked from the provider menu) has no confirming message to show.
     others = transition.held_sends_after_trigger()
     trigger = (
-        (HeldSendSnapshot(message_id=transition.trigger_message_id, text=transition.trigger_text),)
+        (_held_send_snapshot(transition.trigger_message_id, transition.trigger_text),)
         if transition.trigger_text
         else ()
     )
@@ -624,10 +624,25 @@ def _transition_state_of(record: ChatRecord | None) -> HandoffState | None:
         target_account_id=transition.target_account_id,
         target_harness=transition.target_harness,
         target_label=_target_label_of(transition),
-        held_sends=(*trigger, *(HeldSendSnapshot(message_id=held.message_id, text=held.text) for held in others)),
+        held_sends=(*trigger, *(_held_send_snapshot(held.message_id, held.text) for held in others)),
         model_pick=transition.model_pick,
         error=transition.error,
         failed_step=transition.failed_step,
+    )
+
+
+@pure
+def _held_send_snapshot(message_id: str, text: str) -> HeldSendSnapshot:
+    """One held send on the wire, carrying the render decision its text would get in the transcript."""
+    decision = classify_user_message(text)
+    if decision is None:
+        return HeldSendSnapshot(message_id=message_id, text=text)
+    return HeldSendSnapshot(
+        message_id=message_id,
+        text=text,
+        display=decision.display,
+        display_label=decision.display_label,
+        display_body=decision.display_body,
     )
 
 

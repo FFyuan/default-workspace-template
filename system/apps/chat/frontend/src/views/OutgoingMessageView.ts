@@ -10,8 +10,16 @@
  */
 import m from "mithril";
 import { getOutgoingMessages } from "../models/OutgoingMessages";
-import type { OutgoingMessage } from "../models/OutgoingMessages";
-import { USER_BUBBLE_CLASS, USER_MESSAGE_ROW_CLASS } from "./user-message-display";
+import type { DisplayDecision, OutgoingMessage } from "../models/OutgoingMessages";
+import { classifyUserMessage } from "./message-classification";
+import { UserMessageKind } from "./message-kinds";
+import {
+  NOTICE_FALLBACK_LABEL,
+  NOTICE_ROW_SPACING_CLASS,
+  USER_BUBBLE_CLASS,
+  USER_MESSAGE_ROW_CLASS,
+  renderNotice,
+} from "./user-message-display";
 
 // The user rail's own recipes; the extra classes are bare markers for tests.
 const OUTGOING_ROW_CLASS = `${USER_MESSAGE_ROW_CLASS} outgoing-message outgoing-message--sending`;
@@ -29,12 +37,33 @@ export interface NotYetRealBubble {
   isGroupSpaced?: boolean;
   /** Marker classes added to the row, for a caller whose bubbles a test or a style picks out. */
   extraRowClass?: string;
+  /** The backend's render decision for the text; a notice (a background-task report) draws as one. */
+  display?: DisplayDecision;
 }
 
-/** A user message that is not yet a real turn, drawn as the user bubble it will become. Every
- *  not-yet-delivered message renders through here (optimistic, held by a switch, re-sent by a
- *  tap), so they look the same and the handoff to the real turn is invisible. */
+/** A user message that is not yet a real turn, drawn as the row it will become: the user bubble,
+ *  or the one-line notice the backend decided its text renders as. Every not-yet-delivered message
+ *  renders through here (optimistic, held by a switch, re-sent by a tap), so they look the same
+ *  and the handoff to the real turn is invisible. */
 export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
+  const cls = classifyUserMessage({
+    content: bubble.content,
+    display: bubble.display?.display ?? undefined,
+    display_label: bubble.display?.display_label ?? undefined,
+    display_body: bubble.display?.display_body ?? undefined,
+  });
+  if (cls.kind === UserMessageKind.Notice) {
+    const noticeRowClass = [
+      "message-notice-row",
+      bubble.isGroupSpaced === true ? null : NOTICE_ROW_SPACING_CLASS,
+      bubble.extraRowClass ?? null,
+    ]
+      .filter((part) => part !== null)
+      .join(" ");
+    return m("div", { class: noticeRowClass, key: bubble.key }, [
+      renderNotice(cls.label ?? NOTICE_FALLBACK_LABEL, cls.body),
+    ]);
+  }
   const rowClass = [
     OUTGOING_ROW_CLASS,
     bubble.isGroupSpaced === true ? null : STANDALONE_ROW_SPACING_CLASS,
@@ -50,7 +79,7 @@ export function renderNotYetRealBubble(bubble: NotYetRealBubble): m.Vnode {
 }
 
 function renderOutgoingBubble(outgoing: OutgoingMessage): m.Vnode {
-  return renderNotYetRealBubble({ key: outgoing.id, content: outgoing.content });
+  return renderNotYetRealBubble({ key: outgoing.id, content: outgoing.content, display: outgoing.display });
 }
 
 /** The optimistic outgoing bubbles for a chat, in send order. Returns [] when

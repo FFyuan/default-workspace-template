@@ -22,7 +22,11 @@
 import m from "mithril";
 
 import { addChatsUpdatedListener, isHandoffCancellable } from "./Chats";
-import type { HandoffState } from "./Chats";
+import type { HandoffState, HeldSend } from "./Chats";
+
+/** The render decision the backend made for a message it holds (``HeldSend``), for the bubble to
+ *  draw the message as the transcript will. */
+export type DisplayDecision = Pick<HeldSend, "display" | "display_label" | "display_body">;
 
 export interface OutgoingMessage {
   id: string;
@@ -32,6 +36,8 @@ export interface OutgoingMessage {
    *  carries the same id (a message held while the chat switches harness) replaces this bubble
    *  exactly, rather than by position. */
   messageId?: string;
+  /** The backend's render decision, for a held send that comes back as a bubble when its switch ends. */
+  display?: DisplayDecision;
 }
 
 const byChat: Record<string, OutgoingMessage[]> = {};
@@ -47,9 +53,14 @@ let nextId = 0;
 
 /** Record a just-sent message as an optimistic "Sending…" bubble; returns its id
  *  so the caller can drop it on failure. */
-export function addOutgoing(chatId: string, content: string, messageId?: string): string {
+export function addOutgoing(chatId: string, content: string, messageId?: string, display?: DisplayDecision): string {
   const id = `outgoing-${nextId++}`;
-  (byChat[chatId] ??= []).push(messageId === undefined ? { id, content } : { id, content, messageId });
+  (byChat[chatId] ??= []).push({
+    id,
+    content,
+    ...(messageId === undefined ? {} : { messageId }),
+    ...(display === undefined ? {} : { display }),
+  });
   m.redraw();
   return id;
 }
@@ -200,7 +211,10 @@ export function trackBackendArrivals(
         const returning = previous.handoff.held_sends;
         for (const held of isCancelled ? returning.slice(1) : returning) {
           if (isCarriedBySwitch(chat.chat_id, held.message_id)) continue;
-          addOutgoing(chat.chat_id, held.text, held.message_id);
+          const display = held.display
+            ? { display: held.display, display_label: held.display_label, display_body: held.display_body }
+            : undefined;
+          addOutgoing(chat.chat_id, held.text, held.message_id, display);
         }
         for (let i = 0; i < consumedBySuccessor; i++) {
           removeOldest(chat.chat_id);

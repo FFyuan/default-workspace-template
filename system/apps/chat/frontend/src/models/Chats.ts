@@ -54,6 +54,11 @@ export interface HeldSend {
   // The send-time message_id (contract A4); the page's own bubble for the same send carries it too.
   message_id: string;
   text: string;
+  // The render decision the text would get in the transcript (a user_message's fields of the
+  // same names); null for a plain message.
+  display?: UserMessageEvent["display"] | null;
+  display_label?: string | null;
+  display_body?: string | null;
 }
 
 /** The in-progress switch a chat carries while it converges: a handoff or a rebind (spec 5, 6). */

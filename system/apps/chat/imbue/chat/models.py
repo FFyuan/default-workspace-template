@@ -417,6 +417,15 @@ class HeldSendSnapshot(FrozenModel):
 
     message_id: str = Field(description="The sender's stable send-time id, which the page's own bubble carries too")
     text: str = Field(description="The message, verbatim")
+    display: DisplayKind | None = Field(
+        default=None,
+        description=(
+            "The render decision the text would get as a transcript user_message "
+            "(``harnesses.message_display``); None for a plain message"
+        ),
+    )
+    display_label: str | None = Field(default=None, description="The decision's chip or notice label")
+    display_body: str | None = Field(default=None, description="The decision's body, when it is not the text")
 
 
 class HandoffState(FrozenModel):
