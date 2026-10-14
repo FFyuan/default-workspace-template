@@ -23,7 +23,6 @@ import string
 from collections.abc import Callable
 from collections.abc import Mapping
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from typing import Any
 from typing import Final
@@ -42,6 +41,7 @@ from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import SendFailedError
 from imbue.chat.agent_discovery import agent_state_dir
 from imbue.chat.background_tasks import BackgroundTask
+from imbue.chat.background_tasks import started_at_text
 from imbue.chat.chat_records import ChatAgentEntry
 from imbue.chat.chat_records import ChatHandoffRecord
 from imbue.chat.chat_records import ChatRecord
@@ -226,7 +226,7 @@ def background_tasks_section(tasks: tuple[BackgroundTask, ...]) -> str:
             task.description or task.id,
             _task_starter(task),
             f"`{task.command}`" if task.command and "`" not in task.command else task.command or "(not recorded)",
-            _task_start_time(task.started_at),
+            started_at_text(task.started_at),
             _task_outcome(task),
         )
         lines.append("| " + " | ".join(_table_cell(cell) for cell in cells) + " |")
@@ -257,18 +257,6 @@ def _task_outcome(task: BackgroundTask) -> str:
             return "Ended with no report. Start it again if it is still needed."
         case _ as unreachable:
             assert_never(unreachable)
-
-
-@pure
-def _task_start_time(started_at: str) -> str:
-    """When a task started, to the minute in UTC; the recorded text itself when it is not a timestamp."""
-    try:
-        started = datetime.fromisoformat(started_at)
-    except ValueError:
-        return started_at
-    if started.tzinfo is None:
-        started = started.replace(tzinfo=timezone.utc)
-    return started.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
 @pure

@@ -4305,6 +4305,18 @@ class AgentManager:
             return
         self._recompute_background_tasks(chat_id, broadcast_on_change=broadcast_on_change)
 
+    def claim_unreported_runner_ends(self, chat_id: ChatId) -> tuple[BackgroundTask, ...]:
+        """Take out the chat's ``run_in_background.py`` tasks whose runner died before it reported, for the caller to
+        tell the chat's agent of; none when this app reads no markers or the chat's cannot be read."""
+        reader = self._background_tasks
+        if reader is None:
+            return ()
+        try:
+            return reader.claim_unreported_runner_ends(chat_id)
+        except OSError as e:
+            _loguru_logger.warning("Could not read the unreported background tasks of chat {}: {}", chat_id, e)
+            return ()
+
     def _background_tasks_of_chat(self, chat_id: ChatId) -> tuple[BackgroundTask, ...]:
         with self._lock:
             return self._background_tasks_by_chat.get(chat_id, ())

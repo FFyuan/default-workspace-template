@@ -8,6 +8,8 @@ answer, sees the tasks alone). The pending tasks are one marker file each under
 harness's hooks. This module wraps what the library reads in this app's types.
 """
 
+from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from typing import Final
 
@@ -17,8 +19,10 @@ from loguru import logger
 from pydantic import Field
 
 from imbue.chat.harnesses.harness_type import HarnessType
+from imbue.chat.harnesses.message_display import BACKGROUND_TASK_REPORT_TAG
 from imbue.chat.primitives import ChatId
 from imbue.imbue_common.frozen_model import FrozenModel
+from imbue.imbue_common.pure import pure
 
 # The markers' root under the chat's data dir; the library's default and the agents'
 # ``CHAT_BACKGROUND_TASKS_DIR`` name the same directory.
@@ -66,6 +70,25 @@ class BackgroundTaskReader(FrozenModel):
         for task_id in task_ids:
             markers.remove_marker(self.root, str(chat_id), TaskSource.HARNESS, task_id, harness.value)
 
+    def claim_unreported_runner_ends(self, chat_id: ChatId) -> tuple[BackgroundTask, ...]:
+        """Take out the chat's ``run_in_background.py`` markers whose runner died before it reported, oldest first.
+
+        Nothing else will say how those commands ended: the runner was stopped with them (Imbue Studio ending a
+        chat's commands, a restart) or without them. Each marker goes to the one caller whose removal took it, so
+        two sends at once cannot both report it.
+        """
+        directory = self.chat_dir(chat_id)
+        claimed: list[BackgroundTask] = []
+        for task in markers.read_markers(directory):
+            if task.source is not TaskSource.RUN_IN_BACKGROUND or markers.is_task_live(task):
+                continue
+            try:
+                (directory / task.file_name).unlink()
+            except FileNotFoundError:
+                continue
+            claimed.append(BackgroundTask(**task._asdict()))
+        return tuple(sorted(claimed, key=lambda task: task.started_at))
+
     def create_root(self) -> None:
         """Create the marker root, so the shell's avatar, which watches it only once it exists, sees the first task
         as it lands."""
@@ -73,3 +96,39 @@ class BackgroundTaskReader(FrozenModel):
             self.root.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             logger.warning("Could not create the background task marker root {}: {}", self.root, e)
+
+
+@pure
+def started_at_text(started_at: str) -> str:
+    """When a task started, to the minute in UTC; the recorded text itself when it is not a timestamp."""
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        return started_at
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return started.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+@pure
+def unreported_runner_ends_notice(tasks: tuple[BackgroundTask, ...]) -> str:
+    """The message telling a chat's agent which of its ``run_in_background.py`` commands will never report.
+
+    A background-task report, so the chat shows it as a one-line notice and the agent reads the rest.
+    """
+    if len(tasks) == 1:
+        summary = f"{' '.join(tasks[0].description.split()) or tasks[0].id} (ended without a report)"
+    else:
+        summary = f"{len(tasks)} background commands ended without a report"
+    lines = [
+        f"<{BACKGROUND_TASK_REPORT_TAG}>",
+        f"<summary>{summary}</summary>",
+        "The runner of each of these commands, which you started with run_in_background.py, was stopped before it "
+        "could report how its command ended, so no report will come. The command was most likely stopped with it. "
+        "Check whether you still need each one, and start it again if you do:",
+    ]
+    for task in tasks:
+        command = f": `{task.command}`" if task.command else ""
+        lines.append(f"- {task.description or task.id}{command} (started {started_at_text(task.started_at)})")
+    lines.append(f"</{BACKGROUND_TASK_REPORT_TAG}>")
+    return "\n".join(lines)

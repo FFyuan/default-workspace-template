@@ -17,7 +17,8 @@ Each writer owns its own files and never reads another's:
 
 Each marker names the pid whose death makes it stale (the runner, or the harness's main process),
 and where ``/proc`` has it, that process's start time, so a pid recycled after a restart does not
-bring a marker back. Readers skip a stale marker and never delete it; its writer's next pass does.
+bring a marker back. Readers skip a stale marker and never delete it; its writer's next pass does,
+and the chat app takes out a dead runner's to tell the agent its command will never report.
 
 The marker root is ``data/.apps/chat/background_tasks`` under the workspace's main checkout: the
 repo the caller names (by default the one this package is in), or, when that is a git worktree (a

@@ -177,7 +177,11 @@ directory. A switch stops the agent, which ends its tasks: the harness's own end
 unreported, while the runner reports how its command ended to the chat. The
 handoff prompt tells the successor which was which, and Claude Code itself tells
 a Claude that resumes after a restart (a rebind, or any other) which of its own
-tasks the restart stopped. The memory prioritizer treats a chat waiting
+tasks the restart stopped. A runner stopped before it reported (Imbue Studio
+ending a chat's commands, a restart) leaves a marker whose runner is dead: after
+the next message the app delivers to that chat it sends a background-task report
+naming those commands, which no report will ever cover, and removes their
+markers. The memory prioritizer treats a chat waiting
 on one of the harness's own tasks as mid-turn; one waiting only on runner
 commands ages as an idle chat does, since its runner outlives a shed of the
 agent's process and its report revives the chat.

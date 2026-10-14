@@ -194,6 +194,47 @@ def test_a_chat_whose_runner_is_killed_returns_to_idle_within_a_poll(tmp_path: P
         assert _reports_sent(messenger) == []
 
 
+def _send_to_chat(workspace: RunningWorkspace, text: str) -> None:
+    request = urllib.request.Request(
+        f"{workspace.chat_url}/api/chats/{FIXTURE_AGENT_ID}/message",
+        data=json.dumps({"message": text}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        assert response.status == 200
+
+
+@pytest.mark.timeout(90)
+def test_the_next_message_to_a_chat_whose_runner_was_stopped_is_followed_by_word_that_no_report_will_come(
+    tmp_path: Path,
+) -> None:
+    """Imbue Studio ends a busy chat's commands with their runners (``Stop chats and try again``), so no report
+    will ever say how they ended. The agent hears of them right after the next message it is sent, once."""
+    messenger = RecordingMngrMessenger(sent=[])
+    with _waiting_workspace(tmp_path, messenger) as workspace:
+        _start_runner(tmp_path, "Serve the docs", "sleep", "30")
+        wait_for(lambda: _chat(workspace)["status"] == "background", timeout=10.0, poll_interval=0.2)
+        (marker,) = (tmp_path / "background_tasks" / FIXTURE_AGENT_ID).glob("*.json")
+        os.killpg(os.getpgid(json.loads(marker.read_text())["pid"]), signal.SIGTERM)
+        wait_for(lambda: _chat(workspace)["status"] == "idle", timeout=3.0, poll_interval=0.1)
+
+        _send_to_chat(workspace, "Is the site up?")
+
+        wait_for(lambda: len(messenger.sent) == 2, timeout=10.0, poll_interval=0.1)
+        (first, notice) = [text for _agent_id, text in messenger.sent]
+        assert first == "Is the site up?"
+        assert notice.startswith(
+            "<background-task-report>\n<summary>Serve the docs (ended without a report)</summary>"
+        )
+        assert "- Serve the docs: `sleep 30`" in notice
+        assert not marker.exists()
+
+        _send_to_chat(workspace, "Thanks")
+        wait_for(lambda: len(messenger.sent) == 3, timeout=10.0, poll_interval=0.1)
+        assert [text for _agent_id, text in messenger.sent][2] == "Thanks"
+
+
 @pytest.mark.timeout(90)
 def test_a_handoff_during_the_wait_leaves_the_successor_waiting_and_the_report_lands_on_it(tmp_path: Path) -> None:
     messenger = RecordingMngrMessenger(sent=[])

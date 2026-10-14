@@ -57,3 +57,27 @@ def test_the_chat_app_reads_the_marker_root_the_writers_use_by_default() -> None
     """The writers fall back to the library's default root when ``CHAT_BACKGROUND_TASKS_DIR`` is unset; the chat app
     reads its own data dir's ``background_tasks``. Both are repo-root relative and must name one directory."""
     assert DEFAULT_CHAT_DATA_DIR / BACKGROUND_TASKS_DIRNAME == markers.DEFAULT_MARKER_ROOT
+
+
+def test_a_dead_runners_marker_is_claimed_once_and_nothing_else_is(tmp_path: Path) -> None:
+    """A runner that died before reporting leaves its command's end untold. Its marker is handed to one caller, who
+    tells the agent; a live runner's, and a harness's own (which its hooks clear), stay where they are."""
+    reader = BackgroundTaskReader(root=tmp_path / "background_tasks")
+    chat_id = ChatId("agent-1")
+    dead = _dead_pid()
+    write_background_task_marker(reader, chat_id, "stopped-later", dead, "Serve the docs", "2026-10-08T12:05:00+00:00")
+    write_background_task_marker(reader, chat_id, "stopped", dead, "Build the site", "2026-10-08T12:00:00+00:00")
+    write_background_task_marker(reader, chat_id, "running", os.getpid(), "Watch the logs")
+    write_background_task_marker(reader, chat_id, "claude-gone", dead, harness="claude")
+
+    claimed = reader.claim_unreported_runner_ends(chat_id)
+
+    assert [(task.id, task.description) for task in claimed] == [
+        ("stopped", "Build the site"),
+        ("stopped-later", "Serve the docs"),
+    ]
+    assert reader.claim_unreported_runner_ends(chat_id) == ()
+    assert sorted(path.name for path in reader.chat_dir(chat_id).iterdir()) == [
+        "harness-claude-claude-gone.json",
+        "run_in_background-running.json",
+    ]

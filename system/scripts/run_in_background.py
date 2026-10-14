@@ -217,7 +217,8 @@ def _is_runner_alive(pid: int, pid_start: str) -> bool:
 
 def remove_dead_runner_markers(chat_dir: Path) -> None:
     """Remove the markers of this chat's earlier runs whose runner died without removing its own
-    (killed for memory, or a restart); no reader counts them, and no one else removes them."""
+    (killed for memory, or a restart); no reader counts them. The chat app takes out the ones it finds
+    first, to tell the agent their commands will never report."""
     for path in chat_dir.glob(f"{MARKER_SOURCE}-*.json"):
         try:
             marker = json.loads(path.read_text(encoding="utf-8"))
