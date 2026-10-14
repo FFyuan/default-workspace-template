@@ -217,20 +217,62 @@ def test_lock_fd_is_closed_for_the_command(tmp_path: Path) -> None:
     assert _state(tmp_path, "last_success") is not None
 
 
-def test_state_lives_under_the_workspaces_data_dir(tmp_path: Path) -> None:
-    script = tmp_path / "system" / "libs" / "automations" / "run_job.sh"
-    script.parent.mkdir(parents=True)
+def _run_in_workspace(workspace: Path, now: int = _BASE_NOW) -> subprocess.CompletedProcess[str]:
+    """Run a copy of the runner placed in ``workspace``, with its default state root."""
+    script = workspace / "system" / "libs" / "automations" / "run_job.sh"
+    script.parent.mkdir(parents=True, exist_ok=True)
     script.write_text(_SCRIPT.read_text())
-    result = subprocess.run(
-        ["bash", str(script), "job", "--every", "1h", "true"],
-        env={"PATH": "/usr/bin:/bin"},
+    return subprocess.run(
+        [
+            "bash",
+            str(script),
+            "job",
+            "--every",
+            "1h",
+            "bash",
+            "-c",
+            f"echo run >> {workspace / 'ran'}",
+        ],
+        env={"PATH": "/usr/bin:/bin", "MINDS_JOB_NOW_EPOCH": str(now)},
         capture_output=True,
         text=True,
         check=False,
     )
 
+
+def test_state_lives_under_the_workspaces_data_dir(tmp_path: Path) -> None:
+    result = _run_in_workspace(tmp_path)
+
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "data" / ".state" / "jobs" / "job" / "last_success").is_file()
+
+
+def test_state_left_under_system_data_is_moved_into_place(tmp_path: Path) -> None:
+    legacy = tmp_path / "system" / "data" / ".state" / "jobs" / "job"
+    legacy.mkdir(parents=True)
+    (legacy / "last_success").write_text(f"{_BASE_NOW}\n")
+
+    result = _run_in_workspace(tmp_path, now=_BASE_NOW + 60)
+
+    assert result.returncode == 0, result.stderr
+    assert _runs(tmp_path) == 0
+    assert (
+        tmp_path / "data" / ".state" / "jobs" / "job" / "last_success"
+    ).read_text() == f"{_BASE_NOW}\n"
+    assert not (tmp_path / "system" / "data").exists()
+
+
+def test_state_left_under_system_data_is_dropped_once_the_job_has_its_own(
+    tmp_path: Path,
+) -> None:
+    _run_in_workspace(tmp_path)
+    (tmp_path / "system" / "data" / ".state" / "jobs" / "job").mkdir(parents=True)
+
+    result = _run_in_workspace(tmp_path, now=_BASE_NOW + 60)
+
+    assert result.returncode == 0, result.stderr
+    assert _runs(tmp_path) == 1
+    assert not (tmp_path / "system" / "data").exists()
 
 
 def test_bad_duration_is_a_usage_error(tmp_path: Path) -> None:

@@ -91,9 +91,24 @@ fi
 WAKE_GAP_SECONDS=300
 
 STATE_DIR="${MINDS_JOB_STATE_DIR:-$ROOT/data/.state/jobs}/$JOB_ID"
-mkdir -p "$STATE_DIR"
 
 log() { printf '%s run_job[%s]: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$JOB_ID" "$*"; }
+
+# CLEANUP: for a while the runner kept its state under system/data/.state/jobs/,
+# which git neither tracks nor ignores. This moves a job's state from there into
+# place (or drops it once the new dir exists). Remove once every workspace has
+# ticked each of its jobs on a build that has this.
+LEGACY_STATE_DIR="$ROOT/system/data/.state/jobs/$JOB_ID"
+if [ -z "${MINDS_JOB_STATE_DIR:-}" ] && [ -d "$LEGACY_STATE_DIR" ]; then
+    if [ -e "$STATE_DIR" ]; then
+        rm -rf "$LEGACY_STATE_DIR" || log "could not remove the old state at $LEGACY_STATE_DIR"
+    else
+        { mkdir -p "$(dirname "$STATE_DIR")" && mv "$LEGACY_STATE_DIR" "$STATE_DIR"; } \
+            || log "could not move the old state at $LEGACY_STATE_DIR"
+    fi
+    rmdir "$ROOT/system/data/.state/jobs" "$ROOT/system/data/.state" "$ROOT/system/data" 2>/dev/null || true
+fi
+mkdir -p "$STATE_DIR"
 
 NOW="${MINDS_JOB_NOW_EPOCH:-$(date +%s)}"
 HOUR="${MINDS_JOB_NOW_HOUR:-$((10#$(date +%H)))}"
