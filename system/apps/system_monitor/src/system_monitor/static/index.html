@@ -205,10 +205,10 @@
       // The memory guard (earlyoom -m 10,5) stops programs once less than 10% of memory is free.
       // One message from 80% up; the percentage carries how serious it is.
       const head = ml !== "ok"
-        ? `<strong>Memory is ${mp}% full.</strong> If less than 10% is left free, the workspace stops programs to free memory.`
+        ? `<strong>Memory is ${mp}% full.</strong> Above 90%, the workspace stops programs to free memory.`
         : `<strong>Memory is ${mp}% full.</strong>`;
       const stopped = stopsToday
-        ? ` The workspace stopped ${stopsToday} program${stopsToday > 1 ? "s" : ""} in the last 24 hours to free memory.`
+        ? ` The workspace stopped ${stopsToday} program${stopsToday > 1 ? "s" : ""} in the last 24 hours.`
         : "";
       note.className = "note warn";
       note.innerHTML = head + esc(stopped) + (ml !== "ok" ? esc(freeingAdvice(s)) : "");
