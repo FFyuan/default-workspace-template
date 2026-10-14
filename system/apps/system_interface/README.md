@@ -474,7 +474,7 @@ python3 .agents/skills/update-self/scripts/update_self.py apply \
     --merge-ref "mngr/update-<slug>" \
     --worker-bundle "system_interface=<work_dir>/system/apps/system_interface/imbue/system_interface/static" \
     --worker-bundle "chat=<work_dir>/system/apps/chat/imbue/chat/static" \
-    --keep-rollback-point
+    --keep-rollback-point --pass-scope "data/.tasks/harden/update-<slug>/pass-scope.json"
 ```
 
 The apply merges the worker's branch, classifies what changed and does only
