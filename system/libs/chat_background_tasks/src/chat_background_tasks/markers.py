@@ -172,7 +172,10 @@ def marker_root(environ: Mapping[str, str], repo_root: Path | None = None) -> Pa
     override = environ.get(MARKER_ROOT_ENV, "")
     if override:
         return Path(override)
-    return main_checkout(own_repo_root() if repo_root is None else repo_root) / DEFAULT_MARKER_ROOT
+    return (
+        main_checkout(own_repo_root() if repo_root is None else repo_root)
+        / DEFAULT_MARKER_ROOT
+    )
 
 
 def own_chat_id(environ: Mapping[str, str]) -> str:
