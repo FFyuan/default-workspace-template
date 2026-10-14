@@ -30,7 +30,7 @@ const STANDALONE_ROW_SPACING_CLASS = "mb-5";
 
 export interface NotYetRealBubble {
   key: string;
-  /** The user's text, verbatim. */
+  /** The message's text, shown verbatim unless ``displayDecision`` draws it as a notice. */
   content: string;
   /** True inside a group whose own gap spaces its bubbles (the queued group), so the row
    *  carries no bottom margin of its own. */
