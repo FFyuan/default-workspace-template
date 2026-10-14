@@ -628,7 +628,11 @@ def test_keeping_the_host_awake_touches_the_callers_activity_file_while_the_comm
     )
 
     assert started.returncode == 0, started.stderr
-    _wait_until(activity_file.exists, "the activity file was never touched")
+    # The runner creates the file before it writes it, so its existence alone can be read empty.
+    _wait_until(
+        lambda: activity_file.exists() and activity_file.read_text() != "",
+        "the activity file was never touched",
+    )
     assert json.loads(activity_file.read_text())["source"] == "run_in_background"
     _wait_for_posts(fake_chat_app, 1)
 
