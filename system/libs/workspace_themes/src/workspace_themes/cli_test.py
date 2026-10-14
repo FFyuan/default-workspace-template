@@ -230,6 +230,35 @@ def test_an_icon_that_misses_the_limits_is_not_installed(tmp_path: Path) -> None
     )
 
 
+def test_a_pixel_grid_is_refused_for_a_theme_that_draws_svg_icons(
+    tmp_path: Path,
+) -> None:
+    root = _workspace(tmp_path)
+    grid = tmp_path / "grid.txt"
+    grid.write_text("kk\nkk\n")
+
+    drawn = CliRunner().invoke(
+        main,
+        [
+            "icon",
+            "grid",
+            str(grid),
+            "--theme",
+            "standard",
+            "--legend",
+            "k=#000000",
+            "--out",
+            str(tmp_path / "grid.png"),
+            "--repo-root",
+            str(root),
+        ],
+    )
+
+    assert drawn.exit_code == 1
+    assert "draws svg icons" in drawn.output
+    assert not (tmp_path / "grid.png").exists()
+
+
 def test_an_icon_that_is_not_a_png_is_not_installed_for_a_png_theme(
     tmp_path: Path,
 ) -> None:

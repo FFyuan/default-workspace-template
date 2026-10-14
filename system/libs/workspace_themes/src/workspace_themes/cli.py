@@ -397,18 +397,24 @@ def icon_fit(
     repo_root: str,
 ) -> None:
     """Force a drawn candidate onto the theme's icon limits, then report what still misses them."""
-    icons = _require_icons(_require_theme(_load_catalog(repo_root), theme_id))
-    if icons.spec.format != IconFormat.PNG:
-        raise click.ClickException(
-            f"theme {theme_id!r} draws svg icons; write the svg yourself, following its guide, and check it with "
-            "`icon check`"
-        )
+    icons = _require_png_icons(theme_id, repo_root)
     try:
         fitted = fit_icon_image(load_icon_image(Path(candidate)), icons.spec)
     except IconImageError as error:
         raise click.ClickException(str(error)) from None
     _save_fitted(fitted, icons, output_path, preview_path)
     _report_icon_problems(check_icon_image(fitted, icons.spec), output_path)
+
+
+def _require_png_icons(theme_id: str, repo_root: str) -> ThemeIcons:
+    """The icons of a theme that draws png icons, which are the only ones fitted or drawn from a grid."""
+    icons = _require_icons(_require_theme(_load_catalog(repo_root), theme_id))
+    if icons.spec.format != IconFormat.PNG:
+        raise click.ClickException(
+            f"theme {theme_id!r} draws svg icons; write the svg yourself, following its guide, and check it with "
+            "`icon check`"
+        )
+    return icons
 
 
 @pure
@@ -463,7 +469,7 @@ def icon_grid(
     repo_root: str,
 ) -> None:
     """Draw a pixel grid written as text (one character per pixel), fitted to the theme's limits."""
-    icons = _require_icons(_require_theme(_load_catalog(repo_root), theme_id))
+    icons = _require_png_icons(theme_id, repo_root)
     try:
         drawn = render_pixel_grid(
             Path(grid_file).read_text(encoding="utf-8"), _parse_legend(legend)

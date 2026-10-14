@@ -96,6 +96,6 @@ uv run workspace-themes icon missing
 ```
 
 lists each theme and the apps it still has no icon for (and exits 1); make each with the
-`make-theme-icon` skill. Drawn by hand as a pixel grid, that needs no image model and no key, so a
-background worker can always do it. The app is finished when the command prints
+`make-theme-icon` skill. Drawn by hand, as a pixel grid for a png theme or a written SVG for an svg
+theme, that needs no image model and no key, so a background worker can always do it. The app is finished when the command prints
 `every theme has an icon for every app`.
