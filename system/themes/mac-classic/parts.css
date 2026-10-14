@@ -200,9 +200,12 @@ select {
 [data-part="menu-item"] {
   border-radius: 0;
 }
-[data-part="menu-item"]:not([aria-disabled="true"]):hover,
-[data-part="menu-item"]:not([aria-disabled="true"]):hover * {
+[data-part="menu-item"]:not([aria-disabled="true"]):hover {
   background: #000000;
+  color: #ffffff;
+}
+/* Only the text inside turns: a switch or dot drawn as a background keeps its colour. */
+[data-part="menu-item"]:not([aria-disabled="true"]):hover * {
   color: #ffffff;
 }
 
@@ -245,9 +248,12 @@ select {
 }
 
 /* Lists: the current row inverted, as the Finder selects a file. */
-[data-part="list-row"][aria-current="true"],
-[data-part="list-row"][aria-current="true"] * {
+[data-part="list-row"][aria-current="true"] {
   background: #000000;
+  color: #ffffff;
+}
+/* Only the text inside turns: a status dot drawn as a background keeps its colour. */
+[data-part="list-row"][aria-current="true"] * {
   color: #ffffff;
 }
 
