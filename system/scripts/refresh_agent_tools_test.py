@@ -222,7 +222,8 @@ def test_the_one_dir_mode_installs_into_the_dir_it_is_given(tmp_path: Path) -> N
 def test_the_hook_returns_at_once_and_installs_into_a_config_dir_that_never_had_one(
     tmp_path: Path,
 ) -> None:
-    result, elapsed = _run(tmp_path, "--session-start", delay_seconds=3)
+    # The install makes five claude calls, so a hook that waited for it would miss the budget.
+    result, elapsed = _run(tmp_path, "--session-start", delay_seconds=1)
 
     assert result.returncode == 0
     assert elapsed < _HOOK_RETURN_BUDGET_SECONDS
