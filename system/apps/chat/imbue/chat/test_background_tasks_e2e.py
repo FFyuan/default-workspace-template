@@ -68,7 +68,7 @@ def _waiting_workspace(tmp_path: Path, messenger: RecordingMngrMessenger) -> Gen
                 labels=agent.labels,
                 activity_state=ActivityState.IDLE,
             )
-        manager._agent_state_poller.start()
+        manager._background_tasks_poller.start()
         yield workspace
 
 

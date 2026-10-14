@@ -126,7 +126,7 @@ def test_a_claude_turn_that_ends_on_a_background_bash_command_leaves_its_chat_wa
             labels=agent.labels,
             activity_state=ActivityState.IDLE,
         )
-        manager._agent_state_poller.start()
+        manager._background_tasks_poller.start()
 
         env = {key: value for key, value in os.environ.items() if key != "MNGR_CLAUDE_SUBAGENT_PROXY_CHILD"}
         env.update(
