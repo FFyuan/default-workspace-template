@@ -44,6 +44,11 @@ _STDLIB_ONLY_LIBRARIES = {
     / "chat_background_tasks"
     / "src"
     / "chat_background_tasks",
+    "oom_priority": _SCRIPTS_DIR.parent
+    / "services"
+    / "oom_priority"
+    / "src"
+    / "oom_priority",
 }
 
 
