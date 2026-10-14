@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from chat_background_tasks import markers
 from chat_background_tasks.listing import AGENTS_PATH
-from chat_background_tasks.markers import BackgroundTask, TaskSource
+from chat_background_tasks.testing import main_claude_env, runner_task, shell_entry
 
 _CHAT_ID = "agent-0123456789abcdef0123456789abcdef"
 _OTHER_CHAT_ID = "agent-fedcba9876543210fedcba9876543210"
@@ -22,36 +22,13 @@ _SCRIPT = Path(__file__).parent / "background_tasks.py"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _task(task_id: str, started_at: str) -> BackgroundTask:
-    return BackgroundTask(
-        source=TaskSource.RUN_IN_BACKGROUND,
-        id=task_id,
-        description=f"Task {task_id}",
-        started_at=started_at,
-        pid=os.getpid(),
-    )
-
-
 def _main_claude_env(work_dir: Path, **extra: str) -> dict[str, str]:
-    return {
-        "MAIN_CLAUDE_SESSION_ID": "session-1",
-        "MNGR_AGENT_ID": _CHAT_ID,
-        "MNGR_AGENT_WORK_DIR": str(work_dir),
-        "CLAUDE_PROJECT_DIR": str(work_dir),
-        "CLAUDE_PID": str(os.getpid()),
-        markers.MARKER_ROOT_ENV: os.environ[markers.MARKER_ROOT_ENV],
-        **extra,
-    }
-
-
-def _shell_entry(task_id: str, description: str = "tail logs") -> dict[str, Any]:
-    return {
-        "id": task_id,
-        "type": "shell",
-        "status": "running",
-        "description": description,
-        "command": "tail -f log",
-    }
+    """The hook's environment, with the marker root the test's own fixture points at."""
+    return main_claude_env(
+        work_dir,
+        _CHAT_ID,
+        **{markers.MARKER_ROOT_ENV: os.environ[markers.MARKER_ROOT_ENV], **extra},
+    )
 
 
 def _wired_command(event: str) -> str:
@@ -91,7 +68,7 @@ def test_the_wired_claude_hooks_record_a_stop_and_a_restarted_claude_hears_what_
     try:
         _run_wired_hook(
             "Stop",
-            {"background_tasks": [_shell_entry("one", "Build the site")]},
+            {"background_tasks": [shell_entry("one", "Build the site")]},
             os.environ | _main_claude_env(_REPO_ROOT, CLAUDE_PID=str(old_claude.pid)),
         )
         [task] = markers.list_live_tasks(background_task_markers, _CHAT_ID)
@@ -151,7 +128,7 @@ def _agents_answer(*agents: dict[str, Any]) -> tuple[int, dict[str, Any]]:
 def test_list_answers_from_the_chat_app_with_agent_names(
     fake_chat_app: Any, background_task_markers: Path, tmp_path: Path
 ) -> None:
-    marker = _task("from-app", "2026-10-08T10:00:00+00:00").to_json()
+    marker = runner_task("from-app", "2026-10-08T10:00:00+00:00").to_json()
     fake_chat_app.get_answers[AGENTS_PATH] = _agents_answer(
         {
             "id": "agent-active",
@@ -174,7 +151,7 @@ def test_list_answers_from_the_chat_app_with_agent_names(
     markers.write_marker(
         background_task_markers,
         _OTHER_CHAT_ID,
-        _task("on-disk", "2026-10-08T10:00:00+00:00"),
+        runner_task("on-disk", "2026-10-08T10:00:00+00:00"),
     )
 
     listed = _run_cli("list", "--format", "tsv", cwd=tmp_path)
@@ -208,7 +185,9 @@ def test_a_chat_app_from_before_the_busy_fields_falls_back_to_the_files(
         {"id": _CHAT_ID, "name": "lead", "state": "WAITING"}
     )
     markers.write_marker(
-        background_task_markers, _CHAT_ID, _task("on-disk", "2026-10-08T10:00:00+00:00")
+        background_task_markers,
+        _CHAT_ID,
+        runner_task("on-disk", "2026-10-08T10:00:00+00:00"),
     )
 
     listed = _run_cli("list", cwd=tmp_path)
@@ -237,7 +216,9 @@ def test_an_unreachable_chat_app_falls_back_to_the_files(
     registry.write_text(f'[[apps]]\nname = "chat"\nurl = "http://127.0.0.1:{port}"\n')
     monkeypatch.setenv("MINDS_APPS_FILE", str(registry))
     markers.write_marker(
-        background_task_markers, _CHAT_ID, _task("on-disk", "2026-10-08T10:00:00+00:00")
+        background_task_markers,
+        _CHAT_ID,
+        runner_task("on-disk", "2026-10-08T10:00:00+00:00"),
     )
 
     listed = _run_cli("list", "--chat", _CHAT_ID, "--format", "tsv", cwd=tmp_path)

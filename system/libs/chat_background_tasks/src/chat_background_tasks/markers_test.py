@@ -6,34 +6,25 @@ import pytest
 
 from chat_background_tasks import markers
 from chat_background_tasks.markers import BackgroundTask, TaskSource
+from chat_background_tasks.testing import runner_task
 
 _CHAT_ID = "agent-0123456789abcdef0123456789abcdef"
 _OTHER_CHAT_ID = "agent-fedcba9876543210fedcba9876543210"
-
-
-def _task(task_id: str, started_at: str, pid: int | None = None) -> BackgroundTask:
-    return BackgroundTask(
-        source=TaskSource.RUN_IN_BACKGROUND,
-        id=task_id,
-        description=f"Task {task_id}",
-        started_at=started_at,
-        pid=os.getpid() if pid is None else pid,
-    )
 
 
 def test_only_live_well_formed_markers_count_oldest_first(
     marker_root: Path, exited_pid: int
 ) -> None:
     markers.write_marker(
-        marker_root, _CHAT_ID, _task("newer", "2026-10-08T10:05:00+00:00")
+        marker_root, _CHAT_ID, runner_task("newer", "2026-10-08T10:05:00+00:00")
     )
     markers.write_marker(
-        marker_root, _CHAT_ID, _task("older", "2026-10-08T10:00:00+00:00")
+        marker_root, _CHAT_ID, runner_task("older", "2026-10-08T10:00:00+00:00")
     )
     markers.write_marker(
         marker_root,
         _CHAT_ID,
-        _task("stale", "2026-10-08T09:00:00+00:00", pid=exited_pid),
+        runner_task("stale", "2026-10-08T09:00:00+00:00", pid=exited_pid),
     )
     chat_dir = markers.chat_dir(marker_root, _CHAT_ID)
     (chat_dir / "run_in_background-garbled.json").write_text("{not json")
@@ -76,10 +67,10 @@ def test_a_chat_whose_only_marker_is_stale_is_not_busy_and_not_listed(
     markers.write_marker(
         marker_root,
         _CHAT_ID,
-        _task("stale", "2026-10-08T09:00:00+00:00", pid=exited_pid),
+        runner_task("stale", "2026-10-08T09:00:00+00:00", pid=exited_pid),
     )
     markers.write_marker(
-        marker_root, _OTHER_CHAT_ID, _task("live", "2026-10-08T09:00:00+00:00")
+        marker_root, _OTHER_CHAT_ID, runner_task("live", "2026-10-08T09:00:00+00:00")
     )
 
     assert not markers.is_busy(marker_root, _CHAT_ID)
@@ -90,9 +81,9 @@ def test_a_rewritten_marker_replaces_the_old_one_and_leaves_no_temp_file(
     marker_root: Path,
 ) -> None:
     markers.write_marker(
-        marker_root, _CHAT_ID, _task("one", "2026-10-08T10:00:00+00:00")
+        marker_root, _CHAT_ID, runner_task("one", "2026-10-08T10:00:00+00:00")
     )
-    replacement = _task("one", "2026-10-08T10:00:00+00:00")._replace(
+    replacement = runner_task("one", "2026-10-08T10:00:00+00:00")._replace(
         description="Renamed"
     )
     markers.write_marker(marker_root, _CHAT_ID, replacement)
@@ -143,7 +134,9 @@ def test_a_marker_whose_pid_now_belongs_to_another_process_is_stale(
         markers.write_marker(
             marker_root,
             _CHAT_ID,
-            _task(task_id, "2026-10-08T10:00:00+00:00")._replace(pid_start=pid_start),
+            runner_task(task_id, "2026-10-08T10:00:00+00:00")._replace(
+                pid_start=pid_start
+            ),
         )
 
     assert [task.id for task in markers.list_live_tasks(marker_root, _CHAT_ID)] == [
@@ -153,7 +146,9 @@ def test_a_marker_whose_pid_now_belongs_to_another_process_is_stale(
 
 def test_a_marker_whose_pid_no_process_can_have_is_stale(marker_root: Path) -> None:
     markers.write_marker(
-        marker_root, _CHAT_ID, _task("overflow", "2026-10-08T10:00:00+00:00", pid=2**63)
+        marker_root,
+        _CHAT_ID,
+        runner_task("overflow", "2026-10-08T10:00:00+00:00", pid=2**63),
     )
 
     assert markers.list_live_tasks(marker_root, _CHAT_ID) == []

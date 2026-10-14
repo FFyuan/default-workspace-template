@@ -6,20 +6,14 @@ import pytest
 
 from chat_background_tasks import claude, markers
 from chat_background_tasks.markers import BackgroundTask, TaskSource
+from chat_background_tasks.testing import main_claude_env, runner_task, shell_entry
 
 _CHAT_ID = "agent-0123456789abcdef0123456789abcdef"
 _OTHER_CHAT_ID = "agent-fedcba9876543210fedcba9876543210"
 
 
 def _main_claude_env(work_dir: Path, **extra: str) -> dict[str, str]:
-    return {
-        "MAIN_CLAUDE_SESSION_ID": "session-1",
-        "MNGR_AGENT_ID": _CHAT_ID,
-        "MNGR_AGENT_WORK_DIR": str(work_dir),
-        "CLAUDE_PROJECT_DIR": str(work_dir),
-        "CLAUDE_PID": str(os.getpid()),
-        **extra,
-    }
+    return main_claude_env(work_dir, _CHAT_ID, **extra)
 
 
 def _env_with_recorded_main_claude(
@@ -29,16 +23,6 @@ def _env_with_recorded_main_claude(
     state_dir.mkdir(exist_ok=True)
     (state_dir / claude.CLAUDE_MAIN_PID_FILE_NAME).write_text(f"{main_pid}\n")
     return _main_claude_env(tmp_path, MNGR_AGENT_STATE_DIR=str(state_dir), **extra)
-
-
-def _shell_entry(task_id: str, description: str = "tail logs") -> dict[str, Any]:
-    return {
-        "id": task_id,
-        "type": "shell",
-        "status": "running",
-        "description": description,
-        "command": "tail -f log",
-    }
 
 
 def _stop(root: Path, env: dict[str, str], *entries: dict[str, Any]) -> None:
@@ -70,7 +54,7 @@ def test_a_stop_records_every_waking_kind_and_skips_the_rest(
     _stop(
         marker_root,
         _main_claude_env(tmp_path),
-        _shell_entry("shell-1"),
+        shell_entry("shell-1"),
         {"id": "monitor-1", "type": "monitor", "description": "watch CI"},
         {"id": "workflow-1", "type": "workflow", "description": "review"},
         {"id": "agent-1", "type": "subagent", "description": "explore"},
@@ -94,20 +78,15 @@ def test_a_later_stop_keeps_a_listed_tasks_start_and_prunes_the_unlisted_ones(
     marker_root: Path, tmp_path: Path
 ) -> None:
     env = _main_claude_env(tmp_path)
-    _stop(marker_root, env, _shell_entry("kept"), _shell_entry("done"))
+    _stop(marker_root, env, shell_entry("kept"), shell_entry("done"))
     [kept_before] = [
         task
         for task in markers.list_live_tasks(marker_root, _CHAT_ID)
         if task.id == "kept"
     ]
-    runner_task = BackgroundTask(
-        source=TaskSource.RUN_IN_BACKGROUND,
-        id="runner",
-        description="Build",
-        started_at="2026-10-08T10:00:00+00:00",
-        pid=os.getpid(),
+    markers.write_marker(
+        marker_root, _CHAT_ID, runner_task("runner", "2026-10-08T10:00:00+00:00")
     )
-    markers.write_marker(marker_root, _CHAT_ID, runner_task)
     # Its start is backdated, so a rewrite with a fresh start would show.
     markers.write_marker(
         marker_root,
@@ -115,7 +94,7 @@ def test_a_later_stop_keeps_a_listed_tasks_start_and_prunes_the_unlisted_ones(
         kept_before._replace(started_at="2026-10-08T09:00:00+00:00"),
     )
 
-    _stop(marker_root, env, _shell_entry("kept"))
+    _stop(marker_root, env, shell_entry("kept"))
 
     live = {task.id: task for task in markers.list_live_tasks(marker_root, _CHAT_ID)}
     assert set(live) == {"kept", "runner"}
@@ -127,7 +106,7 @@ def test_a_stop_with_no_task_list_leaves_the_markers_alone(
     marker_root: Path, tmp_path: Path, payload: object
 ) -> None:
     env = _main_claude_env(tmp_path)
-    _stop(marker_root, env, _shell_entry("one"))
+    _stop(marker_root, env, shell_entry("one"))
 
     claude.record_stop(marker_root, _CHAT_ID, payload, claude.hook_claude_pid(env))
 
@@ -138,17 +117,9 @@ def test_clearing_removes_only_the_claude_markers(
     marker_root: Path, tmp_path: Path
 ) -> None:
     env = _main_claude_env(tmp_path)
-    _stop(marker_root, env, _shell_entry("one"))
+    _stop(marker_root, env, shell_entry("one"))
     markers.write_marker(
-        marker_root,
-        _CHAT_ID,
-        BackgroundTask(
-            source=TaskSource.RUN_IN_BACKGROUND,
-            id="runner",
-            description="Build",
-            started_at="2026-10-08T10:00:00+00:00",
-            pid=os.getpid(),
-        ),
+        marker_root, _CHAT_ID, runner_task("runner", "2026-10-08T10:00:00+00:00")
     )
 
     _clear(marker_root, env)
@@ -187,7 +158,7 @@ def test_the_chat_app_stamped_chat_id_keys_the_claude_markers(
     _stop(
         marker_root,
         _main_claude_env(tmp_path, MINDS_CHAT_ID=_OTHER_CHAT_ID),
-        _shell_entry("one"),
+        shell_entry("one"),
     )
 
     assert markers.is_busy(marker_root, _OTHER_CHAT_ID)
@@ -200,12 +171,12 @@ def test_a_nested_claude_neither_records_nor_clears_while_the_main_claude_lives(
     _stop(
         marker_root,
         _main_claude_env(tmp_path, CLAUDE_PID=str(live_claude_pid)),
-        _shell_entry("main-task"),
+        shell_entry("main-task"),
     )
     nested_env = _env_with_recorded_main_claude(tmp_path, live_claude_pid)
 
     _clear(marker_root, nested_env)
-    _stop(marker_root, nested_env, _shell_entry("nested-task"))
+    _stop(marker_root, nested_env, shell_entry("nested-task"))
 
     assert _live_ids(marker_root) == ["main-task"]
 
@@ -219,7 +190,7 @@ def test_a_recorded_main_claude_that_is_gone_does_not_block_its_successor(
     _stop(
         marker_root,
         _env_with_recorded_main_claude(tmp_path, recorded),
-        _shell_entry("one"),
+        shell_entry("one"),
     )
 
     assert markers.is_busy(marker_root, _CHAT_ID)
@@ -256,9 +227,9 @@ def test_a_stop_does_not_record_a_task_it_lists_as_over(
     _stop(
         marker_root,
         _main_claude_env(tmp_path),
-        _shell_entry("running"),
-        {**_shell_entry("completed"), "status": "completed"},
-        {**_shell_entry("killed"), "status": "killed"},
+        shell_entry("running"),
+        {**shell_entry("completed"), "status": "completed"},
+        {**shell_entry("killed"), "status": "killed"},
     )
 
     assert _live_ids(marker_root) == ["running"]
