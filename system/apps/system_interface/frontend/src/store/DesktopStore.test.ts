@@ -2800,6 +2800,20 @@ describe("themes", () => {
     expect(api.calls.filter((call) => call === "fetchThemes").length).toBe(readsBefore);
   });
 
+  it("reads the catalog for a new workspace default set before any catalog arrived", async () => {
+    api.themeReadFailures = 1;
+    const store = await startedStore();
+    await settle();
+    expect(store.isShownThemeKnown()).toBe(false);
+
+    await store.setDefaultTheme("paper");
+
+    expect(api.calls.filter((call) => call === "fetchThemes")).toHaveLength(2);
+    expect(store.isShownThemeKnown()).toBe(true);
+    expect(store.shownTheme().id).toBe("paper");
+    expect(store.getThemeCatalog().themes.map((theme) => theme.id)).toContain("ink");
+  });
+
   it("reads the catalog again, after a pause, when the first read fails", async () => {
     api.themeReadFailures = 1;
     const store = await startedStore();

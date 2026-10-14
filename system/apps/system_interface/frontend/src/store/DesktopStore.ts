@@ -1471,9 +1471,14 @@ export class DesktopStore {
   }
 
   /** The workspace's default theme; null wears the standard one. Every window hears the new catalog over the
-   *  socket; this one takes the new default at once, so it shows even while the socket is down. */
+   *  socket; this one takes the new default at once, so it shows even while the socket is down. With no catalog
+   *  read yet there is nothing to put the default in, so the catalog is read again. */
   async setDefaultTheme(theme: string | null): Promise<void> {
     await this.deps.api.setDefaultTheme(theme);
+    if (!this.hasThemeCatalog) {
+      await this.loadThemes();
+      return;
+    }
     this.themeCatalogChanges += 1;
     this.takeThemeCatalog({ ...this.themeCatalog, default: theme });
   }
