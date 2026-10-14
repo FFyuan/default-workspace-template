@@ -661,16 +661,20 @@ def test_the_prompt_says_which_waited_on_tasks_the_switch_stopped_and_which_stil
             description="Rebuild the worker image",
             started_at="2026-10-08T12:01:00+00:00",
             pid=2,
+            command="docker build -t worker . | tee build.log",
         ),
     )
 
     _runner(workspace, get_background_tasks=lambda chat_id: tasks).run(workspace.chat_id, "h-1")
 
     prompt = workspace.delivered_prompt()
-    assert "- Stopped by the switch; start it again if it is still needed: Run the test suite (`pytest -q`)" in prompt
     assert (
-        "- Its report, saying how it ended, arrives in this chat as a message (the switch stopped it if it was still "
-        "running): Rebuild the worker image"
+        "| Task | Started by | Command | Started | What happens now |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        "| Run the test suite | Claude Code's own background shell | `pytest -q` | 2026-10-08 12:00 UTC "
+        "| Ended with no report. Start it again if it is still needed. |\n"
+        "| Rebuild the worker image | run_in_background.py | `docker build -t worker . \\| tee build.log` "
+        "| 2026-10-08 12:01 UTC | Its report, saying how it ended, arrives in this chat as a message. |\n"
     ) in prompt
 
 

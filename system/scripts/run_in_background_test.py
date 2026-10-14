@@ -658,14 +658,17 @@ def test_the_runners_marker_is_where_and_what_the_reader_expects(
     chat_id = "agent-with/odd chars"
     task_id = "20261008T100000Z-abc123"
     path = run_in_background.marker_path(os.environ, chat_id, task_id)
-    run_in_background.write_marker(path, task_id, "Build the site", os.getpid())
+    run_in_background.write_marker(
+        path, task_id, "Build the site", ["npm", "run", "build -- --watch"], os.getpid()
+    )
 
     [task] = markers.list_live_tasks(background_task_markers, chat_id)
     assert path == markers.chat_dir(background_task_markers, chat_id) / task.file_name
-    assert (task.source, task.id, task.description, task.pid) == (
+    assert (task.source, task.id, task.description, task.command, task.pid) == (
         TaskSource.RUN_IN_BACKGROUND,
         task_id,
         "Build the site",
+        "npm run 'build -- --watch'",
         os.getpid(),
     )
     assert run_in_background.MARKER_ROOT_ENV == markers.MARKER_ROOT_ENV

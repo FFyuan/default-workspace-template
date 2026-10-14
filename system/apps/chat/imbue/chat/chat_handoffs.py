@@ -23,6 +23,7 @@ import string
 from collections.abc import Callable
 from collections.abc import Mapping
 from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from typing import Any
 from typing import Final
@@ -207,29 +208,73 @@ def summary_section(path: Path, text: str) -> str:
 
 @pure
 def background_tasks_section(tasks: tuple[BackgroundTask, ...]) -> str:
-    """The prompt's passage on the tasks the chat waited on as it moved, or '' when there were none.
+    """The prompt's table of the tasks the chat waited on as it moved, or '' when there were none.
 
-    Stopping the retiring agent ends all of them. A command it started through ``run_in_background.py`` still reports
-    to the chat, so to the successor, saying how it ended; any other (the harness's own) ends unreported.
+    Stopping the retiring agent ended all of them. A command it started through ``run_in_background.py`` still
+    reports to the chat, so to the successor, saying how it ended; any other (the harness's own) ends unreported.
     """
     if not tasks:
         return ""
-    lines = ["Background tasks your predecessor was waiting on when the chat moved to you:"]
+    lines = [
+        "Background tasks your predecessor was waiting on when the chat moved to you. The switch stopped all of them:",
+        "",
+        "| Task | Started by | Command | Started | What happens now |",
+        "| --- | --- | --- | --- | --- |",
+    ]
     for task in tasks:
-        match task.source:
-            case TaskSource.RUN_IN_BACKGROUND:
-                lines.append(
-                    f"- Its report, saying how it ended, arrives in this chat as a message (the switch stopped it if it "
-                    f"was still running): {task.description}"
-                )
-            case TaskSource.HARNESS:
-                command = f" (`{task.command}`)" if task.command else ""
-                lines.append(
-                    f"- Stopped by the switch; start it again if it is still needed: {task.description}{command}"
-                )
-            case _ as unreachable:
-                assert_never(unreachable)
+        cells = (
+            task.description or task.id,
+            _task_starter(task),
+            f"`{task.command}`" if task.command and "`" not in task.command else task.command or "(not recorded)",
+            _task_start_time(task.started_at),
+            _task_outcome(task),
+        )
+        lines.append("| " + " | ".join(_table_cell(cell) for cell in cells) + " |")
     return "\n".join(lines) + "\n\n"
+
+
+@pure
+def _task_starter(task: BackgroundTask) -> str:
+    match task.source:
+        case TaskSource.RUN_IN_BACKGROUND:
+            return "run_in_background.py"
+        case TaskSource.HARNESS:
+            try:
+                harness = HARNESS_LABEL[HarnessType(task.harness)]
+            except (ValueError, KeyError):
+                harness = task.harness
+            return f"{harness}'s own background {task.kind}" if task.kind else f"{harness}'s own background task"
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+@pure
+def _task_outcome(task: BackgroundTask) -> str:
+    match task.source:
+        case TaskSource.RUN_IN_BACKGROUND:
+            return "Its report, saying how it ended, arrives in this chat as a message."
+        case TaskSource.HARNESS:
+            return "Ended with no report. Start it again if it is still needed."
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+@pure
+def _task_start_time(started_at: str) -> str:
+    """When a task started, to the minute in UTC; the recorded text itself when it is not a timestamp."""
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        return started_at
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return started.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+@pure
+def _table_cell(text: str) -> str:
+    """``text`` as one markdown table cell: on one line, with its pipes escaped."""
+    return " ".join(text.split()).replace("|", "\\|")
 
 
 @pure

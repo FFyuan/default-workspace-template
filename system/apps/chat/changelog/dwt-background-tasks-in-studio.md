@@ -6,7 +6,7 @@ A chat whose agent ended its turn to wait on a background task no longer reads a
 
 - Above the message box, above the activity line, a wait line appears whenever background tasks are pending: "Waiting on 2 background tasks · 4m 05s", timed from the oldest. Pressing it lists each task with its description and how long it has run.
 
-- When a chat waiting on background tasks moves to another provider, the agent that takes it over is told which tasks the switch ended for good (the old agent's own) and which will still report (commands started through `run_in_background.py`, whose report says how they ended).
+- When a chat waiting on background tasks moves to another provider, the agent that takes it over gets a table of them, one row per task with its command and start time: which the switch ended for good (the old agent's own) and which will still report (commands started through `run_in_background.py`, whose report says how they ended).
 
 - In a chat the app has shown, sent to or switched since it started, a Claude background task that has finished stops counting once Claude's transcript records its end, even when you stop the turn that the task's completion started or that turn fails; the chat goes straight from waiting to working, never showing done in between, and a task stopped from Claude's own task list, which starts no turn, stops counting a few seconds later. In any other chat it stops counting at the end of Claude's next turn, or when Claude exits.
 

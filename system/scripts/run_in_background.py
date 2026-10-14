@@ -231,7 +231,9 @@ def remove_dead_runner_markers(chat_dir: Path) -> None:
             path.unlink(missing_ok=True)
 
 
-def write_marker(path: Path, task_id: str, description: str, pid: int) -> None:
+def write_marker(
+    path: Path, task_id: str, description: str, command: Sequence[str], pid: int
+) -> None:
     """Write the marker atomically, so the chat app never reads half of one."""
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temp_name = tempfile.mkstemp(dir=path.parent, prefix=".", suffix=".tmp")
@@ -242,6 +244,7 @@ def write_marker(path: Path, task_id: str, description: str, pid: int) -> None:
                     "source": MARKER_SOURCE,
                     "id": task_id,
                     "description": " ".join(description.split()),
+                    "command": shlex.join(command),
                     "started_at": datetime.datetime.now(
                         datetime.timezone.utc
                     ).isoformat(timespec="seconds"),
@@ -544,6 +547,7 @@ def _start_detached(
             path,
             task_id,
             description,
+            command,
             runner.pid,
         )
     except OSError as exc:

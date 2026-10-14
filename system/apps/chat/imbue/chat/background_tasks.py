@@ -42,7 +42,7 @@ class BackgroundTask(FrozenModel):
     pid: int = Field(description="The process whose exit makes the marker stale")
     harness: str = Field(default="", description="The harness that recorded a harness task; '' otherwise")
     kind: str = Field(default="", description="The harness's type for a harness task; '' otherwise")
-    command: str = Field(default="", description="The command a harness task runs, when it has one")
+    command: str = Field(default="", description="The command the task runs, when its writer recorded one")
     pid_start: str = Field(
         default="", description="The pid's process start time, so a recycled pid cannot keep the marker live"
     )

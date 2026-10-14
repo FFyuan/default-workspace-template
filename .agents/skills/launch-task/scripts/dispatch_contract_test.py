@@ -497,7 +497,9 @@ def test_a_worker_parked_on_its_own_background_command_does_not_read_idle(
     }
     chat_id = run_in_background.own_chat_id(worker_environ)
     marker = run_in_background.marker_path(worker_environ, chat_id, "run-tests")
-    run_in_background.write_marker(marker, "run-tests", "Run the tests", os.getpid())
+    run_in_background.write_marker(
+        marker, "run-tests", "Run the tests", ["just", "test"], os.getpid()
+    )
 
     def _is_idle() -> bool:
         return create_worker._worker_is_idle(
