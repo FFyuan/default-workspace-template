@@ -689,7 +689,9 @@ def _cmd_apply(args: argparse.Namespace) -> int:
             "records the pass's apps and services from its scope file."
         )
     try:
-        pass_scope = read_pass_scope(args.pass_scope) if args.pass_scope is not None else []
+        pass_scope = (
+            read_pass_scope(args.pass_scope) if args.pass_scope is not None else []
+        )
     except ValueError as exc:
         raise SystemExit(f"error: --pass-scope: {exc}") from exc
     return apply_update(
