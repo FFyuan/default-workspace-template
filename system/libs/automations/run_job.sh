@@ -47,7 +47,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 usage() {
     echo "usage: run_job.sh <job-id> --every <N[mhd]> [--at <hour>] [--retry-after <N[mhd]>] [--wake-grace <N[mhd]>] <command...>" >&2

@@ -217,6 +217,23 @@ def test_lock_fd_is_closed_for_the_command(tmp_path: Path) -> None:
     assert _state(tmp_path, "last_success") is not None
 
 
+def test_state_lives_under_the_workspaces_data_dir(tmp_path: Path) -> None:
+    # Anywhere else in the tree is neither ignored by git nor where the docs say.
+    script = tmp_path / "system" / "libs" / "automations" / "run_job.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text(_SCRIPT.read_text())
+    result = subprocess.run(
+        ["bash", str(script), "job", "--every", "1h", "true"],
+        env={"PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "data" / ".state" / "jobs" / "job" / "last_success").is_file()
+
+
 def test_bad_duration_is_a_usage_error(tmp_path: Path) -> None:
     result = _run(tmp_path, "--every", "7x")
     assert result.returncode == 2
