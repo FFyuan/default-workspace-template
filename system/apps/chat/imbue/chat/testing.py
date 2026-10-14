@@ -1035,9 +1035,7 @@ def running_workspace(
                 "MNGR_PROJECT_CONFIG_DIR": str(tmp_path / "project-config"),
                 "MINDS_APPS_FILE": str(registry_path),
                 "MINDS_WORKSPACE_SERVER_URL": shell_url,
-                **(
-                    {} if background_tasks_root is None else {"CHAT_BACKGROUND_TASKS_DIR": str(background_tasks_root)}
-                ),
+                **({} if background_tasks_root is None else {"CHAT_BACKGROUND_TASKS_DIR": str(background_tasks_root)}),
             },
         ),
         patch("imbue.chat.server.discover_agents", return_value=agents),
