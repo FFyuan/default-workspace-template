@@ -8137,17 +8137,26 @@ def _ride_along_pass_scope() -> list[update_apply.PassCreation]:
     a service whose wiring names its programs, a service with none, and a skill."""
     return [
         update_apply.PassCreation("app", "chat", "system/apps/chat/", ("chat",)),
-        update_apply.PassCreation("app", "roadmap", "system/apps/roadmap/", ("roadmap-web",)),
+        update_apply.PassCreation(
+            "app", "roadmap", "system/apps/roadmap/", ("roadmap-web",)
+        ),
         update_apply.PassCreation("app", "notes", "system/apps/notes/", ("notes",)),
         update_apply.PassCreation(
-            "service", "host_backup", "system/services/host_backup/", ("host-backup", "host-backup-sidecar")
+            "service",
+            "host_backup",
+            "system/services/host_backup/",
+            ("host-backup", "host-backup-sidecar"),
         ),
-        update_apply.PassCreation("service", "oom_priority", "system/services/oom_priority/", ()),
+        update_apply.PassCreation(
+            "service", "oom_priority", "system/services/oom_priority/", ()
+        ),
         update_apply.PassCreation("skill", "digest", ".agents/skills/digest/", ()),
     ]
 
 
-def test_the_record_takes_the_pass_scopes_other_apps_and_services(apply_repo: Path) -> None:
+def test_the_record_takes_the_pass_scopes_other_apps_and_services(
+    apply_repo: Path,
+) -> None:
     """Beside the critical apps, the record takes the pass's other apps and services from
     its scope: the programs their wiring names, an added app named with nothing to restart,
     and a service with no program left for the agent rather than escalated."""
@@ -8156,7 +8165,9 @@ def test_the_record_takes_the_pass_scopes_other_apps_and_services(apply_repo: Pa
 
     assert (
         _apply_keeping_the_rollback_point(
-            _apply_runner(_RIDE_ALONG_DIFF, apply_repo), apply_repo, _ride_along_pass_scope()
+            _apply_runner(_RIDE_ALONG_DIFF, apply_repo),
+            apply_repo,
+            _ride_along_pass_scope(),
         )
         == 0
     )
@@ -8185,7 +8196,9 @@ def test_a_rollback_restarts_the_pass_and_waits_on_critical_apps_alone(
     _write_registry(apply_repo, {"chat": _CHAT_ROW_URL})
     assert (
         _apply_keeping_the_rollback_point(
-            _apply_runner(_RIDE_ALONG_DIFF, apply_repo), apply_repo, _ride_along_pass_scope()
+            _apply_runner(_RIDE_ALONG_DIFF, apply_repo),
+            apply_repo,
+            _ride_along_pass_scope(),
         )
         == 0
     )
@@ -8246,9 +8259,14 @@ def test_the_pass_scope_reader_takes_each_creations_programs_from_its_wiring(
 
     assert update_apply.read_pass_scope(scope_file) == [
         update_apply.PassCreation(
-            "app", "roadmap", "system/apps/roadmap/", ("roadmap", "roadmap-sync", "xvfb")
+            "app",
+            "roadmap",
+            "system/apps/roadmap/",
+            ("roadmap", "roadmap-sync", "xvfb"),
         ),
-        update_apply.PassCreation("service", "oom_priority", "system/services/oom_priority/", ()),
+        update_apply.PassCreation(
+            "service", "oom_priority", "system/services/oom_priority/", ()
+        ),
     ]
 
 
@@ -8458,9 +8476,17 @@ def test_a_failed_snapshot_restore_keeps_recovery_copies_even_when_health_would_
 def test_a_rollback_that_needs_the_services_agent_restores_the_files_and_names_the_command(
     apply_repo: Path,
 ) -> None:
+    """The outcome names the command, and a pass creation with no program to restart,
+    which the services restart does not reach either."""
     assert (
         _apply_keeping_the_rollback_point(
-            _apply_runner("M\tsystem/scripts/bootstrap.sh\n", apply_repo), apply_repo
+            _apply_runner("M\tsystem/scripts/bootstrap.sh\n", apply_repo),
+            apply_repo,
+            [
+                update_apply.PassCreation(
+                    "service", "oom_priority", "system/services/oom_priority/", ()
+                )
+            ],
         )
         == 0
     )
@@ -8477,6 +8503,7 @@ def test_a_rollback_that_needs_the_services_agent_restores_the_files_and_names_t
     assert (
         record.outcome is not None
         and update_apply.SERVICES_RESTART_COMMAND in record.outcome
+        and "oom_priority did not restart with it" in record.outcome
     )
 
 

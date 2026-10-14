@@ -1981,6 +1981,12 @@ def _run_rollback(
                 argv, cwd=str(repo_root), capture_output=True, text=True, check=False
             )
 
+    unrestarted_note = (
+        f" {', '.join(record.unrestarted)} did not restart with it; ask your agent "
+        "to restart them."
+        if record.unrestarted
+        else ""
+    )
     if record.needs_system_services_restart:
         _finish_rollback(
             record,
@@ -1988,12 +1994,12 @@ def _run_rollback(
             "The previous version is restored, but this update also changed how the workspace "
             "starts, which only a restart of the workspace's system services finishes. Ask your "
             "agent to run "
-            f"`{SERVICES_RESTART_COMMAND}`.",
+            f"`{SERVICES_RESTART_COMMAND}`.{unrestarted_note}",
         )
         sys.stderr.write(
             "rolled back: the files are restored; the workspace's system services must be restarted "
             "to finish "
-            f"(`{SERVICES_RESTART_COMMAND}`).\n"
+            f"(`{SERVICES_RESTART_COMMAND}`).{unrestarted_note}\n"
         )
         return 0
 
@@ -2058,12 +2064,6 @@ def _run_rollback(
         sys.stderr.write(f"rollback did not restore health: {unsettled}\n")
         return 3
     refresh_workspace_view(repo_root, runner)
-    unrestarted_note = (
-        f" {', '.join(record.unrestarted)} did not restart with it; ask your agent "
-        "to restart them."
-        if record.unrestarted
-        else ""
-    )
     _finish_rollback(
         record, repo_root, f"Rolled back to the previous version.{unrestarted_note}"
     )
