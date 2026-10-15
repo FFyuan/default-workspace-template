@@ -329,7 +329,7 @@ def icon_spec(theme_id: str, repo_root: str) -> None:
 @click.argument("theme_ids", nargs=-1)
 @_REPO_ROOT_OPTION
 def icon_missing(theme_ids: tuple[str, ...], repo_root: str) -> None:
-    """List, for every theme with icons to draw (or those named), the apps it draws no icon for, and ``app`` for a
+    """List, for every theme with icons to draw (or those named), the apps it draws no icon for, and "app" for a
     missing generic program icon; exits 1 when any."""
     root = Path(repo_root).resolve()
     catalog = _load_catalog(repo_root)
