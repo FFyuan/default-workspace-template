@@ -32,11 +32,11 @@ import { initEmbedderRelay } from "./relay";
 import { reloadInterface } from "./reload";
 import { DesktopStore } from "./store/DesktopStore";
 import { ShellSocket } from "./store/socket";
-import { type ThemeRef, wearTheme } from "@imbue/workspace-ui/src/themes/themeClient";
-import { themeRefOf } from "./model/themes";
+import { wearTheme } from "@imbue/workspace-ui/src/themes/themeClient";
 import { currentRenderModes, followRenderModes, readThemeMetrics } from "./theme/metrics";
 import { afterPageLoad } from "./theme/pageLoad";
 import { App, BACKDROP_AREA_ATTRIBUTE } from "./views/App";
+import { followShownTheme } from "./views/shownTheme";
 import { setIconTheme } from "./views/themeIcons";
 
 /** Rewrite the page's URL with its query string put through ``strip``, leaving the path, the hash, and the
@@ -121,24 +121,15 @@ function bootstrap(): void {
   );
   if (store === null) throw new Error("the render modes never reported");
   const desktopStore: DesktopStore = store;
-  // The page wears the theme of the desktop on screen (Desktop settings). A theme can redeclare
-  // metric tokens (the title bar height), so the metrics the geometry reads are taken again under it.
-  // Until the store knows that theme, the page keeps the one the boot script put on.
-  let metricsTheme: ThemeRef | null = null;
-  desktopStore.onShownThemeChanged(({ record, isPreview }) => {
-    setIconTheme(record);
-    const shown = themeRefOf(record);
-    // A preview is worn and not remembered, so a reload while Desktop settings is open comes back in the saved
-    // theme; the saved one is remembered again when the preview ends.
-    const worn = wearTheme(shown, document, { isRemembered: !isPreview });
-    if (metricsTheme !== null && shown.id === metricsTheme.id && shown.revision === metricsTheme.revision) return;
-    metricsTheme = shown;
-    // The metrics are read once the theme's stylesheet has loaded, since that is when its tokens apply; a theme
-    // the boot script put on is already worn, and the page's load event is what waits for its stylesheet.
-    void worn.then(afterPageLoad).then(() => {
+  followShownTheme(desktopStore, {
+    wear: (theme, isRemembered) => wearTheme(theme, document, { isRemembered }),
+    // A theme the boot script put on is already worn, and the page's load event is what waits for its stylesheet.
+    afterLoad: afterPageLoad,
+    takeMetrics: () => {
       desktopStore.setThemeMetrics(readThemeMetrics(readStyle(root)), currentRenderModes(root));
       m.redraw();
-    });
+    },
+    setIconTheme,
   });
   const gestures = new PointerGestureSource();
   // Say this window is here (and learn who it is) for as long as it stays visible.
