@@ -46,7 +46,7 @@ _PROVIDER_KEY_ENV_VARS: Final = frozenset(
 
 @pure
 def _model_words(tag: str) -> tuple[str, ...]:
-    """The words of a ``provider/model`` tag's model id ("openrouter/anthropic/claude-haiku-4.5" -> claude, haiku, 4, 5)."""
+    """The words of a ``provider/model`` tag's model id ("openrouter/anthropic/claude-haiku-4.5" -> anthropic, claude, haiku, 4, 5)."""
     model_id = tag.partition("/")[2]
     return tuple(word for word in re.split(r"[-./:_]", model_id.lower()) if word)
 
