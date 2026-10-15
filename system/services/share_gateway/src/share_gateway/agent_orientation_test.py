@@ -85,7 +85,10 @@ def test_changes_feed_lists_commits_template_updates_and_touched_skills(tmp_path
     feed = build_changes_feed(repo, datetime.now(timezone.utc) - timedelta(days=1))
     commits, template_updates = feed["commits"], feed["template_updates"]
     assert isinstance(commits, list) and isinstance(template_updates, list)
-    assert [entry["subject"] for entry in commits] == ["update-self: merge upstream v0.8.7", "Initial workspace commit"]
+    assert [entry["subject"] for entry in commits] == [
+        "update-self: merge upstream v0.8.7",
+        "Initial workspace commit",
+    ]
     assert commits[0]["paths"] == [".agents", "README.md"]
     assert [entry["subject"] for entry in template_updates] == ["update-self: merge upstream v0.8.7"]
     assert feed["skills_changed"] == ["build-app", "notify-user"]
