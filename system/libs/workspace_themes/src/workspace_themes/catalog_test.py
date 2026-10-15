@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 
+import pytest
 from app_manifest.primitives import AppName
 
 from workspace_themes.catalog import (
@@ -405,4 +407,29 @@ def test_a_path_too_long_to_look_up_makes_only_its_theme_unavailable(
     long_entry = catalog.find("long")
     assert long_entry is not None and not long_entry.is_available
     assert any("cannot be read" in problem for problem in long_entry.problems)
+    assert catalog.find_available("paper") is not None
+
+
+@pytest.mark.skipif(
+    os.geteuid() == 0, reason="permissions do not stop the root user reading"
+)
+@pytest.mark.parametrize("locked", ["", "icons"])
+def test_a_folder_that_cannot_be_read_makes_only_its_theme_unavailable(
+    tmp_path: Path, locked: str
+) -> None:
+    write_standard_theme(tmp_path)
+    write_test_theme(tmp_path / BUILTIN_THEMES_DIRECTORY, "paper", _PARTS_CSS)
+    folder = write_test_theme(
+        tmp_path / WORKSPACE_THEMES_DIRECTORY, "locked", _PARTS_CSS
+    )
+    locked_folder = folder / locked
+    locked_folder.chmod(0)
+    try:
+        catalog = _catalog(tmp_path)
+    finally:
+        locked_folder.chmod(0o755)
+
+    entry = catalog.find("locked")
+    assert entry is not None and not entry.is_available
+    assert any("cannot be read" in problem for problem in entry.problems)
     assert catalog.find_available("paper") is not None

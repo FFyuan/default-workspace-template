@@ -136,7 +136,16 @@ def _find_theme_folders(roots: Sequence[ThemeRoot]) -> list[_FoundTheme]:
         for folder in sorted(
             path for path in root.directory.iterdir() if path.is_dir()
         ):
-            if not (folder / THEME_MANIFEST_FILENAME).is_file():
+            # A folder the system will not let us look into may be a theme; it is listed, with why it is
+            # unavailable.
+            unreadable_problem: str | None = None
+            try:
+                is_theme_folder = (folder / THEME_MANIFEST_FILENAME).is_file()
+            except OSError as error:
+                logger.warning("Theme folder {} cannot be read: {}", folder, error)
+                is_theme_folder = True
+                unreadable_problem = f"the theme's folder cannot be read: {error}"
+            if not is_theme_folder:
                 continue
             if THEME_ID_PATTERN.fullmatch(folder.name) is None:
                 logger.warning(
@@ -148,6 +157,8 @@ def _find_theme_folders(roots: Sequence[ThemeRoot]) -> list[_FoundTheme]:
             # is unavailable, but never read.
             if folder.is_symlink():
                 manifest, problems = None, ["a theme folder may not be a link"]
+            elif unreadable_problem is not None:
+                manifest, problems = None, [unreadable_problem]
             else:
                 manifest, problems = read_theme_manifest(folder)
             if manifest is not None:
@@ -415,10 +426,11 @@ def _entry_for(
         if chain_theme.manifest is not None
     ]
     chrome = _resolve_chrome(manifests)
-    icons = _resolve_icons(chain_themes, generated_icons_root)
     # A path the system cannot look up (a name too long, a folder it may not enter) makes this theme unavailable,
     # not the whole catalog unreadable.
+    icons: ThemeIcons | None = None
     try:
+        icons = _resolve_icons(chain_themes, generated_icons_root)
         problems.extend(
             _contract_problems(
                 theme.folder, theme.id, theme.manifest, chrome, icons, app_parts_by_app
