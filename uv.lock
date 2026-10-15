@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin'",
@@ -209,6 +209,7 @@ version = "0.1.0"
 source = { editable = "system/libs/app_manifest" }
 dependencies = [
     { name = "click" },
+    { name = "flask" },
     { name = "imbue-common" },
     { name = "loguru" },
     { name = "pathspec" },
@@ -223,6 +224,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1" },
+    { name = "flask", specifier = ">=3.0" },
     { name = "imbue-common", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fimbue_common&rev=f0880170d1b296eb8671602f15518f969dd1cb1e" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "pathspec", specifier = ">=1.1" },

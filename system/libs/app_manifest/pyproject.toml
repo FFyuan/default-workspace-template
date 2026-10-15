@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.1",
+    # The Content-Security-Policy helper hooks a Flask app or blueprint; every workspace app is one.
+    "flask>=3.0",
     "imbue-common",
     "loguru>=0.7",
     # gitignore-style matching for a footprint's exclude globs. The standard library's

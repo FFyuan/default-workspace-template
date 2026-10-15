@@ -1,0 +1,1 @@
+The chat's pages (the chats list, a chat, the not-built placeholder) now carry a `Content-Security-Policy`: scripts only from the chat's own origin, fetches and streams only to the chat, frames of any http(s) page (the terminal it shows), images from anywhere (markdown embeds them), no plugins. File and SVG responses keep the stricter policies they already had.
