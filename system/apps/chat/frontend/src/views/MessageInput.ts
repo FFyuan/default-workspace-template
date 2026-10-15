@@ -68,14 +68,13 @@ const MAX_TEXTAREA_HEIGHT_PX = 240;
 
 /** The composer card. No shadow: it sits at the foot of its own pane
  *  rather than floating over the transcript. Focus thickens its border to 2px
- *  in the accent without moving anything: a 1px ring just inside the 1px
- *  border, where no clipping ancestor can cut it. Its corners are concentric
- *  with the buttons and chips inside: their 6px radius plus the 6px padding
- *  and the 1px border. */
+ *  in the accent, giving the padding back the extra pixel so nothing moves --
+ *  one stroke rather than a ring beside the border, which antialiases as two
+ *  arcs with a seam on the corners. Its corners are concentric with the
+ *  buttons and chips inside: their 6px radius plus the padding and the border. */
 const INPUT_BOX_CLASS =
   "message-input-box flex flex-col gap-0.5 rounded-[13px] border bg-composer p-1.5 " +
-  "[transition:border-color_150ms,box-shadow_150ms] focus-within:border-accent " +
-  "focus-within:shadow-[inset_0_0_0_1px_var(--color-accent)]";
+  "[transition:border-color_150ms] focus-within:border-2 focus-within:border-accent focus-within:p-[5px]";
 
 /** The text and its buttons: + | text | toolbar. ``fitComposer`` sets ``data-stacked`` on the row once the text
  *  needs a second line; the text then takes the full width, with + and the toolbar on a row under it. */
