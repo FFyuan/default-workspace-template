@@ -203,6 +203,9 @@ select {
 [data-part="menu-item"]:not([aria-disabled="true"]):hover {
   background: #000000;
   color: #ffffff;
+  /* The accent is the selection's own colour, so a switch or dot drawn in it turns white with the text. */
+  --c-accent: #ffffff;
+  --c-accent-hover: #ffffff;
 }
 /* Only the text inside turns: a switch or dot drawn as a background keeps its colour. */
 [data-part="menu-item"]:not([aria-disabled="true"]):hover * {
@@ -251,6 +254,9 @@ select {
 [data-part="list-row"][aria-current="true"] {
   background: #000000;
   color: #ffffff;
+  /* The accent is the selection's own colour, so a switch or dot drawn in it turns white with the text. */
+  --c-accent: #ffffff;
+  --c-accent-hover: #ffffff;
 }
 /* Only the text inside turns: a status dot drawn as a background keeps its colour. */
 [data-part="list-row"][aria-current="true"] * {
