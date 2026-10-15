@@ -276,7 +276,9 @@ def test_the_built_page_and_the_placeholder_are_served_under_the_document_policy
     test_client = create_application(state).test_client()
 
     placeholder = test_client.get("/")
-    (static_dir / "index.html").write_text('<html><head><script src="/assets/index.js"></script></head><body></body></html>')
+    (static_dir / "index.html").write_text(
+        '<html><head><script src="/assets/index.js"></script></head><body></body></html>'
+    )
     desktop = test_client.get("/")
 
     assert placeholder.headers[FRONTEND_BUILT_HEADER] == "false"
