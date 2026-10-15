@@ -3,3 +3,5 @@ Visiting agents: a coding agent running outside the workspace can be invited in 
 The helper refuses an `--expires-in-days` on `wsvisit invite` that is not a positive number of days (a bare flag used to mint a one-day grant, and a word a grant with no expiry at all), the way it already refuses such a `--timeout`.
 
 When the helper cannot reach the workspace, it says the workspace may not be published right now and that its owner publishes it from the Share panel, since an unpublished workspace is the usual reason the share's addresses stop answering.
+
+A workspace record the gateway cannot read (a truncated host `data.json`, an unreadable host public key) is logged rather than silently read as empty, so a join answer with no host id or host key can be traced to its cause; an absent record still reads as empty quietly.

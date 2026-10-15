@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from share_gateway.agent_workspace import WorkspaceCoordinates
 from share_gateway.agent_workspace import app_origins_for
 from share_gateway.agent_workspace import exec_origin_for
@@ -43,6 +45,23 @@ def test_read_workspace_coordinates_tolerates_missing_records(tmp_path: Path) ->
     coordinates = read_workspace_coordinates({}, tmp_path / "absent.pub", fallback_display_name="alpha")
     assert coordinates == WorkspaceCoordinates(host_id="", workspace_id="", display_name="alpha", host_public_key="")
     assert coordinates.exec_audience("alpha.example.com") == "alpha.example.com"
+
+
+def test_read_workspace_coordinates_logs_records_it_cannot_read(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    host_dir = tmp_path / "host"
+    host_dir.mkdir()
+    (host_dir / "data.json").write_text("{not json")
+    host_key = tmp_path / "host_key.pub"
+    host_key.mkdir()
+
+    coordinates = read_workspace_coordinates({"MNGR_HOST_DIR": str(host_dir)}, host_key, fallback_display_name="alpha")
+
+    assert coordinates.host_id == "" and coordinates.host_public_key == ""
+    logged = capsys.readouterr().err
+    assert f"Could not read the workspace record at {host_dir / 'data.json'}" in logged
+    assert f"Could not read the host public key at {host_key}" in logged
 
 
 def test_exec_origin_and_app_origins() -> None:

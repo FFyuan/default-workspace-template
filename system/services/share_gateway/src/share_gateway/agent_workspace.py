@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from share_gateway.caddyfile import RegisteredApp
+from share_gateway.log import log
 
 EXEC_SERVICE_NAME = "owner-exec"
 HOST_KEY_PUBLIC_PATH = Path("/etc/ssh/ssh_host_ed25519_key.pub")
@@ -41,11 +42,18 @@ class WorkspaceCoordinates:
 
 
 def _read_json_object(path: Path) -> dict[str, object]:
+    """The JSON object at ``path``; an absent file reads as empty, a record that cannot be read is logged and reads as empty."""
     try:
         raw = json.loads(path.read_text())
-    except (OSError, ValueError):
+    except FileNotFoundError:
         return {}
-    return raw if isinstance(raw, dict) else {}
+    except (OSError, ValueError) as exc:
+        log(f"Could not read the workspace record at {path}: {exc}")
+        return {}
+    if not isinstance(raw, dict):
+        log(f"The workspace record at {path} is not a JSON object")
+        return {}
+    return raw
 
 
 def _host_id_from_record(host_dir: str) -> str:
@@ -73,7 +81,10 @@ def read_workspace_coordinates(
     """Resolve the coordinates from the environment and the records it points at; missing pieces read as ''."""
     try:
         host_public_key = host_key_public_path.read_text().strip()
-    except OSError:
+    except FileNotFoundError:
+        host_public_key = ""
+    except OSError as exc:
+        log(f"Could not read the host public key at {host_key_public_path}: {exc}")
         host_public_key = ""
     display_name = _display_name_from_record(environ.get("MNGR_AGENT_STATE_DIR", "")) or fallback_display_name
     return WorkspaceCoordinates(
