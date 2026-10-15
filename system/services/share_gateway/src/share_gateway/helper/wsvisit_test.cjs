@@ -1,0 +1,122 @@
+// The helper's signing profile against the owner-exec repo's shared vectors
+// (vendored beside it), plus its own contracts: argument parsing and the
+// skills-diff banner.
+"use strict";
+
+const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const { test } = require("node:test");
+
+const helper = require("./wsvisit.cjs");
+
+const vectors = JSON.parse(fs.readFileSync(path.join(__dirname, "owner_exec_vectors.json"), "utf8"));
+
+function headerValue(headers, name) {
+  const wanted = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) if (key.toLowerCase() === wanted) return value;
+  return "";
+}
+
+// Rebuilds a request's signature base from its headers with the helper's own
+// builder and checks the vector's signature with the vector's key: the base
+// construction is what the daemon will verify, so it must match byte for byte.
+function requestSignatureVerifies(vector) {
+  const headers = vector.headers;
+  const { params } = helper.parseSignatureInputParams(headerValue(headers, "signature-input"));
+  const fullParams = headerValue(headers, "signature-input").slice("sig1=".length);
+  const body = Buffer.from(vector.body_b64, "base64");
+  const base = helper.requestSignatureBase(
+    vector.method,
+    new URL(vector.url).pathname,
+    headerValue(headers, "content-digest"),
+    headerValue(headers, "x-exec-audience"),
+    headerValue(headers, "x-exec-public-key"),
+    fullParams,
+  );
+  const signatureB64 = /^sig1=:(.+):$/.exec(headerValue(headers, "signature"))[1];
+  const publicKey = helper.publicKeyObjectFromLine(headerValue(headers, "x-exec-public-key"));
+  const isSignatureValid = crypto.verify(null, Buffer.from(base, "utf8"), publicKey, Buffer.from(signatureB64, "base64"));
+  const isDigestValid = headerValue(headers, "content-digest") === helper.contentDigest(body);
+  const isInWindow = Math.abs(vector.verify_at - params.created) <= 60 && vector.verify_at < params.expires;
+  return { isSignatureValid, isDigestValid, isInWindow };
+}
+
+test("request vectors: the helper's signature base matches the profile", () => {
+  const byName = Object.fromEntries(vectors.requests.map((vector) => [vector.name, vector]));
+  assert.deepEqual(requestSignatureVerifies(byName["run-valid"]), { isSignatureValid: true, isDigestValid: true, isInWindow: true });
+  assert.deepEqual(requestSignatureVerifies(byName["read-file-valid"]), { isSignatureValid: true, isDigestValid: true, isInWindow: true });
+  assert.equal(requestSignatureVerifies(byName["run-tampered-body"]).isDigestValid, false);
+  assert.equal(requestSignatureVerifies(byName["run-expired"]).isInWindow, false);
+});
+
+test("fingerprints match the profile's keyid", () => {
+  const vector = vectors.requests[0];
+  const { params } = helper.parseSignatureInputParams(vector.headers["Signature-Input"]);
+  assert.equal(helper.fingerprintOfPublicKeyLine(vector.headers["X-Exec-Public-Key"]), params.keyid);
+  for (const response of vectors.responses) assert.equal(helper.fingerprintOfPublicKeyLine(response.host_key_line), response.host_key_id);
+});
+
+test("a freshly generated keypair signs a request the vector key's rules accept", () => {
+  const keypair = helper.generateKeypair();
+  assert.match(keypair.publicKeyLine, /^ssh-ed25519 [A-Za-z0-9+/=]+$/);
+  const body = Buffer.from('{"command":["echo","hi"]}');
+  const signed = helper.signRequest(keypair, "POST", "/run", body, "container:host-abcd", 1786928267, "nonce-0123456789abcdef");
+  const vectorLike = {
+    name: "fresh",
+    method: "POST",
+    url: "https://owner-exec-x.example.com/run",
+    body_b64: body.toString("base64"),
+    verify_at: 1786928267,
+    headers: signed.headers,
+  };
+  assert.deepEqual(requestSignatureVerifies(vectorLike), { isSignatureValid: true, isDigestValid: true, isInWindow: true });
+  assert.equal(signed.headers["Signature-Input"].includes('tag="imbue-owner-exec"'), true);
+});
+
+test("response vectors: valid verifies, wrong-request fails closed", () => {
+  for (const vector of vectors.responses) {
+    const signedRequest = {
+      method: vector.request_method,
+      path: new URL(vector.request_url).pathname,
+      signatureB64: /^sig1=:(.+):$/.exec(vector.request_headers.Signature)[1],
+    };
+    const body = Buffer.from(vector.body_b64, "base64");
+    const verify = () => helper.verifyResponse(vector.status_code, vector.headers, body, signedRequest, vector.host_key_line, vector.verify_at);
+    if (vector.expect_valid) assert.doesNotThrow(verify, vector.name);
+    else assert.throws(verify, helper.HelperError, vector.name);
+  }
+});
+
+test("stream vectors: valid verifies, tampered fails closed", () => {
+  for (const vector of vectors.streams) {
+    const streamSha256 = crypto.createHash("sha256").update(Buffer.from(vector.stream_bytes_b64, "base64")).digest();
+    const trailer = { type: "signature", created: vector.created, keyid: vector.host_key_id, tag: "imbue-owner-exec-stream", signature: vector.signature };
+    const verify = () => helper.verifyStreamTrailer(trailer, streamSha256, vector.request_signature, vector.host_key_line, vector.verify_at);
+    if (vector.expect_valid) assert.doesNotThrow(verify, vector.name);
+    else assert.throws(verify, helper.HelperError, vector.name);
+  }
+});
+
+test("a response signed by another host key is refused", () => {
+  const vector = vectors.responses.find((entry) => entry.expect_valid);
+  const other = helper.generateKeypair();
+  const signedRequest = { method: vector.request_method, path: "/run", signatureB64: /^sig1=:(.+):$/.exec(vector.request_headers.Signature)[1] };
+  assert.throws(
+    () => helper.verifyResponse(vector.status_code, vector.headers, Buffer.from(vector.body_b64, "base64"), signedRequest, other.publicKeyLine, vector.verify_at),
+    /unexpected host key/,
+  );
+});
+
+test("parseArgs splits options, positionals, and the command after --", () => {
+  const parsed = helper.parseArgs(["run", "--cwd", "/tmp", "--timeout", "30", "--", "ls", "--all"]);
+  assert.deepEqual(parsed, { options: { cwd: "/tmp", timeout: "30" }, positional: ["run"], rest: ["ls", "--all"] });
+  assert.deepEqual(helper.parseArgs(["skills", "--json"]).options, { json: true });
+});
+
+test("describeSkillChanges names new, removed, and changed skills", () => {
+  const lines = helper.describeSkillChanges({ a: "1", b: "2", c: "3" }, { a: "1", b: "9", d: "4" });
+  assert.deepEqual(lines, ["  new skill: d", "  removed skill: c", "  changed skill: b"]);
+  assert.deepEqual(helper.describeSkillChanges({}, {}), []);
+});

@@ -1,0 +1,1 @@
+The owner-exec launcher writes an `audit_log_path` into the daemon's config (`$MNGR_AGENT_STATE_DIR/events/owner_exec/events.jsonl`), where a daemon that carries the audit log records what each verified key ran, so a visiting agent's commands are attributable by key fingerprint. A daemon older than that pin ignores the key.
