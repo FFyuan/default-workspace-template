@@ -18,7 +18,8 @@ export function declaredParts(appTomlPath: string): { readonly app: string; read
   return { app, parts };
 }
 
-function sourceFiles(directory: string): string[] {
+/** Every non-test `.ts` file under `directory`, at any depth. */
+export function sourceFiles(directory: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(directory)) {
     const path = join(directory, entry);

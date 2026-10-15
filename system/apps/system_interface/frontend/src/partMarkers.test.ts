@@ -4,24 +4,15 @@
  * `data-part` attribute can name a part the contract does not have, and no check would catch it. Walks every
  * non-test source.
  */
-import { readFileSync, readdirSync, statSync } from "fs";
-import { join, relative } from "path";
+import { readFileSync } from "fs";
+import { relative } from "path";
 import { describe, expect, it } from "vitest";
+import { sourceFiles } from "@imbue/workspace-ui/src/testing/appParts";
 
 const SRC = new URL(".", import.meta.url).pathname;
 
 /** `"data-part":` in an attrs object, or `data-part=` in markup written as a string. */
 const RAW_PART_MARKER = /["']data-part["']\s*:|data-part=/;
-
-function sourceFiles(directory: string): string[] {
-  const files: string[] = [];
-  for (const entry of readdirSync(directory)) {
-    const path = join(directory, entry);
-    if (statSync(path).isDirectory()) files.push(...sourceFiles(path));
-    else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) files.push(path);
-  }
-  return files;
-}
 
 describe("the shell's part markers", () => {
   it("come from the parts helpers, never a raw data-part attribute", () => {
