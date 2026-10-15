@@ -224,6 +224,10 @@ select {
   font-weight: 700;
   color: #ffffff;
 }
+/* A button on the caption (a Back or Close) takes the caption's white glyph, as a window caption's own actions do. */
+[data-part="dialog-header"] [data-part="button"][data-shape="icon"] {
+  color: #ffffff;
+}
 [data-part="dialog"] [data-part="field"] {
   height: 21px;
   padding: 2px 4px;
