@@ -118,8 +118,8 @@
     },
     {
       "selector": "^\\.modal-header$",
-      "property": "^height$",
-      "why": "The dialog header is as tall as its title."
+      "property": "^(height|background)$",
+      "why": "The dialog header is as tall as its title, and the theme draws its caption gradient (the library's is !important, which would leave a theme based on this one no way to recolour it)."
     },
     {
       "selector": "^\\.modal-content$",

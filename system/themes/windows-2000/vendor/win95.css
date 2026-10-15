@@ -146,7 +146,6 @@ input[type=number]:focus {
     background: #d4d0c8;
 }
 [data-part="dialog-header"]{
-    background: linear-gradient(to right,#08216b,#a5cef7)!important;
     color:white;
     padding-top: 0px;
     padding-bottom: 0px;
