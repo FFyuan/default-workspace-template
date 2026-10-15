@@ -154,7 +154,14 @@ def _error(message: str, status: int) -> Response:
 
 
 def _parse_json_body() -> dict[str, object] | None:
-    raw = request.get_data(cache=False, as_text=False)
+    """The request body as a JSON object, or None when it is not one or exceeds ``_MAX_BODY_BYTES``.
+
+    The join route is unauthenticated, so the cap bounds the read itself rather
+    than the length of a body already buffered.
+    """
+    if (request.content_length or 0) > _MAX_BODY_BYTES:
+        return None
+    raw = request.stream.read(_MAX_BODY_BYTES + 1)
     if len(raw) > _MAX_BODY_BYTES:
         return None
     try:

@@ -204,6 +204,13 @@ def test_join_refuses_malformed_bodies_bad_codes_and_bad_keys(tmp_path: Path) ->
     harness = make_harness(tmp_path)
     headers: dict[str, str] = {}
     assert harness.client.post("/_agent/join", data="not json", headers=headers).status_code == 400
+    oversized = json.dumps({"code": "x" * (20 * 1024), "public_key": "k", "name": "n"})
+    assert (
+        harness.client.post(
+            "/_agent/join", data=oversized, content_type="application/json", headers=headers
+        ).status_code
+        == 400
+    )
     assert (
         harness.client.post(
             "/_agent/join", json={"code": 1, "public_key": "x", "name": "n"}, headers=headers
