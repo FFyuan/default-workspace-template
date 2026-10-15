@@ -66,6 +66,7 @@ describe("ThemeGallery", () => {
     const root = mountView(() => m(ThemeGallery, { state }));
 
     expect(root.querySelector("h1")?.textContent).toBe("Broken");
+    expect(root.querySelector("[data-gallery-origin]")?.textContent).toBe("broken · built in · revision rev-broken");
     expect(root.querySelector("[data-gallery-problems]")?.textContent).toContain(".x is a class");
     const bar = root.querySelector('[data-part="title-bar"]') as HTMLElement;
     const controls = Array.from(bar.querySelectorAll("[data-control]")).map((c) => c.getAttribute("data-control"));

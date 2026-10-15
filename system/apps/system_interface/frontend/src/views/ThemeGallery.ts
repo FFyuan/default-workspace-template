@@ -319,7 +319,11 @@ export function ThemeGallery(): m.Component<{ state: GalleryState }> {
         m("header", { class: "mb-8" }, [
           m("h1", { class: "type-heading-lg" }, theme.name),
           m("p", { class: "type-body text-secondary" }, theme.description),
-          m("p", { class: "type-helper text-faint" }, `${theme.id} · revision ${theme.revision || "built in"}`),
+          m(
+            "p",
+            { "data-gallery-origin": "", class: "type-helper text-faint" },
+            `${theme.id} · ${theme.source === "builtin" ? "built in" : "made in this workspace"} · revision ${theme.revision}`,
+          ),
           theme.problems.length === 0
             ? null
             : m(
