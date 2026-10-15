@@ -49,7 +49,9 @@ _URL_FUNCTION_NAMES: Final[frozenset[str]] = frozenset(
     {"url", "src", "image-set", "-webkit-image-set"}
 )
 # The functions that put a value in at run time, where the validator cannot read it.
-_SUBSTITUTION_FUNCTION_NAMES: Final[frozenset[str]] = frozenset({"var", "env", "attr"})
+_SUBSTITUTION_FUNCTION_NAMES: Final[frozenset[str]] = frozenset(
+    {"var", "env", "attr", "if"}
+)
 # What a browser's URL parser removes from a URL before reading it: tab and newline anywhere, and C0 controls and
 # spaces at either end.
 _URL_REMOVED_CHARACTERS: Final[re.Pattern[str]] = re.compile(r"[\t\n\r]")
@@ -242,7 +244,7 @@ def _check_url(reference: str, context: StyleSheetContext, line: int) -> list[st
 def _check_url_function_arguments(
     tokens: Iterable[ast.Node], context: StyleSheetContext
 ) -> list[str]:
-    """A URL a function takes is written out, never put in with var(), env(), or attr(), so it can be checked."""
+    """A URL a function takes is written out, never put in with var(), env(), attr(), or if(), so it can be checked."""
     problems: list[str] = []
     for token in tokens:
         if isinstance(token, ast.FunctionBlock):

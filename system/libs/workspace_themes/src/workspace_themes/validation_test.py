@@ -113,6 +113,10 @@ def test_contract_css_passes(tmp_path: Path) -> None:
             "-webkit-image-set() takes attr()",
         ),
         (
+            '[data-part="window"] { background: image-set(if(media(width > 0): "https://example.com/a.png") 1x); }',
+            "image-set() takes if()",
+        ),
+        (
             r'[data-part="window"] { background: url("\\evil.com/a.png"); }',
             "has a backslash",
         ),
