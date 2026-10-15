@@ -139,3 +139,12 @@ test("a joined workspace's state is refused unless its directory is private", ()
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("an app-scope agent is told it cannot invite, not that it was revoked", async () => {
+  await assert.rejects(helper.commandInvite({ scope: ["chat"], token: "t", workspace: { auth_origin: "https://auth.example.com" } }, {}), (error) => {
+    assert.ok(error instanceof helper.HelperError);
+    assert.equal(error.exitCode, 64);
+    assert.match(error.message, /whole workspace/);
+    return true;
+  });
+});

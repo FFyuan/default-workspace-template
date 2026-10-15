@@ -637,6 +637,9 @@ async function commandMe(config) {
 }
 
 async function commandInvite(config, options) {
+  if (config.scope !== "workspace") {
+    throw new HelperError("inviting needs access to the whole workspace; this access covers named apps only", EXIT_USAGE);
+  }
   const body = {};
   if (options.scope && options.scope !== "workspace") body.scope = String(options.scope).split(",").map((name) => name.trim()).filter(Boolean);
   else body.scope = "workspace";
@@ -693,6 +696,7 @@ if (require.main === module) {
 
 module.exports = {
   HelperError,
+  commandInvite,
   contentDigest,
   describeSkillChanges,
   fingerprintOfPublicKeyLine,
