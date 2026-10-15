@@ -213,6 +213,8 @@ def fit_icon_image(image: Image.Image, spec: ThemeIconSpec) -> Image.Image:
         working = _apply_palette(working, spec.palette)
     elif spec.max_colors is not None:
         working = _limit_colors(working, spec.max_colors)
+    else:
+        pass
     return working
 
 

@@ -120,6 +120,8 @@ def check_manifest_rules(manifest: ThemeManifest, folder_name: str) -> list[str]
             problems.append("theme.toml: the standard theme must declare [icons]")
     elif manifest.base == manifest.id:
         problems.append("theme.toml: a theme cannot be its own base")
+    else:
+        pass
     return problems
 
 
@@ -340,6 +342,8 @@ def _check_declarations(
                     f"{context.label}:{node.source_line}: {name} is not a contract token; a theme's own properties "
                     f"are named {PRIVATE_TOKEN_PREFIX}*"
                 )
+            else:
+                pass
         for reference, line in _urls_in(node.value):
             problems.extend(_check_url(reference, context, line))
         problems.extend(_check_url_function_arguments(node.value, context))
