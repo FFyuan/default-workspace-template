@@ -225,6 +225,19 @@ describe("mirrorParentTheme", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(currentTheme()).toEqual({ id: "windows-2000", revision: "2" });
   });
+
+  it("stops following the parent once the page goes away, so the parent does not keep it alive", async () => {
+    const parentRoot = document.createElement("html");
+    parentRoot.setAttribute(THEME_ATTRIBUTE, "mac-classic");
+    framedUnder(parentRoot);
+    mirrorParentTheme();
+
+    window.dispatchEvent(new Event("pagehide"));
+    parentRoot.setAttribute(THEME_ATTRIBUTE, "windows-2000");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(currentTheme().id).toBe("mac-classic");
+  });
 });
 
 describe("the boot script", () => {

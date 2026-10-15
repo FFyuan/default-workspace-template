@@ -255,9 +255,15 @@ export function mirrorParentTheme(): boolean {
     if (isThemeRef(theme)) void wearTheme(theme, document, { isRemembered: false });
   };
   follow();
-  new MutationObserver(follow).observe(parentRoot, {
+  const observer = new MutationObserver(follow);
+  observer.observe(parentRoot, {
     attributes: true,
     attributeFilter: [THEME_ATTRIBUTE, THEME_REVISION_ATTRIBUTE],
+  });
+  // The observer is the parent's to hold, so a page that goes away (a frame the parent removes) lets go of it, or
+  // the parent would keep the page alive.
+  window.addEventListener("pagehide", (event: PageTransitionEvent) => {
+    if (!event.persisted) observer.disconnect();
   });
   return true;
 }
