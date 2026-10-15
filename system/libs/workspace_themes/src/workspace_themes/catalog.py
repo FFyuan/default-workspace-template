@@ -398,6 +398,26 @@ def _contract_problems(
     return problems
 
 
+def _unreadable_files_problem(error: OSError) -> str:
+    return f"the theme's files cannot be read: {error}"
+
+
+def _readable_contract_problems(
+    folder: Path,
+    theme_id: ThemeId,
+    manifest: ThemeManifest,
+    chrome: ResolvedChrome,
+    icons: ThemeIcons | None,
+    app_parts_by_app: Mapping[AppName, frozenset[str]],
+) -> list[str]:
+    try:
+        return _contract_problems(
+            folder, theme_id, manifest, chrome, icons, app_parts_by_app
+        )
+    except OSError as error:
+        return [_unreadable_files_problem(error)]
+
+
 def _entry_for(
     theme: _FoundTheme,
     found_by_id: Mapping[str, _FoundTheme],
@@ -442,13 +462,14 @@ def _entry_for(
     icons: ThemeIcons | None = None
     try:
         icons = _resolve_icons(chain_themes, generated_icons_root)
+    except OSError as error:
+        problems.append(_unreadable_files_problem(error))
+    else:
         problems.extend(
-            _contract_problems(
+            _readable_contract_problems(
                 theme.folder, theme.id, theme.manifest, chrome, icons, app_parts_by_app
             )
         )
-    except OSError as error:
-        problems.append(f"the theme's files cannot be read: {error}")
     return ThemeEntry(
         id=theme.id,
         folder=theme.folder,
