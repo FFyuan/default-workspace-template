@@ -1546,8 +1546,9 @@ export class DesktopStore {
     return resolveDesktopTheme(this.themeCatalog, choice);
   }
 
-  /** Hear the shown theme whenever it changes: another theme or revision, or a preview put on or taken off. A
-   *  listener hears the current one at once when it is known. */
+  /** Hear the shown theme whenever it changes: another theme or revision, or a preview put on or taken off; and the
+   *  same theme again from each catalog that arrives, so a page whose stylesheet failed can put it back. A listener
+   *  hears the current one at once when it is known. */
   onShownThemeChanged(listener: ShownThemeListener): () => void {
     this.shownThemeListeners.add(listener);
     if (this.lastShownTheme !== null) listener(this.lastShownTheme);

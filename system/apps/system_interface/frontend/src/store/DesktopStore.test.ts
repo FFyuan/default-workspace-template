@@ -2789,6 +2789,17 @@ describe("themes", () => {
     expect(heard).toEqual(["ink", "paper (preview)", "ink"]);
   });
 
+  it("tells its shown-theme listeners the same theme again when a new catalog arrives", async () => {
+    const store = await startedStore();
+    await settle();
+    const heard: string[] = [];
+    store.onShownThemeChanged(({ record }) => heard.push(record.id));
+
+    socket.deliver().onThemesChanged(structuredClone(store.getThemeCatalog()));
+
+    expect(heard).toEqual(["ink", "ink"]);
+  });
+
   it("takes a new workspace default at once, without reading the catalog again", async () => {
     const store = await startedStore();
     await settle();
