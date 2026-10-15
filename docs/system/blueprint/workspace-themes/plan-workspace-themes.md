@@ -290,7 +290,7 @@ The fitting step is what lets any model's output join a set drawn by another.
 - A theme's curated icons are in its folder: `icons/<app>.<format>`.
 - Icons generated in a workspace for a built-in theme are in `data/.themes/<id>/icons/<app>.<format>`, so the built-in theme folder stays as shipped. A workspace theme's generated icons go into its own folder.
 
-Under a theme, the shell draws an app's icon as the first of: the theme's curated icon, the workspace's generated icon, an icon derived from the app's standard icon by the theme's `derive` (rendered in the page: rasterized to the canvas, then pixelated, quantized to the palette, or turned to one color), and the theme's generic program icon (`derive = "none"`).
+Under a theme, the shell draws an app's icon as the first of: the theme's curated icon, the workspace's generated icon, an icon derived from the app's standard icon by the theme's `derive` (rendered in the page: rasterized to the canvas, then pixelated, quantized to the palette, or turned to two colors, the palette's darkest and lightest), and the theme's generic program icon (`derive = "none"`).
 The `app-icon` part's `data-icon-source` says which it drew.
 
 When an app is built (the `build-app` skill) and when a theme is made (the `create-theme` skill), the agent makes the missing icons in the background; the derived icon shows until they land, and neither is finished until every theme with icons of its own has one for every app.

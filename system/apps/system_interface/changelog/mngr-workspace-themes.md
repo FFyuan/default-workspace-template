@@ -4,7 +4,7 @@ Workspace themes: Desktop settings has a **Theme** choice listing every theme th
 
 - Window title bars are drawn from the theme's chrome: which controls sit left and right, and whether the title is centred (Classic Mac puts the close box first and centres the title).
 
-- Under a theme, each app's icon is the theme's drawn icon, one the workspace generated, or one derived from the app's standard icon in the theme's style (pixelated, reduced to the theme's colors, or one color), so a new app is never left with a blank or out-of-place icon.
+- Under a theme, each app's icon is the theme's drawn icon, one the workspace generated, or one derived from the app's standard icon in the theme's style (pixelated, reduced to the theme's colors, or in two colors), so a new app is never left with a blank or out-of-place icon.
 
 - Editing a theme's files, or an app manifest that changes which themes are available, updates every open window at once, with no restart.
 
