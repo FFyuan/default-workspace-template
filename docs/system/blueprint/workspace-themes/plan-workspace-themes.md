@@ -205,7 +205,7 @@ The markup never carries a library's class names.
 
 Every app that wears themes serves `GET /_static/themes/<path>` from its own origin, through the shared handler in `workspace_themes` (a stylesheet's fonts must come from the page's own origin, and the desktop client's forwarder refuses a cross-origin fetch).
 
-- `/_static/themes/<id>/theme.css` is the bundle: generated `@import` rules for each style file of each theme in the chain, base first, then the theme's own `styles.files` in order, then its `apps/<app>.css` files. Every app overlay is in every bundle: each of its selectors names one of its own app's parts (the validator refuses one that does not), so it matches nothing on another app's page.
+- `/_static/themes/<id>/theme.css` is the bundle: generated `@import` rules for each style file of each theme in the chain, base first, then the theme's own `styles.files` in order, then its `apps/<app>.css` files. Every app overlay is in every bundle: each of its selectors names one of its own app's parts, and it defines no `@keyframes` or `@font-face`, whose names every page shares (the validator refuses either), so it changes nothing on another app's page.
 - `/_static/themes/<id>/<file>` is a file in the theme folder, refused unless it is a style file or something one loads (`.css`, a font, an image). The manifest, the guides, and the vendoring maps stay on disk.
 - `standard` has no style files; its bundle is empty.
 - An unknown or unavailable theme answers `404`.

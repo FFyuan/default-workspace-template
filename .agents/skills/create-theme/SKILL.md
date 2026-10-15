@@ -62,7 +62,8 @@ style, chrome setting, and icon its base has, and sets only what differs.
   (`[theming] mode = "parts"`; chat declares `chat.user-message`, `chat.composer`,
   `chat.tool-call`). List each such app by its name under `[styles] apps` (`apps = ["chat"]`).
   Every overlay is loaded on every app's page, so each of its selectors names one of its own
-  app's parts (`[data-part="chat.composer"] [data-part="button"]`, not `[data-part="button"]`).
+  app's parts (`[data-part="chat.composer"] [data-part="button"]`, not `[data-part="button"]`),
+  and an `@keyframes` or `@font-face` it needs goes in the theme's own style files instead.
 - **A CSS library**, when one exists for the look (98.css, 7.css, XP.css, ...): vendor it
   rather than redraw it. Write `vendor/<library>.vendor.json` -- the pinned source and its
   sha256, and a `selectorMap` from the library's classes to parts -- then run

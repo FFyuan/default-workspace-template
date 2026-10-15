@@ -161,6 +161,30 @@ def test_an_app_overlay_may_style_the_parts_its_app_declares(tmp_path: Path) -> 
     assert problems == []
 
 
+def test_an_app_overlay_defines_no_animation_or_font(tmp_path: Path) -> None:
+    context = StyleSheetContext(
+        label="apps/chat.css",
+        folder=tmp_path,
+        file_directory="apps",
+        allowed_parts=frozenset(CORE_PARTS) | {"chat.user-message"},
+        scoping_part_prefix="chat.",
+    )
+
+    problems = check_style_sheet(
+        "@keyframes theme-pulse { from { opacity: 0; } }\n"
+        '@font-face { font-family: "Chicago"; }\n'
+        '@media (min-width: 1px) { [data-part="chat.user-message"] { color: #000000; } }\n',
+        context,
+    )
+
+    assert problems == [
+        "apps/chat.css:1: @keyframes names something every app's page shares; put it in the theme's own style "
+        "files, not an app's overlay",
+        "apps/chat.css:2: @font-face names something every app's page shares; put it in the theme's own style "
+        "files, not an app's overlay",
+    ]
+
+
 def test_chrome_keeps_every_control_once() -> None:
     chrome = ResolvedChrome(
         title_align=TitleAlign.CENTER,

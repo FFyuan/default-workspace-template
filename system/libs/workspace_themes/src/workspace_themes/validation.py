@@ -523,6 +523,11 @@ def _check_at_rule(node: ast.AtRule, context: StyleSheetContext) -> list[str]:
         ]
     if node.content is None:
         return [f"{context.label}:{line}: @{name} needs a block"]
+    if context.scoping_part_prefix is not None and name not in GROUPING_AT_RULES:
+        return [
+            f"{context.label}:{line}: @{name} names something every app's page shares; put it in the theme's own "
+            "style files, not an app's overlay"
+        ]
     if name in GROUPING_AT_RULES:
         return _check_rules(
             tinycss2.parse_rule_list(
