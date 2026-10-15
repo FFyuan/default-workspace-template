@@ -387,8 +387,9 @@ register_workspace_theme_route(app)
 # The page wears the workspace's theme (docs/system/blueprint/workspace-themes/): the kit's
 # stylesheet is the standard look, and its script, after it, loads the theme the page wears.
 # Put the page's own styles before the script, so the theme's stylesheet comes after them.
-# Build the page from the kit's parts and tokens -- data-part="button" (with data-variant),
-# "field", "tile", "list-row", "badge", and var(--c-...) for every color -- never a literal
+# Build the page from the kit's parts and tokens -- data-part="button" (with data-variant, and
+# data-shape="icon" for a button that is only an icon, "text" otherwise), "field", "tile",
+# "list-row", "badge", and var(--c-...) for every color -- never a literal
 # color or font, so every theme dresses it (the build-app skill's references/theming.md).
 SHELL_PAGE_HEAD = """\
 <link rel="stylesheet" href="/_static/workspace_theme.css" />

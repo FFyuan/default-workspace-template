@@ -37,8 +37,10 @@ runs, and it must come after every style of the page's to win over them.
 
 Then build every control from a part, and every color, font, radius, and shadow from a token:
 
-- Buttons: `<button data-part="button" data-variant="primary">` (`primary`, `secondary`,
-  `ghost`, `destructive`; no variant is a plain button).
+- Buttons: `<button data-part="button" data-variant="primary" data-shape="text">` (`primary`,
+  `secondary`, `ghost`, `destructive`; no variant is a plain button). A button that is only an
+  icon (a close, a trash can) is `data-shape="icon"`, which themes draw as a bare glyph rather
+  than a push button.
 - Text fields and text areas: `data-part="field"`.
 - A card that opens something: `data-part="tile"`. A selectable row: `data-part="list-row"`,
   with `aria-current="true"` on the current one. A small label: `data-part="badge"`.

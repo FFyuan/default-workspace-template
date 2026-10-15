@@ -101,7 +101,8 @@
     border-radius: var(--radius-sm);
   }
 
-  /* A push button: <button data-part="button" data-variant="primary|secondary|ghost|destructive">. */
+  /* A push button: <button data-part="button" data-variant="primary|secondary|ghost|destructive" data-shape="text">;
+     a button that is only an icon is data-shape="icon". */
   [data-part="button"] {
     font: inherit;
     padding: 6px 14px;
