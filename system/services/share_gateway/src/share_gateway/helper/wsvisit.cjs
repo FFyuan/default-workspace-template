@@ -317,8 +317,12 @@ async function fetchWithTimeout(url, init, timeoutMs) {
   }
 }
 
+function gatewayOrigin(config) {
+  return config.gateway_origin || config.workspace.auth_origin;
+}
+
 async function gatewayJson(config, method, routePath, body, query) {
-  const url = new URL(routePath, config.workspace.auth_origin);
+  const url = new URL(routePath, gatewayOrigin(config));
   if (query) for (const [key, value] of Object.entries(query)) if (value !== undefined) url.searchParams.set(key, value);
   const response = await fetchWithTimeout(
     url,
@@ -348,13 +352,18 @@ async function execRequest(config, routePath, payload, options = {}) {
   return { response, signed };
 }
 
+// A verified answer from owner-exec. A signed 404 is an answer too (a file that
+// does not exist), so it is returned rather than thrown: only the daemon's
+// refusals and failures are errors.
 async function verifiedExecJson(config, routePath, payload) {
   const { response, signed } = await execRequest(config, routePath, payload);
   const body = Buffer.from(await response.arrayBuffer());
   verifyResponse(response.status, response.headers, body, signed, config.exec.host_public_key, nowUnix());
   const parsed = body.length ? JSON.parse(body.toString("utf8")) : {};
-  if (!response.ok) throw new HelperError(`${routePath} answered ${response.status}: ${parsed.error || body.toString("utf8").slice(0, 300)}`);
-  return parsed;
+  if (!response.ok && response.status !== 404) {
+    throw new HelperError(`${routePath} answered ${response.status}: ${parsed.error || body.toString("utf8").slice(0, 300)}`);
+  }
+  return { status: response.status, body: parsed };
 }
 
 function nowUnix() {
@@ -487,7 +496,13 @@ async function commandJoin(positional, options) {
     throw new HelperError(`join refused (${response.status}): ${message}`);
   }
   const answer = JSON.parse(text);
-  const config = { ...answer, public_key_line: keypair.publicKeyLine, keypair, joined_at: new Date().toISOString() };
+  const config = {
+    ...answer,
+    gateway_origin: origin,
+    public_key_line: keypair.publicKeyLine,
+    keypair,
+    joined_at: new Date().toISOString(),
+  };
   saveConfig(config);
   await refreshSkills(config, true);
   process.stderr.write(`wsvisit: joined ${config.workspace.display_name || domain} as ${config.name} (${config.agent_id})\n`);
@@ -559,8 +574,10 @@ async function commandRead(config, positional) {
   await refreshSkills(config, false);
   return withRecovery(config, async (current) => {
     const answer = await verifiedExecJson(current, "/read-file", { path: filePath });
-    if (answer.exists === false) throw new HelperError(`no such file in the workspace: ${filePath}`, 2);
-    process.stdout.write(Buffer.from(answer.content_b64 || "", "base64"));
+    if (answer.status === 404 || answer.body.exists === false) {
+      throw new HelperError(`no such file in the workspace: ${filePath}`, EXIT_USAGE);
+    }
+    process.stdout.write(Buffer.from(answer.body.content_b64 || "", "base64"));
     return 0;
   });
 }
@@ -573,7 +590,8 @@ async function commandWrite(config, positional, options) {
   const payload = { path: filePath, content_b64: content.toString("base64") };
   if (options.mode) payload.mode = String(options.mode);
   return withRecovery(config, async (current) => {
-    await verifiedExecJson(current, "/write-file", payload);
+    const answer = await verifiedExecJson(current, "/write-file", payload);
+    if (answer.status === 404) throw new HelperError(`could not write ${filePath}: ${answer.body.error || "not found"}`, EXIT_USAGE);
     return 0;
   });
 }
