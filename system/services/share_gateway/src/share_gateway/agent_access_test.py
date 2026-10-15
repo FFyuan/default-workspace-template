@@ -240,7 +240,7 @@ def test_join_and_revoke_record_the_expired_grants_they_prune(tmp_path: Path) ->
         later,
     )
     assert [grant.agent_id for grant in load_agent_grants(paths.grants_path)] == [kept.grant.agent_id]
-    expired_names = [event["name"] for event in read_events(paths) if event["type"] == "expired"]
+    expired_names = [str(event["name"]) for event in read_events(paths) if event["type"] == "expired"]
     assert sorted(expired_names) == ["first-to-expire", "second-to-expire"]
 
     join(
