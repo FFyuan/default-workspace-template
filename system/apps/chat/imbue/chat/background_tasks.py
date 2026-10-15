@@ -111,6 +111,12 @@ def started_at_text(started_at: str) -> str:
 
 
 @pure
+def command_as_inline_code(command: str) -> str:
+    """A task's command as markdown inline code; as written when a backtick in it would end the code span."""
+    return f"`{command}`" if "`" not in command else command
+
+
+@pure
 def unreported_runner_ends_notice(tasks: tuple[BackgroundTask, ...]) -> str:
     """The message telling a chat's agent which of its ``run_in_background.py`` commands will never report.
 
@@ -128,7 +134,7 @@ def unreported_runner_ends_notice(tasks: tuple[BackgroundTask, ...]) -> str:
         "Check whether you still need each one, and start it again if you do:",
     ]
     for task in tasks:
-        command = f": `{task.command}`" if task.command else ""
+        command = f": {command_as_inline_code(task.command)}" if task.command else ""
         lines.append(f"- {task.description or task.id}{command} (started {started_at_text(task.started_at)})")
     lines.append(f"</{BACKGROUND_TASK_REPORT_TAG}>")
     return "\n".join(lines)

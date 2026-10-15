@@ -8,6 +8,7 @@ from chat_background_tasks.markers import TaskSource
 from imbue.chat.background_tasks import BACKGROUND_TASKS_DIRNAME
 from imbue.chat.background_tasks import BackgroundTask
 from imbue.chat.background_tasks import BackgroundTaskReader
+from imbue.chat.background_tasks import unreported_runner_ends_notice
 from imbue.chat.config import DEFAULT_CHAT_DATA_DIR
 from imbue.chat.primitives import ChatId
 from imbue.chat.testing import write_background_task_marker
@@ -81,3 +82,28 @@ def test_a_dead_runners_marker_is_claimed_once_and_nothing_else_is(tmp_path: Pat
         "harness-claude-claude-gone.json",
         "run_in_background-running.json",
     ]
+
+
+def test_the_unreported_end_notice_names_each_command_as_code_unless_a_backtick_would_break_it() -> None:
+    """The notice lists every command the agent will hear nothing more of; one holding a backtick is left as written,
+    since inline code would end at that backtick."""
+    tasks = tuple(
+        BackgroundTask(
+            source=TaskSource.RUN_IN_BACKGROUND,
+            id=task_id,
+            description=description,
+            started_at="2026-10-08T12:00:00+00:00",
+            pid=1,
+            command=command,
+        )
+        for task_id, description, command in (
+            ("serve", "Serve the docs", "python -m http.server 8000"),
+            ("stamp", "Stamp the build", "echo `date` > stamp.txt"),
+        )
+    )
+
+    notice = unreported_runner_ends_notice(tasks)
+
+    assert "<summary>2 background commands ended without a report</summary>" in notice
+    assert "- Serve the docs: `python -m http.server 8000` (started 2026-10-08 12:00 UTC)" in notice
+    assert "- Stamp the build: echo `date` > stamp.txt (started 2026-10-08 12:00 UTC)" in notice

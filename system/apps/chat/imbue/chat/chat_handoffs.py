@@ -43,6 +43,7 @@ from imbue.chat.agent_discovery import AgentInfo
 from imbue.chat.agent_discovery import SendFailedError
 from imbue.chat.agent_discovery import agent_state_dir
 from imbue.chat.background_tasks import BackgroundTask
+from imbue.chat.background_tasks import command_as_inline_code
 from imbue.chat.background_tasks import started_at_text
 from imbue.chat.chat_autocompact import ChatAutocompactState
 from imbue.chat.chat_records import ChatAgentEntry
@@ -228,7 +229,7 @@ def background_tasks_section(tasks: tuple[BackgroundTask, ...]) -> str:
         cells = (
             task.description or task.id,
             _task_starter(task),
-            f"`{task.command}`" if task.command and "`" not in task.command else task.command or "(not recorded)",
+            command_as_inline_code(task.command) if task.command else "(not recorded)",
             started_at_text(task.started_at),
             _task_outcome(task),
         )
