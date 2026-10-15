@@ -1,6 +1,6 @@
 # The interface's side of the theme contract (docs/system/blueprint/workspace-themes/, section 4), as the validator
 # checks a theme against it. The frontend's copy of the parts list is system/libs/workspace_ui/src/themes/parts.ts;
-# contract_test.py keeps the two, and the color tokens here and in base.css, equal.
+# the shell's theme_contract_test.py keeps the two, and the color tokens here and in base.css, equal.
 
 from typing import Final
 
