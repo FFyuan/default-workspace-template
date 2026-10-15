@@ -694,10 +694,18 @@ export function createMenu(options: MenuOptions): Menu {
     }
     // Trailing content rides BESIDE the button rather than inside it: buttons cannot nest,
     // and a trailing control may be a button of its own. The wrapper takes the slab, the
-    // hover and the tone, so the row still lights as one piece under either.
+    // hover and the tone, so the row still lights as one piece under either. It is the menu-item part, so it says
+    // the row's disabled state too, where a theme selects it.
     return m(
       "div",
-      { class: rowClass, ...MENU_ITEM_PART, ...rowKeyAttr(row.key), ...tooltipAttrs(row.tooltip), ...hover },
+      {
+        class: rowClass,
+        ...MENU_ITEM_PART,
+        "aria-disabled": isDisabled ? "true" : undefined,
+        ...rowKeyAttr(row.key),
+        ...tooltipAttrs(row.tooltip),
+        ...hover,
+      },
       [
         m(
           "button",

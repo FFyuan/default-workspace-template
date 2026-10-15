@@ -127,9 +127,16 @@ describe("a menu", () => {
 
   it("ignores a disabled action row and stays open", () => {
     const picked = vi.fn();
-    rows = [{ kind: "action", key: "go", label: "Go", isDisabled: true, onSelect: picked }];
+    rows = [
+      { kind: "action", key: "go", label: "Go", isDisabled: true, onSelect: picked },
+      { kind: "action", key: "more", label: "More", isDisabled: true, onSelect: picked, trailing: m("span", "x") },
+    ];
     menu.open(ANCHOR);
     expect(row("go").getAttribute("aria-disabled")).toBe("true");
+    // A row with trailing content is a wrapper around its button; the wrapper is the menu-item part a theme
+    // selects, so it carries the state too.
+    expect(row("more").dataset.part).toBe("menu-item");
+    expect(row("more").getAttribute("aria-disabled")).toBe("true");
     row("go").dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(picked).not.toHaveBeenCalled();
     expect(menu.isOpen()).toBe(true);
