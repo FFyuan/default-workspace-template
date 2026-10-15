@@ -4561,11 +4561,13 @@ class AgentManager:
             self._recompute_background_tasks(chat_id)
 
     def _recheck_busy_chats(self) -> None:
-        """Re-read every busy chat's markers, after each poller pass.
+        """After each background-task poller pass, recheck what no file stamp shows.
 
-        A marker goes stale when its process dies, which changes no file: a runner the
-        memory shedder killed leaves its marker behind. Re-reading the chats that have
-        live tasks is what returns such a chat to idle within a poll interval.
+        Counts the pass against every held finished-task removal and applies the ones no turn
+        claimed. Re-reads every busy chat's markers: a marker goes stale when its process dies,
+        which changes no file (a runner the memory shedder killed leaves its marker behind), and
+        this is what returns such a chat to idle within a poll interval. Re-derives every closing
+        turn, which its harness ends by removing a marker that nothing else re-reads.
         """
         with self._lock:
             busy_chat_ids = list(self._background_tasks_by_chat)
