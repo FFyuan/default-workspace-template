@@ -117,7 +117,7 @@ Under `data/.state/system_interface/`, written atomically under one process-wide
 `{"version": 1, "default": "<theme id>" | null, "desktops": {"<desktop id>": "<theme id>"}}`: the workspace's default theme, and each desktop that wears another (Desktop settings > Theme). Themes themselves are folders (`docs/system/blueprint/workspace-themes/`, section 3).
 
 - Kept beside `desktops.json` rather than in it: a shell from before themes still reads that file after a rollback, and its records refuse a key they do not know.
-- A desktop missing from `desktops` wears the default; a `default` of null is the standard theme. Setting a desktop back to the default drops its entry, and deleting a desktop drops its entry too.
+- A desktop missing from `desktops` wears the default; a `default` of null is the standard theme. Setting a desktop back to the default drops its entry, and deleting a desktop drops its entry too. A desktop id comes back after a delete, so creating a desktop drops any entry its id left behind (a desktop a shell from before themes deleted), and seeding the default desktop drops every desktop's entry.
 - A missing file, or one whose `version` is not 1 or that fails validation (logged), reads as the standard theme everywhere.
 - A theme that is no longer available (its folder removed, or failing validation) is worn as the standard theme; the file keeps the choice, so the theme comes back when its folder is fixed.
 - The desktop record on the wire (section 5.2) carries its own choice as `theme`, or null when it wears the default.

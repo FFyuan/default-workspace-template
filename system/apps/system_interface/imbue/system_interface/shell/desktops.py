@@ -307,6 +307,14 @@ class DesktopStore(MutableModel):
         )
         write_json_atomic(self._themes_path(), document.model_dump(mode="json"))
 
+    def _forget_desktop_themes_unlocked(self, desktop_ids: AbstractSet[DesktopId]) -> None:
+        """Drop the theme choices of ``desktop_ids``, so an id that comes back never wears a theme nobody chose for it;
+        written only when one of them had a choice."""
+        choices = self._read_themes_unlocked()
+        kept = {key: value for key, value in choices.theme_by_desktop_id.items() if key not in desktop_ids}
+        if len(kept) != len(choices.theme_by_desktop_id):
+            self._write_themes_unlocked(ThemeChoices(default=choices.default, theme_by_desktop_id=kept))
+
     def _offered_path(self) -> Path:
         return self.state_directory / DEFAULT_SHORTCUTS_OFFERED_FILENAME
 
@@ -345,13 +353,14 @@ class DesktopStore(MutableModel):
 
     def ensure_default(self, seed_shortcuts: Callable[[], Sequence[DesktopShortcut]]) -> list[Desktop]:
         """The desktops, after creating the default one when the file holds none (desktop plan section 3.2), with the
-        offered record started over from the apps of its seeded shortcuts."""
+        offered record started over from the apps of its seeded shortcuts and no desktop keeping a theme of its own."""
         with STATE_FILES_LOCK:
             document = self._read_unlocked()
             if document is not None and document.desktops:
                 return list(document.desktops)
             seeded = DesktopsDocument(version=DESKTOPS_FILE_VERSION, desktops=(default_desktop(seed_shortcuts()),))
             self._record_offered_unlocked(apps_with_a_shortcut_on(seeded.desktops), ())
+            self._forget_desktop_themes_unlocked(frozenset(self._read_themes_unlocked().theme_by_desktop_id))
             self._write_unlocked(seeded)
             logger.info(
                 "Created the default desktop {!r} with {} shortcut(s)",
@@ -419,7 +428,7 @@ class DesktopStore(MutableModel):
 
     def add_desktop(self, desktop: Desktop, default_shortcut_apps: AbstractSet[AppName]) -> Desktop:
         """Append a fully formed desktop (a created or a seeded one), recording as offered the apps whose default
-        shortcut it holds; an id already taken conflicts."""
+        shortcut it holds and dropping any theme choice its id left behind; an id already taken conflicts."""
         with STATE_FILES_LOCK:
             document = self._read_unlocked()
             existing_desktops = document.desktops if document is not None else ()
@@ -430,6 +439,7 @@ class DesktopStore(MutableModel):
                     f"(both shorten to '{desktop.id}')"
                 )
             self._record_offered_unlocked(default_shortcut_apps, existing_desktops)
+            self._forget_desktop_themes_unlocked({desktop.id})
             self._write_unlocked(
                 DesktopsDocument(version=DESKTOPS_FILE_VERSION, desktops=(*existing_desktops, desktop))
             )
@@ -500,14 +510,7 @@ class DesktopStore(MutableModel):
             if not remaining:
                 raise LastDesktopError(f"Desktop {doomed.name!r} is the last one and cannot be deleted")
             self._write_unlocked(DesktopsDocument(version=DESKTOPS_FILE_VERSION, desktops=remaining))
-            choices = self._read_themes_unlocked()
-            if doomed.id in choices.theme_by_desktop_id:
-                theme_by_desktop_id = {
-                    key: value for key, value in choices.theme_by_desktop_id.items() if key != doomed.id
-                }
-                self._write_themes_unlocked(
-                    ThemeChoices(default=choices.default, theme_by_desktop_id=theme_by_desktop_id)
-                )
+            self._forget_desktop_themes_unlocked({doomed.id})
         return DesktopDeleteOutcome(deleted=doomed, fallback_desktop_id=remaining[0].id)
 
     def set_shortcut(self, desktop_id: str, shortcut: DesktopShortcut) -> Desktop:
