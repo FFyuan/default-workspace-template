@@ -182,7 +182,6 @@ select {
   border-radius: 0;
   background-color: #ffffff;
   box-shadow: var(--theme-sunken);
-  font-family: var(--font-sans);
 }
 
 /* A native drop-down list: the sunk field with a raised arrow button at its right end (the shared drop-down draws its

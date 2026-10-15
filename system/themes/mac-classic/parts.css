@@ -192,12 +192,17 @@ input[type="radio"] {
   accent-color: #000000;
 }
 
-/* Fields: system.css's black box, in Geneva rather than the display face. */
+/* Fields: system.css's black box, in the page's face (a field the page sets in monospace keeps it); one in a menu
+   writes in Geneva rather than the menu's display face. */
 input,
 textarea,
 select {
-  font-family: var(--font-sans);
   border-radius: 0;
+}
+[data-part="menu"] input,
+[data-part="menu"] textarea,
+[data-part="menu"] select {
+  font-family: var(--font-sans);
 }
 
 /* Menus: a white card with a black edge and a hard shadow; the row under the pointer inverts. */
