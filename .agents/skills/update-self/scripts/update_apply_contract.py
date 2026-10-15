@@ -415,8 +415,10 @@ def _mirror_apply_into_run_status(
     Imbue Studio app reads. Stamping the two together at the marker's chokepoints is
     what lets the app size its apply window off this file alone -- the app
     stands back while ``apply_phase`` is set and for the recovery grace after
-    its last restamp, exactly as it did off the marker. A workspace with no run
-    record (an apply run by hand outside a pass) has nothing to report to.
+    its last restamp, exactly as it did off the marker. ``is_landed`` also
+    stamps ``applied_at``, which the app reads to say the update is finishing.
+    A workspace with no run record (an apply run by hand outside a pass) has
+    nothing to report to.
     """
     status = read_run_status(repo_root)
     if status is None:
