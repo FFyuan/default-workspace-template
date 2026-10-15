@@ -570,7 +570,7 @@ def _check_style_file(
     folder: Path,
     relative: str,
     allowed_parts: frozenset[str],
-    scoping_part_prefix: str | None = None,
+    scoping_part_prefix: str | None,
 ) -> tuple[list[str], int]:
     path = folder / relative
     if not relative.endswith(STYLE_FILE_SUFFIX):
@@ -603,7 +603,9 @@ def check_style_files(
     total_bytes = 0
     core_parts = frozenset(CORE_PARTS)
     for relative in manifest.styles.files:
-        file_problems, size = _check_style_file(folder, relative, core_parts)
+        file_problems, size = _check_style_file(
+            folder, relative, core_parts, scoping_part_prefix=None
+        )
         problems.extend(file_problems)
         total_bytes += size
     for app_name in manifest.styles.apps:
