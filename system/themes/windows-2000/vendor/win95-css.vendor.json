@@ -107,6 +107,16 @@
       "why": "Sized for Bootstrap's own button padding; the interface's buttons bring theirs."
     },
     {
+      "selector": "^\\.btn-primary$",
+      "property": "^padding-(left|right)$",
+      "why": "The same for the primary button: the interface's buttons bring their own padding."
+    },
+    {
+      "selector": "^\\.dropdown-item$",
+      "property": "^padding$",
+      "why": "Bootstrap's menu rows; the interface pads its own, which keeps a row's text and trailing controls off the edge of its highlight."
+    },
+    {
       "selector": "^\\.modal-header$",
       "property": "^height$",
       "why": "The dialog header is as tall as its title."
