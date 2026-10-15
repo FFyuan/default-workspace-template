@@ -725,7 +725,7 @@ export function ModelProviderMenu(): m.Component<ModelProviderMenuAttrs> {
         { class: "autocompact-help px-3 py-1.5 type-helper text-faint" },
         "Saves ~50% by compacting right before the cache expires.",
       ),
-      m("div", { role: "separator", class: menuDividerClass() }),
+      m("div", { role: "separator", class: menuDividerClass(), ...MENU_SEPARATOR_PART }),
       newChatsDefaultRow({
         markerClass: "autocompact-default",
         groupLabel: "Auto-compact for new chats",
