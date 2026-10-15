@@ -737,6 +737,7 @@ display_name = "File Viewer"
 icon = "icon.svg"
 critical = false
 stop_when_no_windows = true
+system = true
 priority = "files"
 launcher_rank = 20
 window_closed_path = "/api/window-closed"
@@ -775,6 +776,11 @@ default_mode = "floating"
 [[message_handlers]]
 type = "minds:focus-chat"
 path = "/api/focus-chat"
+
+[[message_handlers]]
+type = "open:file"
+show = "{path}?view"
+showing = ["{path}", "{path}/"]
 """
 
 
@@ -798,6 +804,7 @@ def test_manifest_registration_copies_every_field_onto_the_row(tmp_path: Path) -
     assert "instances" not in row and "instances_url" not in row
     assert row["critical"] is False
     assert row["stop_when_no_windows"] is True
+    assert row["system"] is True
     assert row["priority"] == "files"
     assert row["program"] == "files"
     assert "internal" not in row
@@ -823,7 +830,10 @@ def test_manifest_registration_copies_every_field_onto_the_row(tmp_path: Path) -
         },
     ]
     assert row["pin"] == {"path": "/", "style": "avatar", "scope": "independent", "default_mode": "floating"}
-    assert row["message_handlers"] == [{"type": "minds:focus-chat", "path": "/api/focus-chat"}]
+    assert row["message_handlers"] == [
+        {"type": "minds:focus-chat", "path": "/api/focus-chat"},
+        {"type": "open:file", "show": "{path}?view", "showing": ["{path}", "{path}/"]},
+    ]
 
 
 def test_manifest_registration_copies_only_the_pin_keys_the_manifest_wrote(tmp_path: Path) -> None:
@@ -878,8 +888,23 @@ def test_manifest_registration_copies_only_the_pin_keys_the_manifest_wrote(tmp_p
         ),
         pytest.param(
             '[[message_handlers]]\ntype = "minds:focus-chat"\n',
-            "every message handler needs a string 'type' and 'path'",
-            id="message-handler-without-a-path",
+            "every message handler needs exactly one of a string 'path' or 'show'",
+            id="message-handler-without-a-path-or-show",
+        ),
+        pytest.param(
+            '[[message_handlers]]\ntype = "open:file"\npath = "/api/open"\nshow = "{path}"\n',
+            "every message handler needs exactly one of a string 'path' or 'show'",
+            id="message-handler-with-a-path-and-show",
+        ),
+        pytest.param(
+            '[[message_handlers]]\ntype = "open:file"\nshow = "{path}"\nshowing = "{path}/"\n',
+            "a message handler's showing must be an array of strings",
+            id="message-handler-showing-not-an-array",
+        ),
+        pytest.param(
+            '[[message_handlers]]\ntype = "open:file"\npath = "/api/open"\nshowing = ["{path}/"]\n',
+            "a message handler gives 'showing' only beside 'show'",
+            id="message-handler-showing-beside-a-path",
         ),
         pytest.param(
             '[pin]\nstyle = "avatar"\n',
@@ -939,6 +964,7 @@ def test_manifest_registration_is_authoritative_on_every_call(tmp_path: Path) ->
         "instances",
         "instances_url",
         "stop_when_no_windows",
+        "system",
         "default_shortcut",
         "actions",
         "launch_paths",

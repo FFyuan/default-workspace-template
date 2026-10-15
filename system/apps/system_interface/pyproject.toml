@@ -54,11 +54,10 @@ dev = [
     # ratchet holds that).
     "chat",
     "ruff~=0.12.8",
-    # Used by check_no_type_errors in test_ratchets.py. Pinned to 0.0.24 because
-    # that is the version the source was last verified clean against (mngr's own
-    # uv.lock); newer versions surface stricter checks that don't
-    # match what this code was reviewed under.
-    "ty==0.0.24",
+    # Used by check_no_type_errors in test_ratchets.py. Pinned exactly because each
+    # ty release adds checks, so a new version is adopted together with the fixes it
+    # asks for.
+    "ty==0.0.85",
 ]
 
 [project.scripts]
@@ -122,12 +121,6 @@ format-command="uv run ruff format --force-exclude --config pyproject.toml --std
 # without one, a checkout nested in another project (e.g. a clone under mngr's
 # .external_worktrees/) would be checked as part of that project instead.
 [tool.ty]
-
-[tool.pyright]
-venvPath = "."
-venv = ".venv"
-pythonVersion = "3.12"
-strict = ["**/*.py"]
 
 # Ruff config mirrors mngr's pyproject.toml so that lint/isort behavior
 # matches what this code was previously checked under (it was a workspace
