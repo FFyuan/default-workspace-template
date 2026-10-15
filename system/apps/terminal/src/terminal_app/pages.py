@@ -26,6 +26,9 @@ from imbue.imbue_common.pure import pure
 from loguru import logger
 from pydantic import Field
 from workspace_layout.windows import parse_window_closed_hint, window_query_value
+from workspace_themes.contract import STANDARD_THEME_ID, TERMINAL_TOKENS
+from workspace_themes.primitives import THEME_ID_PATTERN
+from workspace_themes.serving import THEME_STATIC_ROUTE_PREFIX
 
 from terminal_app.errors import (
     InvalidTerminalValueError,
@@ -69,7 +72,41 @@ _CONFIG_ELEMENT_ID: Final[str] = "terminal-config"
 # The template's placeholders, filled in one pass so that a title or a config carrying a
 # placeholder's text is not itself filled.
 _PLACEHOLDER: Final[re.Pattern[str]] = re.compile(
-    r"__(TITLE|CONFIG_ID|CONFIG|CONTRACT_PATH)__"
+    r"__(TITLE|CONFIG_ID|CONFIG|CONTRACT_PATH|THEME)__"
+)
+
+# xterm's theme keys for the contract's terminal tokens, in TERMINAL_TOKENS' order: the four colors, then the
+# sixteen ANSI ones.
+_XTERM_THEME_KEYS: Final[tuple[str, ...]] = (
+    "background",
+    "foreground",
+    "cursor",
+    "selectionBackground",
+    "black",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+    "brightBlack",
+    "brightRed",
+    "brightGreen",
+    "brightYellow",
+    "brightBlue",
+    "brightMagenta",
+    "brightCyan",
+    "brightWhite",
+)
+# What the script needs to know of workspace themes, from the theme library rather than copied into the script.
+_THEME_SCRIPT_CONFIG: Final[str] = json.dumps(
+    {
+        "standard": STANDARD_THEME_ID,
+        "idPattern": THEME_ID_PATTERN.pattern,
+        "bundlePrefix": THEME_STATIC_ROUTE_PREFIX,
+        "paletteTokens": dict(zip(_XTERM_THEME_KEYS, TERMINAL_TOKENS, strict=True)),
+    }
 )
 
 _PAGE_TEMPLATE: Final[str] = """<!doctype html>
@@ -278,17 +315,10 @@ _PAGE_TEMPLATE: Final[str] = """<!doctype html>
   // into a blank frame of this origin that nobody sees, never into this page: the --term-* tokens are read there
   // once it has loaded and handed to the pty page's xterm, and the theme's rules style nothing here. The standard
   // theme sets none, which leaves xterm its own colors.
-  const PALETTE_TOKENS = {
-    background: "--term-background",
-    foreground: "--term-foreground",
-    cursor: "--term-cursor",
-    selectionBackground: "--term-selection",
-  };
-  const ANSI_NAMES = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
-  ANSI_NAMES.forEach((name, index) => {
-    PALETTE_TOKENS[name] = `--term-ansi-${index}`;
-    PALETTE_TOKENS[`bright${name[0].toUpperCase()}${name.slice(1)}`] = `--term-ansi-${index + 8}`;
-  });
+  // The standard theme's id, the pattern a theme id matches, where a theme's bundle is served, and each xterm color's
+  // --term-* token.
+  const THEME = __THEME__;
+  const THEME_ID = new RegExp(THEME.idPattern);
   let palette = undefined;
   let paletteFrame = null;
   // The theme and revision worn or loading, so a repeated shell:theme reloads nothing.
@@ -297,7 +327,7 @@ _PAGE_TEMPLATE: Final[str] = """<!doctype html>
   function readPalette(probe) {
     const style = probe.contentWindow.getComputedStyle(probe.contentDocument.documentElement);
     const read = {};
-    for (const [key, token] of Object.entries(PALETTE_TOKENS)) {
+    for (const [key, token] of Object.entries(THEME.paletteTokens)) {
       const value = style.getPropertyValue(token).trim();
       if (value !== "") read[key] = value;
     }
@@ -305,13 +335,13 @@ _PAGE_TEMPLATE: Final[str] = """<!doctype html>
   }
 
   function wearTheme(theme, revision) {
-    if (!/^[a-z0-9][a-z0-9-]{0,47}$/.test(theme)) return;
+    if (!THEME_ID.test(theme)) return;
     const key = `${theme}@${revision}`;
     if (key === wornTheme) return;
     wornTheme = key;
     paletteFrame?.remove();
     paletteFrame = null;
-    if (theme === "standard") {
+    if (theme === THEME.standard) {
       palette = null;
       postToPty({ type: "terminal:theme", theme: null });
       return;
@@ -327,7 +357,7 @@ _PAGE_TEMPLATE: Final[str] = """<!doctype html>
     probeDocument.documentElement.dataset.uiTheme = theme;
     const link = probeDocument.createElement("link");
     link.rel = "stylesheet";
-    const bundlePath = `/_static/themes/${theme}/theme.css` + (revision ? `?v=${encodeURIComponent(revision)}` : "");
+    const bundlePath = `${THEME.bundlePrefix}${theme}/theme.css` + (revision ? `?v=${encodeURIComponent(revision)}` : "");
     link.href = new URL(bundlePath, location.href).href;
     link.addEventListener("load", () => {
       if (paletteFrame !== probe) return;
@@ -445,6 +475,7 @@ def render_page(config: PageConfig) -> str:
         "CONFIG_ID": _CONFIG_ELEMENT_ID,
         "CONFIG": encoded,
         "CONTRACT_PATH": APP_CONTRACT_ROUTE,
+        "THEME": _THEME_SCRIPT_CONFIG,
     }
     return _PLACEHOLDER.sub(lambda match: values[match.group(1)], _PAGE_TEMPLATE)
 
