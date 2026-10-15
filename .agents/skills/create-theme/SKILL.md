@@ -59,7 +59,9 @@ style, chrome setting, and icon its base has, and sets only what differs.
   contract's list (section 4.2). No `@import`, no remote `url()`.
 - **`theme.toml`**: add `[chrome]` (section 4.3) when the controls move, and `[icons]`
   (section 6.1) with `icons/guide.md` when the icons look different from the base's. A theme
-  with its own `[icons]` also needs `icons/app.<format>`, the generic program icon.
+  with its own `[icons]` also needs `icons/app.<format>`, the generic program icon, and is
+  unavailable (and fails step 4's check) until it has one: once the icon guide is written, draw
+  it yourself, in the foreground, with the `make-theme-icon` skill, installed with `--app app`.
 - **`apps/<app>.css`**, optional: styles for parts an app declares in its `app.toml`
   (`[theming] mode = "parts"`; chat declares `chat.user-message`, `chat.composer`,
   `chat.tool-call`). List each such app by its name under `[styles] apps` (`apps = ["chat"]`).
@@ -110,8 +112,8 @@ the theme's look.
 uv run workspace-themes icon missing <id>
 ```
 
-names the apps still without one, and `app` while the generic program icon is missing (the theme is
-unavailable until it has one; the icon commands still take it). Make each with the `make-theme-icon` skill, in the background
+names the apps still without one, and `app` while the generic program icon is missing (step 3
+draws that one; the theme is unavailable until it has it, though the icon commands still take it). Make each with the `make-theme-icon` skill, in the background
 (the `launch-task` skill) when there are more than one or two (a background agent installs into the
 live workspace, as that skill says, and names the icons it put in `themes/<id>/icons/`; commit them
 with the theme once they land), and show the user the theme while they land. The theme is finished when the command prints `every theme has an icon for every app`.
