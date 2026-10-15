@@ -55,7 +55,7 @@ def _model_drawing() -> Image.Image:
     return image
 
 
-def test_a_model_s_drawing_is_fitted_onto_a_one_bit_theme(tmp_path: Path) -> None:
+def test_a_model_s_drawing_is_fitted_onto_a_one_bit_theme() -> None:
     spec = _spec(palette=("#000000", "#ffffff"))
 
     fitted = fit_icon_image(_model_drawing(), spec)
