@@ -100,18 +100,22 @@ PTY_PAGE_SCRIPT: Final[str] = r"""
   let themeRetries = 0;
   function applyTheme(theme) {
     pendingTheme = theme;
-    if (themeTimer === null) applyPendingTheme();
+    if (themeTimer !== null) return;
+    themeRetries = 0;
+    applyPendingTheme();
   }
   function applyPendingTheme() {
     themeTimer = null;
     const term = window.term;
     if (term === undefined) {
-      if (themeRetries >= THEME_RETRY_LIMIT) return;
+      if (themeRetries >= THEME_RETRY_LIMIT) {
+        console.warn("[terminal] gave up waiting for the terminal to apply the workspace theme's palette");
+        return;
+      }
       themeRetries += 1;
       themeTimer = setTimeout(applyPendingTheme, THEME_RETRY_MS);
       return;
     }
-    themeRetries = 0;
     if (ownTheme === null) ownTheme = { ...(term.options.theme ?? {}) };
     term.options.theme = pendingTheme === null ? ownTheme : { ...ownTheme, ...pendingTheme };
   }
