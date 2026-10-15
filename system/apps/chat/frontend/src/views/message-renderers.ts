@@ -22,7 +22,6 @@ import { ToolChipGroup, type ChipEntry } from "./ToolChipGroup";
 import { AutocompactNotice } from "./AutocompactNotice";
 import { compactionChips, type CompactionPart } from "./compaction-chips";
 import { badgeClass } from "@imbue/workspace-ui/src/components/Badge";
-import { BADGE_PART } from "@imbue/workspace-ui/src/themes/parts";
 
 /** A permission-request tool call's own verdict: its own request id's entry in
  *  `resolutionsByRequestId`, or null while the request awaits a decision (or
@@ -393,9 +392,7 @@ export function renderSubagentCard(toolCall: ToolCall, chatId: string, isRunning
           { class: "subagent-card-description truncate text-(length:--font-size-body) font-medium text-primary" },
           description,
         ),
-        agentType
-          ? m("span", { class: badgeClass("accent", { mono: true, extra: "shrink-0" }), ...BADGE_PART }, agentType)
-          : null,
+        agentType ? m("span", { class: badgeClass("accent", { mono: true, extra: "shrink-0" }) }, agentType) : null,
       ]),
       // The click-through needs the subagent session_id, which only arrives once the call is
       // linked. The label stays "View conversation" throughout so it doesn't flip-flop; before
