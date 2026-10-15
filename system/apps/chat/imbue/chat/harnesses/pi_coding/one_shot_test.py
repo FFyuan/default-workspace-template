@@ -139,24 +139,19 @@ def test_complete_raises_with_every_models_failure_when_none_answers(
         _complete_on_an_anthropic_account(tmp_path)
 
 
-def test_complete_asks_no_model_when_pi_offers_none_on_the_account(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("list_models_body", "error_match"),
+    [
+        pytest.param('echo "No models available. Use /login to authenticate."', "no model", id="pi-offers-none"),
+        pytest.param('echo "auth.json is unreadable" >&2; exit 1', "could not list", id="pi-cannot-list"),
+    ],
+)
+def test_complete_asks_no_model_when_pi_offers_none_on_the_account_or_cannot_list_them(
+    list_models_body: str, error_match: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    log_path = put_stand_in_cli_on_path(
-        tmp_path, "pi", 'echo "No models available. Use /login to authenticate."', monkeypatch
-    )
+    log_path = put_stand_in_cli_on_path(tmp_path, "pi", list_models_body, monkeypatch)
 
-    with pytest.raises(OneShotCompletionError, match="no model"):
-        _complete_on_an_anthropic_account(tmp_path)
-    assert log_path.read_text().splitlines() == ["--list-models"]
-
-
-def test_complete_asks_no_model_when_pi_cannot_list_the_accounts_models(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    log_path = put_stand_in_cli_on_path(tmp_path, "pi", 'echo "auth.json is unreadable" >&2; exit 1', monkeypatch)
-
-    with pytest.raises(OneShotCompletionError, match="could not list"):
+    with pytest.raises(OneShotCompletionError, match=error_match):
         _complete_on_an_anthropic_account(tmp_path)
     assert log_path.read_text().splitlines() == ["--list-models"]
 
