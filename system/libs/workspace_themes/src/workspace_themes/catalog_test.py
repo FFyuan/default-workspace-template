@@ -8,6 +8,7 @@ from workspace_themes.catalog import (
     CachingThemeCatalogLoader,
     ThemeRoot,
     default_theme_roots,
+    read_app_parts_by_app,
     read_theme_catalog,
 )
 from workspace_themes.contract import (
@@ -274,13 +275,21 @@ def test_an_app_manifest_that_is_not_utf8_is_left_out_of_the_catalog(
     tmp_path: Path,
 ) -> None:
     write_standard_theme(tmp_path)
-    app = tmp_path / "system" / "apps" / "broken"
-    app.mkdir(parents=True)
-    (app / "app.toml").write_bytes(b'name = "broken"\ndisplay_name = "\xff"\n')
+    apps = tmp_path / "system" / "apps"
+    (apps / "broken").mkdir(parents=True)
+    (apps / "broken" / "app.toml").write_bytes(
+        b'name = "broken"\ndisplay_name = "\xff"\n'
+    )
+    (apps / "files").mkdir()
+    (apps / "files" / "app.toml").write_text(
+        'name = "files"\ndisplay_name = "File Viewer"\ninternal = true\n',
+        encoding="utf-8",
+    )
 
     catalog = CachingThemeCatalogLoader(repo_root=tmp_path).load()
 
     assert catalog.find_available("standard") is not None
+    assert set(read_app_parts_by_app(tmp_path)) == {AppName("files")}
 
 
 def test_a_missing_root_reads_as_no_themes(tmp_path: Path) -> None:
