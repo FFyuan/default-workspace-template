@@ -19,6 +19,7 @@ from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_grants import load_agent_grants
 from share_gateway.agent_routes import AgentAccessContext
+from share_gateway.agent_routes import JoinRateLimiter
 from share_gateway.agent_routes import register_agent_routes
 from share_gateway.agent_workspace import WorkspaceCoordinates
 from share_gateway.caddyfile import RegisteredApp
@@ -250,6 +251,20 @@ def test_join_is_rate_limited_per_client_address(tmp_path: Path) -> None:
         headers={"X-Forwarded-For": "198.51.100.8"},
     )
     assert other.status_code == 403
+
+
+def test_join_rate_limiter_forgets_addresses_whose_window_has_passed() -> None:
+    limiter = JoinRateLimiter(attempts_per_minute=2)
+    for index in range(1500):
+        assert limiter.allow(f"203.0.113.{index}", 0.0)
+    assert limiter.tracked_address_count == 1500
+    assert limiter.allow("198.51.100.1", 61.0)
+    assert limiter.tracked_address_count == 1
+    # An address still inside its window keeps its attempts across a sweep.
+    assert limiter.allow("198.51.100.1", 62.0)
+    for index in range(1500):
+        limiter.allow(f"203.0.113.{index}", 62.0)
+    assert not limiter.allow("198.51.100.1", 63.0)
 
 
 # --- me, primer, skills, changes ---

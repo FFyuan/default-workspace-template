@@ -68,26 +68,49 @@ HELPER_FILENAME = "wsvisit.cjs"
 HELPER_PATH = Path(__file__).parent / "helper" / HELPER_FILENAME
 _JOIN_ATTEMPTS_PER_MINUTE = 10
 _JOIN_WINDOW_SECONDS = 60.0
+_MAX_TRACKED_ADDRESSES = 1024
 _MAX_BODY_BYTES = 16 * 1024
 
 
 class JoinRateLimiter:
-    """At most N join attempts per client address per minute."""
+    """At most N join attempts per client address per minute.
+
+    The join route is unauthenticated, so the addresses it sees are unbounded;
+    once the map holds more than ``_MAX_TRACKED_ADDRESSES`` of them, every
+    address whose attempts have all left the window is forgotten.
+    """
 
     def __init__(self, attempts_per_minute: int = _JOIN_ATTEMPTS_PER_MINUTE) -> None:
         self._attempts_per_minute = attempts_per_minute
         self._attempt_times_by_address: dict[str, deque[float]] = {}
         self._lock = threading.Lock()
 
+    @property
+    def tracked_address_count(self) -> int:
+        with self._lock:
+            return len(self._attempt_times_by_address)
+
     def allow(self, address: str, now_monotonic: float) -> bool:
         with self._lock:
+            if len(self._attempt_times_by_address) > _MAX_TRACKED_ADDRESSES:
+                self._forget_idle_addresses(now_monotonic)
             attempts = self._attempt_times_by_address.setdefault(address, deque())
-            while attempts and now_monotonic - attempts[0] >= _JOIN_WINDOW_SECONDS:
-                attempts.popleft()
+            _drop_attempts_outside_window(attempts, now_monotonic)
             if len(attempts) >= self._attempts_per_minute:
                 return False
             attempts.append(now_monotonic)
             return True
+
+    def _forget_idle_addresses(self, now_monotonic: float) -> None:
+        for address, attempts in list(self._attempt_times_by_address.items()):
+            _drop_attempts_outside_window(attempts, now_monotonic)
+            if not attempts:
+                del self._attempt_times_by_address[address]
+
+
+def _drop_attempts_outside_window(attempts: deque[float], now_monotonic: float) -> None:
+    while attempts and now_monotonic - attempts[0] >= _JOIN_WINDOW_SECONDS:
+        attempts.popleft()
 
 
 class AgentAccessContext:
