@@ -275,7 +275,7 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
       return m(
         "nav.files-sidebar",
         {
-          class: `flex shrink-0 flex-col bg-sidebar ${
+          class: `flex shrink-0 flex-col bg-surface ${
             floating ? "fixed inset-y-0 left-0 z-(--z-overlay) max-w-[85vw] shadow-overlay" : "relative"
           }`,
           style: `width:${model.preferences.sidebarWidth}px`,

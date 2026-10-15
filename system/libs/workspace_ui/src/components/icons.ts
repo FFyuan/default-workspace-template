@@ -136,7 +136,8 @@ export function icon(name: IconName, opts: IconOptions = {}): string {
 
 let badgeMaskCount = 0;
 
-/** `name` with `badge` small in its bottom-right corner, the icon cut away around it so it reads on any background. */
+/** `name` with `badge` white on a solid disc in its bottom-right corner, the icon cut away around the disc so it
+ *  reads on any background. */
 export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = {}): string {
   const dims = opts.size === undefined ? "" : ` width="${opts.size}" height="${opts.size}"`;
   const cls = opts.className ? ` class="${opts.className}"` : "";
@@ -146,7 +147,8 @@ export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = 
     `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
     `<mask id="${mask}"><rect width="24" height="24" fill="#fff"/><circle cx="19" cy="19" r="7.5" fill="#000"/></mask>` +
     `<g mask="url(#${mask})">${STROKE_PATHS[name]}</g>` +
-    `<g transform="translate(13.6 13.6) scale(0.45)" stroke-width="3.4">${STROKE_PATHS[badge]}</g></svg>`
+    `<circle cx="19" cy="19" r="6" fill="currentColor" stroke="none"/>` +
+    `<g transform="translate(15.04 15.04) scale(0.33)" stroke="#fff" stroke-width="4.2">${STROKE_PATHS[badge]}</g></svg>`
   );
 }
 
