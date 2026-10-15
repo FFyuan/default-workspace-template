@@ -113,10 +113,11 @@ MAX_DISPLAY_NAME_LENGTH = 64
 
 # Service-name rule: lowercase alphanumeric/underscore runs separated by
 # single hyphens (no uppercase, no leading/trailing/consecutive hyphens).
-# The registered name becomes the leading label of the service's origin
-# hostname (http://<name>.host-<hex>.localhost:8421/ locally; share
-# hostnames follow the same prefix rule on a longer base), so it must work
-# as a hostname label. Underscores are tolerated for legacy names --
+# The registered name seeds the leading label of the service's origin
+# hostname: ``mint_service_label`` derives ``<name>-<rand>`` from it, served
+# at http://<name>-<rand>.host-<hex>.localhost:8421/ locally (share hostnames
+# follow the same prefix rule on a longer base), so the name must work as a
+# hostname label. Underscores are tolerated for legacy names --
 # ``system_interface`` predates this scheme; ``mint_service_label`` turns
 # them into hyphens in the origin label -- but new apps should stick to
 # kebab-case (the build-app scaffold enforces the stricter rule; a drift test
