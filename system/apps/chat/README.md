@@ -377,8 +377,8 @@ call to the new model instead of breaking it:
   effort; the account's default model when it offers no luna, or refuses it.
 - Pi: `pi -p` with no tools, extensions, skills or context files and thinking
   off, on the newest Haiku, Luna or Flash model `pi --list-models` offers on the
-  provider the account holds a key for; the model a new pi chat on the account
-  starts on when it offers none of them, or refuses the one chosen. The server's
+  provider the account holds a key for; pi's own default model for the account
+  when it offers none of them, or refuses the one chosen. The server's
   own provider keys are dropped from the call's environment, so it is paid for by
   the account; and since pi picks that default from every provider it can reach,
   it is not tried when pi also lists models from other credentials (an `~/.aws`

@@ -3,7 +3,7 @@
 A pi account is a key for one provider, and providers name their models differently, so the
 model is picked by family from what ``pi --list-models`` offers on the account's provider: the
 newest Haiku, Luna or Flash model, with thinking off. An account offering none of them runs on
-the model a new pi chat on it would start on, when that model is sure to be the account's.
+pi's own default model for the account, when that model is sure to be the account's.
 """
 
 import os
