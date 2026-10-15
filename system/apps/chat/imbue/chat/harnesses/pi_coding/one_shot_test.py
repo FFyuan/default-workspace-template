@@ -97,14 +97,16 @@ cat > /dev/null
 echo 'Rome trip: plan five days'"""
 
 
+def _complete_on_an_anthropic_account(tmp_path: Path) -> str:
+    return PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
+
+
 def test_complete_answers_on_the_newest_haiku_the_account_offers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     log_path = put_stand_in_cli_on_path(tmp_path, "pi", _LIST_MODELS_THEN_ANSWER, monkeypatch)
 
-    answer = PiOneShotCompletion().complete(
-        make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome"
-    )
+    answer = _complete_on_an_anthropic_account(tmp_path)
 
     assert answer == "Rome trip: plan five days"
     calls = log_path.read_text().splitlines()
@@ -118,9 +120,7 @@ def test_complete_falls_back_to_the_default_model_when_the_chosen_one_fails(
     body = 'case " $* " in *" --model "*) echo "400: model not found" >&2; exit 1;; esac\n' + _LIST_MODELS_THEN_ANSWER
     log_path = put_stand_in_cli_on_path(tmp_path, "pi", body, monkeypatch)
 
-    answer = PiOneShotCompletion().complete(
-        make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome"
-    )
+    answer = _complete_on_an_anthropic_account(tmp_path)
 
     assert answer == "Rome trip: plan five days"
     model_calls = [call for call in log_path.read_text().splitlines() if call != "--list-models"]
@@ -136,7 +136,7 @@ def test_complete_raises_with_every_models_failure_when_none_answers(
     put_stand_in_cli_on_path(tmp_path, "pi", body, monkeypatch)
 
     with pytest.raises(OneShotCompletionError, match="claude-haiku-5-5: .*401.*default model: .*401"):
-        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
+        _complete_on_an_anthropic_account(tmp_path)
 
 
 def test_complete_asks_no_model_when_pi_offers_none_on_the_account(
@@ -147,7 +147,7 @@ def test_complete_asks_no_model_when_pi_offers_none_on_the_account(
     )
 
     with pytest.raises(OneShotCompletionError, match="no model"):
-        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
+        _complete_on_an_anthropic_account(tmp_path)
     assert log_path.read_text().splitlines() == ["--list-models"]
 
 
@@ -157,7 +157,7 @@ def test_complete_asks_no_model_when_pi_cannot_list_the_accounts_models(
     log_path = put_stand_in_cli_on_path(tmp_path, "pi", 'echo "auth.json is unreadable" >&2; exit 1', monkeypatch)
 
     with pytest.raises(OneShotCompletionError, match="could not list"):
-        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
+        _complete_on_an_anthropic_account(tmp_path)
     assert log_path.read_text().splitlines() == ["--list-models"]
 
 
@@ -166,4 +166,4 @@ def test_complete_raises_when_pi_prints_no_answer(tmp_path: Path, monkeypatch: p
     put_stand_in_cli_on_path(tmp_path, "pi", body, monkeypatch)
 
     with pytest.raises(OneShotCompletionError, match="no answer"):
-        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
+        _complete_on_an_anthropic_account(tmp_path)
