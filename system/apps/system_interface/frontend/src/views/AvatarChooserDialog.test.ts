@@ -11,6 +11,7 @@ afterEach(unmountViews);
 function render(overrides: Partial<AvatarChooserDialogAttrs> = {}): HTMLElement {
   const attrs: AvatarChooserDialogAttrs = {
     designs: [
+      { id: "imbue-character", label: "Imbue", source_path: null },
       { id: "gummy-seal", label: "Gummy seal", source_path: null },
       { id: "mine", label: "Mine", source_path: "/tmp/mine.svg" },
     ],
@@ -30,13 +31,25 @@ describe("AvatarChooserDialog", () => {
     const onSelect = vi.fn();
     const dialog = render({ onSelect });
     const cells = dialog.querySelectorAll<HTMLElement>("[data-avatar-design]");
-    expect([...cells].map((cell) => cell.getAttribute("data-avatar-design"))).toEqual(["gummy-seal", "mine"]);
-    expect(cells[0].getAttribute("aria-pressed")).toBe("false");
-    expect(cells[1].getAttribute("aria-pressed")).toBe("true");
-    expect(cells[0].querySelector("img")?.getAttribute("src")).toBe(
+    expect([...cells].map((cell) => cell.getAttribute("data-avatar-design"))).toEqual([
+      "imbue-character",
+      "gummy-seal",
+      "mine",
+    ]);
+    expect([...cells].map((cell) => cell.getAttribute("aria-pressed"))).toEqual(["false", "false", "true"]);
+    expect(cells[1].querySelector("img")?.getAttribute("src")).toBe(
       "/api/avatars/gummy-seal/image.svg?mood=idle&preview=1",
     );
-    cells[0].click();
+    // Each choice is a tile and its picture the avatar part, which a theme dresses as it does the taskbar's.
+    expect([...cells].map((cell) => cell.getAttribute("data-part"))).toEqual(["tile", "tile", "tile"]);
+    const pictures = [...cells].map((cell) => cell.querySelector("img")!);
+    expect(pictures.map((picture) => picture.getAttribute("data-part"))).toEqual(["avatar", "avatar", "avatar"]);
+    expect(pictures.map((picture) => picture.getAttribute("data-avatar-kind"))).toEqual([
+      "character",
+      "image",
+      "image",
+    ]);
+    cells[1].click();
     expect(onSelect).toHaveBeenCalledWith("gummy-seal");
     const source = dialog.querySelector("[data-avatar-source]") as HTMLAnchorElement;
     expect(source.getAttribute("href")).toBe("/api/avatars/mine/source.svg");

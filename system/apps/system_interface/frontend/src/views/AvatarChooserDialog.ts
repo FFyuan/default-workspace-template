@@ -10,8 +10,10 @@ import m from "mithril";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import { Modal } from "@imbue/workspace-ui/src/components/Modal";
+import { TILE_PART, partAttrs } from "@imbue/workspace-ui/src/themes/parts";
 import { avatarImageUrl, avatarSourceUrl } from "../model/api";
 import type { AvatarDesign } from "../model/records";
+import { IMBUE_CHARACTER_DESIGN_ID } from "./character/ImbueCharacter";
 
 /** The disabled "Design your own..." button's tooltip. */
 export const NO_DRAFT_TARGET_REASON = "No pinned window on this desktop takes a draft";
@@ -44,6 +46,7 @@ function designCell(design: AvatarDesign, attrs: AvatarChooserDialogAttrs): m.Vn
       key: design.id,
       type: "button",
       "data-avatar-design": design.id,
+      ...TILE_PART,
       "aria-pressed": isSelected ? "true" : "false",
       class:
         "flex min-w-0 cursor-pointer flex-col items-center gap-1 rounded-md border p-2 text-center type-helper " +
@@ -52,7 +55,14 @@ function designCell(design: AvatarDesign, attrs: AvatarChooserDialogAttrs): m.Vn
       onclick: () => attrs.onSelect(design.id),
     },
     [
-      m("img", { src: avatarImageUrl(design.id, "idle", true), alt: "", draggable: false, class: "size-14" }),
+      m("img", {
+        ...partAttrs("avatar"),
+        "data-avatar-kind": design.id === IMBUE_CHARACTER_DESIGN_ID ? "character" : "image",
+        src: avatarImageUrl(design.id, "idle", true),
+        alt: "",
+        draggable: false,
+        class: "size-14",
+      }),
       m("span", { class: "w-full truncate" }, design.label),
     ],
   );
