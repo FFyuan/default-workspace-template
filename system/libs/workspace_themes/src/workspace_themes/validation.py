@@ -162,6 +162,12 @@ def check_folder_files(folder: Path) -> list[str]:
             continue
         if not path.is_file():
             continue
+        # A hidden file of a kind a theme never serves (a .DS_Store, an editor's swap file) cannot reach a page.
+        if (
+            path.name.startswith(".")
+            and path.suffix.lower() not in ALLOWED_FILE_SUFFIXES
+        ):
+            continue
         if relative == BUNDLE_FILE_NAME:
             problems.append(
                 f"{relative}: {BUNDLE_FILE_NAME} is the bundle's name; call the style file something else"

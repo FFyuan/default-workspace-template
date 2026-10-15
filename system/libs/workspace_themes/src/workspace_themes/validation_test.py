@@ -253,6 +253,18 @@ def test_a_theme_folder_may_not_hold_scripts_or_links(tmp_path: Path) -> None:
     ]
 
 
+def test_hidden_files_a_theme_never_serves_are_left_alone(tmp_path: Path) -> None:
+    (tmp_path / ".DS_Store").write_bytes(b"\x00\x00\x00\x01Bud1")
+    (tmp_path / ".parts.css.swp").write_bytes(b"b0VIM")
+    (tmp_path / "icons").mkdir()
+    (tmp_path / "icons" / ".gitkeep").write_text("", encoding="utf-8")
+    (tmp_path / "evil.js").write_text("alert(1)", encoding="utf-8")
+
+    problems = check_folder_files(tmp_path)
+
+    assert problems == ["evil.js: a theme may not contain .js files"]
+
+
 def test_a_theme_s_own_svg_icons_are_held_to_the_svg_icon_rules(tmp_path: Path) -> None:
     icons_directory = tmp_path / "icons"
     icons_directory.mkdir()
