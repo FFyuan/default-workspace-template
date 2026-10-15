@@ -240,6 +240,13 @@ def register_agent_routes(
             return _error("authentication required", 401)
         return human
 
+    def _agent_only() -> "_AgentCaller | Response":
+        """The bearer-authenticated caller of a route only agents may use, or the refusal to answer with."""
+        agent = _agent_caller()
+        if agent is None:
+            return _error("authentication required", 401)
+        return agent
+
     def _access_document(grant: AgentGrant, token: str | None) -> dict[str, object]:
         apps = get_registered_apps()
         document: dict[str, object] = {
@@ -311,18 +318,14 @@ def register_agent_routes(
 
     @app.get("/_agent/me")
     def me() -> Response:
-        caller = _agent_caller()
-        if caller is None:
-            return _error("authentication required", 401)
+        caller = _agent_only()
         if isinstance(caller, Response):
             return caller
         return _json(_access_document(caller.grant, None))
 
     @app.get("/_agent/primer")
     def primer() -> Response:
-        caller = _agent_caller()
-        if caller is None:
-            return _error("authentication required", 401)
+        caller = _agent_only()
         if isinstance(caller, Response):
             return caller
         now = context.now()
@@ -353,9 +356,7 @@ def register_agent_routes(
 
     @app.get("/_agent/skills")
     def skills() -> Response:
-        caller = _agent_caller()
-        if caller is None:
-            return _error("authentication required", 401)
+        caller = _agent_only()
         if isinstance(caller, Response):
             return caller
         return _json(
@@ -368,9 +369,7 @@ def register_agent_routes(
 
     @app.get("/_agent/changes")
     def changes() -> Response:
-        caller = _agent_caller()
-        if caller is None:
-            return _error("authentication required", 401)
+        caller = _agent_only()
         if isinstance(caller, Response):
             return caller
         since = parse_since(request.args.get("since", ""))
