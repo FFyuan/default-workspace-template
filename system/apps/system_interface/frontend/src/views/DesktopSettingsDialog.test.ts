@@ -298,17 +298,15 @@ describe("the Theme row's pictures", () => {
     });
     render({
       previewApp: files,
-      themes: themeCatalog(
-        themeRecord("standard", { name: "Standard", icons: null }),
-        themeRecord("mac-classic", { name: "Classic Mac" }),
-      ),
+      themes: themeCatalog(themeRecord("mac-classic", { name: "Classic Mac" })),
     });
 
-    const pictures = Array.from(card().querySelectorAll("[data-theme-picture]")).map((p) =>
-      p.getAttribute("data-theme-picture"),
+    expect(
+      card().querySelector('[data-theme="standard"] [data-theme-picture="standard"] rect')?.getAttribute("fill"),
+    ).toBe("#123456");
+    expect(card().querySelector('[data-theme="mac-classic"] img')?.getAttribute("src")).toBe(
+      "/api/themes/mac-classic/icons/files.png?v=rev-mac-classic",
     );
-    expect(pictures).toContain("standard");
-    expect(card().querySelector('[data-theme-picture="standard"] rect')?.getAttribute("fill")).toBe("#123456");
   });
 });
 
