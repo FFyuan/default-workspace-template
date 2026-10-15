@@ -42,6 +42,18 @@ export function modeOf(share: Share): ShareMode {
   return share.access === "write" ? "two-way" : "one-way";
 }
 
+/** The badge a share wears on its icon: a chain when it is read live, arrows when a copy of it is kept here. */
+export type ShareBadge = "linked" | "synced";
+
+export function shareBadgeOf(share: Share): ShareBadge {
+  return share.synced_copy === null ? "linked" : "synced";
+}
+
+/** The share whose own folder or file is at `path` (not one it holds), if any. */
+export function shareRootAt(connections: Connections | null, path: string): Share | undefined {
+  return connections?.shares.find((share) => targetOf(share) === path);
+}
+
 export function deviceNameOf(connections: Connections, device: string): string {
   return connections.devices.find((candidate) => candidate.id === device)?.name ?? "your computer";
 }
@@ -112,6 +124,19 @@ export async function fetchConnections(signal?: AbortSignal): Promise<Connection
   const response = await fetch(CONNECTIONS_API, { signal });
   if (!response.ok) throw await failureOf(response, "Couldn't read your connections");
   return (await response.json()) as Connections;
+}
+
+/** Something dragged in from the user's computer to connect: all a browser tells of it is its name and kind. */
+export interface DroppedItem {
+  name: string;
+  isFolder: boolean;
+}
+
+/** A connection asked for and not yet approved: shown as a waiting row until its share appears. */
+export interface PendingConnection {
+  key: string;
+  name: string;
+  isFolder: boolean;
 }
 
 export interface ConnectionRequest {

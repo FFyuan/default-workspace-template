@@ -135,30 +135,41 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     }
     page = open_files_page("/home/user/workspace/")
 
-    expect(page.locator("[data-sidebar-row]")).to_have_text(
+    expect(page.locator("[data-sidebar-row] .files-sidebar-label")).to_have_text(
         ["Workspace", "Uploads", "notes", "Brand Fonts", "photo.png"]
     )
     expect(page.locator('[data-sidebar-row="shortcut:workspace"]')).to_have_attribute("aria-current", "true")
 
-    def badges(path: str) -> list[str]:
+    def marks(path: str) -> tuple[str | None, list[str]]:
         row = page.locator(f'[data-sidebar-row="share:host-mac:{path}"]')
-        return row.locator("[data-badge]").evaluate_all("els => els.map(el => el.dataset.badge)")
+        badge = row.locator("[data-share-badge]").get_attribute("data-share-badge")
+        return badge, row.locator("[data-mark]").evaluate_all("els => els.map(el => el.dataset.mark)")
 
-    assert badges("/Users/kim/notes") == ["refresh"]
-    assert badges("/Users/kim/Brand Fonts") == ["triangle-alert", "lock"]
-    assert badges("/Users/kim/photo.png") == ["cloud", "lock"]
+    assert marks("/Users/kim/notes") == ("synced", [])
+    assert marks("/Users/kim/Brand Fonts") == ("synced", ["read-only", "stuck"])
+    assert marks("/Users/kim/photo.png") == ("linked", ["read-only"])
+    expect(
+        page.locator('[data-sidebar-row="share:host-mac:/Users/kim/photo.png"] [data-mark="read-only"]')
+    ).to_have_text("Read-only")
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').hover()
     expect(page.get_by_role("tooltip")).to_have_text("Synced from Kims-Mac, read-only. Hasn't caught up yet.")
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]').click()
     expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()
+
     expect(page.locator(".files-crumb")).to_have_text(["Kims-Mac.local", "notes"])
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').click()
     expect(page.locator(".files-stuck-sync")).to_contain_text("Not synced yet from Kims-Mac.local")
     page.locator('[data-view-mode="columns"]').click()
     expect(page.locator(".files-column .files-stuck-sync")).to_contain_text("Not synced yet")
+
+    # Listed in the folder that holds it, a synced copy wears the same badge as its sidebar row.
+    page.goto(page.url.split("/home/")[0] + "/home/user/synced_folders/host-mac/Users/kim/")
+    expect(
+        _entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/").locator("[data-icon-badge]")
+    ).to_have_attribute("data-icon-badge", "synced")
 
 
 def test_the_connect_entry_asks_the_computer_to_share_something(
@@ -180,12 +191,91 @@ def test_the_connect_entry_asks_the_computer_to_share_something(
     ]
 
 
+_DROP_FROM_COMPUTER = """([selector, name]) => {
+  const transfer = new DataTransfer();
+  transfer.items.add(new File(["bytes"], name, { type: "application/pdf" }));
+  const target = document.querySelector(selector);
+  for (const type of ["dragenter", "dragover", "drop"]) {
+    target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }
+}"""
+
+
+def test_a_file_dropped_on_connected_is_asked_for_and_waits_in_its_own_row(
+    open_files_page: OpenFilesPage, connections: Any
+) -> None:
+    connections.listed = {"devices": [{"id": "host-mac", "name": "Kims-Mac.local"}], "shares": []}
+    page = open_files_page("/")
+    page.evaluate(_DROP_FROM_COMPUTER, [".files-connected", "brief.pdf"])
+
+    expect(page.locator('[data-dialog="connect"]')).to_be_visible()
+    expect(page.locator(".files-connect-path")).to_have_value("~/brief.pdf")
+    expect(page.locator(".files-connect-hint")).to_contain_text("only tells Files the name")
+    expect(page.locator(".files-connect-sync")).not_to_be_checked()
+    page.locator(".files-connect-path").fill("~/Documents/brief.pdf")
+    page.locator('[data-dialog-action="connect"]').click()
+
+    waiting = page.locator(".files-pending-connection")
+    expect(waiting).to_have_text("brief.pdf")
+    expect(waiting.locator('[data-mark="pending"]')).to_have_count(1)
+    assert connections.requests == [
+        {"device": "host-mac", "path": "~/Documents/brief.pdf", "access": "read", "sync": False}
+    ]
+
+    connections.listed = {
+        "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}],
+        "shares": [
+            {
+                "device": "host-mac",
+                "path": "/Users/kim/Documents/brief.pdf",
+                "access": "read",
+                "kind": "file",
+                "is_reachable": True,
+                "synced_copy": None,
+                "sync_state": None,
+            }
+        ],
+    }
+    expect(page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Documents/brief.pdf"]')).to_be_visible(
+        timeout=10000
+    )
+    expect(waiting).to_have_count(0)
+
+
+def test_a_file_dropped_on_a_shared_folder_uploads_into_it_rather_than_connecting(
+    open_files_page: OpenFilesPage, files_root: Path, connections: Any
+) -> None:
+    copy = files_root / "home/user/synced_folders/host-mac/Users/kim/notes"
+    copy.mkdir(parents=True)
+    connections.listed = {
+        "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}],
+        "shares": [
+            {
+                "device": "host-mac",
+                "path": "/Users/kim/notes",
+                "access": "write",
+                "kind": "folder",
+                "is_reachable": True,
+                "synced_copy": "/home/user/synced_folders/host-mac/Users/kim/notes/",
+                "sync_state": "current",
+            }
+        ],
+    }
+    page = open_files_page("/")
+    page.evaluate(_DROP_FROM_COMPUTER, ['[data-sidebar-row="share:host-mac:/Users/kim/notes"]', "brief.pdf"])
+
+    expect(page.locator(".files-uploads-summary")).to_have_text("Uploaded 1 item")
+    assert (copy / "brief.pdf").read_bytes() == b"bytes"
+    expect(page.locator('[data-dialog="connect"]')).to_have_count(0)
+    assert connections.requests == []
+
+
 def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
     open_files_page: OpenFilesPage,
 ) -> None:
     page = open_files_page("/")
     expect(page.locator(".files-sidebar [data-sidebar-row^='share:']")).to_have_count(0)
-    expect(page.locator('[data-action="connect"]')).to_have_text("Connect local files or folders…")
+    expect(page.locator('[data-action="connect"]')).to_have_text("Connect a file or folder…")
     sidebar = page.locator(".files-sidebar")
     start = sidebar.bounding_box()
     assert start is not None and round(start["width"]) == 208

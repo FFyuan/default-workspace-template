@@ -5,7 +5,7 @@
 
 import m from "mithril";
 
-import { icon } from "@imbue/workspace-ui/src/components/icons";
+import { alertDotIcon, icon } from "@imbue/workspace-ui/src/components/icons";
 
 import type { Entry } from "../models/dufs";
 import { formatModified, formatSize } from "../models/format";
@@ -14,10 +14,10 @@ import type { FolderState } from "../models/FilesModel";
 import type { SortKey } from "../models/preferences";
 import { isWithin, nameOf, parentOf } from "../models/paths";
 import { DROP_FOLDER_ATTR, EntryMenuButton, FOLDER_SURFACE_ATTR, RenameField, entryAttrs } from "./entries";
-import { FileIcon } from "./FileIcon";
+import { FileIcon, type IconBadge } from "./FileIcon";
 import type { FilesController } from "./FilesController";
 import { PreviewPane } from "./PreviewPane";
-import { deviceNameOf, shareAt, stuckSyncOf } from "../models/connections";
+import { deviceNameOf, shareAt, shareBadgeOf, shareRootAt, stuckSyncOf } from "../models/connections";
 
 interface ViewAttrs {
   app: FilesController;
@@ -25,6 +25,12 @@ interface ViewAttrs {
 }
 
 /** The entry's name as shown: a search result's own name, with the folder it is in said separately. */
+/** The badge of a shared folder's or file's own entry, so it reads as linked or synced wherever it is listed. */
+function shareBadgeFor(app: FilesController, entry: Entry): IconBadge | undefined {
+  const share = shareRootAt(app.model.connections, entry.path);
+  return share === undefined ? undefined : shareBadgeOf(share);
+}
+
 function displayName(app: FilesController, entry: Entry): string {
   return app.model.search === null ? entry.name : nameOf(entry.path);
 }
@@ -72,7 +78,7 @@ export const IconView: m.Component<ViewAttrs> = {
             m(
               "div",
               { class: "flex h-16 w-16 items-center justify-center" },
-              m(FileIcon, { entry, size: 64, thumbnail: true }),
+              m(FileIcon, { entry, size: 64, thumbnail: true, shareBadge: shareBadgeFor(app, entry) }),
             ),
             isRenaming
               ? m(RenameField, {
@@ -160,7 +166,7 @@ export const ListView: m.Component<ViewAttrs> = {
               ...entryAttrs(app, entry, entries, "list"),
             },
             [
-              m(FileIcon, { entry, size: 32 }),
+              m(FileIcon, { entry, size: 32, shareBadge: shareBadgeFor(app, entry) }),
               m("div", { class: "min-w-0 flex-1" }, [
                 isRenaming
                   ? m(RenameField, { app, extraClass: "type-body" })
@@ -194,7 +200,7 @@ export const ListView: m.Component<ViewAttrs> = {
             },
             [
               m("div", { class: "flex min-w-0 items-center gap-2" }, [
-                m(FileIcon, { entry, size: 18 }),
+                m(FileIcon, { entry, size: 18, shareBadge: shareBadgeFor(app, entry) }),
                 isRenaming
                   ? m(RenameField, { app, extraClass: "h-6" })
                   : m("span.files-name", { class: "truncate text-primary" }, displayName(app, entry)),
@@ -239,7 +245,7 @@ function columnBody(
         "div.files-stuck-sync",
         { role: "status", class: "flex flex-col gap-1 px-3 py-4 text-center type-helper" },
         [
-          m.trust(icon("triangle-alert", { size: 16, className: "mx-auto text-warning" })),
+          m.trust(alertDotIcon(16, "mx-auto text-warning")),
           m("div", { class: "font-medium text-primary" }, stuck.title),
           m("div", { class: "text-secondary" }, stuck.detail),
         ],
@@ -268,7 +274,7 @@ function columnBody(
         ...entryAttrs(app, entry, entries, "column"),
       },
       [
-        m(FileIcon, { entry, size: 18 }),
+        m(FileIcon, { entry, size: 18, shareBadge: shareBadgeFor(app, entry) }),
         isRenaming
           ? m(RenameField, { app, extraClass: "h-5" })
           : m("span.files-name", { class: "min-w-0 flex-1 truncate text-primary" }, entry.name),

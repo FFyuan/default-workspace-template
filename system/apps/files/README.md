@@ -63,17 +63,23 @@ the page asks for them with a per-build `?v=` stamp.
 A folder window has a sidebar, a toolbar (the path, the view switcher, the +
 button, and the view options), and the folder. The sidebar lists Shortcuts
 (Workspace and Uploads, each shown when it exists) and Connected: every file
-and folder shared from the user's computers, each with a glyph for how it
-reaches the workspace (two arrows: synced both ways; one arrow: synced one way;
-a cloud: opened live), a lock when it is read-only, and a warning in place of
-the first when its copy has fallen behind. The row's tooltip says, without
-repeating the name, how it reaches the workspace and how it stands (up to date,
-not caught up, or its computer not answering).
-A synced share opens at its copy, the others live. The list ends in "Connect
-local files or folders", which opens a dialog for the path, the access, and
-whether to keep a synced copy, which asks the computer and then watches for the
-approval. The sidebar's width is dragged from its edge (double-click puts it
-back) and kept with the other preferences. Jumping to a sidebar row starts the
+and folder shared from the user's computers. A share's icon wears a badge in
+its corner for how it reaches the workspace (a chain: linked, read live from
+the computer; circular arrows: synced, a copy kept here), and its own entry
+wears the same badge wherever a folder view lists it. After the label come
+marks only when there is something to say: a "Read-only" word badge, a filled
+orange disc when a synced copy has not caught up, and a struck-through laptop
+when its computer is not answering. The row's tooltip says, without repeating
+the name, how it reaches the workspace and how it stands. A synced share opens
+at its copy, the others live. The list ends in "Connect a file or folder",
+which opens a dialog for the path, the access, and whether to keep a synced
+copy, which asks the computer; the request then waits in a row of its own until
+it is approved. Something dragged in from the computer onto the Connected
+section opens the same dialog, filled with its name (a browser tells a page
+nothing of where a dropped item lives, so the path is a guess the user, or
+Imbue Studio's own dialog, corrects); dropped on a share's row it uploads into
+that share instead, as onto any folder. The sidebar's width is dragged from
+its edge (double-click puts it back) and kept with the other preferences. Jumping to a sidebar row starts the
 column view afresh there; drilling down into a folder that happens to be a
 shortcut keeps the columns already open. There are no back and forward
 buttons (Cmd/Ctrl+[ and ] still move through the history), and the model can

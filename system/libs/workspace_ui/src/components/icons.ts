@@ -90,11 +90,9 @@ const STROKE_PATHS = {
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   upload:
     '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
-  "arrow-down": '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
-  cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
-  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-  "triangle-alert":
-    '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  // A laptop struck through: a computer that is not answering.
+  "laptop-off": '<rect x="4" y="5" width="16" height="10.5" rx="1.5"/><path d="M2 19h20"/><path d="m2 2 20 20"/>',
   "panel-left": '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   ellipsis: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
@@ -136,6 +134,22 @@ export function icon(name: IconName, opts: IconOptions = {}): string {
   );
 }
 
+let badgeMaskCount = 0;
+
+/** `name` with `badge` small in its bottom-right corner, the icon cut away around it so it reads on any background. */
+export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = {}): string {
+  const dims = opts.size === undefined ? "" : ` width="${opts.size}" height="${opts.size}"`;
+  const cls = opts.className ? ` class="${opts.className}"` : "";
+  const mask = `icon-badge-${(badgeMaskCount += 1)}`;
+  return (
+    `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+    `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    `<mask id="${mask}"><rect width="24" height="24" fill="#fff"/><circle cx="19" cy="19" r="7.5" fill="#000"/></mask>` +
+    `<g mask="url(#${mask})">${STROKE_PATHS[name]}</g>` +
+    `<g transform="translate(13.6 13.6) scale(0.45)" stroke-width="5">${STROKE_PATHS[badge]}</g></svg>`
+  );
+}
+
 /** Solid square "stop / interrupt" glyph (filled, not stroked). */
 export function stopIcon(size = 14): string {
   return (
@@ -151,6 +165,17 @@ export function warningIcon(size = 26): string {
     `<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>` +
     `<path d="M12 8v4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>` +
     `<circle cx="12" cy="16" r="0.9" fill="currentColor"/></svg>`
+  );
+}
+
+/** A filled disc with a white exclamation, in the current colour: something needs a look. */
+export function alertDotIcon(size = 12, className = ""): string {
+  const cls = className === "" ? "" : ` class="${className}"`;
+  return (
+    `<svg xmlns="${XMLNS}"${cls} width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">` +
+    `<circle cx="12" cy="12" r="11" fill="currentColor"/>` +
+    `<path d="M12 6.8v6" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>` +
+    `<circle cx="12" cy="17" r="1.6" fill="#fff"/></svg>`
   );
 }
 

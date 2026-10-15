@@ -9,7 +9,7 @@ import m from "mithril";
 
 import { Button, buttonClass } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
-import { icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
+import { alertDotIcon, badgedIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
 
 import { formatItemCount, formatSize } from "../models/format";
@@ -19,18 +19,23 @@ import {
   describeShare,
   deviceNameOf,
   labelOf,
-  modeOf,
   shareAt,
+  shareBadgeOf,
+  type ShareBadge,
   stuckSyncOf,
   targetOf,
   type Connections,
+  type DroppedItem,
+  type PendingConnection,
   type Share,
-  type ShareMode,
 } from "../models/connections";
 import type { SortKey, ViewMode } from "../models/preferences";
 import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
 import { isFileDrag, sourcesFromDrop } from "../models/uploads";
 import { DROP_FOLDER_ATTR, ENTRY_DRAG_TYPE, FOLDER_SURFACE_ATTR } from "./entries";
+
+/** Marks the Connected section, where an item dragged in from the user's computer is connected rather than uploaded. */
+const CONNECT_DROP_ATTR = "data-connect-drop";
 import { menuRowsOf, type FilesController } from "./FilesController";
 import { ColumnView, IconView, ListView } from "./FolderViews";
 import { handleKeydown } from "./keyboard";
@@ -82,8 +87,10 @@ interface SidebarRow {
   label: string;
   path: string;
   icon: IconName;
+  /** A small glyph in the icon's corner: how a shared item reaches the workspace. */
+  iconBadge?: ShareBadge;
   title?: string;
-  /** Glyphs after the label: how the row's item reaches the workspace, and what may be done with it. */
+  /** Marks after the label, shown only when there is something to say: read-only, stuck, not answering. */
   badges?: m.Children;
   isFaint?: boolean;
   onOpen?: () => void;
@@ -116,43 +123,93 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
       },
     },
     [
-      m.trust(icon(row.icon, { size: 15, className: "shrink-0" })),
-      m("span", { class: "min-w-0 flex-1 truncate" }, row.label),
+      row.iconBadge === undefined
+        ? m.trust(icon(row.icon, { size: 15, className: "shrink-0" }))
+        : m(
+            "span.files-share-icon",
+            { "data-share-badge": row.iconBadge, class: "flex shrink-0" },
+            m.trust(badgedIcon(row.icon, SHARE_BADGE_ICONS[row.iconBadge], { size: 15 })),
+          ),
+      m("span.files-sidebar-label", { class: "min-w-0 flex-1 truncate" }, row.label),
       row.badges ?? null,
     ],
   );
 }
 
-function badge(name: IconName, extra = "text-faint"): m.Vnode {
-  return m(
-    "span.files-share-badge",
-    { "data-badge": name, class: `flex shrink-0 ${extra}` },
-    m.trust(icon(name, { size: 12 })),
+const SHARE_BADGE_ICONS: Record<ShareBadge, IconName> = { linked: "link", synced: "refresh" };
+
+function mark(kind: string, label: string, body: m.Children, extra: string): m.Vnode {
+  return m("span.files-share-mark", { "data-mark": kind, "aria-label": label, class: `flex shrink-0 ${extra}` }, body);
+}
+
+/** A filled disc with an exclamation: the share needs a look. */
+function stuckMark(): m.Vnode {
+  return mark("stuck", "Not caught up", m.trust(alertDotIcon(12)), "text-warning");
+}
+
+function readOnlyMark(): m.Vnode {
+  return mark(
+    "read-only",
+    "Read-only",
+    "Read-only",
+    "items-center rounded-full border border-border px-1.5 text-[10.5px] leading-4 text-faint",
   );
 }
 
-const MODE_ICONS: Record<ShareMode, IconName> = {
-  "two-way": "refresh",
-  "one-way": "arrow-down",
-  live: "cloud",
-};
+function unreachableMark(): m.Vnode {
+  return mark("unreachable", "Not answering", m.trust(icon("laptop-off", { size: 12 })), "text-faint");
+}
 
 function shareRow(app: FilesController, connections: Connections, share: Share): SidebarRow {
   const target = targetOf(share);
-
+  const isUnreachable = !share.is_reachable || share.sync_state === "unknown";
   return {
     key: `share:${share.device}:${share.path}`,
     label: labelOf(share),
     path: target,
     icon: share.kind === "file" ? "file" : "folder",
+    iconBadge: shareBadgeOf(share),
     title: describeShare(share, deviceNameOf(connections, share.device)),
     isFaint: !share.is_reachable && share.synced_copy === null,
     badges: [
-      share.sync_state === "behind" ? badge("triangle-alert", "text-warning") : badge(MODE_ICONS[modeOf(share)]),
-      share.access === "read" ? badge("lock") : null,
+      share.access === "read" ? readOnlyMark() : null,
+      share.sync_state === "behind" ? stuckMark() : null,
+      isUnreachable ? unreachableMark() : null,
     ],
     onOpen: share.kind === "file" ? () => app.openPage(target, "view") : undefined,
   };
+}
+
+/** A connection asked for and waiting on its approval in Imbue Studio. */
+function pendingRow(waiting: PendingConnection): m.Vnode {
+  return m(
+    "div.files-pending-connection",
+    {
+      key: `pending:${waiting.key}`,
+      ...hoverTooltipAttrs("Waiting for you to approve it in Imbue Studio on your computer.", "right", {
+        maxWidth: 260,
+      }),
+      class: "flex h-7 w-full shrink-0 items-center gap-2 rounded-md px-2 text-(length:--font-size-row) text-faint",
+    },
+    [
+      m.trust(icon(waiting.isFolder ? "folder" : "file", { size: 15, className: "shrink-0" })),
+      m("span", { class: "min-w-0 flex-1 truncate" }, waiting.name),
+      mark("pending", "Waiting for approval", m("span.spinner.spinner--sm"), "text-faint"),
+    ],
+  );
+}
+
+/** Where an item dragged in from the user's computer lands to be connected. */
+function dropToConnectRow(): m.Vnode {
+  return m(
+    "div.files-connect-drop",
+    {
+      key: "connect-drop",
+      class:
+        "flex h-7 w-full shrink-0 items-center gap-2 rounded-md border border-dashed border-accent px-2 text-(length:--font-size-row) text-accent",
+    },
+    [m.trust(icon("plus", { size: 15, className: "shrink-0" })), m("span", { class: "truncate" }, "Drop to connect")],
+  );
 }
 
 function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
@@ -227,34 +284,45 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
           m("div", { class: "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-1 pb-3" }, [
             sectionHeading("Shortcuts"),
             shortcutRows.map((row) => sidebarRow(app, row, row.key === current)),
-            sectionHeading("Connected", [
-              m(
-                "span.files-connected-info",
-                {
-                  tabindex: 0,
-                  "aria-label": CONNECTED_INFO,
-                  class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
-                  ...hoverTooltipAttrs(CONNECTED_INFO, "right", { maxWidth: 220 }),
-                },
-                m.trust(icon("info", { size: 13 })),
-              ),
-            ]),
-            connectedBody,
             m(
-              "button.files-connect",
+              "div.files-connected",
               {
-                type: "button",
-                "data-action": "connect",
-                class:
-                  "flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) text-faint hover:bg-fill-hover hover:text-primary",
-                onclick: () => {
-                  app.isSidebarOpen = false;
-                  void app.connectLocal();
-                },
+                [CONNECT_DROP_ATTR]: "",
+                class: `flex flex-col gap-0.5 rounded-md ${app.isConnectDropping ? "bg-accent-light/40" : ""}`,
               },
               [
-                m.trust(icon("plus", { size: 15, className: "shrink-0" })),
-                m("span", { class: "truncate" }, "Connect local files or folders…"),
+                sectionHeading("Connected", [
+                  m(
+                    "span.files-connected-info",
+                    {
+                      tabindex: 0,
+                      "aria-label": CONNECTED_INFO,
+                      class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
+                      ...hoverTooltipAttrs(CONNECTED_INFO, "right", { maxWidth: 220 }),
+                    },
+                    m.trust(icon("info", { size: 13 })),
+                  ),
+                ]),
+                connectedBody,
+                app.pending.map((waiting) => pendingRow(waiting)),
+                app.isConnectDropping ? dropToConnectRow() : null,
+                m(
+                  "button.files-connect",
+                  {
+                    type: "button",
+                    "data-action": "connect",
+                    class:
+                      "flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) text-faint hover:bg-fill-hover hover:text-primary",
+                    onclick: () => {
+                      app.isSidebarOpen = false;
+                      void app.connectLocal();
+                    },
+                  },
+                  [
+                    m.trust(icon("plus", { size: 15, className: "shrink-0" })),
+                    m("span", { class: "truncate" }, "Connect a file or folder…"),
+                  ],
+                ),
               ],
             ),
           ]),
@@ -513,7 +581,7 @@ export function stuckBanner(stuck: { title: string; detail: string }): m.Vnode {
       class: "mx-3 mt-3 flex items-start gap-2 rounded-lg bg-warning-surface/50 px-3 py-2 type-helper",
     },
     [
-      m.trust(icon("triangle-alert", { size: 14, className: "mt-0.5 shrink-0 text-warning" })),
+      m.trust(alertDotIcon(14, "mt-0.5 shrink-0 text-warning")),
       m("div", [
         m("div", { class: "font-medium text-primary" }, stuck.title),
         m("div", { class: "text-secondary" }, stuck.detail),
@@ -654,6 +722,30 @@ function dropFolderAt(app: FilesController, target: EventTarget | null): string 
   return element?.getAttribute(DROP_FOLDER_ATTR) ?? app.model.folder;
 }
 
+/** Whether a drag over `target` is on the Connected section itself, rather than on one of its shares, which a drop
+ *  uploads into like any folder. */
+function isOverConnect(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  const section = target.closest(`[${CONNECT_DROP_ATTR}]`);
+  if (section === null) return false;
+  const folder = target.closest(`[${DROP_FOLDER_ATTR}]`);
+  return folder === null || !section.contains(folder);
+}
+
+/** The items a drop from the user's computer carries, by name and kind: a browser tells nothing of where they are. */
+function droppedItemsOf(transfer: DataTransfer): DroppedItem[] {
+  const items = Array.from(transfer.items)
+    .filter((item) => item.kind === "file")
+    .map((item) => item.webkitGetAsEntry?.() ?? null);
+  if (items.length > 0 && items.every((entry) => entry !== null)) {
+    return items.map((entry) => ({
+      name: (entry as FileSystemEntry).name,
+      isFolder: (entry as FileSystemEntry).isDirectory,
+    }));
+  }
+  return Array.from(transfer.files).map((file) => ({ name: file.name, isFolder: false }));
+}
+
 function installDropHandling(app: FilesController, root: HTMLElement): () => void {
   const model = app.model;
   const isEntryDrag = (event: DragEvent): boolean =>
@@ -663,22 +755,45 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
     model.dropTarget = folder;
     m.redraw();
   };
+  const setConnecting = (isOver: boolean): void => {
+    if (app.isConnectDropping === isOver) return;
+    app.isConnectDropping = isOver;
+    m.redraw();
+  };
   const onDragOver = (event: DragEvent): void => {
     const fromOutside = isFileDrag(event.dataTransfer);
     if (!fromOutside && !isEntryDrag(event)) return;
+    const isConnecting = fromOutside && isOverConnect(event.target);
+    setConnecting(isConnecting);
+    if (isConnecting) {
+      event.preventDefault();
+      if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy";
+      setTarget(null);
+      return;
+    }
+    if (!fromOutside && isOverConnect(event.target)) return;
     event.preventDefault();
     const folder = dropFolderAt(app, event.target);
     if (event.dataTransfer !== null) event.dataTransfer.dropEffect = fromOutside ? "copy" : "move";
     setTarget(folder);
   };
   const onDragLeave = (event: DragEvent): void => {
-    if (event.relatedTarget === null || !root.contains(event.relatedTarget as Node)) setTarget(null);
+    if (event.relatedTarget === null || !root.contains(event.relatedTarget as Node)) {
+      setTarget(null);
+      setConnecting(false);
+    }
   };
   const onDrop = (event: DragEvent): void => {
     const transfer = event.dataTransfer;
     if (transfer === null) return;
     const folder = dropFolderAt(app, event.target);
     setTarget(null);
+    setConnecting(false);
+    if (isFileDrag(transfer) && isOverConnect(event.target)) {
+      event.preventDefault();
+      void app.connectDropped(droppedItemsOf(transfer));
+      return;
+    }
     if (isFileDrag(transfer)) {
       event.preventDefault();
       void sourcesFromDrop(transfer).then((sources) => model.uploadInto(folder, sources));
@@ -690,7 +805,10 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
       void model.moveInto(paths, folder);
     }
   };
-  const onDragEnd = (): void => setTarget(null);
+  const onDragEnd = (): void => {
+    setTarget(null);
+    setConnecting(false);
+  };
   root.addEventListener("dragover", onDragOver);
   root.addEventListener("dragleave", onDragLeave);
   root.addEventListener("drop", onDrop);

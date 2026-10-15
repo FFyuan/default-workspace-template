@@ -12,7 +12,7 @@ import { MODAL_MESSAGE_CLASS, Modal } from "@imbue/workspace-ui/src/components/M
 import type { Entry } from "../models/dufs";
 import type { ConflictChoice } from "../models/FilesModel";
 import { invalidNameReason, stemLength } from "../models/paths";
-import type { ConnectionRequest, Device } from "../models/connections";
+import type { ConnectionRequest, Device, DroppedItem } from "../models/connections";
 import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 
 type Dialog =
@@ -29,6 +29,7 @@ type Dialog =
       kind: "connect";
       devices: readonly Device[];
       draft: ConnectionRequest;
+      isDropped: boolean;
       resolve: (ask: ConnectionRequest | null) => void;
     };
 
@@ -61,9 +62,17 @@ export class Dialogs {
   }
 
   /** Ask what to connect from which computer; null when the user backs out. */
-  askConnection(devices: readonly Device[]): Promise<ConnectionRequest | null> {
-    const draft: ConnectionRequest = { device: devices[0]?.id ?? "", path: "~/", access: "read", sync: true };
-    return new Promise((resolve) => this.show({ kind: "connect", devices, draft, resolve }));
+  /** What to ask a computer to share; `dropped` is an item dragged in from it, of which a browser tells only the name. */
+  askConnection(devices: readonly Device[], dropped: DroppedItem | null = null): Promise<ConnectionRequest | null> {
+    const draft: ConnectionRequest = {
+      device: devices[0]?.id ?? "",
+      path: dropped === null ? "~/" : `~/${dropped.name}`,
+      access: "read",
+      sync: dropped === null || dropped.isFolder,
+    };
+    return new Promise((resolve) =>
+      this.show({ kind: "connect", devices, draft, isDropped: dropped !== null, resolve }),
+    );
   }
 
   private show(dialog: Dialog): void {
@@ -278,10 +287,20 @@ export class Dialogs {
           value: draft.path,
           placeholder: "~/Documents/Project",
           "aria-label": "File or folder",
-          oncreate: ({ dom }: { dom: Element }) => (dom as HTMLInputElement).focus(),
+          oncreate: ({ dom }: { dom: Element }) => {
+            const input = dom as HTMLInputElement;
+            input.focus();
+            if (dialog.isDropped) input.setSelectionRange(2, 2);
+          },
           oninput: (event: InputEvent) => (draft.path = (event.target as HTMLInputElement).value),
         }),
-        m("p", { class: "mt-1 mb-3 type-helper text-faint" }, "You can change it in Imbue Studio before you approve."),
+        m(
+          "p.files-connect-hint",
+          { class: "mt-1 mb-3 type-helper text-faint" },
+          dialog.isDropped
+            ? "A drop only tells Files the name, so check the folder it's in. Imbue Studio lets you correct it, or browse to it, before you approve."
+            : "You can change it in Imbue Studio before you approve.",
+        ),
         m("div", { class: "mb-3 flex flex-col gap-2" }, [
           choice("read", "Read only", "Files here can see it but not change it."),
           choice("write", "Read and change", "Changes made here reach your computer."),

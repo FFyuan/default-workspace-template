@@ -12,9 +12,9 @@ import type { IconName } from "@imbue/workspace-ui/src/components/icons";
 import { downloadUrlOf, pageUrlOf, urlOf, type Entry, type Listing } from "../models/dufs";
 import { FilesModel, type HistoryMode } from "../models/FilesModel";
 import { isTextLike } from "../models/fileKinds";
-import { decodePathname, titleOf } from "../models/paths";
+import { decodePathname, nameOf, titleOf } from "../models/paths";
 import { sourcesFromFileList } from "../models/uploads";
-import { requestConnection } from "../models/connections";
+import { requestConnection, type DroppedItem, type PendingConnection } from "../models/connections";
 import { Dialogs } from "./dialogs";
 
 /** After asking to connect something, how often and how long the list is read again for the approval. */
@@ -151,8 +151,14 @@ export class FilesController {
 
   /** Ask the user what to connect, then ask their computer: Imbue Studio shows its sharing dialog there. The list
    *  is read again for a while after, so an approval shows up without a reload. */
-  async connectLocal(): Promise<void> {
-    const ask = await this.dialogs.askConnection(this.model.connections?.devices ?? []);
+  /** Connections asked for and not yet approved, each shown as a waiting row in the sidebar. */
+  pending: PendingConnection[] = [];
+  /** Whether something from the user's computer is being dragged over the Connected section. */
+  isConnectDropping = false;
+
+  /** Ask a computer to share something, from the connect entry or an item dropped on Connected. */
+  async connectLocal(dropped: DroppedItem | null = null): Promise<void> {
+    const ask = await this.dialogs.askConnection(this.model.connections?.devices ?? [], dropped);
     if (ask === null) return;
     try {
       await requestConnection(ask);
@@ -160,13 +166,28 @@ export class FilesController {
       this.model.showNotice(error instanceof Error ? error.message : String(error));
       return;
     }
+    const name = nameOf(ask.path) || ask.path;
+    const waiting: PendingConnection = { key: `${Date.now()}:${ask.path}`, name, isFolder: dropped?.isFolder ?? true };
+    this.pending = [...this.pending, waiting];
     this.model.showNotice("Approve it in Imbue Studio on your computer.");
+    void this.watchForApproval(waiting);
+  }
+
+  /** Look for the new share for a while, then drop the waiting row whether or not it came. */
+  private async watchForApproval(waiting: PendingConnection): Promise<void> {
+    const before = this.model.connections?.shares.length ?? 0;
     for (let attempt = 0; attempt < CONNECTION_POLLS; attempt += 1) {
       await new Promise((resolve) => this.win.setTimeout(resolve, CONNECTION_POLL_MS));
-      const before = this.model.connections?.shares.length ?? 0;
       await this.model.loadConnections();
-      if ((this.model.connections?.shares.length ?? 0) !== before) return;
+      if ((this.model.connections?.shares.length ?? 0) !== before) break;
     }
+    this.pending = this.pending.filter((item) => item !== waiting);
+    m.redraw();
+  }
+
+  /** Each item dropped on Connected, asked about one after another. */
+  async connectDropped(items: readonly DroppedItem[]): Promise<void> {
+    for (const item of items) await this.connectLocal(item);
   }
 
   /** Let the user pick files (or a whole folder) to upload into `folder`. */
