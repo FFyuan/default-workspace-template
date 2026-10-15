@@ -154,6 +154,16 @@ def test_complete_asks_no_model_when_pi_offers_none_on_the_account(
     assert log_path.read_text().splitlines() == ["--list-models"]
 
 
+def test_complete_asks_no_model_when_pi_cannot_list_the_accounts_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log_path = put_stand_in_cli_on_path(tmp_path, "pi", 'echo "auth.json is unreadable" >&2; exit 1', monkeypatch)
+
+    with pytest.raises(OneShotCompletionError, match="could not list"):
+        PiOneShotCompletion().complete(_anthropic_account(tmp_path), "Name this chat.", "Plan Rome")
+    assert log_path.read_text().splitlines() == ["--list-models"]
+
+
 def test_complete_raises_when_pi_prints_no_answer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     body = _LIST_MODELS_THEN_ANSWER.replace("echo 'Rome trip: plan five days'", "")
     put_stand_in_cli_on_path(tmp_path, "pi", body, monkeypatch)
