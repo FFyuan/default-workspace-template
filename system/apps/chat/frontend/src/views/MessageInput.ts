@@ -68,11 +68,11 @@ const MAX_TEXTAREA_HEIGHT_PX = 240;
 
 /** The composer card. No shadow: it sits at the foot of its own pane
  *  rather than floating over the transcript. Focus thickens its border to 2px
- *  in the accent (a 1px ring outside the 1px border) without moving anything. */
+ *  in the accent (a 1px ring just inside the 1px border, where no clipping ancestor can cut it) without moving anything. */
 const INPUT_BOX_CLASS =
   "message-input-box flex flex-col gap-0.5 rounded-xl border bg-composer p-1.5 " +
   "[transition:border-color_150ms,box-shadow_150ms] focus-within:border-accent " +
-  "focus-within:shadow-[0_0_0_1px_var(--color-accent)]";
+  "focus-within:shadow-[inset_0_0_0_1px_var(--color-accent)]";
 
 /** The text and its buttons: + | text | toolbar. ``fitComposer`` sets ``data-stacked`` on the row once the text
  *  needs a second line; the text then takes the full width, with + and the toolbar on a row under it. */
