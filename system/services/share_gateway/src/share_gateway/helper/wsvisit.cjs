@@ -260,16 +260,23 @@ function workspaceDir(domain) {
   return path.join(stateRoot(), domain);
 }
 
-function ensurePrivateDir(dir) {
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+// The token and the private key live here, so the directory is used (read or
+// written) only while nobody else can read it.
+function requirePrivateDir(dir) {
   const mode = fs.statSync(dir).mode & 0o777;
   if (mode !== 0o700) throw new HelperError(`refusing to use ${dir}: its mode is ${mode.toString(8)}, expected 700`);
+}
+
+function ensurePrivateDir(dir) {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  requirePrivateDir(dir);
 }
 
 function loadConfig(domain) {
   const dir = workspaceDir(domain);
   const configPath = path.join(dir, "config.json");
   if (!fs.existsSync(configPath)) return null;
+  requirePrivateDir(dir);
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
   config.keypair = { privateKeyPem: fs.readFileSync(path.join(dir, "key.pem"), "utf8"), publicKeyLine: config.public_key_line };
   return config;
@@ -690,6 +697,7 @@ module.exports = {
   describeSkillChanges,
   fingerprintOfPublicKeyLine,
   generateKeypair,
+  loadConfig,
   parseArgs,
   parseSignatureInputParams,
   publicKeyLineFromRaw,

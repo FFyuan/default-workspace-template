@@ -6,6 +6,7 @@
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
 
@@ -119,4 +120,22 @@ test("describeSkillChanges names new, removed, and changed skills", () => {
   const lines = helper.describeSkillChanges({ a: "1", b: "2", c: "3" }, { a: "1", b: "9", d: "4" });
   assert.deepEqual(lines, ["  new skill: d", "  removed skill: c", "  changed skill: b"]);
   assert.deepEqual(helper.describeSkillChanges({}, {}), []);
+});
+
+test("a joined workspace's state is refused unless its directory is private", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wsvisit-state-"));
+  process.env.WSVISIT_STATE_DIR = root;
+  try {
+    const dir = path.join(root, "alpha.example.com");
+    fs.mkdirSync(dir, { mode: 0o755 });
+    fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify({ public_key_line: "ssh-ed25519 AAAA", token: "t" }));
+    fs.writeFileSync(path.join(dir, "key.pem"), "pem");
+    assert.throws(() => helper.loadConfig("alpha.example.com"), /expected 700/);
+    fs.chmodSync(dir, 0o700);
+    assert.equal(helper.loadConfig("alpha.example.com").token, "t");
+    assert.equal(helper.loadConfig("other.example.com"), null);
+  } finally {
+    delete process.env.WSVISIT_STATE_DIR;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
