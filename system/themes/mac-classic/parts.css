@@ -195,6 +195,12 @@ input[type="checkbox"]:disabled {
 input[type="radio"] {
   accent-color: #000000;
 }
+/* system.css takes every input's focus outline away; a box the keyboard reaches gets a black ring back. */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 1px solid #000000;
+  outline-offset: 1px;
+}
 
 /* Fields: system.css's black box, in the page's face (a field the page sets in monospace keeps it); one in a menu
    writes in Geneva rather than the menu's display face. */
