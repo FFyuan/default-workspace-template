@@ -168,6 +168,10 @@ kbd {
   background: #ffffff;
   color: #000000;
 }
+/* A button that destroys something says so in the danger colour, on the theme's own face. */
+[data-part="button"]:is([data-variant="destructive"], [data-variant="ghost-destructive"]) {
+  color: var(--c-danger);
+}
 
 /* Check boxes: a white 12-pixel box with a one-pixel black edge, crossed by an X when checked, as System 7
    drew them; radios keep the browser's, in black. */

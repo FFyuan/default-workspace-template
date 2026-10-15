@@ -146,6 +146,10 @@ kbd {
 [data-part="button"][data-variant="ghost-inverse"] {
   color: #ffffff;
 }
+/* A button that destroys something says so in the danger colour, on the raised gray face. */
+[data-part="button"]:is([data-variant="destructive"], [data-variant="ghost-destructive"]) {
+  color: var(--c-danger);
+}
 /* Keyboard focus: the dotted focus rectangle inside the face, in the glyph's colour. */
 [data-part="button"]:focus-visible {
   outline: 1px dotted currentColor;
