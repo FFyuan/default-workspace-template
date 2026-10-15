@@ -55,6 +55,12 @@ def _model_drawing() -> Image.Image:
     return image
 
 
+def _square_on_a_clear_canvas() -> Image.Image:
+    image = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    image.paste((0, 0, 0, 255), (8, 8, 24, 24))
+    return image
+
+
 def test_a_model_s_drawing_is_fitted_onto_a_one_bit_theme() -> None:
     spec = _spec(palette=("#000000", "#ffffff"))
 
@@ -119,6 +125,10 @@ def test_an_opaque_background_is_drawn_in_the_theme_s_palette() -> None:
     fitted = fit_icon_image(_model_drawing(), spec)
 
     assert check_icon_image(fitted, spec) == []
+    assert (
+        "the theme's icons have painted corners, but this one's are clear"
+        in check_icon_image(_square_on_a_clear_canvas(), spec)
+    )
 
 
 def test_an_icon_that_misses_the_limits_is_told_why() -> None:

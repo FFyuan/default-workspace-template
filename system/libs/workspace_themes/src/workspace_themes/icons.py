@@ -2,7 +2,7 @@ import math
 import shutil
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Final
+from typing import Final, assert_never
 
 from imbue.imbue_common.pure import pure
 from PIL import Image, ImageDraw, ImageStat, UnidentifiedImageError
@@ -252,15 +252,23 @@ def check_icon_image(image: Image.Image, spec: ThemeIconSpec) -> list[str]:
         problems.append(
             f"the icon covers {coverage:.0%} of its canvas, too little to read"
         )
-    if spec.background == IconBackground.TRANSPARENT:
-        if _is_corner_opaque(rgba):
-            problems.append(
-                "the theme's icons have clear corners, but this one's are painted"
-            )
-        if coverage > MAX_TRANSPARENT_COVERAGE:
-            problems.append(
-                "the icon fills its whole canvas; the theme's icons stand on a clear background"
-            )
+    match spec.background:
+        case IconBackground.TRANSPARENT:
+            if _is_corner_opaque(rgba):
+                problems.append(
+                    "the theme's icons have clear corners, but this one's are painted"
+                )
+            if coverage > MAX_TRANSPARENT_COVERAGE:
+                problems.append(
+                    "the icon fills its whole canvas; the theme's icons stand on a clear background"
+                )
+        case IconBackground.OPAQUE:
+            if not _is_corner_opaque(rgba):
+                problems.append(
+                    "the theme's icons have painted corners, but this one's are clear"
+                )
+        case _ as unreachable:
+            assert_never(unreachable)
     if spec.rendering == IconRendering.PIXELATED and any(
         0 < alpha < 255 for alpha in alphas
     ):
