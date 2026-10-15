@@ -163,13 +163,16 @@ class ThemeEntry(FrozenModel):
         description="The base chain, standard first, ending with this theme"
     )
     style_files: tuple[ThemeStyleFile, ...] = Field(
-        description="The bundle's style files, in the order they apply"
+        description="The bundle's style files, in the order they apply; empty when the manifest or the base chain "
+        "could not be read"
     )
     chrome: ResolvedChrome | None = Field(
-        description="The resolved title bar; none when unavailable"
+        description="The resolved title bar, also for a theme the contract checks fail; none when the manifest or the "
+        "base chain could not be read"
     )
     icons: ThemeIcons | None = Field(
-        description="The resolved icons; none when unavailable"
+        description="The resolved icons, also for a theme the contract checks fail; none when the manifest or the base "
+        "chain could not be read, or the theme's files could not be listed"
     )
     revision: ThemeRevision = Field(
         description="Changes whenever a file the theme is drawn from changes"
