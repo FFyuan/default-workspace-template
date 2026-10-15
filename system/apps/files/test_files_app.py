@@ -148,6 +148,9 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     assert badges("/Users/kim/Brand Fonts") == ["triangle-alert", "lock"]
     assert badges("/Users/kim/photo.png") == ["cloud", "lock"]
 
+    page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').hover()
+    expect(page.get_by_role("tooltip")).to_have_text("Synced from Kims-Mac, read-only. Hasn't caught up yet.")
+
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]').click()
     expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()
     expect(page.locator(".files-crumb")).to_have_text(["Kims-Mac.local", "notes"])

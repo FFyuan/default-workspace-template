@@ -57,17 +57,32 @@ export function labelOf(share: Share): string {
   return nameOf(share.path) || share.path;
 }
 
-/** One line saying how a share reaches the workspace and what may be done with it. */
+/** A computer's name as people say it, without the ``.local`` macOS adds on the network. */
+export function shortDeviceName(deviceName: string): string {
+  return deviceName.replace(/\.local$/, "");
+}
+
+/** The hover text of a share: how it reaches the workspace, then how it stands, never its own name. */
 export function describeShare(share: Share, deviceName: string): string {
-  const where = `${share.path} on ${deviceName}`;
-  const changes = share.access === "write" ? "You can change it here." : "Read-only here.";
-  switch (modeOf(share)) {
-    case "two-way":
-      return `${where}. Synced both ways: changes on either side reach the other.`;
-    case "one-way":
-      return `${where}. Synced one way, from your computer. ${changes}`;
-    case "live":
-      return `${where}. Not synced: opened live from your computer while it's awake. ${changes}`;
+  const device = shortDeviceName(deviceName);
+  const access = share.access === "write" ? "" : ", read-only";
+  const kind = {
+    "two-way": "Synced both ways",
+    "one-way": `Synced from ${device}${access}`,
+    live: `Live from ${device}, not copied${access}`,
+  }[modeOf(share)];
+  return `${kind}. ${statusOf(share, device)}`.trim();
+}
+
+function statusOf(share: Share, device: string): string {
+  if (share.synced_copy === null) return share.is_reachable ? "" : `${device} isn't answering.`;
+  switch (share.sync_state) {
+    case "behind":
+      return "Hasn't caught up yet.";
+    case "unknown":
+      return `Can't check: ${device} isn't answering.`;
+    default:
+      return "Up to date.";
   }
 }
 
@@ -86,13 +101,6 @@ export function stuckSyncOf(share: Share | undefined, deviceName: string): { tit
     detail:
       "Your computer has files here that haven't arrived. The sync may be stuck: check it in Imbue Studio on your computer, or connect this folder again.",
   };
-}
-
-/** A warning about a share, or null when there is nothing to warn of. */
-export function shareProblemOf(share: Share): string | null {
-  if (share.sync_state === "behind") return "This copy hasn't caught up with your computer. The sync may be stuck.";
-  if (!share.is_reachable && share.synced_copy === null) return "Your computer isn't answering right now.";
-  return null;
 }
 
 async function failureOf(response: Response, what: string): Promise<DufsError> {

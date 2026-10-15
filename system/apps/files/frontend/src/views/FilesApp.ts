@@ -21,7 +21,6 @@ import {
   labelOf,
   modeOf,
   shareAt,
-  shareProblemOf,
   stuckSyncOf,
   targetOf,
   type Connections,
@@ -140,19 +139,16 @@ const MODE_ICONS: Record<ShareMode, IconName> = {
 
 function shareRow(app: FilesController, connections: Connections, share: Share): SidebarRow {
   const target = targetOf(share);
-  const problem = shareProblemOf(share);
-  const description = describeShare(share, deviceNameOf(connections, share.device));
+
   return {
     key: `share:${share.device}:${share.path}`,
     label: labelOf(share),
     path: target,
     icon: share.kind === "file" ? "file" : "folder",
-    title: problem === null ? description : `${problem} ${description}`,
+    title: describeShare(share, deviceNameOf(connections, share.device)),
     isFaint: !share.is_reachable && share.synced_copy === null,
     badges: [
-      problem !== null && share.sync_state === "behind"
-        ? badge("triangle-alert", "text-warning")
-        : badge(MODE_ICONS[modeOf(share)]),
+      share.sync_state === "behind" ? badge("triangle-alert", "text-warning") : badge(MODE_ICONS[modeOf(share)]),
       share.access === "read" ? badge("lock") : null,
     ],
     onOpen: share.kind === "file" ? () => app.openPage(target, "view") : undefined,

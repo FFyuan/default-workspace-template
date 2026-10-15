@@ -66,7 +66,9 @@ button, and the view options), and the folder. The sidebar lists Shortcuts
 and folder shared from the user's computers, each with a glyph for how it
 reaches the workspace (two arrows: synced both ways; one arrow: synced one way;
 a cloud: opened live), a lock when it is read-only, and a warning in place of
-the first when its copy has fallen behind; the row's tooltip says it in words.
+the first when its copy has fallen behind. The row's tooltip says, without
+repeating the name, how it reaches the workspace and how it stands (up to date,
+not caught up, or its computer not answering).
 A synced share opens at its copy, the others live. The list ends in "Connect
 local files or folders", which opens a dialog for the path, the access, and
 whether to keep a synced copy, which asks the computer and then watches for the
