@@ -9,6 +9,7 @@ import m from "mithril";
 import { STANDARD_THEME_ID, wearTheme } from "@imbue/workspace-ui/src/themes/themeClient";
 import { fetchInventory, fetchThemes } from "../model/api";
 import { themeRefOf } from "../model/themes";
+import { afterPageLoad } from "../theme/pageLoad";
 import { setIconTheme } from "../views/themeIcons";
 import { ThemeGallery, galleryStateOf } from "../views/ThemeGallery";
 
@@ -24,6 +25,9 @@ async function start(): Promise<void> {
   }
   // Shown, not remembered: the gallery shares the shell's origin, whose next load must not boot into this theme.
   await wearTheme(themeRefOf(state.shown), document, { isRemembered: false });
+  // A theme the boot script put on counts as worn once its bundle parses, before the files it imports load; the
+  // page's load event waits for those, so the terminal section reads the theme's tokens.
+  await afterPageLoad();
   setIconTheme(state.shown);
   m.mount(root, { view: () => m(ThemeGallery, { state }) });
 }

@@ -35,6 +35,7 @@ import { ShellSocket } from "./store/socket";
 import { type ThemeRef, wearTheme } from "@imbue/workspace-ui/src/themes/themeClient";
 import { themeRefOf } from "./model/themes";
 import { currentRenderModes, followRenderModes, readThemeMetrics } from "./theme/metrics";
+import { afterPageLoad } from "./theme/pageLoad";
 import { App, BACKDROP_AREA_ATTRIBUTE } from "./views/App";
 import { setIconTheme } from "./views/themeIcons";
 
@@ -80,13 +81,6 @@ const popOutBridge: PopOutBridge = {
     sendToEmbedder(WINDOW_DRAG_ENDED, { windowId, isDetached, isCancelled }),
   reportDetachedWindows: (windows) => sendToEmbedder(DETACHED_WINDOWS, { windows: [...windows] }),
 };
-
-/** Settles once the page's load event has fired: every stylesheet in `<head>`, script-inserted ones included,
- *  has then loaded. */
-function afterPageLoad(): Promise<void> {
-  if (document.readyState === "complete") return Promise.resolve();
-  return new Promise((resolve) => window.addEventListener("load", () => resolve(), { once: true }));
-}
 
 /** Where an external link no app takes opens: through the chrome, or in a new tab of the browser this shell is in. */
 const outsideLinks: OutsideLinkOpener = {
