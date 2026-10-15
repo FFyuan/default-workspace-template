@@ -30,7 +30,7 @@ const CLASS_PATTERN = /\.(-?[_a-zA-Z][\w-]*)/g;
 
 function loadConfig(configPath) {
   const config = JSON.parse(readFileSync(configPath, "utf8"));
-  for (const key of ["source", "files", "css", "licenseFile", "output", "selectorMap"]) {
+  for (const key of ["source", "files", "css", "license", "licenseFile", "output", "selectorMap"]) {
     if (config[key] === undefined) throw new Error(`${configPath} has no "${key}"`);
   }
   return {
