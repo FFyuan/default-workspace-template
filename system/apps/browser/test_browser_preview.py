@@ -112,8 +112,10 @@ def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(rep
     ]
 
     with _held(_LIVE_PORTS[0]), _held(_LIVE_PORTS[1]):
-        up = subprocess.run(up_argv, capture_output=True, text=True, timeout=2 * _STEP_TIMEOUT_SECONDS, check=False)
         try:
+            up = subprocess.run(
+                up_argv, capture_output=True, text=True, timeout=2 * _STEP_TIMEOUT_SECONDS, check=False
+            )
             assert up.returncode == 0, up.stderr
             url = up.stdout.strip()
             ports = json.loads((repo_root / _INSTANCE_STATE).read_text())["ports"]
