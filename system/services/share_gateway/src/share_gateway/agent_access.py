@@ -356,8 +356,7 @@ class LastSeenStore:
             document = self.read_all()
             document[agent_id] = now.isoformat()
             try:
-                self._path.parent.mkdir(parents=True, exist_ok=True)
-                self._path.write_text(json.dumps(document))
+                write_text_atomic(self._path, json.dumps(document), 0o644)
             except OSError as exc:
                 log(f"Could not record last-seen for {agent_id}: {exc}")
 
