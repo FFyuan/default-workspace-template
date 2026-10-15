@@ -203,6 +203,10 @@ textarea,
 select {
   border-radius: 0;
 }
+/* system.css's popup arrow sits 2px in from the right edge; the value stops short of it. */
+select {
+  padding-right: 22px;
+}
 [data-part="menu"] input,
 [data-part="menu"] textarea,
 [data-part="menu"] select {
