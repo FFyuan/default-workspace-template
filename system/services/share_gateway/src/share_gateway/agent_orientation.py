@@ -40,19 +40,24 @@ _FRONTMATTER_FIELD = re.compile(r"^(name|description):\s*(.*)$")
 
 
 def _run_git(repo_root: Path, args: Sequence[str]) -> str:
-    """git's stdout, or '' when git fails (an orientation route never fails on git)."""
+    """git's stdout, or '' when git fails (an orientation route never fails on git, but the failure is logged)."""
     try:
         result = subprocess.run(
             ["git", *args],
             cwd=repo_root,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             timeout=_GIT_TIMEOUT_SECONDS,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log(f"git {' '.join(args)} in {repo_root} did not run: {exc}")
         return ""
-    return result.stdout.decode("utf-8", errors="replace") if result.returncode == 0 else ""
+    if result.returncode != 0:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()[-300:]
+        log(f"git {' '.join(args)} in {repo_root} exited {result.returncode}: {detail}")
+        return ""
+    return result.stdout.decode("utf-8", errors="replace")
 
 
 def _read_frontmatter(skill_file: Path) -> dict[str, str]:
@@ -60,7 +65,8 @@ def _read_frontmatter(skill_file: Path) -> dict[str, str]:
     fields: dict[str, str] = {}
     try:
         lines = skill_file.read_text().splitlines()
-    except OSError:
+    except OSError as exc:
+        log(f"Could not read {skill_file} for the skills index: {exc}")
         return fields
     if not lines or lines[0].strip() != "---":
         return fields
@@ -84,7 +90,8 @@ def _skill_content_hash(repo_root: Path, skill_dir: Path) -> str:
         digest.update(relative.encode("utf-8") + b"\0")
         try:
             digest.update((repo_root / relative).read_bytes())
-        except OSError:
+        except OSError as exc:
+            log(f"Could not read {relative} for the skills index hash: {exc}")
             continue
         digest.update(b"\0")
     return digest.hexdigest()
@@ -127,7 +134,10 @@ def cached_skills_index(repo_root: Path, cache_path: Path, template_ref: str) ->
     if head:
         try:
             cached = json.loads(cache_path.read_text())
-        except (OSError, ValueError):
+        except FileNotFoundError:
+            cached = None
+        except (OSError, ValueError) as exc:
+            log(f"Could not read the skills index cache at {cache_path}; recomputing it: {exc}")
             cached = None
         if isinstance(cached, dict) and cached.get("head") == head and isinstance(cached.get("index"), dict):
             return cached["index"]
@@ -373,7 +383,8 @@ def render_primer(
     """The primer for one agent: the reference prose, cut to the scope, with every generated part filled in."""
     try:
         template = (repo_root / PRIMER_TEMPLATE_PATH).read_text()
-    except OSError:
+    except OSError as exc:
+        log(f"Could not read the primer prose at {repo_root / PRIMER_TEMPLATE_PATH}; rendering a stub: {exc}")
         template = "# Visiting this workspace\n\nThe primer prose is missing from this workspace.\n\n{{skills_table}}\n\n{{apps_table}}\n"
     is_workspace_scope = scope == WORKSPACE_SCOPE
     template = _cut_to_scope(template, is_workspace_scope)
@@ -411,7 +422,8 @@ def render_instruction_block(
     """The block an inviter copies: the reference text with the invite's values, cut to the scope."""
     try:
         template = (repo_root / INVITE_TEMPLATE_PATH).read_text()
-    except OSError:
+    except OSError as exc:
+        log(f"Could not read the instruction block at {repo_root / INVITE_TEMPLATE_PATH}; rendering a stub: {exc}")
         template = (
             'You have been invited to the Imbue Studio workspace "{{workspace_name}}".\n'
             "Install the helper from {{auth_origin}}/_agent/helper and run: wsvisit join {{auth_origin}} {{code}}\n"

@@ -9,3 +9,5 @@ A workspace record the gateway cannot read (a truncated host `data.json`, an unr
 A join or a revoke that drops an expired grant records the `expired` event for it, as the gateway's start-up reconcile already did, so a grant's audit trail always ends with its expiry or its revocation.
 
 The auth-origin label is created atomically: the gateway starting the stack and the `agent-access` CLI minting an invite can both create it on a workspace's first publish, and the one that loses now answers the label the other stored, instead of a second label the running gateway would not serve.
+
+The orientation renderers log what they fall back from: a git invocation that fails or times out, a skill file that cannot be read, a skills-index cache that cannot be parsed, and a missing primer or instruction-block reference file each leave a line in the gateway's log beside the degraded answer they still render.
