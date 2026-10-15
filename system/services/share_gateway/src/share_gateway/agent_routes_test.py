@@ -6,10 +6,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key
-from cryptography.hazmat.primitives.serialization import Encoding
-from cryptography.hazmat.primitives.serialization import PublicFormat
 from flask import Flask
 from flask.testing import FlaskClient
 from werkzeug.test import TestResponse
@@ -34,6 +31,7 @@ from share_gateway.server import build_gateway_app
 from share_gateway.session_cookie import SESSION_COOKIE_NAME
 from share_gateway.session_cookie import mint_session_cookie_value
 from share_gateway.testing import make_workspace_repo
+from share_gateway.testing import new_ed25519_public_key_line
 
 _DOMAIN = "alpha.7f3a.us1.example.com"
 _AUTH_LABEL = "auth-x7k9q2w1"
@@ -142,17 +140,13 @@ def session_cookie(user_id: str, is_owner: bool = False) -> str:
     return mint_session_cookie_value(_SIGNING_SECRET, identity, _DOMAIN)
 
 
-def new_key_line() -> str:
-    return Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.OpenSSH, PublicFormat.OpenSSH).decode()
-
-
 def join_as(
     harness: _Harness, scope: "str | list[str]", granter: str = "user:owner", name: str = "Josh Claude"
 ) -> dict[str, Any]:
     minted = mint_invite(harness.context.paths, scope, granter, "", None, harness.clock(), via="test")
     response = harness.client.post(
         "/_agent/join",
-        json={"code": minted.code, "public_key": new_key_line(), "name": name},
+        json={"code": minted.code, "public_key": new_ed25519_public_key_line(), "name": name},
         headers={"X-Forwarded-For": "203.0.113.9"},
     )
     assert response.status_code == 200, response.get_data(as_text=True)
@@ -218,7 +212,9 @@ def test_join_refuses_malformed_bodies_bad_codes_and_bad_keys(tmp_path: Path) ->
         == 400
     )
     bad_code = harness.client.post(
-        "/_agent/join", json={"code": "AAAA-BBBB-CCCC", "public_key": new_key_line(), "name": "n"}, headers=headers
+        "/_agent/join",
+        json={"code": "AAAA-BBBB-CCCC", "public_key": new_ed25519_public_key_line(), "name": "n"},
+        headers=headers,
     )
     assert bad_code.status_code == 403
     minted = mint_invite(
@@ -236,7 +232,9 @@ def test_join_refuses_malformed_bodies_bad_codes_and_bad_keys(tmp_path: Path) ->
     assert bad_key.status_code == 400
     # The invite survived the bad key (a failed attempt was counted against it), so the right key still joins.
     good = harness.client.post(
-        "/_agent/join", json={"code": minted.code, "public_key": new_key_line(), "name": "n"}, headers=headers
+        "/_agent/join",
+        json={"code": minted.code, "public_key": new_ed25519_public_key_line(), "name": "n"},
+        headers=headers,
     )
     assert good.status_code == 200
 
@@ -247,14 +245,14 @@ def test_join_is_rate_limited_per_client_address(tmp_path: Path) -> None:
     for _ in range(11):
         response = harness.client.post(
             "/_agent/join",
-            json={"code": "AAAA-BBBB-CCCC", "public_key": new_key_line(), "name": "n"},
+            json={"code": "AAAA-BBBB-CCCC", "public_key": new_ed25519_public_key_line(), "name": "n"},
             headers={"X-Forwarded-For": "198.51.100.7"},
         )
         statuses.append(response.status_code)
     assert statuses[:10] == [403] * 10 and statuses[10] == 429
     other = harness.client.post(
         "/_agent/join",
-        json={"code": "AAAA-BBBB-CCCC", "public_key": new_key_line(), "name": "n"},
+        json={"code": "AAAA-BBBB-CCCC", "public_key": new_ed25519_public_key_line(), "name": "n"},
         headers={"X-Forwarded-For": "198.51.100.8"},
     )
     assert other.status_code == 403
@@ -446,7 +444,7 @@ def test_verify_refuses_an_expired_grant_and_an_unconfigured_gateway(tmp_path: P
     )
     response = harness.client.post(
         "/_agent/join",
-        json={"code": minted.code, "public_key": new_key_line(), "name": "n"},
+        json={"code": minted.code, "public_key": new_ed25519_public_key_line(), "name": "n"},
         headers={},
     )
     document = response.get_json()

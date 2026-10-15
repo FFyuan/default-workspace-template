@@ -5,9 +5,6 @@ from datetime import timezone
 from pathlib import Path
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.serialization import Encoding
-from cryptography.hazmat.primitives.serialization import PublicFormat
 
 from share_gateway.agent_access import AgentAccessPaths
 from share_gateway.agent_access import JoinRefusedError
@@ -27,6 +24,7 @@ from share_gateway.agent_grants import INVITE_MAX_FAILED_ATTEMPTS
 from share_gateway.agent_grants import find_grant_by_token
 from share_gateway.agent_grants import load_agent_grants
 from share_gateway.agent_grants import load_agent_invites
+from share_gateway.testing import new_ed25519_public_key_line
 
 _NOW = datetime(2026, 10, 15, 18, 0, tzinfo=timezone.utc)
 _OWNER = "user:8c0f-owner"
@@ -41,10 +39,6 @@ def make_paths(tmp_path: Path) -> AgentAccessPaths:
     )
 
 
-def new_public_key_line() -> str:
-    return Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.OpenSSH, PublicFormat.OpenSSH).decode()
-
-
 def read_events(paths: AgentAccessPaths) -> list[dict[str, object]]:
     events_file = (paths.events_dir or Path()) / "events.jsonl"
     if not events_file.exists():
@@ -55,7 +49,7 @@ def read_events(paths: AgentAccessPaths) -> list[dict[str, object]]:
 def test_join_consumes_the_invite_writes_the_grant_the_key_line_and_the_events(tmp_path: Path) -> None:
     paths = make_paths(tmp_path)
     minted = mint_invite(paths, "workspace", _OWNER, "Josh's Claude", None, _NOW, via="test")
-    key_line = new_public_key_line() + " agent@laptop"
+    key_line = new_ed25519_public_key_line() + " agent@laptop"
 
     joined = join(paths, minted.code, key_line, "  Josh\u200b\tClaude  ", _NOW + timedelta(minutes=1))
 
@@ -80,7 +74,7 @@ def test_join_consumes_the_invite_writes_the_grant_the_key_line_and_the_events(t
 def test_join_with_an_app_scope_writes_no_key_line_and_carries_the_invite_expiry(tmp_path: Path) -> None:
     paths = make_paths(tmp_path)
     minted = mint_invite(paths, ["chat"], _OWNER, "", timedelta(days=2), _NOW, via="test")
-    joined = join(paths, minted.code, new_public_key_line(), "Ada's Codex", _NOW)
+    joined = join(paths, minted.code, new_ed25519_public_key_line(), "Ada's Codex", _NOW)
     assert joined.grant.scope == ["chat"]
     assert joined.grant.expires_at == _NOW + timedelta(days=2)
     assert not paths.authorized_keys_path.exists() or paths.authorized_keys_path.read_text() == ""
@@ -90,15 +84,15 @@ def test_join_refuses_unknown_expired_and_reused_codes_the_same_way(tmp_path: Pa
     paths = make_paths(tmp_path)
     minted = mint_invite(paths, "workspace", _OWNER, "", None, _NOW, via="test")
     with pytest.raises(JoinRefusedError) as unknown:
-        join(paths, "AAAA-BBBB-CCCC", new_public_key_line(), "x", _NOW)
+        join(paths, "AAAA-BBBB-CCCC", new_ed25519_public_key_line(), "x", _NOW)
     with pytest.raises(JoinRefusedError) as expired:
-        join(paths, minted.code, new_public_key_line(), "x", _NOW + timedelta(minutes=16))
+        join(paths, minted.code, new_ed25519_public_key_line(), "x", _NOW + timedelta(minutes=16))
     assert unknown.value.status == 403 and expired.value.status == 403
     assert str(unknown.value) == str(expired.value)
     fresh = mint_invite(paths, "workspace", _OWNER, "", None, _NOW, via="test")
-    join(paths, fresh.code, new_public_key_line(), "first", _NOW)
+    join(paths, fresh.code, new_ed25519_public_key_line(), "first", _NOW)
     with pytest.raises(JoinRefusedError):
-        join(paths, fresh.code, new_public_key_line(), "second", _NOW)
+        join(paths, fresh.code, new_ed25519_public_key_line(), "second", _NOW)
 
 
 def test_join_refuses_a_bad_key_or_empty_name_before_touching_the_invite(tmp_path: Path) -> None:
@@ -108,7 +102,7 @@ def test_join_refuses_a_bad_key_or_empty_name_before_touching_the_invite(tmp_pat
         join(paths, minted.code, "ssh-rsa AAAA", "x", _NOW)
     assert bad_key.value.status == 400
     with pytest.raises(JoinRefusedError) as bad_name:
-        join(paths, minted.code, new_public_key_line(), "​", _NOW)
+        join(paths, minted.code, new_ed25519_public_key_line(), "​", _NOW)
     assert bad_name.value.status == 400
     assert len(load_agent_invites(paths.invites_path)) == 1
 
@@ -126,7 +120,7 @@ def test_failed_attempts_burn_the_invite_at_the_cap(tmp_path: Path) -> None:
 
 def test_rejoin_with_the_same_key_keeps_the_id_and_rotates_the_token(tmp_path: Path) -> None:
     paths = make_paths(tmp_path)
-    key_line = new_public_key_line()
+    key_line = new_ed25519_public_key_line()
     first = join(
         paths,
         mint_invite(paths, "workspace", _OWNER, "", None, _NOW, via="test").code,
@@ -158,14 +152,14 @@ def test_revoke_is_for_the_owner_or_the_granter_and_removes_the_key_line(tmp_pat
     granted_by_visitor = join(
         paths,
         mint_invite(paths, "workspace", "user:visitor", "", None, _NOW, via="test").code,
-        new_public_key_line(),
+        new_ed25519_public_key_line(),
         "a",
         _NOW,
     )
     granted_by_owner = join(
         paths,
         mint_invite(paths, "workspace", _OWNER, "", None, _NOW, via="test").code,
-        new_public_key_line(),
+        new_ed25519_public_key_line(),
         "b",
         _NOW,
     )
@@ -206,14 +200,14 @@ def test_reconcile_prunes_expired_grants_and_restores_the_key_lines(tmp_path: Pa
     kept = join(
         paths,
         mint_invite(paths, "workspace", _OWNER, "", None, _NOW, via="test").code,
-        new_public_key_line(),
+        new_ed25519_public_key_line(),
         "kept",
         _NOW,
     )
     join(
         paths,
         mint_invite(paths, "workspace", _OWNER, "", timedelta(hours=1), _NOW, via="test").code,
-        new_public_key_line(),
+        new_ed25519_public_key_line(),
         "gone",
         _NOW,
     )
@@ -232,14 +226,14 @@ def test_list_and_visibility_and_description(tmp_path: Path) -> None:
     mine = join(
         paths,
         mint_invite(paths, "workspace", "user:visitor", "", None, _NOW, via="test").code,
-        new_public_key_line(),
+        new_ed25519_public_key_line(),
         "mine",
         _NOW,
     )
     theirs = join(
         paths,
         mint_invite(paths, "workspace", _OWNER, "", None, _NOW, via="test").code,
-        new_public_key_line(),
+        new_ed25519_public_key_line(),
         "theirs",
         _NOW,
     )
@@ -272,4 +266,4 @@ def test_malformed_grants_file_fails_every_operation_closed(tmp_path: Path) -> N
         list_grants(paths, _NOW)
     minted = mint_invite(paths, "workspace", _OWNER, "", None, _NOW, via="test")
     with pytest.raises(AgentGrantsError):
-        join(paths, minted.code, new_public_key_line(), "x", _NOW)
+        join(paths, minted.code, new_ed25519_public_key_line(), "x", _NOW)

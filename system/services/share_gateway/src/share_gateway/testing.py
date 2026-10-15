@@ -7,6 +7,9 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding
+from cryptography.hazmat.primitives.serialization import PublicFormat
 from werkzeug.serving import make_server
 from werkzeug.wrappers import Request
 from werkzeug.wrappers import Response
@@ -74,3 +77,11 @@ def make_workspace_repo(root: Path, primer_template: str, invite_template: str) 
 def commit_all(repo: Path, message: str) -> None:
     _git(repo, "add", ".")
     _git(repo, "commit", "-q", "-m", message)
+
+
+def new_ed25519_public_key_line(comment: str = "") -> str:
+    """A fresh Ed25519 OpenSSH public key line, the shape an agent presents at join, with an optional comment."""
+    line = (
+        Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.OpenSSH, PublicFormat.OpenSSH).decode("ascii")
+    )
+    return f"{line} {comment}" if comment else line

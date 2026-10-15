@@ -4,7 +4,6 @@ from datetime import timezone
 from pathlib import Path
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.hazmat.primitives.serialization import PublicFormat
@@ -35,6 +34,7 @@ from share_gateway.agent_grants import render_agent_grants
 from share_gateway.agent_grants import render_agent_invites
 from share_gateway.agent_grants import sanitize_agent_name
 from share_gateway.agent_grants import validate_scope
+from share_gateway.testing import new_ed25519_public_key_line
 
 # The public key and fingerprint of the owner-exec profile's shared test vectors, so the fingerprint rule here is
 # checked against the one the daemon uses as keyid.
@@ -44,16 +44,10 @@ _VECTOR_FINGERPRINT = "SHA256:fe85JkIjo8VPe+XqXJGH5Mau1EMFdK1OdKvJUFicyA8"
 _NOW = datetime(2026, 10, 15, 18, 0, tzinfo=timezone.utc)
 
 
-def _openssh_line(comment: str = "") -> str:
-    key = Ed25519PrivateKey.generate().public_key()
-    line = key.public_bytes(Encoding.OpenSSH, PublicFormat.OpenSSH).decode("ascii")
-    return f"{line} {comment}" if comment else line
-
-
 def make_grant(
     agent_id: str = "", scope: "str | list[str]" = WORKSPACE_SCOPE, expires_at: datetime | None = None
 ) -> AgentGrant:
-    public_key, fingerprint = canonical_public_key_line(_openssh_line())
+    public_key, fingerprint = canonical_public_key_line(new_ed25519_public_key_line())
     return AgentGrant(
         agent_id=agent_id or mint_agent_id(),
         name="Josh's Claude",
