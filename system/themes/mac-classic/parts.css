@@ -129,6 +129,7 @@ kbd {
 [data-part="button"]:not(:disabled):not([aria-disabled="true"]):active {
   background: #000000;
   color: #ffffff;
+  border-radius: 6px;
 }
 [data-part="button"][data-variant="primary"] {
   border-width: 8px;
@@ -145,6 +146,10 @@ kbd {
 [data-part="button"][data-shape="icon"]:not(:disabled):not([aria-disabled="true"]):active {
   background: #000000;
   color: #ffffff;
+  border-radius: 0;
+}
+[data-part="button"][data-variant="primary"]:not(:disabled):not([aria-disabled="true"]):active {
+  border-radius: 12px;
 }
 /* An icon toggle that is on (the active desktop's switch) stays inverted, under the pointer too. */
 [data-part="button"][data-shape="icon"][aria-pressed="true"],

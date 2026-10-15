@@ -42,6 +42,10 @@
       "why": "Hides every checkbox and radio for labels the desktop does not draw."
     },
     {
+      "pattern": "^\\.btn(-default)?:active$",
+      "why": "Inverts any button while pressed, a readonly one too; the theme presses only a button that is not disabled, with the same look."
+    },
+    {
       "pattern": "^\\.title-bar button",
       "why": "The library's 40px close and resize boxes; the theme draws the title bar's controls on the contract's window-control part."
     },
