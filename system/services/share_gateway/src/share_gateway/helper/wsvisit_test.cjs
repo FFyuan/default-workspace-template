@@ -116,6 +116,15 @@ test("parseArgs splits options, positionals, and the command after --", () => {
   assert.deepEqual(helper.parseArgs(["skills", "--json"]).options, { json: true });
 });
 
+test("the run timeout is the default, a positive number of seconds capped at an hour, or a usage error", () => {
+  assert.equal(helper.runTimeoutSeconds({}), 600);
+  assert.equal(helper.runTimeoutSeconds({ timeout: "30" }), 30);
+  assert.equal(helper.runTimeoutSeconds({ timeout: "7200" }), 3600);
+  for (const timeout of [true, "5m", "0", "-1"]) {
+    assert.throws(() => helper.runTimeoutSeconds({ timeout }), (error) => error instanceof helper.HelperError && error.exitCode === 64);
+  }
+});
+
 test("describeSkillChanges names new, removed, and changed skills", () => {
   const lines = helper.describeSkillChanges({ a: "1", b: "2", c: "3" }, { a: "1", b: "9", d: "4" });
   assert.deepEqual(lines, ["  new skill: d", "  removed skill: c", "  changed skill: b"]);

@@ -525,10 +525,20 @@ async function commandJoin(positional, options) {
   process.stdout.write(await gatewayJson(config, "GET", "/_agent/primer"));
 }
 
+// `--timeout` given without a value parses as `true`, which Number() reads as 1.
+function runTimeoutSeconds(options) {
+  if (options.timeout === undefined) return DEFAULT_RUN_TIMEOUT_SECONDS;
+  const seconds = Number(options.timeout);
+  if (options.timeout === true || !Number.isFinite(seconds) || seconds <= 0) {
+    throw new HelperError("--timeout takes a positive number of seconds", EXIT_USAGE);
+  }
+  return Math.min(seconds, MAX_RUN_TIMEOUT_SECONDS);
+}
+
 async function commandRun(config, options, rest) {
   if (!rest.length) throw new HelperError("usage: wsvisit run [--cwd <dir>] [--timeout <seconds>] -- <command...>", EXIT_USAGE);
   await refreshSkills(config, false);
-  const timeoutSeconds = Math.min(Number(options.timeout) || DEFAULT_RUN_TIMEOUT_SECONDS, MAX_RUN_TIMEOUT_SECONDS);
+  const timeoutSeconds = runTimeoutSeconds(options);
   const payload = { command: rest, timeout_seconds: timeoutSeconds };
   if (options.cwd) payload.cwd = options.cwd;
   return withRecovery(config, async (current) => {
@@ -749,6 +759,7 @@ module.exports = {
   publicKeyLineFromRaw,
   publicKeyObjectFromLine,
   requestSignatureBase,
+  runTimeoutSeconds,
   signRequest,
   streamTrailerBase,
   verifyResponse,
