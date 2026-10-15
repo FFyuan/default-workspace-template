@@ -272,6 +272,10 @@ select {
   background: #000000;
   color: #ffffff;
 }
+/* The focused entry is drawn inverted, and its icon with it, as the Finder drew a selected icon. */
+[data-part="taskbar-entry"][data-focused="true"] [data-part="app-icon"] {
+  filter: invert(1);
+}
 [data-part="launcher-field"] {
   background: #ffffff;
   border: 1px solid #000000;
