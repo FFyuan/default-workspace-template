@@ -79,6 +79,10 @@
     {
       "pattern": "^#page-content$",
       "why": "The demo page's content column."
+    },
+    {
+      "pattern": "^\\.dropdown-item:hover$",
+      "why": "Turns every row navy under the pointer, a disabled one too; the theme draws the selection on the rows that can be chosen."
     }
   ],
   "droppedDeclarations": [

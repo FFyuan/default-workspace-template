@@ -128,9 +128,6 @@ button:focus{
 [data-part="menu-item"]{
     padding: 1px 0 1px 2px;
 }
-[data-part="menu-item"]:hover{
-    color:#08216b;
-}
 [data-part="taskbar"]{
     cursor: default;
     background-color: #d4d0c8;
