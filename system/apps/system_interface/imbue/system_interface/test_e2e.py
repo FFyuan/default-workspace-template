@@ -1363,7 +1363,6 @@ def test_every_theme_keeps_a_window_movable_resizable_from_every_edge_and_its_co
         _assert_close(after["x"] + after["width"], before["x"] + before["width"] + 30 * right, f"{edge} right")
         _assert_close(after["y"] + after["height"], before["y"] + before["height"] + 24 * bottom, f"{edge} bottom")
 
-    # Maximize and restore by the controls.
     normal = _box(window)
     window.locator('[data-window-control="maximize"]').click()
     expect(window).to_have_attribute("data-window-state", "MAXIMIZED")
@@ -1371,13 +1370,11 @@ def test_every_theme_keeps_a_window_movable_resizable_from_every_edge_and_its_co
     expect(window).to_have_attribute("data-window-state", "NORMAL")
     _assert_same_box(_box(window), normal, "restored")
 
-    # Minimize, and back from the taskbar.
     window.locator('[data-window-control="minimize"]').click()
     expect(_shown_windows(page)).to_have_count(0)
     _taskbar_entry(page, window_id).click()
     expect(window).to_be_visible()
 
-    # The window menu opens and closes.
     window.locator('[data-window-control="menu"]').click()
     expect(page.locator('[data-menu-row="close"]')).to_be_visible()
     page.keyboard.press("Escape")
@@ -1393,7 +1390,6 @@ def test_every_theme_keeps_a_window_movable_resizable_from_every_edge_and_its_co
         error_message="the reload control never reloaded the page",
     )
 
-    # Close closes it.
     window.locator('[data-window-control="close"]').click()
     expect(_shown_windows(page)).to_have_count(0)
     _wait_for_window_count(themed_e2e_server.base_url, 0)

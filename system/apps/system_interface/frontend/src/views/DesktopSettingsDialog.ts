@@ -225,7 +225,6 @@ export function DesktopSettingsDialog(): m.Component<DesktopSettingsDialogAttrs>
   function themePicture(record: ThemeRecord, previewApp: Pick<AppRecord, "name" | "icon"> | null): m.Children {
     const icons = record.available ? record.icons : null;
     const url = icons === null ? null : (icons.apps[THEME_PREVIEW_APP] ?? icons.fallback_url);
-    // A theme that draws no icons of its own (the standard one) shows the app's own icon.
     if (record.available && url === null && previewApp !== null) {
       return m(
         "span",
