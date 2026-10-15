@@ -287,7 +287,8 @@ the same gateway:
   beside it), verifies responses and stream trailers against the pinned host
   key, refreshes the skills index when its copy is a day old and prints what
   changed, and re-reads `me` and retries once on a 403 or a verification
-  failure.
+  failure, except for a `run` whose output already streamed: that is reported
+  rather than run again, and the refreshed addresses serve the next command.
 - **Grants, revocation, audit.** `GET /_agent/grants` lists what the caller may
   see (the owner everything, anyone else what they granted);
   `DELETE /_agent/grants/<id>` revokes (the owner any, a granter their own).
