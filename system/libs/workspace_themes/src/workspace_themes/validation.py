@@ -30,8 +30,8 @@ from workspace_themes.contract import (
     LICENSE_FILE_PREFIXES,
     MAX_STYLE_FILES_BYTES,
     MAX_THEME_FOLDER_BYTES,
-    METRIC_TOKEN_PIXEL_RANGES,
     OPTIONAL_CHROME_SLOTS,
+    PIXEL_RANGE_BY_METRIC_TOKEN,
     PRIVATE_TOKEN_PREFIX,
     SERVED_FILE_SUFFIXES,
     STANDARD_THEME_ID,
@@ -306,7 +306,7 @@ def _significant(tokens: Iterable[ast.Node]) -> list[ast.Node]:
 def _check_metric_value(
     name: str, value: Sequence[ast.Node], context: StyleSheetContext, line: int
 ) -> list[str]:
-    low, high = METRIC_TOKEN_PIXEL_RANGES[name]
+    low, high = PIXEL_RANGE_BY_METRIC_TOKEN[name]
     significant = _significant(value)
     number = significant[0] if len(significant) == 1 else None
     if not isinstance(number, ast.DimensionToken) or number.lower_unit != "px":
@@ -340,7 +340,7 @@ def _check_declarations(
             continue
         name = node.name
         if name.startswith("--"):
-            if name in METRIC_TOKEN_PIXEL_RANGES:
+            if name in PIXEL_RANGE_BY_METRIC_TOKEN:
                 problems.extend(
                     _check_metric_value(name, node.value, context, node.source_line)
                 )

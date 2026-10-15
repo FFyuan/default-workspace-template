@@ -180,7 +180,7 @@ DESKTOP_TOKENS: Final[tuple[str, ...]] = (
 )
 
 # The desktop's metrics a theme may set, each to a pixel length within its range: the shell's geometry reads them.
-METRIC_TOKEN_PIXEL_RANGES: Final[dict[str, tuple[int, int]]] = {
+PIXEL_RANGE_BY_METRIC_TOKEN: Final[dict[str, tuple[int, int]]] = {
     "--desk-title-bar-height": (16, 64),
     "--desk-taskbar-height": (24, 96),
     "--desk-window-control-size": (12, 48),
@@ -202,7 +202,7 @@ CONTRACT_TOKENS: Final[frozenset[str]] = frozenset(
         *SHAPE_TOKENS,
         *MOTION_TOKENS,
         *DESKTOP_TOKENS,
-        *METRIC_TOKEN_PIXEL_RANGES,
+        *PIXEL_RANGE_BY_METRIC_TOKEN,
         *TERMINAL_TOKENS,
     )
 )
