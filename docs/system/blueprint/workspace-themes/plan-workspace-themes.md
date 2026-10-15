@@ -156,7 +156,7 @@ Every part carries `data-part`. State is said with standard attributes, which a 
 | `field` | a text input or text area | |
 | `select` | a value picker's trigger | |
 | `menu` | a floating menu | |
-| `menu-item` | a row in a menu | |
+| `menu-item` | a row in a menu | `data-highlighted="true"\|"false"` on a row the arrow keys move from a field (the launcher's), the row Enter runs |
 | `menu-separator` | a rule between menu rows | |
 | `dialog` | a modal dialog's card | |
 | `dialog-header` | its header row | |

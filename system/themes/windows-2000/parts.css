@@ -197,7 +197,7 @@ select {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='17' shape-rendering='crispEdges'%3E%3Cpath fill='%23d4d0c8' d='M0 0h16v17H0z'/%3E%3Cpath fill='%23ffffff' d='M1 1h14v1H1zM1 1h1v15H1z'/%3E%3Cpath fill='%23404040' d='M0 16h16v1H0zM15 0h1v17h-1z'/%3E%3Cpath fill='%23808080' d='M1 15h14v1H1zM14 1h1v15h-1z'/%3E%3Cpath d='M5 7h7v1H5zM6 8h5v1H6zM7 9h3v1H7zM8 10h1v1H8z'/%3E%3C/svg%3E") right 2px center / 16px 17px no-repeat, #ffffff;
 }
 
-/* Menus: win95.css's raised gray card; the row under the pointer turns navy. */
+/* Menus: win95.css's raised gray card; the row under the pointer, or the one the arrow keys reach, turns navy. */
 [data-part="menu"] {
   padding: 2px;
   font-family: var(--font-sans);
@@ -205,7 +205,7 @@ select {
 [data-part="menu-item"] {
   border-radius: 0;
 }
-[data-part="menu-item"]:not([aria-disabled="true"]):hover {
+[data-part="menu-item"]:not([aria-disabled="true"]):is(:hover, [data-highlighted="true"]) {
   background: #0a246a;
   color: #ffffff;
   /* The accent is the selection's own colour, so a switch or dot drawn in it turns white with the text. */
@@ -213,7 +213,7 @@ select {
   --c-accent-hover: #ffffff;
 }
 /* Only the text inside turns: a dot drawn in a colour other than the accent keeps it. */
-[data-part="menu-item"]:not([aria-disabled="true"]):hover * {
+[data-part="menu-item"]:not([aria-disabled="true"]):is(:hover, [data-highlighted="true"]) * {
   color: #ffffff;
 }
 
