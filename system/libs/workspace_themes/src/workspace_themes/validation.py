@@ -568,8 +568,10 @@ def _check_style_file(
         return [f"{relative}: a style file is a .css file"], 0
     if not path.is_file():
         return [f"{relative}: listed as a style file, but it does not exist"], 0
+    # utf-8-sig drops a leading byte-order mark as a browser's decoding does, so the rules checked are the rules the
+    # browser reads: kept, the mark would hide a leading @import inside a rule's selector.
     try:
-        css_text = path.read_text(encoding="utf-8")
+        css_text = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as error:
         return [f"{relative}: cannot be read as UTF-8 text: {error}"], 0
     context = StyleSheetContext(

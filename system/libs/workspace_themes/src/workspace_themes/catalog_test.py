@@ -338,6 +338,22 @@ def test_a_theme_that_repeats_a_built_in_id_is_resolved_from_its_own_folder(
     assert entries[1].icons is not None and entries[1].icons.spec_folder == workspace
 
 
+def test_a_byte_order_mark_hides_no_import_from_the_check(tmp_path: Path) -> None:
+    write_standard_theme(tmp_path)
+    folder = write_test_theme(tmp_path / BUILTIN_THEMES_DIRECTORY, "paper", "")
+    (folder / "parts.css").write_text(
+        '\ufeff@import url("https://example.com/x.css");\n' + _PARTS_CSS,
+        encoding="utf-8",
+    )
+
+    entry = _catalog(tmp_path).find("paper")
+
+    assert entry is not None and not entry.is_available
+    assert any("@import is not allowed" in problem for problem in entry.problems), (
+        entry.problems
+    )
+
+
 def test_a_theme_folder_that_is_a_link_is_unavailable_and_never_read(
     tmp_path: Path,
 ) -> None:
