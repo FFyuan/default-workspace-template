@@ -294,6 +294,7 @@ def test_primer_is_rendered_for_the_scope(tmp_path: Path) -> None:
     assert full.status_code == 200 and full.mimetype == "text/markdown"
     text = full.get_data(as_text=True)
     assert text.startswith("# Research Lab") and "EXEC" in text and "build-app" in text
+    assert "exec-only" not in text
     assert "no latchkey gateway" in text and "Initial workspace commit" in text
     reduced = harness.client.get("/_agent/primer", headers=bearer(join_as(harness, ["chat"]))).get_data(as_text=True)
     assert (

@@ -115,6 +115,7 @@ def test_render_primer_fills_every_placeholder_and_cuts_exec_text_for_app_scope(
     assert "| chat | http://127.0.0.1:8010 | https://chat-ch111111.alpha.example.com |" in full
     assert "owner-exec" not in full
     assert "ACCOUNTS" in full and "Initial workspace commit" in full and "{{" not in full
+    assert "exec-only" not in full
     reduced = render_primer(
         repo, ["chat"], "Research Lab", "agent-1", index, _APPS, "alpha.example.com", "n/a", changes
     )
@@ -134,6 +135,7 @@ def test_render_instruction_block_substitutes_the_invite_and_cuts_exec_lines_for
         in block
     )
     assert "<a short name for yourself>" in block and "wsvisit run -- ls" in block
+    assert "exec-only" not in block
     assert "- chat: https://chat-ch111111.alpha.example.com" in block
     reduced = render_instruction_block(
         repo, "https://auth-x.alpha.example.com", "C", expires, ["chat"], "Lab", "Ada", apps

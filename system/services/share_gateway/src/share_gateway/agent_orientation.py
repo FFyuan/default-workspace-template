@@ -34,6 +34,7 @@ _LATCHKEY_TIMEOUT_SECONDS = 20
 _LATCHKEY_CACHE_SECONDS = 60.0
 _MAX_CHANGES = 200
 _EXEC_ONLY_BLOCK = re.compile(r"<!-- exec-only:start -->.*?<!-- exec-only:end -->\n?", re.DOTALL)
+_EXEC_ONLY_MARKER = re.compile(r"<!-- exec-only:(?:start|end) -->\n?")
 _FRONTMATTER_FIELD = re.compile(r"^(name|description):\s*(.*)$")
 
 
@@ -350,6 +351,13 @@ def _substitute(template: str, values: dict[str, str]) -> str:
     return rendered
 
 
+def _cut_to_scope(template: str, is_workspace_scope: bool) -> str:
+    """The template without its exec-only passages for an app scope, and without their marker lines otherwise."""
+    if is_workspace_scope:
+        return _EXEC_ONLY_MARKER.sub("", template)
+    return _EXEC_ONLY_BLOCK.sub("", template)
+
+
 def render_primer(
     repo_root: Path,
     scope: "str | list[str]",
@@ -367,8 +375,7 @@ def render_primer(
     except OSError:
         template = "# Visiting this workspace\n\nThe primer prose is missing from this workspace.\n\n{{skills_table}}\n\n{{apps_table}}\n"
     is_workspace_scope = scope == WORKSPACE_SCOPE
-    if not is_workspace_scope:
-        template = _EXEC_ONLY_BLOCK.sub("", template)
+    template = _cut_to_scope(template, is_workspace_scope)
     app_names = None if is_workspace_scope else list(scope)
     scope_text = (
         "the whole workspace, with exec authority"
@@ -409,8 +416,7 @@ def render_instruction_block(
             "Install the helper from {{auth_origin}}/_agent/helper and run: wsvisit join {{auth_origin}} {{code}}\n"
         )
     is_workspace_scope = scope == WORKSPACE_SCOPE
-    if not is_workspace_scope:
-        template = _EXEC_ONLY_BLOCK.sub("", template)
+    template = _cut_to_scope(template, is_workspace_scope)
     apps_lines = (
         "\n".join(f"- {entry['name']}: {entry['origin']}" for entry in app_origins) or "- (none registered yet)"
     )
