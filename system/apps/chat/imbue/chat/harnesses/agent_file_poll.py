@@ -23,7 +23,6 @@ recomputes are no-op-guarded), exactly like ``PathWatcher.on_change``.
 
 from __future__ import annotations
 
-import functools
 import os
 import stat
 import threading
@@ -116,13 +115,14 @@ class AgentFilePoller:
             if agent_id in self._stamp_by_agent and self._stamp_by_agent[agent_id] == stamp:
                 continue
             self._stamp_by_agent[agent_id] = stamp
-            self._call_guarded(
-                functools.partial(self._on_file_changed, agent_id), f"the change callback failed for agent {agent_id}"
-            )
+            self._report_change(agent_id)
 
         on_pass_complete = self._on_pass_complete
         if on_pass_complete is not None:
             self._call_guarded(on_pass_complete, "the pass-complete callback failed")
+
+    def _report_change(self, agent_id: str) -> None:
+        self._call_guarded(lambda: self._on_file_changed(agent_id), f"the change callback failed for agent {agent_id}")
 
     def _call_guarded(self, callback: Callable[[], None], failure: str) -> None:
         # The thread boundary: an escaping error would end the poll thread for good.
