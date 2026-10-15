@@ -6,9 +6,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AvatarChooserDialog, NO_DRAFT_TARGET_REASON } from "./AvatarChooserDialog";
 import type { AvatarChooserDialogAttrs } from "./AvatarChooserDialog";
 
-afterEach(unmountViews);
+afterEach(() => {
+  unmountViews();
+  vi.unstubAllGlobals();
+});
 
 function render(overrides: Partial<AvatarChooserDialogAttrs> = {}): HTMLElement {
+  // jsdom has no matchMedia, which the workspace character asks about reduced motion.
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+  );
   const attrs: AvatarChooserDialogAttrs = {
     designs: [
       { id: "imbue-character", label: "Imbue", source_path: null },
@@ -40,15 +48,17 @@ describe("AvatarChooserDialog", () => {
     expect(cells[1].querySelector("img")?.getAttribute("src")).toBe(
       "/api/avatars/gummy-seal/image.svg?mood=idle&preview=1",
     );
-    // Each choice is a tile and its picture the avatar part, which a theme dresses as it does the taskbar's.
+    // Each choice is a tile and its picture the avatar part, which a theme dresses as it does the taskbar's: the
+    // workspace's own character drawn live, in the theme's avatar colour, and every other design as its image.
     expect([...cells].map((cell) => cell.getAttribute("data-part"))).toEqual(["tile", "tile", "tile"]);
-    const pictures = [...cells].map((cell) => cell.querySelector("img")!);
-    expect(pictures.map((picture) => picture.getAttribute("data-part"))).toEqual(["avatar", "avatar", "avatar"]);
+    const pictures = [...cells].map((cell) => cell.querySelector('[data-part="avatar"]')!);
+    expect(pictures.map((picture) => picture.tagName.toLowerCase())).toEqual(["svg", "img", "img"]);
     expect(pictures.map((picture) => picture.getAttribute("data-avatar-kind"))).toEqual([
       "character",
       "image",
       "image",
     ]);
+    expect(cells[0].querySelector("img")).toBeNull();
     cells[1].click();
     expect(onSelect).toHaveBeenCalledWith("gummy-seal");
     const source = dialog.querySelector("[data-avatar-source]") as HTMLAnchorElement;
