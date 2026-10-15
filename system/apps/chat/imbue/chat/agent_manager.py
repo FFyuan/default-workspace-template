@@ -238,6 +238,7 @@ _RENAME_TIMEOUT_SECONDS: Final[float] = 30.0
 # starts none (a task the user stopped from the harness's own task list) goes after this many
 # background-task poller passes instead.
 _FINISHED_TASK_TURN_GRACE_PASSES: Final[int] = 3
+
 # Cap on the ``uv sync --all-packages`` a failed chat create runs before it retries; a sync
 # with nothing to do takes well under a second.
 _VENV_SYNC_TIMEOUT_SECONDS: Final[float] = 300.0
