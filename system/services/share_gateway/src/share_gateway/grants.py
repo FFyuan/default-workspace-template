@@ -26,6 +26,7 @@ Imbue Studio desktop through ``mngr exec`` -- holds the same ``flock`` on the si
 """
 
 import fcntl
+import json
 import os
 import tomllib
 from collections.abc import Generator
@@ -150,9 +151,13 @@ def load_grants(path: Path) -> Grants:
 
 
 def toml_string(value: str) -> str:
-    """``value`` as a TOML basic string."""
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
-    return f'"{escaped}"'
+    """``value`` as a TOML basic string.
+
+    A JSON string literal is one, with two differences: non-ASCII text must be
+    kept verbatim (TOML refuses the surrogate pairs JSON would otherwise spell
+    an astral character with), and DEL, which JSON leaves raw, must be escaped.
+    """
+    return json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 def _toml_string_array(values: set[str]) -> str:

@@ -133,6 +133,11 @@ def test_grants_render_and_parse_round_trip_including_expiry_and_app_scope() -> 
     assert "[[agents]]" in text and 'scope = ["chat", "files"]' in text and "expires_at" in text
     assert parse_agent_grants(text) == grants
     assert parse_agent_grants("") == []
+    # Control characters a trusted caller may assert, and an emoji a sanitized name keeps, both survive the file.
+    odd = make_grant()
+    odd.granter = "user:a\rb\x00\x7f"
+    odd.name = "Josh's Claude \U0001f600"
+    assert parse_agent_grants(render_agent_grants([odd])) == [odd]
 
 
 def test_parse_agent_grants_fails_closed_on_malformation() -> None:
