@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.serialization import PublicFormat
 
 from share_gateway.agent_access import AgentAccessPaths
 from share_gateway.agent_access import JoinRefusedError
+from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import RevokeRefusedError
 from share_gateway.agent_access import count_failed_join
 from share_gateway.agent_access import describe_grant
@@ -248,6 +249,19 @@ def test_list_and_visibility_and_description(tmp_path: Path) -> None:
     described = describe_grant(mine.grant, "2026-10-15T19:00:00+00:00")
     assert described["agent_id"] == mine.grant.agent_id and described["last_seen_at"] == "2026-10-15T19:00:00+00:00"
     assert "token" not in described and "public_key" not in described
+
+
+def test_last_seen_store_reads_an_absent_or_unreadable_file_as_empty_and_rewrites_it(tmp_path: Path) -> None:
+    path = tmp_path / "state" / "last_seen.json"
+    store = LastSeenStore(path)
+    assert store.read_all() == {}
+    path.parent.mkdir(parents=True)
+    path.write_text("not json")
+    assert store.read_all() == {}
+    path.write_text(json.dumps(["a list"]))
+    assert store.read_all() == {}
+    store.touch("va-" + "1" * 32, _NOW, 0.0)
+    assert store.read_all() == {"va-" + "1" * 32: _NOW.isoformat()}
 
 
 def test_malformed_grants_file_fails_every_operation_closed(tmp_path: Path) -> None:

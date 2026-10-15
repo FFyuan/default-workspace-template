@@ -339,11 +339,16 @@ class LastSeenStore:
         self._lock = threading.Lock()
 
     def read_all(self) -> dict[str, str]:
+        """The map from agent id to last-seen time; an absent file is empty, an unreadable one is logged and read as empty."""
         try:
             raw = json.loads(self._path.read_text())
-        except (OSError, ValueError):
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError) as exc:
+            log(f"Could not read the last-seen times at {self._path}: {exc}")
             return {}
         if not is_json_object(raw):
+            log(f"The last-seen times at {self._path} are not a JSON object; reading them as empty")
             return {}
         return {agent_id: value for agent_id, value in raw.items() if isinstance(value, str)}
 
