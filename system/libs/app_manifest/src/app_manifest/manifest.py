@@ -276,6 +276,12 @@ class AppPart(FrozenModel):
     name: AppPartName = Field(description="The part's name within the app")
     description: NonEmptyStr = Field(description="One line: what the element is")
 
+    @model_validator(mode="after")
+    def _check_description_is_one_line(self) -> Self:
+        if len(self.description.splitlines()) > 1:
+            raise InvalidManifestValueError(f"theming part {str(self.name)!r} must be described in one line")
+        return self
+
 
 class AppTheming(FrozenModel):
     """The manifest's ``[theming]`` table."""

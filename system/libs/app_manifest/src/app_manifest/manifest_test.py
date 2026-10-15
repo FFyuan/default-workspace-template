@@ -1045,6 +1045,7 @@ def test_theming_parts_declare_the_elements_a_theme_may_style() -> None:
             {"mode": "parts", "parts": [{"name": "row", "description": "A"}, {"name": "row", "description": "B"}]},
             "unique",
         ),
+        ({"mode": "parts", "parts": [{"name": "row", "description": "A row\nof the list"}]}, "one line"),
         ({"mode": "skins"}, "mode"),
     ],
 )
