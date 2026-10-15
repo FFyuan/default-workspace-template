@@ -535,6 +535,18 @@ function runTimeoutSeconds(options) {
   return Math.min(seconds, MAX_RUN_TIMEOUT_SECONDS);
 }
 
+// Same shape as `--timeout`: a bare flag reads as 1 and a word as NaN, which
+// JSON would send as null (no expiry at all).
+function inviteGrantLifetimeDays(options) {
+  const raw = options["expires-in-days"];
+  if (raw === undefined) return undefined;
+  const days = Number(raw);
+  if (raw === true || !Number.isFinite(days) || days <= 0) {
+    throw new HelperError("--expires-in-days takes a positive number of days", EXIT_USAGE);
+  }
+  return days;
+}
+
 async function commandRun(config, options, rest) {
   if (!rest.length) throw new HelperError("usage: wsvisit run [--cwd <dir>] [--timeout <seconds>] -- <command...>", EXIT_USAGE);
   await refreshSkills(config, false);
@@ -669,7 +681,8 @@ async function commandInvite(config, options) {
   const body = {};
   if (options.scope && options.scope !== "workspace") body.scope = String(options.scope).split(",").map((name) => name.trim()).filter(Boolean);
   else body.scope = "workspace";
-  if (options["expires-in-days"]) body.expires_in_days = Number(options["expires-in-days"]);
+  const expiresInDays = inviteGrantLifetimeDays(options);
+  if (expiresInDays !== undefined) body.expires_in_days = expiresInDays;
   if (options["name-hint"]) body.name_hint = String(options["name-hint"]);
   const answer = JSON.parse(await gatewayJson(config, "POST", "/_agent/invites", body));
   process.stdout.write(answer.instructions);
@@ -753,6 +766,7 @@ module.exports = {
   describeSkillChanges,
   fingerprintOfPublicKeyLine,
   generateKeypair,
+  inviteGrantLifetimeDays,
   loadConfig,
   parseArgs,
   parseSignatureInputParams,

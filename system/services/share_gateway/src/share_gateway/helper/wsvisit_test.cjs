@@ -125,6 +125,15 @@ test("the run timeout is the default, a positive number of seconds capped at an 
   }
 });
 
+test("the invite's grant lifetime is absent, a positive number of days, or a usage error", () => {
+  assert.equal(helper.inviteGrantLifetimeDays({}), undefined);
+  assert.equal(helper.inviteGrantLifetimeDays({ "expires-in-days": "7" }), 7);
+  assert.equal(helper.inviteGrantLifetimeDays({ "expires-in-days": "0.5" }), 0.5);
+  for (const days of [true, "a week", "0", "-3"]) {
+    assert.throws(() => helper.inviteGrantLifetimeDays({ "expires-in-days": days }), (error) => error instanceof helper.HelperError && error.exitCode === 64);
+  }
+});
+
 test("describeSkillChanges names new, removed, and changed skills", () => {
   const lines = helper.describeSkillChanges({ a: "1", b: "2", c: "3" }, { a: "1", b: "9", d: "4" });
   assert.deepEqual(lines, ["  new skill: d", "  removed skill: c", "  changed skill: b"]);
