@@ -1,5 +1,8 @@
+import errno
 import os
-from pathlib import Path
+from collections.abc import Generator
+from pathlib import Path, PosixPath
+from typing import Self
 
 import pytest
 from app_manifest.primitives import AppName
@@ -427,9 +430,29 @@ def test_a_path_too_long_to_look_up_makes_only_its_theme_unavailable(
     assert catalog.find_available("paper") is not None
 
 
-@pytest.mark.skipif(
-    os.geteuid() == 0, reason="permissions do not stop the root user reading"
-)
+def _refusing_reads_in(repo_root: Path, refused: Path) -> Path:
+    """`repo_root` as a path through which `refused` cannot be listed and nothing inside it looked up.
+
+    The way a folder its owner locked (`chmod 0`) refuses a reader, whoever runs the test: root reads past
+    permissions, and CI runs as root.
+    """
+
+    def check(path: Path) -> None:
+        if refused in path.parents:
+            raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(path))
+
+    class RefusingPath(PosixPath):
+        def stat(self, *, follow_symlinks: bool = True) -> os.stat_result:
+            check(self)
+            return super().stat(follow_symlinks=follow_symlinks)
+
+        def iterdir(self) -> Generator[Self]:
+            check(self / "_")
+            return super().iterdir()
+
+    return RefusingPath(repo_root)
+
+
 @pytest.mark.parametrize("locked", ["", "icons"])
 def test_a_folder_that_cannot_be_read_makes_only_its_theme_unavailable(
     tmp_path: Path, locked: str
@@ -439,12 +462,8 @@ def test_a_folder_that_cannot_be_read_makes_only_its_theme_unavailable(
     folder = write_test_theme(
         tmp_path / WORKSPACE_THEMES_DIRECTORY, "locked", _PARTS_CSS
     )
-    locked_folder = folder / locked
-    locked_folder.chmod(0)
-    try:
-        catalog = _catalog(tmp_path)
-    finally:
-        locked_folder.chmod(0o755)
+
+    catalog = _catalog(_refusing_reads_in(tmp_path, folder / locked))
 
     entry = catalog.find("locked")
     assert entry is not None and not entry.is_available
@@ -452,21 +471,16 @@ def test_a_folder_that_cannot_be_read_makes_only_its_theme_unavailable(
     assert catalog.find_available("paper") is not None
 
 
-@pytest.mark.skipif(
-    os.geteuid() == 0, reason="permissions do not stop the root user reading"
-)
 def test_a_theme_root_that_cannot_be_listed_leaves_the_other_root_s_themes(
     tmp_path: Path,
 ) -> None:
     write_standard_theme(tmp_path)
     write_test_theme(tmp_path / BUILTIN_THEMES_DIRECTORY, "paper", _PARTS_CSS)
     write_test_theme(tmp_path / WORKSPACE_THEMES_DIRECTORY, "mine", _PARTS_CSS)
-    workspace_root = tmp_path / WORKSPACE_THEMES_DIRECTORY
-    workspace_root.chmod(0)
-    try:
-        catalog = _catalog(tmp_path)
-    finally:
-        workspace_root.chmod(0o755)
+
+    catalog = _catalog(
+        _refusing_reads_in(tmp_path, tmp_path / WORKSPACE_THEMES_DIRECTORY)
+    )
 
     assert catalog.find("mine") is None
     assert catalog.find_available("paper") is not None
