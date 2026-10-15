@@ -221,6 +221,44 @@ def test_reconcile_prunes_expired_grants_and_restores_the_key_lines(tmp_path: Pa
     assert "expired" in [event["type"] for event in read_events(paths)]
 
 
+def test_join_and_revoke_record_the_expired_grants_they_prune(tmp_path: Path) -> None:
+    paths = make_paths(tmp_path)
+    for name in ("first-to-expire", "second-to-expire"):
+        join(
+            paths,
+            mint_invite(paths, "workspace", _OWNER, "", timedelta(hours=1), _NOW, via="test").code,
+            new_ed25519_public_key_line(),
+            name,
+            _NOW,
+        )
+    later = _NOW + timedelta(hours=2)
+    kept = join(
+        paths,
+        mint_invite(paths, "workspace", _OWNER, "", None, later, via="test").code,
+        new_ed25519_public_key_line(),
+        "kept",
+        later,
+    )
+    assert [grant.agent_id for grant in load_agent_grants(paths.grants_path)] == [kept.grant.agent_id]
+    expired_names = [event["name"] for event in read_events(paths) if event["type"] == "expired"]
+    assert sorted(expired_names) == ["first-to-expire", "second-to-expire"]
+
+    join(
+        paths,
+        mint_invite(paths, "workspace", _OWNER, "", timedelta(hours=1), later, via="test").code,
+        new_ed25519_public_key_line(),
+        "third-to-expire",
+        later,
+    )
+    even_later = later + timedelta(hours=2)
+    with pytest.raises(RevokeRefusedError):
+        revoke(paths, "va-" + "0" * 32, _OWNER, True, even_later, via="test")
+    assert "third-to-expire" not in [event["name"] for event in read_events(paths) if event["type"] == "expired"]
+    revoke(paths, kept.grant.agent_id, _OWNER, True, even_later, via="test")
+    assert load_agent_grants(paths.grants_path) == []
+    assert "third-to-expire" in [event["name"] for event in read_events(paths) if event["type"] == "expired"]
+
+
 def test_list_and_visibility_and_description(tmp_path: Path) -> None:
     paths = make_paths(tmp_path)
     mine = join(

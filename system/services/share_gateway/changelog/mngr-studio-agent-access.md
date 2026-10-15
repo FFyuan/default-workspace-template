@@ -5,3 +5,5 @@ The helper refuses an `--expires-in-days` on `wsvisit invite` that is not a posi
 When the helper cannot reach the workspace, it says the workspace may not be published right now and that its owner publishes it from the Share panel, since an unpublished workspace is the usual reason the share's addresses stop answering.
 
 A workspace record the gateway cannot read (a truncated host `data.json`, an unreadable host public key) is logged rather than silently read as empty, so a join answer with no host id or host key can be traced to its cause; an absent record still reads as empty quietly.
+
+A join or a revoke that drops an expired grant records the `expired` event for it, as the gateway's start-up reconcile already did, so a grant's audit trail always ends with its expiry or its revocation.

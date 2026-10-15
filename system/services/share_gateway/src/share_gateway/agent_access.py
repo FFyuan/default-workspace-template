@@ -11,6 +11,7 @@ records an audit event.
 import json
 import math
 import threading
+from collections.abc import Sequence
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
@@ -125,6 +126,16 @@ def _write_grants(paths: AgentAccessPaths, grants: list[AgentGrant], now: dateti
     reconcile_authorized_keys(paths.authorized_keys_path, grants, now)
 
 
+def _split_expired(grants: Sequence[AgentGrant], now: datetime) -> tuple[list[AgentGrant], list[AgentGrant]]:
+    """``(active, expired)``: every writer drops the expired grants and records each one once it has."""
+    return prune_expired(grants, now), [grant for grant in grants if grant.is_expired(now)]
+
+
+def _record_expired(paths: AgentAccessPaths, expired: Sequence[AgentGrant]) -> None:
+    for grant in expired:
+        write_agent_access_event(paths.events_dir, "expired", {"agent_id": grant.agent_id, "name": grant.name})
+
+
 def _write_invites(paths: AgentAccessPaths, invites: list[AgentInvite]) -> None:
     write_text_atomic(paths.invites_path, render_agent_invites(invites), 0o600)
 
@@ -137,18 +148,11 @@ def list_grants(paths: AgentAccessPaths, now: datetime) -> list[AgentGrant]:
 def reconcile(paths: AgentAccessPaths, now: datetime) -> bool:
     """Prune expired grants and invites and bring ``authorized_keys`` in line; True when anything changed."""
     with locked_agent_access(paths.grants_path):
-        grants = load_agent_grants(paths.grants_path)
-        active_grants = prune_expired(grants, now)
+        active_grants, expired_grants = _split_expired(load_agent_grants(paths.grants_path), now)
         is_changed = False
-        if len(active_grants) != len(grants):
+        if expired_grants:
             write_text_atomic(paths.grants_path, render_agent_grants(active_grants), 0o600)
-            for grant in grants:
-                if grant.is_expired(now):
-                    write_agent_access_event(
-                        paths.events_dir,
-                        "expired",
-                        {"agent_id": grant.agent_id, "name": grant.name},
-                    )
+            _record_expired(paths, expired_grants)
             is_changed = True
         if reconcile_authorized_keys(paths.authorized_keys_path, active_grants, now):
             is_changed = True
@@ -240,7 +244,7 @@ def join(
             # Unknown and expired codes read the same, and a wrong guess against
             # a live code is what burns it; nothing to burn here.
             raise JoinRefusedError("this code is not valid or has expired", 403)
-        grants = prune_expired(load_agent_grants(paths.grants_path), now)
+        grants, expired_grants = _split_expired(load_agent_grants(paths.grants_path), now)
         token = mint_admission_token()
         existing = next((grant for grant in grants if grant.fingerprint == fingerprint), None)
         if existing is None:
@@ -271,6 +275,7 @@ def join(
             grants = [grant if entry.agent_id == existing.agent_id else entry for entry in grants]
         _write_grants(paths, grants, now)
         _write_invites(paths, [entry for entry in invites if entry is not invite])
+    _record_expired(paths, expired_grants)
     write_agent_access_event(
         paths.events_dir,
         "joined",
@@ -310,13 +315,14 @@ def revoke(
     no such grant exists or the caller may not revoke it.
     """
     with locked_agent_access(paths.grants_path):
-        grants = prune_expired(load_agent_grants(paths.grants_path), now)
+        grants, expired_grants = _split_expired(load_agent_grants(paths.grants_path), now)
         grant = next((entry for entry in grants if entry.agent_id == agent_id), None)
         if grant is None:
             raise RevokeRefusedError(f"no agent {agent_id}")
         if not is_owner and grant.granter != revoker:
             raise RevokeRefusedError(f"agent {agent_id} was not granted by you")
         _write_grants(paths, [entry for entry in grants if entry.agent_id != agent_id], now)
+    _record_expired(paths, expired_grants)
     write_agent_access_event(
         paths.events_dir,
         "revoked",
