@@ -148,3 +148,12 @@ test("an app-scope agent is told it cannot invite, not that it was revoked", asy
     return true;
   });
 });
+
+test("a refusal from a workspace whose clock is off names the skew", () => {
+  const now = Date.parse("2026-10-15T18:00:00Z") / 1000;
+  assert.equal(helper.clockSkewNote("Thu, 15 Oct 2026 18:00:30 GMT", now), "");
+  assert.equal(helper.clockSkewNote("", now), "");
+  assert.equal(helper.clockSkewNote("not a date", now), "");
+  assert.match(helper.clockSkewNote("Thu, 15 Oct 2026 18:05:00 GMT", now), /300s ahead of/);
+  assert.match(helper.clockSkewNote("Thu, 15 Oct 2026 17:50:00 GMT", now), /600s behind/);
+});

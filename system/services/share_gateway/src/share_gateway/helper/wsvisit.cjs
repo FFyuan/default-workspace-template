@@ -368,13 +368,25 @@ async function verifiedExecJson(config, routePath, payload) {
   verifyResponse(response.status, response.headers, body, signed, config.exec.host_public_key, nowUnix());
   const parsed = body.length ? JSON.parse(body.toString("utf8")) : {};
   if (!response.ok && response.status !== 404) {
-    throw new HelperError(`${routePath} answered ${response.status}: ${parsed.error || body.toString("utf8").slice(0, 300)}`);
+    const detail = parsed.error || body.toString("utf8").slice(0, 300);
+    throw new HelperError(`${routePath} answered ${response.status}: ${detail}${clockSkewNote(headerValue(response.headers, "date"), nowUnix())}`);
   }
   return { status: response.status, body: parsed };
 }
 
 function nowUnix() {
   return Math.floor(Date.now() / 1000);
+}
+
+// The daemon verifies each signature within a 60-second window, so a refusal
+// from a machine whose clock is off is explained by the Date header it answered with.
+function clockSkewNote(dateHeader, nowUnix) {
+  const answeredAt = Date.parse(dateHeader || "");
+  if (Number.isNaN(answeredAt)) return "";
+  const skewSeconds = Math.round(answeredAt / 1000 - nowUnix);
+  if (Math.abs(skewSeconds) <= CREATED_WINDOW_SECONDS) return "";
+  const direction = skewSeconds > 0 ? "ahead of" : "behind";
+  return ` (the workspace's clock is ${Math.abs(skewSeconds)}s ${direction} this machine's; signatures are only accepted within ${CREATED_WINDOW_SECONDS}s, so set this machine's clock)`;
 }
 
 // Stale coordinates (a moved exec origin, a rotated host key, a re-registered
@@ -527,7 +539,8 @@ async function commandRun(config, options, rest) {
     if (!response.ok) {
       const body = Buffer.from(await response.arrayBuffer());
       verifyResponse(response.status, response.headers, body, signed, current.exec.host_public_key, nowUnix());
-      throw new HelperError(`run refused (${response.status}): ${body.toString("utf8").slice(0, 300)}`);
+      const note = clockSkewNote(headerValue(response.headers, "date"), nowUnix());
+      throw new HelperError(`run refused (${response.status}): ${body.toString("utf8").slice(0, 300)}${note}`);
     }
     const outcome = await consumeRunStream(response.body, current.exec.host_public_key, signed.signatureB64);
     return outcome.exitCode;
@@ -696,6 +709,7 @@ if (require.main === module) {
 
 module.exports = {
   HelperError,
+  clockSkewNote,
   commandInvite,
   contentDigest,
   describeSkillChanges,
