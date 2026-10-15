@@ -23,6 +23,7 @@ from pathlib import Path
 from share_gateway.agent_grants import AGENT_ACCESS_STATE_DIR
 from share_gateway.agent_grants import WORKSPACE_SCOPE
 from share_gateway.caddyfile import RegisteredApp
+from share_gateway.log import log
 
 SKILLS_DIR = Path(".agents/skills")
 PRIMER_TEMPLATE_PATH = Path(".agents/shared/references/visiting-agents.md")
@@ -135,8 +136,8 @@ def cached_skills_index(repo_root: Path, cache_path: Path, template_ref: str) ->
         try:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             cache_path.write_text(json.dumps({"head": head, "index": index}))
-        except OSError:
-            pass
+        except OSError as exc:
+            log(f"Could not cache the skills index at {cache_path}; it will be recomputed on every request: {exc}")
     return index
 
 
