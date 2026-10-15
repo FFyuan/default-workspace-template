@@ -320,6 +320,9 @@ def icon_install_path(
 
 
 def install_icon_file(source: Path, destination: Path) -> None:
+    """Copy the icon into place; an icon already there (fitted straight into the folder) stays as it is."""
+    if destination.exists() and source.samefile(destination):
+        return
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, destination)
 

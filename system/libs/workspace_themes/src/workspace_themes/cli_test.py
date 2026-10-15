@@ -183,6 +183,32 @@ def test_an_icon_drawn_as_a_grid_is_fitted_checked_and_installed_for_a_built_in_
     assert json.loads(spec_after.output)["apps_without_icon"] == []
 
 
+def test_an_icon_already_in_place_is_installed_again_as_it_is(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    drawn = tmp_path / "files.png"
+    write_test_icon(drawn, 32)
+    runner = CliRunner()
+    install = [
+        "icon",
+        "install",
+        "--theme",
+        "paper",
+        "--app",
+        "files",
+        "--repo-root",
+        str(root),
+    ]
+
+    first = runner.invoke(main, [*install, str(drawn)])
+    installed = Path(first.output.strip())
+    again = runner.invoke(main, [*install, str(installed)])
+
+    assert first.exit_code == 0, first.output
+    assert again.exit_code == 0, again.output
+    assert again.output == first.output
+    assert installed.read_bytes() == drawn.read_bytes()
+
+
 def test_an_icon_that_misses_the_limits_is_not_installed(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     wrong_size = tmp_path / "files.png"
