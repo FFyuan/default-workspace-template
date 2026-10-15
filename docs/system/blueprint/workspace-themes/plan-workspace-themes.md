@@ -116,7 +116,7 @@ Plain CSS, as a browser reads it: no preprocessor, no `@import` (the bundle orde
 
 ### 4.1 Tokens
 
-A theme sets tokens on `:root` (and under `:root[data-touch]` or `:root[data-phone]` where a value should differ by render mode).
+A theme sets tokens on `:root` (and under `:root[data-touch]` or `:root[data-phone]` where a value should differ by render mode). A part's rule may also set one for what is drawn inside that part: both retro themes turn the accent white inside a selected row, whose fill is the accent, and Windows 2000 sets smaller type sizes inside a dialog.
 
 | Group | Tokens |
 |---|---|
