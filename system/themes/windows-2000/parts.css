@@ -111,7 +111,7 @@ kbd {
   translate: none;
   transition: none;
 }
-[data-part="button"]:not(:disabled):active {
+[data-part="button"]:not(:disabled):not([aria-disabled="true"]):active {
   border-style: solid;
   border-color: #404040 #ffffff #ffffff #404040;
   background: #d4d0c8;
@@ -127,10 +127,10 @@ kbd {
   background: transparent;
   color: #000000;
 }
-[data-part="button"][data-shape="icon"]:not(:disabled):hover {
+[data-part="button"][data-shape="icon"]:not(:disabled):not([aria-disabled="true"]):hover {
   box-shadow: var(--theme-thin-raised);
 }
-[data-part="button"][data-shape="icon"]:not(:disabled):active {
+[data-part="button"][data-shape="icon"]:not(:disabled):not([aria-disabled="true"]):active {
   border-style: none;
   box-shadow: var(--theme-thin-pressed);
   background: transparent;
@@ -286,7 +286,7 @@ select {
   background: #d4d0c8;
   box-shadow: var(--theme-raised);
 }
-[data-part="tile"]:active,
+[data-part="tile"]:not([aria-disabled="true"]):active,
 [data-part="tile"][aria-pressed="true"] {
   box-shadow: var(--theme-pressed);
 }

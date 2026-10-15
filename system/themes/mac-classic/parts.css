@@ -123,10 +123,10 @@ kbd {
   transition: none;
   translate: none;
 }
-[data-part="button"]:not(:disabled):hover {
+[data-part="button"]:not(:disabled):not([aria-disabled="true"]):hover {
   background: #ffffff;
 }
-[data-part="button"]:not(:disabled):active {
+[data-part="button"]:not(:disabled):not([aria-disabled="true"]):active {
   background: #000000;
   color: #ffffff;
 }
@@ -139,10 +139,10 @@ kbd {
   border-radius: 0;
   background: transparent;
 }
-[data-part="button"][data-shape="icon"]:not(:disabled):hover {
+[data-part="button"][data-shape="icon"]:not(:disabled):not([aria-disabled="true"]):hover {
   background: rgb(0 0 0 / 0.08);
 }
-[data-part="button"][data-shape="icon"]:not(:disabled):active {
+[data-part="button"][data-shape="icon"]:not(:disabled):not([aria-disabled="true"]):active {
   background: #000000;
   color: #ffffff;
 }
@@ -150,10 +150,10 @@ kbd {
 [data-part="button"][data-variant="ghost-inverse"] {
   color: #ffffff;
 }
-[data-part="button"][data-variant="ghost-inverse"]:not(:disabled):hover {
+[data-part="button"][data-variant="ghost-inverse"]:not(:disabled):not([aria-disabled="true"]):hover {
   background: rgb(255 255 255 / 0.15);
 }
-[data-part="button"][data-variant="ghost-inverse"]:not(:disabled):active {
+[data-part="button"][data-variant="ghost-inverse"]:not(:disabled):not([aria-disabled="true"]):active {
   background: #ffffff;
   color: #000000;
 }
@@ -268,7 +268,7 @@ select {
   border: 1px solid #000000;
   box-shadow: 1px 1px 0 #000000;
 }
-[data-part="tile"]:hover {
+[data-part="tile"]:not([aria-disabled="true"]):hover {
   box-shadow: 2px 2px 0 #000000;
 }
 [data-part="tile"][aria-pressed="true"] {
