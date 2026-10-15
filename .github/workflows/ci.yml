@@ -163,7 +163,6 @@ jobs:
       # An agent runs the suites with its own identity in the environment, which
       # pytest-workspace-env clears before any test code runs. Fake values here
       # mean a pytest root that fails to load the plugin fails here, not in an agent.
-      # Every step after this one is a pytest run.
       - name: Set an agent's environment, as an agent's test run has it
         if: steps.python_suites.outputs.on_runner == 'true'
         run: |
