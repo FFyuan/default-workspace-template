@@ -11,7 +11,8 @@
  * threshold have to be ones the shell can see.
  *
  * The shell side of the app contract lives here too: the handshake after every load and on a
- * desktop change, ``shell:shown`` and ``shell:hidden`` as visibility changes, the following rule
+ * desktop change, ``shell:theme`` after every handshake and on every change of the theme the shell
+ * wears, ``shell:shown`` and ``shell:hidden`` as visibility changes, the following rule
  * of plan section 4.6 after every desktops update and every layout load (``shell:navigate`` for a
  * page that declared navigation, a ``src`` reassignment otherwise; an independent window's page follows
  * this client's own stored path, which arrives with the layout), and the pages' own
