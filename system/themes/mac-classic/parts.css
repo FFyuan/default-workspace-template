@@ -157,9 +157,16 @@ kbd {
   background: #000000;
   color: #ffffff;
 }
-/* A button on a dark overlay (the image viewer) keeps a white glyph, and inverts to white while pressed. */
+/* A button on a dark overlay (the image viewer) is clear with a white glyph (a worded one in a thin white edge), and
+   inverts to white while pressed. */
 [data-part="button"][data-variant="ghost-inverse"] {
   color: #ffffff;
+  background: transparent;
+}
+[data-part="button"][data-variant="ghost-inverse"]:not([data-shape="icon"]) {
+  border: 1px solid #ffffff;
+  border-image: none;
+  border-radius: 6px;
 }
 [data-part="button"][data-variant="ghost-inverse"]:not(:disabled):not([aria-disabled="true"]):hover {
   background: rgb(255 255 255 / 0.15);

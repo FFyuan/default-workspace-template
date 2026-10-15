@@ -142,9 +142,11 @@ kbd {
   box-shadow: var(--theme-thin-pressed);
   background: url("vendor/assets/background.bmp");
 }
-/* A button on a dark overlay (the image viewer) keeps a white glyph. */
-[data-part="button"][data-variant="ghost-inverse"] {
+/* A button on a dark overlay (the image viewer) is clear with a white glyph, pressed too. */
+[data-part="button"][data-variant="ghost-inverse"],
+[data-part="button"][data-variant="ghost-inverse"]:not(:disabled):not([aria-disabled="true"]):active {
   color: #ffffff;
+  background: transparent;
 }
 /* A button that destroys something says so in the danger colour, on the raised gray face. */
 [data-part="button"]:is([data-variant="destructive"], [data-variant="ghost-destructive"]) {
