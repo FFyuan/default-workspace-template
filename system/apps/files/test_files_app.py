@@ -68,7 +68,7 @@ def test_columns_open_to_the_right_and_end_in_a_preview_of_the_chosen_file(
     expect(page).to_have_url(page.url.split("/projects")[0] + "/projects/app/")
 
     heights = page.locator(".files-column .files-row").evaluate_all(
-        "rows => [...new Set(rows.map(row => row.getBoundingClientRect().height))]"
+        "rows => [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))]"
     )
     assert heights == [22]
 

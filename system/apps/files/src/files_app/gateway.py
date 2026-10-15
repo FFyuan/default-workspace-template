@@ -4,6 +4,7 @@ and credentials from its environment, as the chat app's latchkey endpoints do.""
 
 import os
 import urllib.parse
+from collections.abc import Iterable
 from collections.abc import Mapping
 from typing import Final
 
@@ -56,7 +57,7 @@ class Gateway:
         path: str,
         device: str | None = None,
         headers: Mapping[str, str] | None = None,
-        content: object = None,
+        content: str | bytes | Iterable[bytes] | None = None,
         json: object = None,
         timeout: float | None = DEFAULT_TIMEOUT_SECONDS,
     ) -> httpx.Response:
@@ -65,18 +66,20 @@ class Gateway:
             method,
             f"{self._base_url}/{path.lstrip('/')}",
             headers=self._headers(device, headers),
-            content=content,  # type: ignore[arg-type]
+            content=content,
             json=json,
             timeout=timeout,
         )
 
-    def build(self, method: str, path: str, device: str, headers: Mapping[str, str], content: object) -> httpx.Request:
+    def build(
+        self, method: str, path: str, device: str, headers: Mapping[str, str], content: Iterable[bytes] | None
+    ) -> httpx.Request:
         """A request to relay, its body (when it has one) streamed from the caller's."""
         return self._client.build_request(
             method,
             f"{self._base_url}/{path.lstrip('/')}",
             headers=self._headers(device, headers),
-            content=content,  # type: ignore[arg-type]
+            content=content,
         )
 
     def send(self, request: httpx.Request) -> httpx.Response:

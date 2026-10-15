@@ -2,9 +2,11 @@
 
 import json
 from collections.abc import Callable
+from typing import Any
 from typing import Final
 
 import httpx
+from werkzeug.test import TestResponse
 
 from files_app.gateway import Gateway
 
@@ -81,7 +83,10 @@ class FakeComputer:
             return httpx.Response(
                 200,
                 content=self.files[on_computer],
-                headers={"Content-Type": "image/png", "Content-Disposition": f'inline; filename="{name}"'.encode()},
+                headers=[
+                    (b"Content-Type", b"image/png"),
+                    (b"Content-Disposition", f'inline; filename="{name}"'.encode()),
+                ],
             )
         if request.method == "PUT":
             self.files[on_computer] = request.read()
@@ -104,5 +109,5 @@ def mock_dufs(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.Clien
     return httpx.Client(base_url="http://dufs.test", transport=httpx.MockTransport(handler))
 
 
-def json_of(response: object) -> object:
-    return json.loads(response.get_data())  # type: ignore[attr-defined]
+def json_of(response: TestResponse) -> dict[str, Any]:
+    return json.loads(response.get_data())

@@ -51,7 +51,10 @@ def test_dufs_answers_pass_through_with_their_path_and_body_and_a_safe_name_head
         return httpx.Response(
             200,
             stream=httpx.ByteStream(b"\x89PNG"),
-            headers={"Content-Disposition": f'inline; filename="{NARROW_NAME}"'.encode(), "Content-Type": "image/png"},
+            headers=[
+                (b"Content-Disposition", f'inline; filename="{NARROW_NAME}"'.encode()),
+                (b"Content-Type", b"image/png"),
+            ],
         )
 
     client = _app(None, tmp_path, mock_dufs(dufs))

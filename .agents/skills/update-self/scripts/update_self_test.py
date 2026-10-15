@@ -2201,9 +2201,13 @@ def test_read_app_tools_lists_every_python_app_in_the_tree() -> None:
     assert terminal.directory == "system/apps/terminal"
     assert terminal.executable == "terminal-app"
     assert terminal.is_critical is True
-    # A manifest-only app (Files is the dufs binary behind a TypeScript frontend, the
-    # terminal's pty origin an entry point of the terminal) has no tool of its own.
-    assert "files-app" not in by_name
+    files = by_name["files-app"]
+    assert files.directory == "system/apps/files"
+    assert files.executable == "files-app"
+    assert files.plugin_key == "files"
+    assert files.is_critical is False
+    # A manifest-only app (the terminal's pty origin, an entry point of the
+    # terminal) has no tool of its own.
     assert "terminal-pty" not in by_name
 
 
@@ -2273,9 +2277,9 @@ def test_read_app_tools_skips_an_app_it_cannot_describe(tmp_path: Path, capsys) 
         ("system/apps/browser/src/browser/static/app.js", set()),
         ("system/apps/terminal/src/terminal_app/main.py", {"terminal-app"}),
         ("system/apps/terminal/terminal_tmux.conf", {"terminal-app"}),
-        # Files has no Python package: dufs serves its frontend's bundle.
+        ("system/apps/files/src/files_app/server.py", {"files-app"}),
+        ("system/apps/files/app.toml", {"files-app"}),
         ("system/apps/files/frontend/src/index.ts", set()),
-        ("system/apps/files/app.toml", set()),
         # A shared backend manifest is part of every app tool's closure: the
         # pinned mngr packages an app depends on, and the plugin table that
         # assigns plugins to its tool.

@@ -145,7 +145,9 @@ def list_connections(gateway: Gateway, synced_root: Path = SYNCED_FOLDERS) -> Co
         response.raise_for_status()
         pending.extend((device.id, path, access) for path, access in sorted(shared_paths(response.json()).items()))
     with ThreadPoolExecutor(max_workers=8) as pool:
-        shares = list(pool.map(lambda share: describe_share(gateway, *share, synced_root), pending))
+        shares = list(
+            pool.map(lambda share: describe_share(gateway, share[0], share[1], share[2], synced_root), pending)
+        )
     return Connections(devices=devices, shares=_one_per_path(shares))
 
 

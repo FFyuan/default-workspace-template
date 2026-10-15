@@ -5,7 +5,7 @@ import signal
 import socket
 import subprocess
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from types import FrameType
 from typing import Final
@@ -41,7 +41,7 @@ def _bind_listening_socket(host: str, port: int) -> socket.socket:
 
 
 @contextmanager
-def serve_in_background(host: str, port: int, app: Flask) -> Iterator[BaseWSGIServer]:
+def serve_in_background(host: str, port: int, app: Flask) -> Generator[BaseWSGIServer, None, None]:
     """Serve ``app`` at ``host:port`` on a daemon thread for the block."""
     with log_span("Starting the Files server at {}:{}", host, port):
         # Bound here rather than by make_server, which answers a bind failure with sys.exit(1), not an exception.
