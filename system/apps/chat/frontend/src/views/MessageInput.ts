@@ -68,7 +68,8 @@ const MAX_TEXTAREA_HEIGHT_PX = 240;
 
 /** The composer card. No shadow: it sits at the foot of its own pane
  *  rather than floating over the transcript. Focus thickens its border to 2px
- *  in the accent (a 1px ring just inside the 1px border, where no clipping ancestor can cut it) without moving anything. */
+ *  in the accent without moving anything: a 1px ring just inside the 1px
+ *  border, where no clipping ancestor can cut it. */
 const INPUT_BOX_CLASS =
   "message-input-box flex flex-col gap-0.5 rounded-xl border bg-composer p-1.5 " +
   "[transition:border-color_150ms,box-shadow_150ms] focus-within:border-accent " +
