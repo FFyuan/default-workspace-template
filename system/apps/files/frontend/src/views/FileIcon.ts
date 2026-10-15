@@ -25,7 +25,7 @@ const PAGE_LINES_SVG =
 function cornerBadgeSvg(glyph: string): string {
   return (
     '<circle cx="50" cy="52" r="9" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1.5"/>' +
-    `<g transform="translate(44.6 46.6) scale(0.45)" fill="none" style="stroke:var(--c-text-primary)" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
+    `<g transform="translate(44.6 46.6) scale(0.45)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
   );
 }
 

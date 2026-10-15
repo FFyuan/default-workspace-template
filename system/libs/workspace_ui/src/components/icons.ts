@@ -146,7 +146,7 @@ export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = 
     `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
     `<mask id="${mask}"><rect width="24" height="24" fill="#fff"/><circle cx="19" cy="19" r="7.5" fill="#000"/></mask>` +
     `<g mask="url(#${mask})">${STROKE_PATHS[name]}</g>` +
-    `<g transform="translate(13.6 13.6) scale(0.45)" stroke-width="5">${STROKE_PATHS[badge]}</g></svg>`
+    `<g transform="translate(13.6 13.6) scale(0.45)" stroke-width="3.4">${STROKE_PATHS[badge]}</g></svg>`
   );
 }
 
