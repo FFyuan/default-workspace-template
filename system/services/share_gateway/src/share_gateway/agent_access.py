@@ -22,7 +22,6 @@ from share_gateway.agent_grants import AgentInvite
 from share_gateway.agent_grants import AgentKeyError
 from share_gateway.agent_grants import INVITE_LIFETIME
 from share_gateway.agent_grants import INVITE_MAX_FAILED_ATTEMPTS
-from share_gateway.agent_grants import WORKSPACE_SCOPE
 from share_gateway.agent_grants import canonical_public_key_line
 from share_gateway.agent_grants import find_invite_by_code
 from share_gateway.agent_grants import hash_admission_token
@@ -39,7 +38,6 @@ from share_gateway.agent_grants import reconcile_authorized_keys
 from share_gateway.agent_grants import render_agent_grants
 from share_gateway.agent_grants import render_agent_invites
 from share_gateway.agent_grants import sanitize_agent_name
-from share_gateway.agent_grants import utc_now
 from share_gateway.agent_grants import write_text_atomic
 from share_gateway.json_values import is_json_object
 from share_gateway.log import log
@@ -351,10 +349,6 @@ def visible_grants(grants: list[AgentGrant], viewer: str, is_owner: bool) -> lis
     return [grant for grant in grants if grant.granter == viewer]
 
 
-def is_workspace_scope_value(scope: "str | list[str]") -> bool:
-    return scope == WORKSPACE_SCOPE
-
-
 def describe_grant(grant: AgentGrant, last_seen_at: str | None) -> dict[str, object]:
     """The grant as the routes and the CLI report it (never the token hash or the key material)."""
     return {
@@ -367,13 +361,3 @@ def describe_grant(grant: AgentGrant, last_seen_at: str | None) -> dict[str, obj
         "expires_at": None if grant.expires_at is None else grant.expires_at.isoformat(),
         "last_seen_at": last_seen_at,
     }
-
-
-def ensure_files_readable(paths: AgentAccessPaths) -> None:
-    """Raise AgentGrantsError when either file exists but cannot be parsed (the fail-closed check)."""
-    load_agent_grants(paths.grants_path)
-    load_agent_invites(paths.invites_path)
-
-
-def current_time() -> datetime:
-    return utc_now()

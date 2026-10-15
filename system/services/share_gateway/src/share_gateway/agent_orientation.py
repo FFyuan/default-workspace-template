@@ -14,7 +14,6 @@ import json
 import os
 import re
 import subprocess
-import time
 from collections.abc import Sequence
 from datetime import datetime
 from datetime import timedelta
@@ -442,7 +441,3 @@ def parse_since(raw: str) -> datetime | None:
 
 def default_changes_since(now: datetime) -> datetime:
     return now - DEFAULT_CHANGES_WINDOW
-
-
-def monotonic_now() -> float:
-    return time.monotonic()
