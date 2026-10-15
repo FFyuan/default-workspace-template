@@ -128,7 +128,7 @@ A theme sets tokens on `:root` (and under `:root[data-touch]` or `:root[data-pho
 | Desktop metrics | `--desk-title-bar-height` (16 to 64 px), `--desk-taskbar-height` (24 to 96 px), `--desk-window-control-size` (12 to 48 px), `--desk-taskbar-entry-size` (16 to 64 px) |
 | Terminal | `--term-background`, `--term-foreground`, `--term-cursor`, `--term-selection`, `--term-ansi-0` to `--term-ansi-15` |
 
-The metric tokens are read by the shell's geometry (`theme/metrics.ts`) when the theme changes, and the validator refuses a value outside its range or in a unit other than `px`.
+The title bar and taskbar heights are read by the shell's geometry (`theme/metrics.ts`) when the theme changes; the window control and taskbar entry sizes are read by the shell's stylesheets alone. The validator refuses a value outside its range or in a unit other than `px`.
 Every other desktop token the shell declares (the grid, the snap and drag thresholds, the resize handles) belongs to behaviour and is not a theme's to set.
 The standard theme's values are the ones `base.css` and the shell's `theme/default.css` declare; they are compiled into every app, so a page with no theme loaded wears the standard look.
 
