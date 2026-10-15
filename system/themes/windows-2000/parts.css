@@ -131,6 +131,7 @@ kbd {
   box-shadow: var(--theme-thin-raised);
 }
 [data-part="button"][data-shape="icon"]:not(:disabled):active {
+  border-style: none;
   box-shadow: var(--theme-thin-pressed);
   background: transparent;
 }
