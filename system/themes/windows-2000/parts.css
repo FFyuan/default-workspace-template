@@ -135,6 +135,13 @@ kbd {
   box-shadow: var(--theme-thin-pressed);
   background: transparent;
 }
+/* An icon toggle that is on (the active desktop's switch) stays sunk on the lighter checker, as a toolbar's checked
+   button does, under the pointer too. */
+[data-part="button"][data-shape="icon"][aria-pressed="true"],
+[data-part="button"][data-shape="icon"][aria-pressed="true"]:not(:disabled):not([aria-disabled="true"]):hover {
+  box-shadow: var(--theme-thin-pressed);
+  background: url("vendor/assets/background.bmp");
+}
 /* A button on a dark overlay (the image viewer) keeps a white glyph. */
 [data-part="button"][data-variant="ghost-inverse"] {
   color: #ffffff;

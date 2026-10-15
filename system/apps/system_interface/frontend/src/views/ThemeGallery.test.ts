@@ -88,10 +88,12 @@ describe("ThemeGallery", () => {
     expect(avatarKinds).toEqual(["character", "image"]);
   });
 
-  it("draws a button of every variant the contract names", () => {
+  it("draws a button of every variant the contract names, and an icon toggle that is on", () => {
     const state = galleryStateOf(themeCatalog(BROKEN), "broken", [appRecord("files")]);
     if (state === null) throw new Error("the catalog has the broken theme");
     const root = mountView(() => m(ThemeGallery, { state }));
+
+    expect(root.querySelector('[data-part="button"][data-shape="icon"][aria-pressed="true"]')).not.toBeNull();
 
     const variants = new Set(
       Array.from(root.querySelectorAll('[data-part="button"]')).map((button) => button.getAttribute("data-variant")),

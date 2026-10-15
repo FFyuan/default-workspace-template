@@ -124,17 +124,28 @@ function windowSpecimen(state: GalleryState, isFocused: boolean, title: string):
 }
 
 function buttons(): m.Children {
-  return m(
-    "div",
-    { class: "flex flex-col gap-2" },
-    BUTTON_VARIANTS.map((variant) =>
+  return m("div", { class: "flex flex-col gap-2" }, [
+    ...BUTTON_VARIANTS.map((variant) =>
       m("div", { class: `flex items-center gap-2${ON_DARK_VARIANTS.has(variant) ? " w-fit bg-black/85 p-2" : ""}` }, [
         m(Button, { variant }, variant),
         m(Button, { variant, disabled: true }, "disabled"),
         m(Button, { variant, icon: true, sm: true, "aria-label": variant }, m.trust("&#9733;")),
       ]),
     ),
-  );
+    // An icon toggle on and off, as the taskbar's desktop switches are.
+    m("div", { class: "flex items-center gap-2" }, [
+      m(
+        Button,
+        { variant: "ghost", icon: true, sm: true, selected: true, "aria-pressed": "true", "aria-label": "on" },
+        m.trust("&#9733;"),
+      ),
+      m(
+        Button,
+        { variant: "ghost", icon: true, sm: true, "aria-pressed": "false", "aria-label": "off" },
+        m.trust("&#9733;"),
+      ),
+    ]),
+  ]);
 }
 
 function fields(): m.Children {

@@ -146,6 +146,12 @@ kbd {
   background: #000000;
   color: #ffffff;
 }
+/* An icon toggle that is on (the active desktop's switch) stays inverted, under the pointer too. */
+[data-part="button"][data-shape="icon"][aria-pressed="true"],
+[data-part="button"][data-shape="icon"][aria-pressed="true"]:not(:disabled):not([aria-disabled="true"]):hover {
+  background: #000000;
+  color: #ffffff;
+}
 /* A button on a dark overlay (the image viewer) keeps a white glyph, and inverts to white while pressed. */
 [data-part="button"][data-variant="ghost-inverse"] {
   color: #ffffff;
