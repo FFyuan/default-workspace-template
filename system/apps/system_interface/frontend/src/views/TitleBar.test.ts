@@ -86,4 +86,28 @@ describe("TitleBar", () => {
     expect(focused.querySelector('[data-control="refresh"]')?.className).not.toContain("ml-2");
     expect(focused.querySelector('[data-control="maximize"]')?.className).toContain("ml-1");
   });
+
+  it("keeps each control's element when the window it is pressed on takes focus", () => {
+    let isFocused = false;
+    const attrs: Omit<TitleBarAttrs, "isFocused"> = {
+      title: "Plan",
+      app: appRecord("docs"),
+      state: "NORMAL",
+      isMenuOpen: false,
+      sizeMenuTrigger: {},
+      onControl: vi.fn(),
+      onDoubleClick: vi.fn(),
+      chrome: STANDARD_CHROME,
+    };
+    const root = mountView(() => m(TitleBar, { ...attrs, isFocused }));
+    const controlElements = (): (Element | null)[] =>
+      ["minimize", "maximize", "close"].map((name) => root.querySelector(`[data-control="${name}"]`));
+    const before = controlElements();
+
+    isFocused = true;
+    m.redraw.sync();
+
+    expect(root.querySelector('[data-control="refresh"]')).not.toBeNull();
+    controlElements().forEach((element, index) => expect(element).toBe(before[index]));
+  });
 });

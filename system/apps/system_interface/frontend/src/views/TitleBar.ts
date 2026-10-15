@@ -111,7 +111,9 @@ export function TitleBar(): m.Component<TitleBarAttrs> {
       // The two title actions belong to the window you are in. An unfocused bar drops them rather than fading
       // them -- a greyed pair of buttons is still two things to look at -- and they come back with the click that
       // focuses the window. A centred title is laid over the middle of the bar instead, below. A slot not drawn
-      // leaves no gap: the first one drawn in its run takes no margin.
+      // leaves no gap: the first one drawn in its run takes no margin. It still holds its place in the bar's
+      // children, so focusing a window with a press on one of its controls does not shift the controls under the
+      // pointer before the release.
       function isSlotShown(name: ChromeSlot): boolean {
         switch (name) {
           case "title":
@@ -128,7 +130,8 @@ export function TitleBar(): m.Component<TitleBarAttrs> {
       }
 
       function slotRun(names: readonly ChromeSlot[]): m.Children[] {
-        return names.filter(isSlotShown).map((name, index) => slot(name, index === 0));
+        const firstShown = names.find(isSlotShown);
+        return names.map((name) => (isSlotShown(name) ? slot(name, name === firstShown) : null));
       }
 
       function slot(name: ChromeSlot, isFirst: boolean): m.Children {
