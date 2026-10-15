@@ -69,9 +69,11 @@ const MAX_TEXTAREA_HEIGHT_PX = 240;
 /** The composer card. No shadow: it sits at the foot of its own pane
  *  rather than floating over the transcript. Focus thickens its border to 2px
  *  in the accent without moving anything: a 1px ring just inside the 1px
- *  border, where no clipping ancestor can cut it. */
+ *  border, where no clipping ancestor can cut it. Its corners are concentric
+ *  with the buttons and chips inside: their 6px radius plus the 6px padding
+ *  and the 1px border. */
 const INPUT_BOX_CLASS =
-  "message-input-box flex flex-col gap-0.5 rounded-xl border bg-composer p-1.5 " +
+  "message-input-box flex flex-col gap-0.5 rounded-[13px] border bg-composer p-1.5 " +
   "[transition:border-color_150ms,box-shadow_150ms] focus-within:border-accent " +
   "focus-within:shadow-[inset_0_0_0_1px_var(--color-accent)]";
 
@@ -394,7 +396,7 @@ function providerNotice(markerClass: string, sentence: string, onChoose: () => v
     {
       oncreate: onShown,
       class:
-        `${markerClass} mb-2 flex flex-row items-center justify-between gap-3 rounded-xl border ` +
+        `${markerClass} mb-2 flex flex-row items-center justify-between gap-3 rounded-[13px] border ` +
         "border-default bg-surface-secondary py-3 pr-3 pl-5 text-(length:--font-size-body) text-secondary",
     },
     [
@@ -567,7 +569,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         },
         [
           m("img", {
-            class: `composer-attachment-thumb ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-10 rounded-lg border border-subtle object-cover`,
+            class: `composer-attachment-thumb ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-10 rounded-md border border-subtle object-cover`,
             src: attachment.uploaded?.url,
             alt: attachment.fileName,
           }),
@@ -605,7 +607,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         key: attachment.localId,
         class:
           `${chipMarker} group/chip relative flex ${ATTACHMENT_CHIP_HEIGHT_CLASS} max-w-[220px] flex-none items-center ` +
-          "gap-1 rounded-lg border bg-surface-secondary pr-2 pl-1 " +
+          "gap-1 rounded-md border bg-surface-secondary pr-2 pl-1 " +
           (isError ? "border-danger-border" : "border-subtle"),
       },
       [
