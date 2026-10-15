@@ -28,7 +28,7 @@ import { shortcutKey } from "../model/records";
 import type { LauncherMenuRows, LauncherRow, TextRow } from "../reducers/launcherRows";
 import { isRowEnabled } from "../reducers/launcherRows";
 import { appGlyph, glyph } from "./glyphs";
-import { MENU_PART, MENU_SEPARATOR_PART } from "@imbue/workspace-ui/src/themes/parts";
+import { MENU_ITEM_PART, MENU_PART, MENU_SEPARATOR_PART } from "@imbue/workspace-ui/src/themes/parts";
 
 /** An app's icon in a row, filling the cell that holds it, so its tile reads as the tile it wears
  *  everywhere else. */
@@ -95,6 +95,7 @@ function rowAttrs(row: LauncherRow, index: number, attrs: LauncherSectionsAttrs)
     key: row.key,
     type: "button",
     "data-launcher-row": row.key,
+    ...MENU_ITEM_PART,
     "data-highlighted": isHighlighted ? "true" : "false",
     "data-disabled": isEnabled ? undefined : "true",
     "aria-disabled": isEnabled ? undefined : "true",
