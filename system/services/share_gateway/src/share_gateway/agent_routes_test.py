@@ -15,10 +15,10 @@ from flask.testing import FlaskClient
 from werkzeug.test import TestResponse
 
 from share_gateway.agent_access import AgentAccessPaths
+from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_grants import load_agent_grants
 from share_gateway.agent_routes import AgentAccessContext
-from share_gateway.agent_routes import LastSeenStore
 from share_gateway.agent_routes import register_agent_routes
 from share_gateway.agent_workspace import WorkspaceCoordinates
 from share_gateway.caddyfile import RegisteredApp
@@ -148,7 +148,7 @@ def new_key_line() -> str:
 def join_as(
     harness: _Harness, scope: "str | list[str]", granter: str = "user:owner", name: str = "Josh Claude"
 ) -> dict[str, Any]:
-    minted = mint_invite(harness.context.paths, scope, granter, "", None, harness.clock())
+    minted = mint_invite(harness.context.paths, scope, granter, "", None, harness.clock(), via="test")
     response = harness.client.post(
         "/_agent/join",
         json={"code": minted.code, "public_key": new_key_line(), "name": name},
@@ -213,7 +213,15 @@ def test_join_refuses_malformed_bodies_bad_codes_and_bad_keys(tmp_path: Path) ->
         "/_agent/join", json={"code": "AAAA-BBBB-CCCC", "public_key": new_key_line(), "name": "n"}, headers=headers
     )
     assert bad_code.status_code == 403
-    minted = mint_invite(harness.context.paths, "workspace", "user:owner", "", None, harness.clock())
+    minted = mint_invite(
+        harness.context.paths,
+        "workspace",
+        "user:owner",
+        "",
+        None,
+        harness.clock(),
+        via="test",
+    )
     bad_key = harness.client.post(
         "/_agent/join", json={"code": minted.code, "public_key": "ssh-rsa AAAA", "name": "n"}, headers=headers
     )
@@ -404,7 +412,15 @@ def test_verify_skips_the_origin_policy_for_bearer_requests(tmp_path: Path) -> N
 
 def test_verify_refuses_an_expired_grant_and_an_unconfigured_gateway(tmp_path: Path) -> None:
     harness = make_harness(tmp_path)
-    minted = mint_invite(harness.context.paths, "workspace", "user:owner", "", timedelta(hours=1), harness.clock())
+    minted = mint_invite(
+        harness.context.paths,
+        "workspace",
+        "user:owner",
+        "",
+        timedelta(hours=1),
+        harness.clock(),
+        via="test",
+    )
     response = harness.client.post(
         "/_agent/join",
         json={"code": minted.code, "public_key": new_key_line(), "name": "n"},

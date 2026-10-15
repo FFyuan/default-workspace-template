@@ -24,7 +24,6 @@ import base64
 import fcntl
 import hashlib
 import hmac
-import os
 import re
 import secrets
 import tomllib
@@ -41,6 +40,8 @@ from uuid import uuid4
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_ssh_public_key
 
+from share_gateway.grants import toml_string
+from share_gateway.grants import write_text_atomic
 from share_gateway.json_values import is_json_object
 
 AGENT_ACCESS_DIR = Path("data/.secrets/agent_access")
@@ -361,19 +362,14 @@ def parse_agent_invites(text: str) -> list[AgentInvite]:
     return [_parse_invite(entry) for entry in raw_invites]
 
 
-def _toml_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
-    return f'"{escaped}"'
-
-
 def _toml_scope(scope: "str | list[str]") -> str:
     if isinstance(scope, str):
-        return _toml_string(scope)
-    return "[" + ", ".join(_toml_string(name) for name in scope) + "]"
+        return toml_string(scope)
+    return "[" + ", ".join(toml_string(name) for name in scope) + "]"
 
 
 def _toml_timestamp(value: datetime) -> str:
-    return _toml_string(value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"))
+    return toml_string(value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"))
 
 
 def render_agent_grants(grants: Sequence[AgentGrant]) -> str:
@@ -382,13 +378,13 @@ def render_agent_grants(grants: Sequence[AgentGrant]) -> str:
     for grant in grants:
         lines = [
             "[[agents]]",
-            f"agent_id = {_toml_string(grant.agent_id)}",
-            f"name = {_toml_string(grant.name)}",
-            f"public_key = {_toml_string(grant.public_key)}",
-            f"fingerprint = {_toml_string(grant.fingerprint)}",
-            f"token_sha256 = {_toml_string(grant.token_sha256)}",
+            f"agent_id = {toml_string(grant.agent_id)}",
+            f"name = {toml_string(grant.name)}",
+            f"public_key = {toml_string(grant.public_key)}",
+            f"fingerprint = {toml_string(grant.fingerprint)}",
+            f"token_sha256 = {toml_string(grant.token_sha256)}",
             f"scope = {_toml_scope(grant.scope)}",
-            f"granter = {_toml_string(grant.granter)}",
+            f"granter = {toml_string(grant.granter)}",
             f"created_at = {_toml_timestamp(grant.created_at)}",
         ]
         if grant.expires_at is not None:
@@ -403,10 +399,10 @@ def render_agent_invites(invites: Sequence[AgentInvite]) -> str:
     for invite in invites:
         lines = [
             "[[invites]]",
-            f"code_sha256 = {_toml_string(invite.code_sha256)}",
+            f"code_sha256 = {toml_string(invite.code_sha256)}",
             f"scope = {_toml_scope(invite.scope)}",
-            f"granter = {_toml_string(invite.granter)}",
-            f"name_hint = {_toml_string(invite.name_hint)}",
+            f"granter = {toml_string(invite.granter)}",
+            f"name_hint = {toml_string(invite.name_hint)}",
             f"created_at = {_toml_timestamp(invite.created_at)}",
             f"expires_at = {_toml_timestamp(invite.expires_at)}",
             f"failed_attempts = {invite.failed_attempts}",
@@ -435,15 +431,6 @@ def locked_agent_access(grants_path: Path) -> Generator[None, None, None]:
             yield
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
-
-def write_text_atomic(path: Path, text: str, mode: int) -> None:
-    """Replace ``path`` through a same-directory temp file and a rename."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.{uuid4().hex}")
-    temp_path.write_text(text)
-    os.chmod(temp_path, mode)
-    os.replace(temp_path, path)
 
 
 def load_agent_grants(grants_path: Path) -> list[AgentGrant]:
@@ -515,19 +502,32 @@ def reconcile_authorized_keys_text(existing_text: str, grants: Sequence[AgentGra
     return ("\n".join(lines) + "\n") if lines else ""
 
 
+def authorized_keys_lock_path(authorized_keys_path: Path) -> Path:
+    """The lock every writer of ``authorized_keys`` holds across its read and write (the desktop's SSH grant too)."""
+    return authorized_keys_path.with_name(authorized_keys_path.name + ".lock")
+
+
 def reconcile_authorized_keys(authorized_keys_path: Path, grants: Sequence[AgentGrant], now: datetime) -> bool:
     """Bring the agent lines of ``authorized_keys_path`` in line with ``grants``; True when the file changed.
 
-    The caller holds the agent-access lock. The ``.ssh`` directory is created
-    ``0700`` and the file replaced atomically ``0600``, so sshd keeps honouring it.
+    The caller holds the agent-access lock; the read-and-replace also holds the
+    ``authorized_keys`` lock, which other writers of the file (the desktop's
+    cross-workspace SSH grant) take around their own read-and-write so neither
+    overwrites the other's lines. The ``.ssh`` directory is created ``0700`` and
+    the file replaced atomically ``0600``, so sshd keeps honouring it.
     """
-    existing_text = authorized_keys_path.read_text() if authorized_keys_path.exists() else ""
-    desired_text = reconcile_authorized_keys_text(existing_text, grants, now)
-    if desired_text == existing_text:
-        return False
     authorized_keys_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    write_text_atomic(authorized_keys_path, desired_text, 0o600)
-    return True
+    with open(authorized_keys_lock_path(authorized_keys_path), "a+") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            existing_text = authorized_keys_path.read_text() if authorized_keys_path.exists() else ""
+            desired_text = reconcile_authorized_keys_text(existing_text, grants, now)
+            if desired_text == existing_text:
+                return False
+            write_text_atomic(authorized_keys_path, desired_text, 0o600)
+            return True
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def utc_now() -> datetime:

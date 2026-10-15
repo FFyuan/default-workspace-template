@@ -82,6 +82,9 @@ def build_grantable_service_names(apps: Sequence[RegisteredApp]) -> frozenset[st
     return frozenset(app.name for app in apps if app.is_grantable)
 
 
+APPS_TOML_PATH = Path("data/.state/apps.toml")
+
+
 def read_registered_apps(apps_toml_path: Path) -> list[RegisteredApp]:
     if not apps_toml_path.exists():
         return []

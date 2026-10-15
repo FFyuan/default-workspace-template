@@ -7,6 +7,16 @@ owner-exec, or a person in the terminal. It works while the workspace is
 unpublished (an invite minted then is usable once it is published, within its
 fifteen minutes), and ``--json`` gives a caller the answer to parse.
 
+``--granter``, ``--revoker`` and ``--owner`` are assertions: the CLI trusts
+whoever reached the workspace with exec, because that reach is the authority
+(the owner's, over ``mngr exec``, or a workspace-scope agent's, whose exec
+owner-exec records under its key). Each audit event the CLI writes says it came
+through the CLI and from which parent command.
+
+With ``--json`` a refusal or a misconfiguration is one JSON object on stderr,
+``{"error": <message>, "kind": "refused" | "misconfigured"}``, with exit code
+2 or 3; without it the message is a ``agent-access: ...`` line.
+
     agent-access invite --granter user:<id> [--scope workspace|<app,app>] [--expires-in-days N] [--name-hint ...]
     agent-access list
     agent-access revoke <agent_id> --revoker user:<id> [--owner]
@@ -20,11 +30,12 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
+from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
 
 from share_gateway import materials as materials_module
+from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import RevokeRefusedError
 from share_gateway.agent_access import default_agent_access_paths
 from share_gateway.agent_access import describe_grant
@@ -43,22 +54,23 @@ from share_gateway.agent_orientation import SKILLS_INDEX_CACHE_PATH
 from share_gateway.agent_orientation import build_changes_feed
 from share_gateway.agent_orientation import cached_skills_index
 from share_gateway.agent_orientation import default_changes_since
+from share_gateway.agent_orientation import parse_since
 from share_gateway.agent_orientation import render_instruction_block
 from share_gateway.agent_orientation import render_primer
 from share_gateway.agent_orientation import summarize_connected_accounts
 from share_gateway.agent_orientation import template_ref
-from share_gateway.agent_routes import LastSeenStore
 from share_gateway.agent_workspace import HOST_KEY_PUBLIC_PATH
 from share_gateway.agent_workspace import app_origins_for
 from share_gateway.agent_workspace import read_workspace_coordinates
+from share_gateway.caddyfile import APPS_TOML_PATH
 from share_gateway.caddyfile import build_grantable_service_names
 from share_gateway.caddyfile import read_registered_apps
 from share_gateway.materials import load_or_create_auth_label
 from share_gateway.materials import read_share_materials
-from share_gateway.runner import APPS_TOML_PATH
 
 _EXIT_REFUSED = 2
 _EXIT_MISCONFIGURED = 3
+_EXIT_CODE_BY_KIND = {"refused": _EXIT_REFUSED, "misconfigured": _EXIT_MISCONFIGURED}
 
 
 def _parse_scope_argument(raw: str) -> "str | list[str]":
@@ -87,6 +99,24 @@ def _emit(payload: dict[str, object], text: str, is_json: bool) -> None:
     _write_line(json.dumps(payload) if is_json else text)
 
 
+def _fail(args: argparse.Namespace, message: str, kind: str) -> int:
+    """Report a refusal or a misconfiguration the way the caller asked for, and answer its exit code."""
+    if args.json:
+        _write_line(json.dumps({"error": message, "kind": kind}), is_error=True)
+    else:
+        _write_line(f"agent-access: {message}", is_error=True)
+    return _EXIT_CODE_BY_KIND[kind]
+
+
+def _invoker() -> str:
+    """Which surface asserted the caller's identity: the CLI, run by its parent command (best effort, Linux)."""
+    try:
+        cmdline = Path(f"/proc/{os.getppid()}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+    except OSError:
+        cmdline = ""
+    return f"cli ({cmdline.strip()})" if cmdline.strip() else "cli"
+
+
 def _command_invite(args: argparse.Namespace) -> int:
     paths = default_agent_access_paths(events_dir_from_environ(os.environ))
     apps = read_registered_apps(APPS_TOML_PATH)
@@ -96,15 +126,13 @@ def _command_invite(args: argparse.Namespace) -> int:
             sorted(build_grantable_service_names(apps)),
         )
     except AgentScopeError as exc:
-        _write_line(f"agent-access: {exc}", is_error=True)
-        return _EXIT_REFUSED
+        return _fail(args, str(exc), "refused")
     lifetime = None if args.expires_in_days is None else timedelta(days=args.expires_in_days)
     now = utc_now()
     try:
-        minted = mint_invite(paths, scope, args.granter, args.name_hint, lifetime, now)
+        minted = mint_invite(paths, scope, args.granter, args.name_hint, lifetime, now, via=_invoker())
     except AgentGrantsError as exc:
-        _write_line(f"agent-access: the agent access files are misconfigured: {exc}", is_error=True)
-        return _EXIT_MISCONFIGURED
+        return _fail(args, f"the agent access files are misconfigured: {exc}", "misconfigured")
     workspace_domain = _workspace_domain()
     auth_label = load_or_create_auth_label(materials_module.AUTH_LABEL_FILE)
     auth_origin = f"https://{auth_label}.{workspace_domain}" if workspace_domain else ""
@@ -137,8 +165,7 @@ def _command_list(args: argparse.Namespace) -> int:
     try:
         grants = list_grants(paths, utc_now())
     except AgentGrantsError as exc:
-        _write_line(f"agent-access: the agent access files are misconfigured: {exc}", is_error=True)
-        return _EXIT_MISCONFIGURED
+        return _fail(args, f"the agent access files are misconfigured: {exc}", "misconfigured")
     last_seen = LastSeenStore(AGENT_ACCESS_STATE_DIR / "last_seen.json").read_all()
     described = [describe_grant(grant, last_seen.get(grant.agent_id)) for grant in grants]
     lines = [
@@ -156,13 +183,11 @@ def _command_list(args: argparse.Namespace) -> int:
 def _command_revoke(args: argparse.Namespace) -> int:
     paths = default_agent_access_paths(events_dir_from_environ(os.environ))
     try:
-        revoked = revoke(paths, args.agent_id, args.revoker, args.owner, utc_now())
+        revoked = revoke(paths, args.agent_id, args.revoker, args.owner, utc_now(), via=_invoker())
     except RevokeRefusedError as exc:
-        _write_line(f"agent-access: {exc}", is_error=True)
-        return _EXIT_REFUSED
+        return _fail(args, str(exc), "refused")
     except AgentGrantsError as exc:
-        _write_line(f"agent-access: the agent access files are misconfigured: {exc}", is_error=True)
-        return _EXIT_MISCONFIGURED
+        return _fail(args, f"the agent access files are misconfigured: {exc}", "misconfigured")
     _emit(
         {"revoked": revoked.agent_id, "name": revoked.name},
         f"Revoked {revoked.agent_id} ({revoked.name})",
@@ -208,10 +233,9 @@ def _command_changes(args: argparse.Namespace) -> int:
     now = utc_now()
     since = default_changes_since(now)
     if args.since:
-        parsed = datetime.fromisoformat(args.since.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            _write_line("agent-access: --since must carry a timezone", is_error=True)
-            return _EXIT_REFUSED
+        parsed = parse_since(args.since)
+        if parsed is None:
+            return _fail(args, "--since must be an ISO 8601 timestamp with a timezone", "refused")
         since = parsed
     _write_line(json.dumps(build_changes_feed(repo_root, since), indent=2))
     return 0
@@ -222,8 +246,7 @@ def _command_reconcile(args: argparse.Namespace) -> int:
     try:
         is_changed = reconcile(paths, utc_now())
     except AgentGrantsError as exc:
-        _write_line(f"agent-access: the agent access files are misconfigured: {exc}", is_error=True)
-        return _EXIT_MISCONFIGURED
+        return _fail(args, f"the agent access files are misconfigured: {exc}", "misconfigured")
     _emit(
         {"changed": is_changed},
         "Reconciled." if is_changed else "Nothing to do.",
@@ -292,6 +315,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="An ISO 8601 timestamp; the last seven days when omitted.",
     )
+    changes.add_argument("--json", action="store_true")
     changes.set_defaults(handler=_command_changes)
 
     reconciling = subparsers.add_parser(
@@ -303,9 +327,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def run(argv: Sequence[str]) -> int:
+    args = build_parser().parse_args(argv)
+    return int(args.handler(args))
+
+
 def main() -> None:
-    args = build_parser().parse_args()
-    sys.exit(args.handler(args))
+    sys.exit(run(sys.argv[1:]))
 
 
 if __name__ == "__main__":

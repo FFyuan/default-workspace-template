@@ -8,6 +8,8 @@ lock, re-reads the files under it, writes them atomically, reconciles the
 records an audit event.
 """
 
+import json
+import threading
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
@@ -39,8 +41,11 @@ from share_gateway.agent_grants import render_agent_invites
 from share_gateway.agent_grants import sanitize_agent_name
 from share_gateway.agent_grants import utc_now
 from share_gateway.agent_grants import write_text_atomic
+from share_gateway.json_values import is_json_object
+from share_gateway.log import log
 
 DEFAULT_AUTHORIZED_KEYS_PATH = Path.home() / ".ssh" / "authorized_keys"
+_LAST_SEEN_THROTTLE_SECONDS = 60.0
 
 
 class AgentAccessPaths:
@@ -144,8 +149,14 @@ def mint_invite(
     name_hint: str,
     grant_lifetime: timedelta | None,
     now: datetime,
+    via: str,
 ) -> MintedInvite:
-    """Record a new one-time code (valid for ``INVITE_LIFETIME``) and answer its plaintext once."""
+    """Record a new one-time code (valid for ``INVITE_LIFETIME``) and answer its plaintext once.
+
+    ``granter`` is what the caller asserts; ``via`` says which surface asserted
+    it (the gateway, which verified the caller, or the CLI, which trusts whoever
+    reached the workspace with exec) and is recorded with the event.
+    """
     code = mint_invite_code()
     invite = AgentInvite(
         code_sha256=hash_invite_code(code),
@@ -165,6 +176,7 @@ def mint_invite(
         "invite_minted",
         {
             "granter": granter,
+            "via": via,
             "scope": scope,
             "expires_at": invite.expires_at.isoformat(),
         },
@@ -265,10 +277,19 @@ def count_failed_join(paths: AgentAccessPaths, raw_code: str, now: datetime) -> 
             _record_failed_attempt(paths, invites, invite)
 
 
-def revoke(paths: AgentAccessPaths, agent_id: str, revoker: str, is_owner: bool, now: datetime) -> AgentGrant:
+def revoke(
+    paths: AgentAccessPaths,
+    agent_id: str,
+    revoker: str,
+    is_owner: bool,
+    now: datetime,
+    via: str,
+) -> AgentGrant:
     """Remove one grant (and its ``authorized_keys`` line); the owner may revoke any, a granter their own.
 
-    Raises RevokeRefusedError when no such grant exists or the caller may not revoke it.
+    ``revoker`` and ``is_owner`` are what the caller asserts and ``via`` which
+    surface asserted them (see ``mint_invite``). Raises RevokeRefusedError when
+    no such grant exists or the caller may not revoke it.
     """
     with locked_agent_access(paths.grants_path):
         grants = prune_expired(load_agent_grants(paths.grants_path), now)
@@ -281,9 +302,46 @@ def revoke(paths: AgentAccessPaths, agent_id: str, revoker: str, is_owner: bool,
     write_agent_access_event(
         paths.events_dir,
         "revoked",
-        {"agent_id": grant.agent_id, "name": grant.name, "revoker": revoker},
+        {
+            "agent_id": grant.agent_id,
+            "name": grant.name,
+            "revoker": revoker,
+            "via": via,
+        },
     )
     return grant
+
+
+class LastSeenStore:
+    """When each agent last made a request, written at most once a minute per agent."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._written_at_by_agent_id: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def read_all(self) -> dict[str, str]:
+        try:
+            raw = json.loads(self._path.read_text())
+        except (OSError, ValueError):
+            return {}
+        if not is_json_object(raw):
+            return {}
+        return {agent_id: value for agent_id, value in raw.items() if isinstance(value, str)}
+
+    def touch(self, agent_id: str, now: datetime, now_monotonic: float) -> None:
+        with self._lock:
+            last_written = self._written_at_by_agent_id.get(agent_id)
+            if last_written is not None and now_monotonic - last_written < _LAST_SEEN_THROTTLE_SECONDS:
+                return
+            self._written_at_by_agent_id[agent_id] = now_monotonic
+            document = self.read_all()
+            document[agent_id] = now.isoformat()
+            try:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                self._path.write_text(json.dumps(document))
+            except OSError as exc:
+                log(f"Could not record last-seen for {agent_id}: {exc}")
 
 
 def visible_grants(grants: list[AgentGrant], viewer: str, is_owner: bool) -> list[AgentGrant]:

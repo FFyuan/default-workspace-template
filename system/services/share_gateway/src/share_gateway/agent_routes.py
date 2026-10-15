@@ -25,6 +25,7 @@ from flask import request
 
 from share_gateway.agent_access import AgentAccessPaths
 from share_gateway.agent_access import JoinRefusedError
+from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import RevokeRefusedError
 from share_gateway.agent_access import count_failed_join
 from share_gateway.agent_access import describe_grant
@@ -44,6 +45,7 @@ from share_gateway.agent_orientation import LatchkeySummaryCache
 from share_gateway.agent_orientation import build_changes_feed
 from share_gateway.agent_orientation import cached_skills_index
 from share_gateway.agent_orientation import default_changes_since
+from share_gateway.agent_orientation import parse_since
 from share_gateway.agent_orientation import render_instruction_block
 from share_gateway.agent_orientation import render_primer
 from share_gateway.agent_orientation import template_ref
@@ -55,6 +57,7 @@ from share_gateway.caddyfile import build_grantable_service_names
 from share_gateway.grants import GrantsError
 from share_gateway.grants import load_grants
 from share_gateway.identity import RequesterIdentity
+from share_gateway.identity import bearer_token_from_headers
 from share_gateway.json_values import is_json_object
 from share_gateway.log import log
 from share_gateway.server import forwarded_client_ip
@@ -62,20 +65,10 @@ from share_gateway.session_cookie import verify_session_from_cookies
 
 HELPER_FILENAME = "wsvisit.cjs"
 HELPER_PATH = Path(__file__).parent / "helper" / HELPER_FILENAME
-_BEARER_PREFIX = "Bearer "
 _JOIN_ATTEMPTS_PER_MINUTE = 10
 _JOIN_WINDOW_SECONDS = 60.0
-_LAST_SEEN_THROTTLE_SECONDS = 60.0
 _MAX_GRANT_LIFETIME = timedelta(days=3650)
 _MAX_BODY_BYTES = 16 * 1024
-
-
-def bearer_token_from_headers(authorization: str | None) -> str | None:
-    """The admission token a request presents, or None when the header is absent or not a bearer."""
-    if authorization is None or not authorization.startswith(_BEARER_PREFIX):
-        return None
-    token = authorization[len(_BEARER_PREFIX) :].strip()
-    return token or None
 
 
 class JoinRateLimiter:
@@ -95,38 +88,6 @@ class JoinRateLimiter:
                 return False
             attempts.append(now_monotonic)
             return True
-
-
-class LastSeenStore:
-    """When each agent last made a request, written at most once a minute per agent."""
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._written_at_by_agent_id: dict[str, float] = {}
-        self._lock = threading.Lock()
-
-    def read_all(self) -> dict[str, str]:
-        try:
-            raw = json.loads(self._path.read_text())
-        except (OSError, ValueError):
-            return {}
-        if not is_json_object(raw):
-            return {}
-        return {agent_id: value for agent_id, value in raw.items() if isinstance(value, str)}
-
-    def touch(self, agent_id: str, now: datetime, now_monotonic: float) -> None:
-        with self._lock:
-            last_written = self._written_at_by_agent_id.get(agent_id)
-            if last_written is not None and now_monotonic - last_written < _LAST_SEEN_THROTTLE_SECONDS:
-                return
-            self._written_at_by_agent_id[agent_id] = now_monotonic
-            document = self.read_all()
-            document[agent_id] = now.isoformat()
-            try:
-                self._path.parent.mkdir(parents=True, exist_ok=True)
-                self._path.write_text(json.dumps(document))
-            except OSError as exc:
-                log(f"Could not record last-seen for {agent_id}: {exc}")
 
 
 class AgentAccessContext:
@@ -343,7 +304,7 @@ def register_agent_routes(
             return caller
         now = context.now()
         since_raw = request.args.get("since", "")
-        since = _parse_since(since_raw) or default_changes_since(now)
+        since = parse_since(since_raw) or default_changes_since(now)
         skills = cached_skills_index(
             context.repo_root,
             context.skills_cache_path,
@@ -389,7 +350,7 @@ def register_agent_routes(
             return _error("authentication required", 401)
         if isinstance(caller, Response):
             return caller
-        since = _parse_since(request.args.get("since", ""))
+        since = parse_since(request.args.get("since", ""))
         if since is None and request.args.get("since", ""):
             return _error("since must be an ISO 8601 timestamp", 400)
         return _json(build_changes_feed(context.repo_root, since or default_changes_since(context.now())))
@@ -430,6 +391,7 @@ def register_agent_routes(
                 name_hint,
                 lifetime,
                 context.now(),
+                via="gateway",
             )
         except AgentGrantsError as exc:
             log(f"Agent access is misconfigured: {exc}")
@@ -478,23 +440,20 @@ def register_agent_routes(
             return _error("not an agent id", 400)
         is_owner = isinstance(caller, _HumanCaller) and caller.identity.is_owner
         try:
-            revoked = revoke(context.paths, agent_id, caller.principal, is_owner, context.now())
+            revoked = revoke(
+                context.paths,
+                agent_id,
+                caller.principal,
+                is_owner,
+                context.now(),
+                via="gateway",
+            )
         except RevokeRefusedError as exc:
             return _error(str(exc), 404)
         except AgentGrantsError as exc:
             log(f"Agent access is misconfigured: {exc}")
             return _error("agent access is misconfigured", 503)
         return _json({"revoked": revoked.agent_id})
-
-
-def _parse_since(raw: str) -> datetime | None:
-    if not raw:
-        return None
-    try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo is not None else None
 
 
 class _InvalidLifetimeError(ValueError):

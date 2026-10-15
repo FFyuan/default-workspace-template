@@ -12,6 +12,8 @@ record: it lives in the connector, and a service that needs it looks it up by
 
 import json
 
+BEARER_PREFIX = "Bearer "
+
 IDENTITY_HEADER = "X-Imbue-Identity"
 
 
@@ -73,3 +75,11 @@ def render_agent_identity_header(identity: AgentIdentity) -> str:
         "granter": identity.granter,
     }
     return json.dumps(document, separators=(",", ":"), ensure_ascii=True)
+
+
+def bearer_token_from_headers(authorization: str | None) -> str | None:
+    """The admission token a request presents, or None when the header is absent or not a bearer."""
+    if authorization is None or not authorization.startswith(BEARER_PREFIX):
+        return None
+    token = authorization[len(BEARER_PREFIX) :].strip()
+    return token or None

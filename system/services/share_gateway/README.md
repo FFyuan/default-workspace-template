@@ -260,7 +260,16 @@ the same gateway:
 - **The key lines are reconciled from the grants file** at every start and on
   every join and revoke (`agent_grants.reconcile_authorized_keys`): one line
   per unexpired workspace-scope grant, carrying the `imbue-agent-access
-  agent_id=...` marker; every other line of the file is left alone.
+  agent_id=...` marker; every other line of the file is left alone. The
+  read-and-replace holds `~/.ssh/authorized_keys.lock`, the lock every other
+  writer of the file (the desktop's cross-workspace SSH grant) takes around its
+  own read-and-write, so neither can overwrite the other's lines.
+- **The CLI's answers.** `agent-access <command> --json` prints one JSON
+  document on stdout; a refusal or a misconfiguration is one JSON object on
+  stderr, `{"error": ..., "kind": "refused" | "misconfigured"}`, with exit code
+  2 or 3. `--granter`, `--revoker`, and `--owner` are what the caller asserts:
+  the CLI trusts whoever reached the workspace with exec, and each event it
+  records says it came through the CLI and from which parent command.
 - **Orientation.** `GET /_agent/primer` renders
   `.agents/shared/references/visiting-agents.md` with the skills index, the
   apps, the connected accounts and granted permissions (read through latchkey,

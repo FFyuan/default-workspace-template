@@ -213,7 +213,15 @@ def test_a_visiting_agent_joins_runs_reads_writes_and_is_shut_out_on_revoke(tmp_
 
     with _owner_exec(binary, repo, authorized_keys, host_key, exec_port) as exec_origin:
         with _gateway(tmp_path, repo, paths, host_public_key, "owner-exec-ex000000") as gateway_origin:
-            minted = mint_invite(paths, "workspace", "user:owner", "", None, datetime.now(timezone.utc))
+            minted = mint_invite(
+                paths,
+                "workspace",
+                "user:owner",
+                "",
+                None,
+                datetime.now(timezone.utc),
+                via="test",
+            )
 
             joined = _wsvisit(state_dir, ["join", gateway_origin, minted.code, "--name", "e2e agent"])
             assert joined.returncode == 0, joined.stderr.decode()
@@ -263,7 +271,14 @@ def test_a_visiting_agent_joins_runs_reads_writes_and_is_shut_out_on_revoke(tmp_
 
             # The owner revokes the grant; the daemon refuses the key on the next request and
             # the helper learns from the gateway that the grant is gone.
-            revoke(paths, config["agent_id"], "user:owner", True, datetime.now(timezone.utc))
+            revoke(
+                paths,
+                config["agent_id"],
+                "user:owner",
+                True,
+                datetime.now(timezone.utc),
+                via="test",
+            )
             assert authorized_keys.read_text() == ""
             shut_out = _wsvisit(state_dir, ["run", "--", "echo", "still here?"])
             assert shut_out.returncode == _EXIT_REVOKED, shut_out.stderr.decode()

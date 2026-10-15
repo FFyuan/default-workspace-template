@@ -45,6 +45,7 @@ from share_gateway.hostnames import service_for_host
 from share_gateway.identity import AgentIdentity
 from share_gateway.identity import IDENTITY_HEADER
 from share_gateway.identity import RequesterIdentity
+from share_gateway.identity import bearer_token_from_headers
 from share_gateway.identity import render_agent_identity_header
 from share_gateway.identity import render_identity_header
 from share_gateway.log import log
@@ -154,16 +155,6 @@ def forwarded_client_ip(headers: Headers | Mapping[str, str]) -> str:
     """
     forwarded_for = headers.get("X-Forwarded-For", "")
     return forwarded_for.split(",")[0].strip() if forwarded_for else ""
-
-
-_BEARER_PREFIX = "Bearer "
-
-
-def _bearer_token(authorization: str | None) -> str | None:
-    if authorization is None or not authorization.startswith(_BEARER_PREFIX):
-        return None
-    token = authorization[len(_BEARER_PREFIX) :].strip()
-    return token or None
 
 
 def _requested_url(host: str, forwarded_uri: str) -> str:
@@ -280,7 +271,7 @@ def build_gateway_app(
         is_websocket_upgrade = request.headers.get("X-Forwarded-Upgrade", "").lower() == "websocket"
 
         origin_header = request.headers.get("Origin")
-        is_bearer_request = _bearer_token(request.headers.get("Authorization")) is not None
+        is_bearer_request = bearer_token_from_headers(request.headers.get("Authorization")) is not None
         if not is_bearer_request and not is_request_origin_allowed(
             method,
             origin_header,
@@ -308,7 +299,7 @@ def build_gateway_app(
         # policy guards browsers' automatically attached cookies); the token
         # alone is checked, against the agent grants rather than the human
         # ones, and the agent's scope decides which origins it may reach.
-        bearer_token = _bearer_token(request.headers.get("Authorization"))
+        bearer_token = bearer_token_from_headers(request.headers.get("Authorization"))
         if bearer_token is not None:
             if admit_agent is None:
                 _log_denied("bearer token presented but agent access is not configured", host)

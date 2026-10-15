@@ -429,6 +429,17 @@ def render_instruction_block(
     )
 
 
+def parse_since(raw: str) -> datetime | None:
+    """A ``since`` argument as an aware datetime; None when empty, malformed, or naive."""
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
 def default_changes_since(now: datetime) -> datetime:
     return now - DEFAULT_CHANGES_WINDOW
 
