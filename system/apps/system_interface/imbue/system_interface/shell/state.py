@@ -409,8 +409,8 @@ class ShellState(MutableModel):
         for client_id, paths in by_client.items():
             for window_id, stored in paths.items():
                 by_window.setdefault(window_id, {})[client_id] = stored.path
-        by_desktop = self.desktops.read_theme_choices().by_desktop
-        return [desktop_view(desktop, by_window, by_desktop.get(desktop.id)) for desktop in desktops]
+        theme_by_desktop_id = self.desktops.read_theme_choices().theme_by_desktop_id
+        return [desktop_view(desktop, by_window, theme_by_desktop_id.get(desktop.id)) for desktop in desktops]
 
     def desktop_view(self, desktop: Desktop) -> DesktopView:
         (view,) = self.desktop_views((desktop,))

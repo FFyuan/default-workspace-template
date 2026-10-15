@@ -325,14 +325,14 @@ def test_desktops_are_created_settled_and_deleted_with_the_last_one_refused(tmp_
     papered = store.set_wallpaper("research", Wallpaper(kind=WallpaperKind.BUNDLED, name=WallpaperName("dunes")))
     assert papered.wallpaper is not None and papered.wallpaper.name == "dunes"
     assert store.set_wallpaper("research", None).wallpaper is None
-    assert store.read_theme_choices() == ThemeChoices(default=None, by_desktop={})
+    assert store.read_theme_choices() == ThemeChoices(default=None, theme_by_desktop_id={})
     assert store.set_theme("research", ThemeId("windows-2000")).name == "Research 2"
-    assert store.read_theme_choices().by_desktop == {"research": "windows-2000"}
+    assert store.read_theme_choices().theme_by_desktop_id == {"research": "windows-2000"}
     # desktops.json keeps the shape a shell from before themes reads; the theme lives beside it.
     read_desktops_file_in_its_released_shape(store.state_directory)
     assert store.set_default_theme(ThemeId("mac-classic")).default == "mac-classic"
     store.set_theme("research", None)
-    assert store.read_theme_choices() == ThemeChoices(default=ThemeId("mac-classic"), by_desktop={})
+    assert store.read_theme_choices() == ThemeChoices(default=ThemeId("mac-classic"), theme_by_desktop_id={})
     with pytest.raises(DesktopNotFoundError):
         store.set_theme("nowhere", ThemeId("mac-classic"))
     assert find_desktop_by_name_or_id(store.list_desktops(), "research 2") is not None
@@ -341,7 +341,7 @@ def test_desktops_are_created_settled_and_deleted_with_the_last_one_refused(tmp_
     store.set_theme("home", ThemeId("windows-2000"))
     outcome = store.delete_desktop("home")
     assert outcome.deleted.id == home.id and outcome.fallback_desktop_id == "research"
-    assert store.read_theme_choices() == ThemeChoices(default=ThemeId("mac-classic"), by_desktop={})
+    assert store.read_theme_choices() == ThemeChoices(default=ThemeId("mac-classic"), theme_by_desktop_id={})
     with pytest.raises(LastDesktopError):
         store.delete_desktop("research")
     with pytest.raises(DesktopNotFoundError):

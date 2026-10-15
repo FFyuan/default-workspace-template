@@ -298,12 +298,12 @@ class DesktopStore(MutableModel):
             self._themes_path(),
         )
         if document is None:
-            return ThemeChoices(default=None, by_desktop={})
-        return ThemeChoices(default=document.default, by_desktop=dict(document.desktops))
+            return ThemeChoices(default=None, theme_by_desktop_id={})
+        return ThemeChoices(default=document.default, theme_by_desktop_id=dict(document.desktops))
 
     def _write_themes_unlocked(self, choices: ThemeChoices) -> None:
         document = DesktopThemesDocument(
-            version=DESKTOP_THEMES_FILE_VERSION, default=choices.default, desktops=dict(choices.by_desktop)
+            version=DESKTOP_THEMES_FILE_VERSION, default=choices.default, desktops=dict(choices.theme_by_desktop_id)
         )
         write_json_atomic(self._themes_path(), document.model_dump(mode="json"))
 
@@ -460,7 +460,7 @@ class DesktopStore(MutableModel):
         """Record the workspace's default theme; none wears the standard one."""
         with STATE_FILES_LOCK:
             choices = self._read_themes_unlocked()
-            updated = ThemeChoices(default=theme, by_desktop=choices.by_desktop)
+            updated = ThemeChoices(default=theme, theme_by_desktop_id=choices.theme_by_desktop_id)
             self._write_themes_unlocked(updated)
         return updated
 
@@ -480,10 +480,12 @@ class DesktopStore(MutableModel):
             if desktop is None:
                 raise DesktopNotFoundError(desktop_id)
             choices = self._read_themes_unlocked()
-            by_desktop = {key: value for key, value in choices.by_desktop.items() if key != desktop.id}
+            theme_by_desktop_id = {
+                key: value for key, value in choices.theme_by_desktop_id.items() if key != desktop.id
+            }
             if theme is not None:
-                by_desktop[desktop.id] = theme
-            self._write_themes_unlocked(ThemeChoices(default=choices.default, by_desktop=by_desktop))
+                theme_by_desktop_id[desktop.id] = theme
+            self._write_themes_unlocked(ThemeChoices(default=choices.default, theme_by_desktop_id=theme_by_desktop_id))
         return desktop
 
     def delete_desktop(self, desktop_id: str) -> DesktopDeleteOutcome:
@@ -499,9 +501,13 @@ class DesktopStore(MutableModel):
                 raise LastDesktopError(f"Desktop {doomed.name!r} is the last one and cannot be deleted")
             self._write_unlocked(DesktopsDocument(version=DESKTOPS_FILE_VERSION, desktops=remaining))
             choices = self._read_themes_unlocked()
-            if doomed.id in choices.by_desktop:
-                by_desktop = {key: value for key, value in choices.by_desktop.items() if key != doomed.id}
-                self._write_themes_unlocked(ThemeChoices(default=choices.default, by_desktop=by_desktop))
+            if doomed.id in choices.theme_by_desktop_id:
+                theme_by_desktop_id = {
+                    key: value for key, value in choices.theme_by_desktop_id.items() if key != doomed.id
+                }
+                self._write_themes_unlocked(
+                    ThemeChoices(default=choices.default, theme_by_desktop_id=theme_by_desktop_id)
+                )
         return DesktopDeleteOutcome(deleted=doomed, fallback_desktop_id=remaining[0].id)
 
     def set_shortcut(self, desktop_id: str, shortcut: DesktopShortcut) -> Desktop:

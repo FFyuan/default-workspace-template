@@ -218,7 +218,7 @@ class ThemeChoices(FrozenModel):
     """What the workspace and its desktops chose to wear, as stored; availability is the catalog's to judge."""
 
     default: ThemeId | None = Field(description="The workspace's default theme; none wears the standard one")
-    by_desktop: dict[DesktopId, ThemeId] = Field(description="Each desktop that wears its own theme")
+    theme_by_desktop_id: dict[DesktopId, ThemeId] = Field(description="Each desktop that wears its own theme")
 
 
 class DefaultShortcutsOfferedDocument(FrozenModel):
