@@ -117,7 +117,8 @@ def test_classic_mac_puts_the_close_box_first_and_centres_the_title(themed_shell
 
 
 def test_the_desktop_wears_the_workspace_default_theme(themed_shell: str, page: Page) -> None:
-    page.request.post(f"{themed_shell}/api/themes/default", data={"theme": "windows-2000"})
+    chosen = page.request.post(f"{themed_shell}/api/themes/default", data={"theme": "windows-2000"})
+    assert chosen.ok, (chosen.status, chosen.text())
 
     page.goto(themed_shell)
 
