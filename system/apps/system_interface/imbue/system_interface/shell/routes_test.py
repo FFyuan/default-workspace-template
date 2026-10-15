@@ -958,8 +958,14 @@ def test_desktops_are_created_settled_papered_and_deleted(client: FlaskClient, a
     write_standard_theme(shell.repo_root)
     write_test_theme(themes_root, "mac-classic", '[data-part="window-frame"] { border: 1px solid #000000; }\n')
     assert settled.get_json()["theme"] is None
+    drain_messages(client_queue)
     themed = client.post("/api/desktops/research/theme", json={"theme": "mac-classic"})
     assert themed.status_code == 200 and themed.get_json()["theme"] == "mac-classic"
+    # Every window hears it, so each one showing the desktop re-themes.
+    updates = [message for message in drain_messages(client_queue) if message["type"] == "desktops_updated"]
+    assert updates and {desktop["id"]: desktop for desktop in updates[-1]["desktops"]}["research"]["theme"] == (
+        "mac-classic"
+    )
     listed = {desktop["id"]: desktop for desktop in client.get("/api/desktops").get_json()["desktops"]}
     assert listed["research"]["theme"] == "mac-classic"
     assert client.post("/api/desktops/research/theme", json={"theme": "beos"}).status_code == 400
