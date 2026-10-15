@@ -13,7 +13,8 @@ memory.
 Bands are positive-only. A negative ``oom_score_adj`` (true "never kill") would
 require ``CAP_SYS_RESOURCE``, which the container's default capability set does
 not grant; positive values still establish the relative ordering. The never-kill
-infrastructure (sshd, supervisord, earlyoom itself, tini, and tmux) keeps the
+infrastructure (sshd, supervisord, earlyoom itself and its log timestamper
+earlyoom-stamp, tini, and tmux) keeps the
 inherited default of 0 -- nothing needs to tag it -- and is additionally shielded
 by earlyoom ``--avoid``. The supervisord services (the UI, the tunnel, the
 terminal, the backups, ...) are tagged into the low ``SERVICE_BANDS`` range so
@@ -202,8 +203,8 @@ def chat_agent_oom_score_adj(
 # before all of them. That is the opposite of what a built-in wants, and the only
 # signal is a warning on the service's stderr.
 #
-# sshd and the other never-kill infrastructure (supervisord, earlyoom, tini,
-# tmux) are deliberately absent: they keep the inherited PROTECTED default (0)
+# sshd and the other never-kill infrastructure (supervisord, earlyoom,
+# earlyoom-stamp, tini, tmux) are deliberately absent: they keep the inherited PROTECTED default (0)
 # and are additionally shielded by earlyoom ``--avoid``.
 #
 # This is a best-effort steer, not a hard guarantee. earlyoom picks the highest
