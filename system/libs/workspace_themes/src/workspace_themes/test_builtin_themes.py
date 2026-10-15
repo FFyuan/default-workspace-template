@@ -12,11 +12,12 @@ _BUILTIN_THEME_IDS = ("standard", "mac-classic", "windows-2000")
 def test_every_built_in_theme_passes_the_contract() -> None:
     catalog = CachingThemeCatalogLoader(repo_root=_REPO_ROOT).load()
 
-    for theme_id in _BUILTIN_THEME_IDS:
-        entry = catalog.find(theme_id)
-        assert entry is not None, f"{theme_id} is missing from system/themes/"
-        assert entry.source == ThemeSource.BUILTIN
-        assert entry.problems == (), f"{theme_id}: {entry.problems}"
+    builtin_entries = [
+        entry for entry in catalog.entries if entry.source == ThemeSource.BUILTIN
+    ]
+    assert set(_BUILTIN_THEME_IDS) <= {str(entry.id) for entry in builtin_entries}
+    for entry in builtin_entries:
+        assert entry.problems == (), f"{entry.id}: {entry.problems}"
 
 
 def test_every_built_in_theme_with_its_own_icons_ships_one_for_every_built_in_app() -> (
