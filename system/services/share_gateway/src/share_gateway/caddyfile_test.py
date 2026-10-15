@@ -200,8 +200,8 @@ def test_caddyfile_wires_forward_auth_and_loading_fallback() -> None:
     # Textual position inside a handle block does NOT decide when the strip
     # runs: caddy sorts directives by its own order, which puts forward_auth
     # before request_header. Only the global order override makes the strip
-    # run first; test_caddy_adapt_runs_the_identity_strip_before_forward_auth
-    # proves the resulting handler order against the real binary.
+    # run first (the caddy version pin in setup_system.sh is what keeps that
+    # override meaning the same thing).
     assert "order request_header before forward_auth" in rendered
     assert "rewrite * /_auth/loading" in rendered
     assert "auto_https off" in rendered
@@ -215,3 +215,34 @@ def test_caddyfile_serves_the_loading_page_for_a_backend_it_cannot_reach() -> No
 
     assert "handle_errors 502 {" in rendered
     assert rendered.count("rewrite * /_auth/loading") == 2
+
+
+def _hardening_block(indent: str) -> str:
+    return "\n".join(
+        f"{indent}{line}"
+        for line in (
+            "header {",
+            '    Strict-Transport-Security "max-age=31536000; includeSubDomains"',
+            "    X-Content-Type-Options nosniff",
+            "    -Server",
+            "    defer",
+            "}",
+        )
+    )
+
+
+def test_caddyfile_hardens_every_response_including_the_error_path() -> None:
+    rendered = _render()
+
+    # Site-wide, so proxied services and the gateway's own routes alike carry
+    # the headers; deferred, so the backend's Server header is removed rather
+    # than re-added after the delete, and its own HSTS does not ride alongside.
+    assert _hardening_block("    ") in rendered
+    # handle_errors runs a handler chain of its own, so the 502 loading page
+    # needs the block of its own.
+    error_block_start = rendered.index("handle_errors 502 {")
+    error_block_end = rendered.index("rewrite * /_auth/loading", error_block_start)
+    assert _hardening_block("        ") in rendered[error_block_start:error_block_end]
+    # The appended frame-ancestors policy stays a plain (non-deferred) add: a
+    # deferred set would overwrite a service's own CSP instead of composing.
+    assert rendered.count("Content-Security-Policy") == 1
