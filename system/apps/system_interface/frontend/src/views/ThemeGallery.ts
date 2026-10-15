@@ -41,7 +41,12 @@ const BUTTON_VARIANTS: readonly ButtonVariant[] = [
   "ghost",
   "destructive",
   "ghost-destructive",
+  "inverse",
+  "ghost-inverse",
+  "stop",
 ];
+/** Variants drawn for a dark overlay (the image viewer's), shown on one so they can be seen. */
+const ON_DARK_VARIANTS: ReadonlySet<ButtonVariant> = new Set(["ghost-inverse"]);
 const TERMINAL_TOKENS = [
   "--term-background",
   "--term-foreground",
@@ -121,7 +126,7 @@ function buttons(): m.Children {
     "div",
     { class: "flex flex-col gap-2" },
     BUTTON_VARIANTS.map((variant) =>
-      m("div", { class: "flex items-center gap-2" }, [
+      m("div", { class: `flex items-center gap-2${ON_DARK_VARIANTS.has(variant) ? " w-fit bg-black/85 p-2" : ""}` }, [
         m(Button, { variant }, variant),
         m(Button, { variant, disabled: true }, "disabled"),
         m(Button, { variant, icon: true, sm: true, "aria-label": variant }, m.trust("&#9733;")),

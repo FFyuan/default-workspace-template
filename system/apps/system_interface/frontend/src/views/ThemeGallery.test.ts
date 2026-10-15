@@ -60,6 +60,26 @@ describe("ThemeGallery", () => {
     expect(controls).toEqual(["refresh", "menu", "minimize", "maximize", "close"]);
   });
 
+  it("draws a button of every variant the contract names", () => {
+    const state = galleryStateOf(themeCatalog(BROKEN), "broken", [appRecord("files")]);
+    if (state === null) throw new Error("the catalog has the broken theme");
+    const root = mountView(() => m(ThemeGallery, { state }));
+
+    const variants = new Set(
+      Array.from(root.querySelectorAll('[data-part="button"]')).map((button) => button.getAttribute("data-variant")),
+    );
+    expect([...variants].sort()).toEqual([
+      "destructive",
+      "ghost",
+      "ghost-destructive",
+      "ghost-inverse",
+      "inverse",
+      "primary",
+      "secondary",
+      "stop",
+    ]);
+  });
+
   it("swatches the terminal palette a theme sets, and says the terminal keeps its own when a theme sets none", () => {
     const state = galleryStateOf(themeCatalog(BROKEN), "broken", [appRecord("files")]);
     if (state === null) throw new Error("the catalog has the broken theme");
