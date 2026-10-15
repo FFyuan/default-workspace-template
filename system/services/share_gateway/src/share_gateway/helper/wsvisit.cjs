@@ -307,13 +307,18 @@ function resolveConfig(options) {
 
 // HTTP
 
+// The share's origins stop answering the moment the workspace is unpublished;
+// the grant and the address survive it, so publishing again is all it takes.
+const UNREACHABLE_HINT =
+  " (the workspace may not be published right now; its owner publishes it from the Share panel, and your access resumes at the same address)";
+
 async function fetchWithTimeout(url, init, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (error) {
-    throw new HelperError(`could not reach ${url}: ${error.message}`);
+    throw new HelperError(`could not reach ${url}: ${error.message}${UNREACHABLE_HINT}`);
   } finally {
     clearTimeout(timer);
   }
@@ -764,6 +769,7 @@ module.exports = {
   commandInvite,
   contentDigest,
   describeSkillChanges,
+  fetchWithTimeout,
   fingerprintOfPublicKeyLine,
   generateKeypair,
   inviteGrantLifetimeDays,

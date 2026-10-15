@@ -167,6 +167,23 @@ test("an app-scope agent is told it cannot invite, not that it was revoked", asy
   });
 });
 
+test("an unreachable workspace is reported with the publish hint", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    throw new Error("fetch failed");
+  };
+  try {
+    await assert.rejects(helper.fetchWithTimeout("https://auth.alpha.example.com/_agent/me", {}, 1000), (error) => {
+      assert.ok(error instanceof helper.HelperError);
+      assert.match(error.message, /could not reach https:\/\/auth\.alpha\.example\.com\/_agent\/me: fetch failed/);
+      assert.match(error.message, /may not be published right now/);
+      return true;
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("a refusal from a workspace whose clock is off names the skew", () => {
   const now = Date.parse("2026-10-15T18:00:00Z") / 1000;
   assert.equal(helper.clockSkewNote("Thu, 15 Oct 2026 18:00:30 GMT", now), "");
