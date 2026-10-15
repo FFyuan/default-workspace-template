@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.pure import pure
+from loguru import logger
 from pydantic import Field
 
 from workspace_themes.contract import (
@@ -61,7 +62,8 @@ def _is_existing_file(path: Path) -> bool:
     """Whether the path names a file; one the system cannot look up (a name too long) names none."""
     try:
         return path.is_file()
-    except OSError:
+    except OSError as error:
+        logger.debug("Theme file {} cannot be looked up: {}", path, error)
         return False
 
 
