@@ -80,15 +80,15 @@ def _parse_scope_argument(raw: str) -> "str | list[str]":
     return [name.strip() for name in raw.split(",") if name.strip()]
 
 
-def _workspace_domain() -> str:
-    """The share domain: the live materials, else the domain the workspace was last shared under, else ''."""
+def _workspace_domain() -> tuple[str, bool]:
+    """``(domain, is_published)``: the live materials' domain, else the one last shared under, else ''."""
     materials = read_share_materials(materials_module.MATERIALS_FILE)
     if materials is not None:
-        return materials.workspace_domain
+        return materials.workspace_domain, True
     try:
-        return materials_module.SHARE_DOMAIN_FILE.read_text().strip()
+        return materials_module.SHARE_DOMAIN_FILE.read_text().strip(), False
     except OSError:
-        return ""
+        return "", False
 
 
 def _write_line(text: str, is_error: bool = False) -> None:
@@ -137,7 +137,7 @@ def _command_invite(args: argparse.Namespace) -> int:
         minted = mint_invite(paths, scope, args.granter, args.name_hint, lifetime, now, via=_invoker())
     except AgentGrantsError as exc:
         return _fail(args, f"the agent access files are misconfigured: {exc}", "misconfigured")
-    workspace_domain = _workspace_domain()
+    workspace_domain, is_published = _workspace_domain()
     auth_label = load_or_create_auth_label(materials_module.AUTH_LABEL_FILE)
     auth_origin = f"https://{auth_label}.{workspace_domain}" if workspace_domain else ""
     coordinates = read_workspace_coordinates(os.environ, HOST_KEY_PUBLIC_PATH, workspace_domain.split(".", 1)[0])
@@ -157,7 +157,7 @@ def _command_invite(args: argparse.Namespace) -> int:
         "scope": scope,
         "granter": args.granter,
         "auth_origin": auth_origin,
-        "is_published": read_share_materials(materials_module.MATERIALS_FILE) is not None,
+        "is_published": is_published,
         "instructions": instructions,
     }
     _emit(payload, instructions, args.json)
@@ -202,7 +202,7 @@ def _command_revoke(args: argparse.Namespace) -> int:
 
 def _command_primer(args: argparse.Namespace) -> int:
     repo_root = Path.cwd()
-    workspace_domain = _workspace_domain()
+    workspace_domain, _ = _workspace_domain()
     coordinates = read_workspace_coordinates(os.environ, HOST_KEY_PUBLIC_PATH, workspace_domain.split(".", 1)[0])
     scope = _parse_scope_argument(args.scope)
     now = utc_now()
