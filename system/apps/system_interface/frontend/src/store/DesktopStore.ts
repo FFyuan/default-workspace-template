@@ -949,9 +949,9 @@ export class DesktopStore {
    *  already names it. News heard on the new socket while the record was being read, or while the pending save is
    *  awaited, is newer than what this window had: the window follows it and only registers its connection here,
    *  since its desktop may still be the one the news moved the client off.
-   *  The layout is read again either way, for the ``placements_updated`` missed, and the record's entries and the
-   *  workspace's selection too, for the ``client_entries_changed`` and ``avatar_selection_changed`` missed (the
-   *  server resends the rest). */
+   *  The layout is read again either way, for the ``placements_updated`` missed, and the record's entries, the
+   *  workspace's selection, and the theme catalog too, for the ``client_entries_changed``,
+   *  ``avatar_selection_changed``, and ``themes_changed`` missed (the server resends the rest). */
   private async resyncAfterReconnect(): Promise<void> {
     let recorded: string | null = null;
     let isRecordedNewer = false;
