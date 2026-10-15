@@ -173,8 +173,10 @@ input[type="radio"] {
   accent-color: #000000;
 }
 
-/* Fields: white and sunk. A field keeps its own side padding, which leaves room for an icon inside it. */
+/* Fields and value pickers: white and sunk. A field keeps its own side padding, which leaves room for an icon inside
+   it. */
 [data-part="field"],
+[data-part="select"],
 select {
   border: none;
   border-radius: 0;
@@ -183,7 +185,8 @@ select {
   font-family: var(--font-sans);
 }
 
-/* A drop-down list: the sunk field with a raised arrow button at its right end. */
+/* A native drop-down list: the sunk field with a raised arrow button at its right end (the shared drop-down draws its
+   own caret). */
 select {
   appearance: none;
   padding-left: 5px;
