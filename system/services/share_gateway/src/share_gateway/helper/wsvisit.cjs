@@ -46,10 +46,13 @@ const EXIT_VERIFICATION_FAILED = 70;
 const EXIT_REVOKED = 77;
 const EXIT_USAGE = 64;
 
+// `isRetryable` is false for a failure the self-heal must not answer by running
+// the action again: a command whose output already streamed has already run.
 class HelperError extends Error {
-  constructor(message, exitCode = 1) {
+  constructor(message, exitCode = 1, isRetryable = true) {
     super(message);
     this.exitCode = exitCode;
+    this.isRetryable = isRetryable;
   }
 }
 
@@ -383,7 +386,9 @@ function clockSkewNote(dateHeader, nowUnix) {
 
 // Stale coordinates (a moved exec origin, a rotated host key, a re-registered
 // service) heal by re-reading `me` and retrying once; a 403 from `me` means the
-// grant itself is gone.
+// grant itself is gone. A failure that is not retryable (a run whose output
+// already streamed) still refreshes the coordinates, so the next command
+// works, but is reported rather than run again.
 async function withRecovery(config, action) {
   try {
     return await action(config);
@@ -400,6 +405,10 @@ async function withRecovery(config, action) {
     }
     Object.assign(config, { exec: me.exec, apps: me.apps, scope: me.scope, workspace: { ...config.workspace, ...me.workspace } });
     saveConfig(config);
+    if (!error.isRetryable) {
+      process.stderr.write("wsvisit: refreshed the workspace's addresses; the next command will use them\n");
+      throw error;
+    }
     process.stderr.write("wsvisit: refreshed the workspace's addresses and retrying\n");
     return await action(config);
   }
@@ -572,7 +581,13 @@ async function consumeRunStream(body, hostPublicKeyLine, requestSignatureB64) {
     }
   }
   if (pending.length) handleLine(pending);
-  verifyStreamTrailer(trailer, hash.digest(), requestSignatureB64, hostPublicKeyLine, nowUnix());
+  try {
+    verifyStreamTrailer(trailer, hash.digest(), requestSignatureB64, hostPublicKeyLine, nowUnix());
+  } catch (error) {
+    if (!(error instanceof HelperError)) throw error;
+    // The command has run and its output is above; it must not run again.
+    throw new HelperError(`${error.message} (the command ran; its output above is unverified)`, error.exitCode, false);
+  }
   return { exitCode: exitCode === null ? 1 : exitCode };
 }
 
@@ -713,4 +728,5 @@ module.exports = {
   streamTrailerBase,
   verifyResponse,
   verifyStreamTrailer,
+  withRecovery,
 };

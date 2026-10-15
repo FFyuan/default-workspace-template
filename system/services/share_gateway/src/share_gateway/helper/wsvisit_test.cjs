@@ -157,3 +157,49 @@ test("a refusal from a workspace whose clock is off names the skew", () => {
   assert.match(helper.clockSkewNote("Thu, 15 Oct 2026 18:05:00 GMT", now), /300s ahead of/);
   assert.match(helper.clockSkewNote("Thu, 15 Oct 2026 17:50:00 GMT", now), /600s behind/);
 });
+
+test("the self-heal retries a retryable failure once and never re-runs a command that already ran", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wsvisit-heal-"));
+  process.env.WSVISIT_STATE_DIR = root;
+  const originalFetch = global.fetch;
+  const me = {
+    exec: { origin: "https://exec-new.example.com", audience: "container:host-1", host_public_key: "ssh-ed25519 AAAA" },
+    apps: [],
+    scope: "workspace",
+    workspace: { domain: "alpha.example.com" },
+  };
+  global.fetch = async () => new Response(JSON.stringify(me), { status: 200 });
+  try {
+    const config = {
+      token: "t",
+      gateway_origin: "https://auth.alpha.example.com",
+      workspace: { domain: "alpha.example.com", auth_origin: "https://auth.alpha.example.com" },
+      exec: { origin: "https://exec-old.example.com" },
+      keypair: { privateKeyPem: "pem", publicKeyLine: "ssh-ed25519 AAAA" },
+    };
+    let attempts = 0;
+    const answer = await helper.withRecovery(config, async (current) => {
+      attempts += 1;
+      if (attempts === 1) throw new helper.HelperError("stale host key", 70);
+      return current.exec.origin;
+    });
+    assert.equal(attempts, 2);
+    assert.equal(answer, "https://exec-new.example.com");
+
+    config.exec = { origin: "https://exec-old.example.com" };
+    let runs = 0;
+    await assert.rejects(
+      helper.withRecovery(config, async () => {
+        runs += 1;
+        throw new helper.HelperError("stream signature does not verify", 70, false);
+      }),
+      /stream signature does not verify/,
+    );
+    assert.equal(runs, 1);
+    assert.equal(config.exec.origin, "https://exec-new.example.com");
+  } finally {
+    global.fetch = originalFetch;
+    delete process.env.WSVISIT_STATE_DIR;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
