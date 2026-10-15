@@ -146,7 +146,8 @@ class ThemeIcons(FrozenModel):
         description="Icons generated in this workspace, by app name"
     )
     fallback: Path | None = Field(
-        description="The generic program icon; none for the standard theme"
+        description="The generic program icon (icons/app.<format>), from the nearest theme from the spec's owner on "
+        "that ships one; none when no such theme does, as for the standard theme or a theme still without its own"
     )
 
 
