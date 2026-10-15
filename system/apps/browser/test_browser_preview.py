@@ -14,7 +14,6 @@ import socket
 import subprocess
 import sys
 import tempfile
-import urllib.parse
 import urllib.request
 from collections.abc import Generator, Iterator
 from pathlib import Path
@@ -26,6 +25,8 @@ from imbue.mngr.utils.polling import wait_for
 _APP_DIR = Path(__file__).parent
 _SERVE_SCRIPT = _APP_DIR.parents[2] / ".agents" / "shared" / "scripts" / "serve_isolated_instance.py"
 _INSTANCE_NAME = "browser-preview-test"
+# Where serve_isolated_instance.py records the ports it gave the instance, under its repo root.
+_INSTANCE_STATE = Path("data/.state/isolated-instances") / _INSTANCE_NAME / "instance.json"
 
 # The live service's own port and its CDP proxy's (runner.py).
 _LIVE_PORTS = (8081, 8083)
@@ -115,7 +116,11 @@ def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(rep
         try:
             assert up.returncode == 0, up.stderr
             url = up.stdout.strip()
-            assert urllib.parse.urlsplit(url).port not in _LIVE_PORTS
+            ports = json.loads((repo_root / _INSTANCE_STATE).read_text())["ports"]
+            assert set(ports.values()).isdisjoint(_LIVE_PORTS), ports
+            # The CDP proxy moves to an ephemeral port when its own is taken, so only a listener on the cdp port
+            # shows the preview was given that port.
+            socket.create_connection(("127.0.0.1", ports["cdp"]), timeout=5).close()
             wait_for(
                 lambda: not _get_json(f"{url}{preview.health_path}")["initializing"],
                 timeout=_STEP_TIMEOUT_SECONDS,
