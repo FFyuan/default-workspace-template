@@ -110,7 +110,12 @@ def read_app_manifests(repo_root: Path) -> list[AppManifest]:
         try:
             manifests.append(load_manifest(manifest_path, repo_root=repo_root))
         except (ManifestLoadError, InvalidManifestValueError) as error:
-            logger.debug("Skipping an app manifest that does not load: {}", error)
+            # The app's theme overlays are left out of every bundle until its manifest loads again.
+            logger.warning(
+                "Skipping the app manifest {}, which does not load: {}",
+                manifest_path,
+                error,
+            )
     return manifests
 
 
