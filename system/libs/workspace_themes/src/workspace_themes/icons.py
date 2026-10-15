@@ -209,12 +209,12 @@ def fit_icon_image(image: Image.Image, spec: ThemeIconSpec) -> Image.Image:
         filled = Image.new("RGBA", working.size, OPAQUE_FILL)
         filled.alpha_composite(working)
         working = filled
+    # The count first: mapping its colors to their nearest in the palette keeps it within the count, where limiting
+    # a palette-mapped icon could average two palette colors into one outside it.
+    if spec.max_colors is not None:
+        working = _limit_colors(working, spec.max_colors)
     if spec.palette:
         working = _apply_palette(working, spec.palette)
-    elif spec.max_colors is not None:
-        working = _limit_colors(working, spec.max_colors)
-    else:
-        pass
     return working
 
 
