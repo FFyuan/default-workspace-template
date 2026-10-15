@@ -28,3 +28,5 @@ def test_helper_is_the_file_the_gateway_serves_and_prints_usage() -> None:
     assert result.returncode == 0
     usage = result.stdout.decode("utf-8")
     assert "wsvisit join <auth-origin> <code>" in usage and "wsvisit run" in usage
+    # The whole header comment, to its last sentence, not a line count that drifts.
+    assert usage.rstrip().endswith("retrying once.")

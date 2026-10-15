@@ -666,11 +666,22 @@ async function commandInvite(config, options) {
   return 0;
 }
 
+// The usage is this file's own header comment: every `//` line after the
+// shebang up to the first blank line.
+function usageText() {
+  const lines = [];
+  for (const line of fs.readFileSync(__filename, "utf8").split("\n").slice(1)) {
+    if (!line.startsWith("//")) break;
+    lines.push(line.replace(/^\/\/ ?/, ""));
+  }
+  return lines.join("\n");
+}
+
 async function main(argv) {
   const { options, positional, rest } = parseArgs(argv);
   const [command, ...commandPositional] = positional;
   if (!command || command === "help" || options.help) {
-    process.stdout.write(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 22).map((line) => line.replace(/^\/\/ ?/, "")).join("\n") + "\n");
+    process.stdout.write(usageText() + "\n");
     return 0;
   }
   if (command === "join") {
