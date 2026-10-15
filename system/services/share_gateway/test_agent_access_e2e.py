@@ -27,12 +27,12 @@ from pathlib import Path
 import httpx
 import pytest
 from share_gateway.agent_access import AgentAccessPaths
+from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_access import revoke
 from share_gateway.agent_grants import fingerprint_of_public_key_line
 from share_gateway.agent_routes import AgentAccessContext
 from share_gateway.agent_routes import HELPER_PATH
-from share_gateway.agent_routes import LastSeenStore
 from share_gateway.agent_routes import register_agent_routes
 from share_gateway.agent_workspace import WorkspaceCoordinates
 from share_gateway.caddyfile import RegisteredApp
