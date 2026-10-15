@@ -16,6 +16,7 @@ from workspace_themes.catalog import (
     read_app_manifests,
 )
 from workspace_themes.contract import (
+    BUILTIN_THEMES_DIRECTORY,
     CONTRACT_VERSION,
     FALLBACK_ICON_STEM,
     STANDARD_THEME_ID,
@@ -76,7 +77,15 @@ _REPO_ROOT_OPTION: Final = click.option(
 
 
 def _load_catalog(repo_root: str) -> ThemeCatalog:
-    return CachingThemeCatalogLoader(repo_root=Path(repo_root).resolve()).load()
+    root = Path(repo_root).resolve()
+    standard_manifest = (
+        root / BUILTIN_THEMES_DIRECTORY / STANDARD_THEME_ID / THEME_MANIFEST_FILENAME
+    )
+    if not standard_manifest.is_file():
+        raise click.ClickException(
+            f"{root} is not a workspace root: it has no {standard_manifest.relative_to(root)}"
+        )
+    return CachingThemeCatalogLoader(repo_root=root).load()
 
 
 def _require_theme(catalog: ThemeCatalog, theme_id: str) -> ThemeEntry:

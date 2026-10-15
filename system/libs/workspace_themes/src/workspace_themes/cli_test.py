@@ -45,6 +45,17 @@ def test_validate_reports_each_theme_and_fails_on_a_problem(tmp_path: Path) -> N
     assert ".x is a class" in failing.output
 
 
+def test_a_folder_that_is_not_a_workspace_root_is_refused(tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    validated = runner.invoke(main, ["validate", "--repo-root", str(tmp_path)])
+    missing = runner.invoke(main, ["icon", "missing", "--repo-root", str(tmp_path)])
+
+    for result in (validated, missing):
+        assert result.exit_code == 1
+        assert f"{tmp_path.resolve()} is not a workspace root" in result.output
+
+
 def test_list_names_every_theme_and_whether_it_is_available(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     write_test_theme(root / "themes", "classy", ".x { color: red; }\n")
