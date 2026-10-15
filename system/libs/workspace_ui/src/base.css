@@ -117,7 +117,7 @@
   --z-overlay: 10000;
   --z-popover: 10001;
   --z-tooltip: 10002;
-  --width-message-column: 740px;
+  --width-message-column: 672px;
   /* The agent's side of the column keeps this much clear on the right. The user's
      bubbles already stop short (they cap at 80% and hug the right edge); without
      it the agent's prose and task rows were the only thing running the column's
