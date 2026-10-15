@@ -81,6 +81,10 @@
       "why": "The demo page's content column."
     },
     {
+      "pattern": "^button:focus$",
+      "why": "Draws a dotted outline on any button that has focus, so every button a mouse clicks keeps one; the theme draws the focus rectangle for the keyboard only."
+    },
+    {
       "pattern": "^\\.dropdown-item:hover$",
       "why": "Turns every row navy under the pointer, a disabled one too; the theme draws the selection on the rows that can be chosen."
     }

@@ -92,9 +92,6 @@ a {
     color: black;
     border-radius: 1px;
 }
-button:focus{
-    outline: 1px dotted;
-}
 [data-part="button"]:disabled{
     cursor: default;
     background-color: #d4d0c8;
