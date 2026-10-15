@@ -136,20 +136,18 @@ export function icon(name: IconName, opts: IconOptions = {}): string {
 
 let badgeMaskCount = 0;
 
-/** `name` with a solid disc in its bottom-right corner and `badge` cut out of the disc, the icon cut away around
- *  it: the glyph shows whatever is behind the icon, so it reads on any background. */
+/** `name` with `badge` small in its bottom-right corner, in the same colour and weight, the icon cut away in a
+ *  circle around it so the two never touch. */
 export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = {}): string {
   const dims = opts.size === undefined ? "" : ` width="${opts.size}" height="${opts.size}"`;
   const cls = opts.className ? ` class="${opts.className}"` : "";
   const mask = `icon-badge-${(badgeMaskCount += 1)}`;
   return (
     `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
-    `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
-    `<mask id="${mask}"><rect width="24" height="24" fill="#fff"/><circle cx="19" cy="19" r="7.5" fill="#000"/></mask>` +
-    `<mask id="${mask}-disc"><circle cx="19" cy="19" r="6" fill="#fff"/>` +
-    `<g transform="translate(15.04 15.04) scale(0.33)" stroke="#000" stroke-width="4.2">${STROKE_PATHS[badge]}</g></mask>` +
+    `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" overflow="visible" aria-hidden="true">` +
+    `<mask id="${mask}"><rect width="24" height="24" fill="#fff"/><circle cx="19" cy="19" r="7" fill="#000"/></mask>` +
     `<g mask="url(#${mask})">${STROKE_PATHS[name]}</g>` +
-    `<circle cx="19" cy="19" r="6" fill="currentColor" stroke="none" mask="url(#${mask}-disc)"/></svg>`
+    `<g transform="translate(13.96 13.96) scale(0.42)" stroke-width="4.4">${STROKE_PATHS[badge]}</g></svg>`
   );
 }
 
