@@ -20,7 +20,6 @@ from imbue.chat.harnesses.lanes import LANES
 from imbue.chat.harnesses.one_shot import OneShotCompletion
 from imbue.chat.harnesses.one_shot import OneShotCompletionError
 from imbue.chat.harnesses.one_shot import OneShotCompletionTimeoutError
-from imbue.chat.harnesses.pi_coding.account_binding import PI_AUTH_FILENAME
 from imbue.chat.harnesses.pi_coding.account_binding import PiAccountBinding
 from imbue.chat.harnesses.pi_coding.model import list_pi_models
 from imbue.concurrency_group.errors import ProcessError
@@ -117,7 +116,7 @@ def pi_one_shot_env(ambient_env: Mapping[str, str], account_dir: Path) -> dict[s
 
 def _account_providers(account_dir: Path) -> frozenset[str]:
     """The providers the account holds a credential for: the keys of its ``auth.json``."""
-    return frozenset(read_json_dict(account_dir / PI_AUTH_FILENAME))
+    return frozenset(read_json_dict(PiAccountBinding().account_credential_path(account_dir)))
 
 
 class PiOneShotCompletion(OneShotCompletion):
