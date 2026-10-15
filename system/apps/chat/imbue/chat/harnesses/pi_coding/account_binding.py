@@ -6,7 +6,7 @@ from typing import Final
 from imbue.chat.harnesses.account_binding import CredentialLinkAccountBinding
 from imbue.chat.harnesses.pi_coding.model import PI_CONFIG_DIR_RELPATH
 
-_AUTH_FILENAME: Final = "auth.json"
+PI_AUTH_FILENAME: Final = "auth.json"
 
 
 class PiAccountBinding(CredentialLinkAccountBinding):
@@ -20,7 +20,7 @@ class PiAccountBinding(CredentialLinkAccountBinding):
         return {"PI_CODING_AGENT_DIR": str(account_dir)}
 
     def account_credential_path(self, account_dir: Path) -> Path:
-        return account_dir / _AUTH_FILENAME
+        return account_dir / PI_AUTH_FILENAME
 
     def agent_credential_path(self, agent_state_dir: Path) -> Path:
-        return agent_state_dir / PI_CONFIG_DIR_RELPATH / _AUTH_FILENAME
+        return agent_state_dir / PI_CONFIG_DIR_RELPATH / PI_AUTH_FILENAME
