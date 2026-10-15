@@ -117,7 +117,8 @@ draws that one; the theme is unavailable until it has it, though the icon comman
 (the `launch-task` skill) when there are more than one or two (a background agent installs into the
 live workspace, as that skill says, and names the icons it put in `themes/<id>/icons/`; commit them
 with the theme once they land), and show the user the theme while they land. The theme is finished when the command prints `every theme has an icon for every app`.
-A theme that keeps the standard icons (no `[icons]` of its own) has nothing to draw here.
+A theme that keeps the standard icons (no `[icons]` in it or in any theme it builds on) has nothing
+to draw here; one built on a theme with icons of its own draws its own for the apps it lacks.
 
 ## 7. Show the user
 
