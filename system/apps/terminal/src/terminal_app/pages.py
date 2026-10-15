@@ -75,8 +75,7 @@ _PLACEHOLDER: Final[re.Pattern[str]] = re.compile(
     r"__(TITLE|CONFIG_ID|CONFIG|CONTRACT_PATH|THEME)__"
 )
 
-# xterm's theme keys for the contract's terminal tokens, in TERMINAL_TOKENS' order: the four colors, then the
-# sixteen ANSI ones.
+# xterm's theme keys for the contract's terminal tokens, in TERMINAL_TOKENS' order.
 _XTERM_THEME_KEYS: Final[tuple[str, ...]] = (
     "background",
     "foreground",
