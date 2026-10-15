@@ -293,7 +293,7 @@ The fitting step is what lets any model's output join a set drawn by another.
 Under a theme, the shell draws an app's icon as the first of: the theme's curated icon, the workspace's generated icon, an icon derived from the app's standard icon by the theme's `derive` (rendered in the page: rasterized to the canvas, then pixelated, quantized to the palette, or turned to two colors, the palette's darkest and lightest), and the theme's generic program icon (`derive = "none"`).
 The `app-icon` part's `data-icon-source` says which it drew.
 
-When an app is built (the `build-app` skill) and when a theme is made (the `create-theme` skill), the agent makes the missing icons in the background; the derived icon shows until they land, and neither is finished until every theme with icons of its own has one for every app.
+When an app is built (the `build-app` skill) and when a theme is made (the `create-theme` skill), the agent makes the missing icons in the background (all but a new theme's generic program icon, which it draws first, in the foreground, since the theme is unavailable without it); the derived icon shows until they land, and neither is finished until every theme with icons of its own has one for every app.
 `workspace-themes icon missing [<id>...]` lists, for each such theme (every one with icons of its own when none is named, including one still unavailable for want of its generic program icon), the apps it has no icon for, and exits 1 when there are any; a theme that keeps the standard icons has none to draw.
 Every built-in theme with icons of its own ships, committed in its folder, an icon for every built-in app a user sees; a test reads the app manifests, so a new built-in app fails it until each such theme has one.
 
@@ -329,11 +329,11 @@ A user starts one in a chat, in their own words ("make it look like BeOS"), or f
 The agent makes a theme from a description or a picture:
 
 1. `workspace-themes new <id> --base <base> --name "<name>" --description "<one sentence>"` lays out the folder.
-2. The agent writes the tokens, the chrome slots, the part styles, and the icon guide, drawing on a CSS library where one fits (section 4.5).
-3. It makes the icons (section 6.2) in the background, until `workspace-themes icon missing <id>` names no app.
-4. `workspace-themes validate <id>` checks the folder against sections 3 and 4.
-5. It looks at the theme gallery under the theme, and fixes what reads badly.
-6. It shows the user the theme with the live preview in Desktop settings.
+2. The agent writes the tokens, the chrome slots, the part styles, and the icon guide, drawing on a CSS library where one fits (section 4.5). A theme with icons of its own is unavailable until it has its generic program icon, so the agent draws that one (section 6.2) here, in the foreground.
+3. `workspace-themes validate <id>` checks the folder against sections 3 and 4.
+4. It looks at the theme gallery under the theme, and fixes what reads badly.
+5. It makes the apps' icons (section 6.2) in the background, until `workspace-themes icon missing <id>` names no app.
+6. It shows the user the theme with the live preview in Desktop settings while they land.
 
 ### 8.2 The theme gallery
 
