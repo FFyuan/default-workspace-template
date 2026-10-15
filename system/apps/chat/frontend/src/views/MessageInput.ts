@@ -58,7 +58,7 @@ import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverToolt
 import { icon, stopIcon } from "@imbue/workspace-ui/src/components/icons";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 
-const MAX_TEXTAREA_HEIGHT_PX = 200;
+const MAX_TEXTAREA_HEIGHT_PX = 240;
 
 /* Styling.
  * Utilities in the markup; the message-input and composer-attachment class
@@ -67,21 +67,136 @@ const MAX_TEXTAREA_HEIGHT_PX = 200;
  * property. */
 
 /** The composer card. No shadow: it sits at the foot of its own pane
- *  rather than floating over the transcript. */
+ *  rather than floating over the transcript. Focus thickens its border to 2px
+ *  in the accent (a 1px ring outside the 1px border) without moving anything. */
 const INPUT_BOX_CLASS =
-  "message-input-box flex flex-col rounded-xl border bg-composer " +
-  "[transition:border-color_150ms] focus-within:border-accent";
+  "message-input-box flex flex-col gap-0.5 rounded-xl border bg-composer p-1.5 " +
+  "[transition:border-color_150ms,box-shadow_150ms] focus-within:border-accent " +
+  "focus-within:shadow-[0_0_0_1px_var(--color-accent)]";
 
-/** The text and its buttons. ``fitComposer`` sets ``data-stacked`` on the row to put the buttons in a row of their
- *  own under the text. */
+/** The text and its buttons: + | text | toolbar. ``fitComposer`` sets ``data-stacked`` on the row once the text
+ *  needs a second line; the text then takes the full width, with + and the toolbar on a row under it. */
 const MESSAGE_ROW_CLASS =
-  "message-input-row group/row flex flex-row items-center data-[stacked]:flex-col data-[stacked]:items-stretch";
+  "message-input-row group/row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-0.5 " +
+  "data-[stacked]:gap-y-0.5";
+
+const ATTACH_BUTTON_CLASS =
+  "message-input-attach-button col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2";
 
 const TOOLBAR_CLASS =
-  "message-input-toolbar flex shrink-0 items-center gap-2 pr-3 " +
-  "group-data-[stacked]/row:self-end group-data-[stacked]/row:pb-1.5";
+  "message-input-toolbar col-start-3 row-start-1 flex shrink-0 items-center gap-1 justify-self-end " +
+  "group-data-[stacked]/row:row-start-2";
 
-const ATTACHMENT_DETAIL_BASE = "composer-attachment-detail text-(length:--font-size-helper)";
+/** Send with nothing to send: a quiet grey square rather than a faded accent one. */
+const SEND_BUTTON_IDLE_CLASS =
+  "disabled:border-transparent disabled:bg-fill-hover disabled:text-faint disabled:opacity-100";
+
+const ATTACHMENT_CHIP_HEIGHT_CLASS = "h-10";
+
+/** The attachment row's edge fade: 4px solid at the edge, then an ease-out falloff over the rest of
+ *  the fade box, so there is no visible band where a linear ramp would end. */
+const STRIP_FADE_SOLID_PX = 4;
+
+function stripFade(direction: string): string {
+  const stops = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1].map((t) => {
+    const alpha = Math.round((1 - t) ** 2 * 1000) / 10;
+    const at = `calc(${STRIP_FADE_SOLID_PX}px + (100% - ${STRIP_FADE_SOLID_PX}px) * ${t})`;
+    return `color-mix(in srgb, var(--color-composer) ${alpha}%, transparent) ${at}`;
+  });
+  return `linear-gradient(${direction}, var(--color-composer) 0px, ${stops.join(", ")})`;
+}
+
+interface AttachmentStripAttrs {
+  children: m.Children;
+}
+
+/**
+ * The composer's attachments on ONE row: when they don't fit, the row scrolls sideways (scrollbar
+ * hidden) and a < / > arrow over an edge fade appears at whichever end has more to show, each
+ * paging the row by most of its width.
+ *
+ * The scroller has 6px of room above and right of the chips (cancelled by a negative top margin)
+ * so the corner remove buttons aren't clipped by its overflow.
+ */
+function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
+  let scroller: HTMLElement | null = null;
+  let resizeObserver: ResizeObserver | null = null;
+  let edges = { left: false, right: false };
+
+  function updateEdges(): void {
+    if (scroller === null) return;
+    const next = {
+      left: scroller.scrollLeft > 1,
+      right: scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1,
+    };
+    if (next.left !== edges.left || next.right !== edges.right) {
+      edges = next;
+      m.redraw();
+    }
+  }
+
+  function page(direction: 1 | -1): void {
+    scroller?.scrollBy({ left: direction * scroller.clientWidth * 0.8, behavior: "smooth" });
+  }
+
+  function arrow(side: "left" | "right"): m.Children {
+    const isLeft = side === "left";
+    return [
+      m("div", {
+        class: `pointer-events-none absolute top-0 h-10 w-8 ${isLeft ? "left-0" : "right-0"}`,
+        style: { backgroundImage: stripFade(isLeft ? "to right" : "to left") },
+      }),
+      // A bare chevron until hovered, when it fills in as a small floating button. It sits 10px
+      // outside the row so its hover box doesn't line up with the composer's border.
+      m(
+        "button",
+        {
+          type: "button",
+          class:
+            `message-input-attachments-${side} absolute top-2 z-20 inline-flex h-6 w-6 cursor-pointer items-center ` +
+            "justify-center rounded-md border border-transparent text-secondary " +
+            "transition-[color,background-color,border-color,box-shadow] hover:border-default hover:bg-surface " +
+            "hover:text-primary hover:shadow-[0_2px_6px_rgb(0_0_0/0.12)] " +
+            (isLeft ? "-left-2.5" : "-right-2.5"),
+          "aria-label": isLeft ? "Scroll attachments left" : "Scroll attachments right",
+          onclick: () => page(isLeft ? -1 : 1),
+        },
+        m.trust(icon(isLeft ? "chevron-left" : "chevron-right", { size: 14 })),
+      ),
+    ];
+  }
+
+  return {
+    oncreate(vnode) {
+      scroller = (vnode.dom as HTMLElement).firstElementChild as HTMLElement;
+      scroller.addEventListener("scroll", updateEdges, { passive: true });
+      resizeObserver = new ResizeObserver(updateEdges);
+      resizeObserver.observe(scroller);
+      updateEdges();
+    },
+    onupdate: updateEdges,
+    onremove() {
+      scroller?.removeEventListener("scroll", updateEdges);
+      resizeObserver?.disconnect();
+      scroller = null;
+    },
+    view(vnode) {
+      return m("div", { class: "message-input-attachments relative pb-1.5" }, [
+        m(
+          "div",
+          {
+            class:
+              "-mt-1.5 flex gap-1.5 overflow-x-auto pt-1.5 pr-1.5 [scrollbar-width:none] " +
+              "[&::-webkit-scrollbar]:hidden",
+          },
+          vnode.attrs.children,
+        ),
+        edges.left ? arrow("left") : null,
+        edges.right ? arrow("right") : null,
+      ]);
+    },
+  };
+}
 
 const MESSAGE_TEXT_KEY_PREFIX = "message-text:";
 
@@ -410,81 +525,110 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
   // Its own handler rather than the one above: each notice clears only its own state, and
   // registering one shared function reference from two overlays would be de-duplicated by
   // addEventListener and then torn down by whichever overlay closed first.
+  /**
+   * One attachment chip, 40px tall: a ready image is its thumbnail alone; anything else is an icon
+   * (a spinner while uploading) beside its name and its size, or what it points at for a file the
+   * chat made for the user (an element reference). The remove button rides the top-right corner,
+   * shown on hover.
+   */
   function renderComposerAttachment(chatId: string, attachment: ComposerAttachment): m.Vnode {
     const isReadyImage = attachment.status === "ready" && attachment.isImage && attachment.uploaded !== undefined;
-    // A file the chat made for the user (an element reference) wears the pointer and says what it points at
-    // where a user's own file says its size.
     const isDescribed = attachment.summary !== undefined;
-    const thumbnail = isReadyImage
-      ? m("img", {
-          class: "composer-attachment-thumb h-9 w-9 shrink-0 rounded-md object-cover",
-          src: attachment.uploaded?.url,
-          alt: attachment.fileName,
-        })
-      : m(
-          "span",
-          {
-            class: "composer-attachment-icon inline-flex h-9 w-9 shrink-0 items-center justify-center text-secondary",
-          },
-          attachment.status === "uploading"
-            ? m("span", { class: "spinner" })
-            : m.trust(icon(isDescribed ? "pointer" : "file", { size: 18, strokeWidth: 1.8 })),
-        );
+    const isError = attachment.status === "error";
+    const remove =
+      attachment.status === "uploading"
+        ? null
+        : m(
+            "button",
+            {
+              type: "button",
+              // z-10: above the strip's end fades, so a half-hidden chip's remove button stays usable.
+              class:
+                "composer-attachment-remove absolute -top-1.5 -right-1.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
+                "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
+                "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
+              "aria-label": "Remove attachment",
+              ...hoverTooltipAttrs("Remove attachment", "above"),
+              onclick: () => removeComposerAttachment(chatId, attachment.localId),
+            },
+            m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
+          );
+    // The status modifier is an interpolated marker; the one status the look distinguishes (a
+    // failed upload's red border) rides beside it.
+    const chipMarker = `composer-attachment composer-attachment--${attachment.status}`;
+    if (isReadyImage) {
+      return m(
+        "div",
+        {
+          key: attachment.localId,
+          class: `${chipMarker} group/chip relative flex-none`,
+          ...hoverTooltipAttrs(attachment.fileName, "above"),
+        },
+        [
+          m("img", {
+            class: `composer-attachment-thumb ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-10 rounded-lg border border-subtle object-cover`,
+            src: attachment.uploaded?.url,
+            alt: attachment.fileName,
+          }),
+          remove,
+        ],
+      );
+    }
+    const detail =
+      attachment.status === "ready" && attachment.uploaded !== undefined
+        ? m(
+            "span",
+            {
+              class:
+                "composer-attachment-detail composer-attachment-summary truncate text-[11px] leading-[1.3] text-secondary",
+            },
+            attachment.summary ?? formatFileSize(attachment.uploaded.size),
+          )
+        : attachment.status === "uploading"
+          ? m(
+              "span",
+              { class: "composer-attachment-detail truncate text-[11px] leading-[1.3] text-secondary" },
+              "Uploading…",
+            )
+          : m(
+              "span",
+              {
+                class:
+                  "composer-attachment-detail composer-attachment-detail--error truncate text-[11px] leading-[1.3] text-danger",
+              },
+              "Upload failed",
+            );
     return m(
       "div",
       {
         key: attachment.localId,
-        // The status modifier is an interpolated marker; the one status the
-        // look distinguishes (a failed upload's red border) rides beside it.
         class:
-          `composer-attachment composer-attachment--${attachment.status} ` +
-          "inline-flex max-w-[240px] items-center gap-2 rounded-lg border bg-sidebar py-1.5 pr-2 pl-1.5 " +
-          (attachment.status === "error" ? "border-danger-border" : ""),
+          `${chipMarker} group/chip relative flex ${ATTACHMENT_CHIP_HEIGHT_CLASS} max-w-[220px] flex-none items-center ` +
+          "gap-1 rounded-lg border bg-surface-secondary pr-2 pl-1 " +
+          (isError ? "border-danger-border" : "border-subtle"),
       },
       [
-        thumbnail,
+        m(
+          "span",
+          {
+            class: "composer-attachment-icon inline-flex h-6 w-6 flex-none items-center justify-center text-secondary",
+          },
+          attachment.status === "uploading"
+            ? m("span", { class: "spinner spinner--current" })
+            : m.trust(icon(isDescribed ? "pointer" : "file", { size: 16, strokeWidth: 1.8 })),
+        ),
         m("span", { class: "composer-attachment-info flex min-w-0 flex-col" }, [
           m(
             "span",
             {
-              class: "composer-attachment-name truncate text-(length:--font-size-body) text-primary",
+              class: "composer-attachment-name truncate text-(length:--font-size-helper) text-primary",
               ...hoverTooltipAttrs(attachment.summary ?? attachment.fileName, "above"),
             },
             attachment.fileName,
           ),
-          attachment.status === "ready" && attachment.uploaded !== undefined
-            ? m(
-                "span",
-                { class: `${ATTACHMENT_DETAIL_BASE} composer-attachment-summary truncate text-secondary` },
-                attachment.summary ?? formatFileSize(attachment.uploaded.size),
-              )
-            : null,
-          attachment.status === "uploading"
-            ? m("span", { class: `${ATTACHMENT_DETAIL_BASE} text-secondary` }, "Uploading…")
-            : null,
-          attachment.status === "error"
-            ? m(
-                "span",
-                { class: `${ATTACHMENT_DETAIL_BASE} composer-attachment-detail--error text-danger` },
-                "Upload failed",
-              )
-            : null,
+          detail,
         ]),
-        attachment.status === "uploading"
-          ? null
-          : m(
-              Button,
-              {
-                variant: "ghost",
-                icon: true,
-                xs: true,
-                extra: "composer-attachment-remove shrink-0",
-                "aria-label": "Remove attachment",
-                ...hoverTooltipAttrs("Remove attachment", "above"),
-                onclick: () => removeComposerAttachment(chatId, attachment.localId),
-              },
-              m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
-            ),
+        remove,
       ],
     );
   }
@@ -1368,19 +1512,17 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
             // With no provider to send to, the composer stays in view, holding any draft, but takes nothing.
             [
               attachments.length > 0
-                ? m(
-                    "div",
-                    { class: "message-input-attachments flex flex-wrap gap-2 pt-3 pr-3 pl-4" },
-                    attachments.map((attachment) => renderComposerAttachment(chatId, attachment)),
-                  )
+                ? m(AttachmentStrip, {
+                    children: attachments.map((attachment) => renderComposerAttachment(chatId, attachment)),
+                  })
                 : null,
               m("div", { class: MESSAGE_ROW_CLASS, oncreate: attachMessageRow, onremove: detachMessageRow }, [
                 m("textarea", {
                   class:
-                    "message-input-textbox flex-1 resize-none border-none bg-transparent pt-3.5 pr-2 pb-3.5 pl-5 " +
-                    "font-sans text-(length:--font-size-body) leading-normal text-primary focus:outline-none " +
-                    "placeholder:text-faint group-data-[stacked]/row:flex-none group-data-[stacked]/row:pr-5 " +
-                    "group-data-[stacked]/row:pb-1 disabled:cursor-not-allowed disabled:opacity-60",
+                    "message-input-textbox col-start-2 row-start-1 w-full resize-none border-none bg-transparent " +
+                    "px-1 py-0.5 font-sans text-(length:--font-size-body) leading-6 text-primary focus:outline-none " +
+                    "placeholder:text-faint group-data-[stacked]/row:col-span-3 group-data-[stacked]/row:col-start-1 " +
+                    "disabled:cursor-not-allowed disabled:opacity-60",
                   placeholder:
                     handoff !== null
                       ? handoffComposerPlaceholder(handoff)
@@ -1414,21 +1556,21 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                   onkeydown: handleKeydown,
                   onpaste: handlePaste,
                 }),
+                m(
+                  Button,
+                  {
+                    variant: "ghost",
+                    icon: true,
+                    sm: true,
+                    extra: ATTACH_BUTTON_CLASS,
+                    ...hoverTooltipAttrs("Attach files", "above"),
+                    "aria-label": "Attach files",
+                    disabled: isComposerDisabled,
+                    onclick: openFilePicker,
+                  },
+                  m.trust(icon("plus", { size: 16, strokeWidth: 2 })),
+                ),
                 m("div", { class: TOOLBAR_CLASS }, [
-                  m(
-                    Button,
-                    {
-                      variant: "ghost",
-                      icon: true,
-                      round: true,
-                      extra: "message-input-attach-button shrink-0",
-                      ...hoverTooltipAttrs("Attach files", "above"),
-                      "aria-label": "Attach files",
-                      disabled: isComposerDisabled,
-                      onclick: openFilePicker,
-                    },
-                    m.trust(icon("attach", { size: 18 })),
-                  ),
                   isCancelSwitchVisible
                     ? m(
                         Button,
@@ -1453,7 +1595,6 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                         {
                           variant: "stop",
                           icon: true,
-                          round: true,
                           sm: true,
                           extra: "message-input-stop-button shrink-0",
                           // The label states what THIS press will do. The button always interrupts;
@@ -1491,25 +1632,26 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                             ),
                           ],
                         )
-                      : canSend
-                        ? m(
-                            Button,
-                            {
-                              variant: "primary",
-                              icon: true,
-                              round: true,
-                              extra: "message-input-send-button shrink-0",
-                              readonly: isSendHeldForSwitch,
-                              ...hoverTooltipAttrs(
-                                isSendHeldForSwitch ? "Sending is paused until the switch starts" : "Send message",
-                                "above",
-                              ),
-                              "aria-label": "Send message",
-                              onclick: handleSubmit,
-                            },
-                            m.trust(icon("send", { size: 16, strokeWidth: 2.5 })),
-                          )
-                        : null,
+                      : m(
+                          Button,
+                          {
+                            variant: "primary",
+                            icon: true,
+                            sm: true,
+                            extra: `message-input-send-button shrink-0 ${SEND_BUTTON_IDLE_CLASS}`,
+                            disabled: !canSend,
+                            readonly: isSendHeldForSwitch,
+                            ...(canSend
+                              ? hoverTooltipAttrs(
+                                  isSendHeldForSwitch ? "Sending is paused until the switch starts" : "Send message",
+                                  "above",
+                                )
+                              : null),
+                            "aria-label": "Send message",
+                            onclick: handleSubmit,
+                          },
+                          m.trust(icon("send", { size: 16, strokeWidth: 2.5 })),
+                        ),
                 ]),
               ]),
             ],
