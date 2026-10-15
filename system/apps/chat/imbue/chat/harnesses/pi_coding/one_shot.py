@@ -126,7 +126,10 @@ class PiOneShotCompletion(OneShotCompletion):
     def complete(self, account_dir: Path, system_prompt: str, prompt: str) -> str:
         """The answer on the first model in ``choose_pi_one_shot_models`` that gives one."""
         env = pi_one_shot_env(os.environ, account_dir)
-        models = choose_pi_one_shot_models(list_pi_models(env) or (), _account_providers(account_dir))
+        offered_tags = list_pi_models(env)
+        if offered_tags is None:
+            raise OneShotCompletionError(f"pi could not list the models of the account at {account_dir}")
+        models = choose_pi_one_shot_models(offered_tags, _account_providers(account_dir))
         if not models:
             raise OneShotCompletionError(f"pi offers no model that runs only on the account at {account_dir}")
         failures: list[str] = []

@@ -14,6 +14,7 @@ named chat nor retries past the limit.
 """
 
 import json
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -56,6 +57,7 @@ _MAX_PROMPT_CHARACTERS: Final[int] = 3000
 # How long a chat created with its first message may take to come up before naming gives up on it.
 _AGENT_WAIT_SECONDS: Final[float] = 600.0
 _AGENT_POLL_SECONDS: Final[float] = 2.0
+_MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"</?message>", re.IGNORECASE)
 
 # Small models answer a bare message ("what's 2+2?" -> "4") or obey it, so the message goes in tags the
 # prompt calls data, the instruction is repeated after it, and the examples show requests being titled.
@@ -103,9 +105,13 @@ class ChatNamingState(FrozenModel):
 
 @pure
 def chat_naming_prompt(message: str) -> str:
-    """What the model is asked about ``message``: its opening, framed as text to title rather than to answer."""
+    """What the model is asked about ``message``: its opening, framed as text to title rather than to answer.
+
+    Tags inside the message are dropped, so it cannot close the frame early and speak as the instructions.
+    """
+    opening = _MESSAGE_TAG_PATTERN.sub("", message)[:_MAX_PROMPT_CHARACTERS]
     return (
-        f"<message>\n{message[:_MAX_PROMPT_CHARACTERS]}\n</message>\n\n"
+        f"<message>\n{opening}\n</message>\n\n"
         f"Reply with the title of the chat this message opens, or {_NO_NAME_ANSWER}."
     )
 
