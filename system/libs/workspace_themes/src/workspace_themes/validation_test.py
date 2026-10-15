@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from workspace_themes.contract import CONTRACT_VERSION, CORE_PARTS
+from workspace_themes.contract import (
+    CONTRACT_VERSION,
+    CORE_PARTS,
+    MAX_STYLE_FILES_BYTES,
+    MAX_THEME_FOLDER_BYTES,
+)
 from workspace_themes.data_types import ResolvedChrome, ThemeIconSpec, ThemeManifest
 from workspace_themes.primitives import (
     ChromeSlot,
@@ -16,10 +21,12 @@ from workspace_themes.primitives import (
 from workspace_themes.testing import write_png_header_only
 from workspace_themes.validation import (
     StyleSheetContext,
+    check_attribution_files,
     check_folder_files,
     check_icon_files,
     check_manifest_rules,
     check_resolved_chrome,
+    check_style_files,
     check_style_sheet,
     read_theme_manifest,
 )
@@ -30,6 +37,18 @@ def _context(
 ) -> StyleSheetContext:
     return StyleSheetContext(
         label="parts.css", folder=folder, file_directory="", allowed_parts=allowed_parts
+    )
+
+
+def _manifest(**fields: object) -> ThemeManifest:
+    return ThemeManifest.model_validate(
+        {
+            "contract": CONTRACT_VERSION,
+            "id": "paper",
+            "name": "Paper",
+            "description": "A paper theme.",
+            **fields,
+        }
     )
 
 
@@ -253,17 +272,7 @@ _ICONS = {
 def test_a_manifest_breaks_each_rule_the_catalog_holds_it_to(
     folder_name: str, fields: dict[str, object], expected: list[str]
 ) -> None:
-    manifest = ThemeManifest.model_validate(
-        {
-            "contract": CONTRACT_VERSION,
-            "id": "paper",
-            "name": "Paper",
-            "description": "A paper theme.",
-            **fields,
-        }
-    )
-
-    assert check_manifest_rules(manifest, folder_name) == expected
+    assert check_manifest_rules(_manifest(**fields), folder_name) == expected
 
 
 def test_a_manifest_with_an_unknown_key_or_a_bad_value_names_each(
@@ -376,3 +385,70 @@ def test_a_theme_s_png_icon_too_large_to_open_is_a_problem_not_a_crash(
 
     assert len(problems) == 1
     assert problems[0].startswith("icons/app.png: cannot be read as an image")
+
+
+def test_each_icon_file_the_spec_names_that_is_missing_is_named(
+    tmp_path: Path,
+) -> None:
+    spec = ThemeIconSpec(
+        guide=ThemeRelativePath("icons/guide.md"),
+        references=(ThemeRelativePath("icons/chat.png"),),
+        format=IconFormat.PNG,
+        size=32,
+        rendering=IconRendering.PIXELATED,
+        background=IconBackground.TRANSPARENT,
+        derive=IconDerivation.NONE,
+    )
+
+    problems = check_icon_files(tmp_path, "paper", spec)
+
+    assert problems == [
+        "icons.guide: icons/guide.md does not exist",
+        "icons.references: icons/chat.png does not exist",
+        "icons: the generic program icon icons/app.png is missing",
+    ]
+
+
+def test_each_path_an_attribution_covers_that_is_missing_is_named(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "fonts").mkdir()
+    manifest = _manifest(
+        attribution=[
+            {
+                "name": "Lib",
+                "url": "https://example.com/lib",
+                "license": "MIT",
+                "files": ["fonts", "vendor/LICENSE-lib"],
+            }
+        ]
+    )
+
+    problems = check_attribution_files(tmp_path, manifest)
+
+    assert problems == ["attribution 'Lib': vendor/LICENSE-lib does not exist"]
+
+
+def test_a_folder_over_its_size_limit_is_named(tmp_path: Path) -> None:
+    # Sparse, so the test writes no 16 MB of data.
+    with (tmp_path / "backdrop.png").open("wb") as backdrop:
+        backdrop.truncate(MAX_THEME_FOLDER_BYTES + 1)
+
+    problems = check_folder_files(tmp_path)
+
+    assert problems == [
+        f"the folder is {MAX_THEME_FOLDER_BYTES + 1} bytes, more than the {MAX_THEME_FOLDER_BYTES} a theme may be"
+    ]
+
+
+def test_style_files_over_their_size_limit_are_named(tmp_path: Path) -> None:
+    css = "/*" + "x" * MAX_STYLE_FILES_BYTES + "*/"
+    (tmp_path / "parts.css").write_text(css, encoding="utf-8")
+
+    problems = check_style_files(
+        tmp_path, _manifest(styles={"files": ["parts.css"]}), {}
+    )
+
+    assert problems == [
+        f"the style files are {len(css)} bytes, more than the {MAX_STYLE_FILES_BYTES} allowed"
+    ]
