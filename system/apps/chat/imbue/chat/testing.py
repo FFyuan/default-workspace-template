@@ -535,6 +535,14 @@ def put_stand_in_cli_on_path(tmp_path: Path, name: str, body: str, monkeypatch: 
     return log_path
 
 
+def make_pi_account_with_anthropic_key(tmp_path: Path, api_key: str = "sk-ant-5813") -> Path:
+    """A pi account folder at ``tmp_path/account`` whose ``auth.json`` holds an Anthropic API key."""
+    account_dir = tmp_path / "account"
+    account_dir.mkdir()
+    (account_dir / "auth.json").write_text(json.dumps({"anthropic": {"type": "api_key", "key": api_key}}))
+    return account_dir
+
+
 class InlineExecutor(Executor):
     """Runs each submitted call to completion before ``submit`` returns, so work a request hands off has finished
     when the request returns.

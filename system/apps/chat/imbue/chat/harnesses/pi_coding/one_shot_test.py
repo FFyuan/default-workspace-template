@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import pytest
@@ -8,6 +7,7 @@ from imbue.chat.harnesses.pi_coding.one_shot import PiOneShotCompletion
 from imbue.chat.harnesses.pi_coding.one_shot import choose_pi_one_shot_models
 from imbue.chat.harnesses.pi_coding.one_shot import pi_one_shot_argv
 from imbue.chat.harnesses.pi_coding.one_shot import pi_one_shot_env
+from imbue.chat.testing import make_pi_account_with_anthropic_key
 from imbue.chat.testing import put_stand_in_cli_on_path
 
 
@@ -85,13 +85,6 @@ def test_pi_one_shot_env_runs_on_the_chats_account_not_the_servers_provider_keys
     assert env == {"PATH": "/usr/bin", "PI_CODING_AGENT_DIR": str(tmp_path / "account")}
 
 
-def _anthropic_account(tmp_path: Path) -> Path:
-    account_dir = tmp_path / "account"
-    account_dir.mkdir()
-    (account_dir / "auth.json").write_text(json.dumps({"anthropic": {"type": "api_key", "key": "sk-ant-5813"}}))
-    return account_dir
-
-
 # Lists models as `pi --list-models` does; answers anything else after reading the prompt from stdin.
 _LIST_MODELS_THEN_ANSWER = """case " $* " in *" --list-models "*)
   printf 'provider    model               context\\n'
@@ -109,7 +102,9 @@ def test_complete_answers_on_the_newest_haiku_the_account_offers(
 ) -> None:
     log_path = put_stand_in_cli_on_path(tmp_path, "pi", _LIST_MODELS_THEN_ANSWER, monkeypatch)
 
-    answer = PiOneShotCompletion().complete(_anthropic_account(tmp_path), "Name this chat.", "Plan Rome")
+    answer = PiOneShotCompletion().complete(
+        make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome"
+    )
 
     assert answer == "Rome trip: plan five days"
     calls = log_path.read_text().splitlines()
@@ -123,7 +118,9 @@ def test_complete_falls_back_to_the_default_model_when_the_chosen_one_fails(
     body = 'case " $* " in *" --model "*) echo "400: model not found" >&2; exit 1;; esac\n' + _LIST_MODELS_THEN_ANSWER
     log_path = put_stand_in_cli_on_path(tmp_path, "pi", body, monkeypatch)
 
-    answer = PiOneShotCompletion().complete(_anthropic_account(tmp_path), "Name this chat.", "Plan Rome")
+    answer = PiOneShotCompletion().complete(
+        make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome"
+    )
 
     assert answer == "Rome trip: plan five days"
     model_calls = [call for call in log_path.read_text().splitlines() if call != "--list-models"]
@@ -139,7 +136,7 @@ def test_complete_raises_with_every_models_failure_when_none_answers(
     put_stand_in_cli_on_path(tmp_path, "pi", body, monkeypatch)
 
     with pytest.raises(OneShotCompletionError, match="claude-haiku-5-5: .*401.*default model: .*401"):
-        PiOneShotCompletion().complete(_anthropic_account(tmp_path), "Name this chat.", "Plan Rome")
+        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
 
 
 def test_complete_asks_no_model_when_pi_offers_none_on_the_account(
@@ -150,7 +147,7 @@ def test_complete_asks_no_model_when_pi_offers_none_on_the_account(
     )
 
     with pytest.raises(OneShotCompletionError, match="no model"):
-        PiOneShotCompletion().complete(_anthropic_account(tmp_path), "Name this chat.", "Plan Rome")
+        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
     assert log_path.read_text().splitlines() == ["--list-models"]
 
 
@@ -160,7 +157,7 @@ def test_complete_asks_no_model_when_pi_cannot_list_the_accounts_models(
     log_path = put_stand_in_cli_on_path(tmp_path, "pi", 'echo "auth.json is unreadable" >&2; exit 1', monkeypatch)
 
     with pytest.raises(OneShotCompletionError, match="could not list"):
-        PiOneShotCompletion().complete(_anthropic_account(tmp_path), "Name this chat.", "Plan Rome")
+        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
     assert log_path.read_text().splitlines() == ["--list-models"]
 
 
@@ -169,4 +166,4 @@ def test_complete_raises_when_pi_prints_no_answer(tmp_path: Path, monkeypatch: p
     put_stand_in_cli_on_path(tmp_path, "pi", body, monkeypatch)
 
     with pytest.raises(OneShotCompletionError, match="no answer"):
-        PiOneShotCompletion().complete(_anthropic_account(tmp_path), "Name this chat.", "Plan Rome")
+        PiOneShotCompletion().complete(make_pi_account_with_anthropic_key(tmp_path), "Name this chat.", "Plan Rome")
