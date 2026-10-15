@@ -23,14 +23,16 @@ import litellm
 
 # Image models answer in tens of seconds; past this the provider is not coming back.
 GENERATION_TIMEOUT_SECONDS: Final[float] = 180.0
+DOWNLOAD_TIMEOUT_SECONDS: Final[float] = 60.0
 
 
 class ImageCandidateError(Exception):
     """The model answered with an image this script cannot read."""
 
 
-def candidate_bytes(item: Any) -> bytes:
-    """The image one response item carries, whether the provider returned it inline or as a link."""
+def candidate_bytes(item: Any, client: httpx.Client) -> bytes:
+    """The image one response item carries, whether the provider returned it inline or as a link (fetched through
+    ``client``)."""
     encoded = getattr(item, "b64_json", None)
     if encoded:
         return base64.b64decode(encoded)
@@ -39,17 +41,19 @@ def candidate_bytes(item: Any) -> bytes:
         raise ImageCandidateError(
             "the model returned an image with neither data nor a link"
         )
-    response = httpx.get(url, timeout=60.0, follow_redirects=True)
+    response = client.get(url)
     response.raise_for_status()
     return response.content
 
 
-def write_candidates(items: Sequence[Any], out_dir: Path) -> list[Path]:
+def write_candidates(
+    items: Sequence[Any], out_dir: Path, client: httpx.Client
+) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = []
     for index, item in enumerate(items):
         path = out_dir / f"candidate-{index}.png"
-        path.write_bytes(candidate_bytes(item))
+        path.write_bytes(candidate_bytes(item, client))
         paths.append(path)
     return paths
 
@@ -73,7 +77,11 @@ def main(argv: Sequence[str]) -> int:
         size=arguments.size,
         timeout=GENERATION_TIMEOUT_SECONDS,
     )
-    for path in write_candidates(response.data, arguments.out_dir):
+    with httpx.Client(
+        timeout=DOWNLOAD_TIMEOUT_SECONDS, follow_redirects=True
+    ) as client:
+        paths = write_candidates(response.data, arguments.out_dir, client)
+    for path in paths:
         print(path)
     return 0
 

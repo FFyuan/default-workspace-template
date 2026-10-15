@@ -109,7 +109,10 @@ def _call(
 
 
 def draw(
-    client: httpx.Client, payload: dict[str, Any], poll_interval_seconds: float
+    client: httpx.Client,
+    payload: dict[str, Any],
+    poll_interval_seconds: float,
+    poll_timeout_seconds: float,
 ) -> dict[str, Any]:
     task_id = _call(
         client,
@@ -118,7 +121,7 @@ def draw(
         payload,
         {"Idempotency-Key": str(uuid.uuid4())},
     )["task_id"]
-    deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
+    deadline = time.monotonic() + poll_timeout_seconds
     while time.monotonic() < deadline:
         task = _call(client, "GET", f"/inferences/tasks/{task_id}", None, {})
         status = task.get("status")
@@ -128,7 +131,7 @@ def draw(
             raise RetroDiffusionError(f"drawing {task_id} ended as {status}: {task}")
         time.sleep(poll_interval_seconds)
     raise RetroDiffusionError(
-        f"drawing {task_id} did not finish within {POLL_TIMEOUT_SECONDS:.0f}s"
+        f"drawing {task_id} did not finish within {poll_timeout_seconds:.0f}s"
     )
 
 
@@ -165,7 +168,7 @@ def main(argv: Sequence[str]) -> int:
         arguments.style,
     )
     with httpx.Client(headers={"X-RD-Token": api_key}, timeout=60.0) as client:
-        result = draw(client, payload, POLL_INTERVAL_SECONDS)
+        result = draw(client, payload, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS)
     for path in write_candidates(result["base64_images"], arguments.out_dir):
         print(path)
     print(

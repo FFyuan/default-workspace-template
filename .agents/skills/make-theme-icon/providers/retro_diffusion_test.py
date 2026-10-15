@@ -71,14 +71,36 @@ def test_a_drawing_is_polled_until_it_succeeds() -> None:
         ]
     )
 
-    assert retro_diffusion.draw(client, {}, 0.0)["base64_images"] == ["aGk="]
+    assert retro_diffusion.draw(client, {}, 0.0, 60.0)["base64_images"] == ["aGk="]
 
 
 def test_a_drawing_that_fails_says_so() -> None:
     client = _api([{"task_id": "t1"}, {"status": "failed"}])
 
     with pytest.raises(retro_diffusion.RetroDiffusionError, match="ended as failed"):
-        retro_diffusion.draw(client, {}, 0.0)
+        retro_diffusion.draw(client, {}, 0.0, 60.0)
+
+
+def test_a_request_the_api_refuses_says_which_and_why() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(402, text="out of credits")
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+
+    with pytest.raises(
+        retro_diffusion.RetroDiffusionError,
+        match="POST /inferences failed with HTTP 402: out of credits",
+    ):
+        retro_diffusion.draw(client, {}, 0.0, 60.0)
+
+
+def test_a_drawing_still_running_at_the_deadline_is_given_up() -> None:
+    client = _api([{"task_id": "t1"}])
+
+    with pytest.raises(
+        retro_diffusion.RetroDiffusionError, match="t1 did not finish within 0s"
+    ):
+        retro_diffusion.draw(client, {}, 0.0, 0.0)
 
 
 def test_each_candidate_is_written_as_its_own_file(tmp_path: Path) -> None:
@@ -116,7 +138,7 @@ def test_only_the_drawing_request_carries_an_idempotency_key() -> None:
         return httpx.Response(200, json=next(responses))
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
-    retro_diffusion.draw(client, {}, 0.0)
+    retro_diffusion.draw(client, {}, 0.0, 60.0)
 
     assert keys[0] is not None
     assert keys[1:] == [None, None]
