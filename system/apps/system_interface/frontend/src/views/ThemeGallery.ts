@@ -10,6 +10,7 @@
 import m from "mithril";
 import { Button, type ButtonVariant } from "@imbue/workspace-ui/src/components/Button";
 import { badgeClass } from "@imbue/workspace-ui/src/components/Badge";
+import { icon } from "@imbue/workspace-ui/src/components/icons";
 import { inputClass } from "@imbue/workspace-ui/src/components/Input";
 import {
   MODAL_ACTIONS_CLASS,
@@ -174,6 +175,12 @@ function dialog(): m.Children {
   return m("div", { class: `${MODAL_CARD_CLASS} relative`, ...partAttrs("dialog") }, [
     m("div", { class: MODAL_HEADER_CLASS, ...partAttrs("dialog-header") }, [
       m("h3", { class: MODAL_TITLE_CLASS, ...partAttrs("dialog-title") }, "A dialog"),
+      // A caption's own button, at the header's end as the provider chooser's Close is.
+      m(
+        Button,
+        { variant: "ghost", icon: true, sm: true, "aria-label": "Close", extra: "ml-auto" },
+        m.trust(icon("close", { size: 16 })),
+      ),
     ]),
     m("p", { class: MODAL_MESSAGE_CLASS }, "What the dialog asks, in a sentence or two."),
     m("input", { class: inputClass({ extra: "mb-3" }), ...FIELD_PART, type: "text", value: "Its field" }),

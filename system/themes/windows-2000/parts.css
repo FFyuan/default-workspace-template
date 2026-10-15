@@ -237,9 +237,17 @@ select {
   font-weight: 700;
   color: #ffffff;
 }
-/* A button on the caption (a Back or Close) takes the caption's white glyph, as a window caption's own actions do. */
-[data-part="dialog-header"] [data-part="button"][data-shape="icon"] {
-  color: #ffffff;
+/* A button on the caption (a Back or Close) is a caption button: a raised gray face with a black glyph, which reads
+   on both ends of the gradient, sunk while pressed. */
+[data-part="dialog-header"] [data-part="button"][data-shape="icon"],
+[data-part="dialog-header"] [data-part="button"][data-shape="icon"]:not(:disabled):not([aria-disabled="true"]):hover {
+  background: #d4d0c8;
+  box-shadow: var(--theme-raised);
+  color: #000000;
+}
+[data-part="dialog-header"] [data-part="button"][data-shape="icon"]:not(:disabled):not([aria-disabled="true"]):active {
+  background: #d4d0c8;
+  box-shadow: var(--theme-pressed);
 }
 [data-part="dialog"] [data-part="field"] {
   height: 21px;
