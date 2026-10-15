@@ -564,19 +564,20 @@ describe("the element menu", () => {
   });
 });
 
-describe("the desktop settings' Make your own...", () => {
-  function openSettings(): void {
-    (document.querySelector("[data-desktops-menu]") as HTMLElement).click();
-    m.redraw.sync();
-    const row = document.querySelector('[data-menu-part="menu"] [data-menu-row="settings"]') as HTMLElement;
-    row.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-    row.click();
-    m.redraw.sync();
-  }
+/** Open Desktop settings from the desktops menu. */
+function openDesktopSettings(): void {
+  (document.querySelector("[data-desktops-menu]") as HTMLElement).click();
+  m.redraw.sync();
+  const row = document.querySelector('[data-menu-part="menu"] [data-menu-row="settings"]') as HTMLElement;
+  row.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  row.click();
+  m.redraw.sync();
+}
 
+describe("the desktop settings' Make your own...", () => {
   it("closes the dialog and drafts the theme prompt into the pinned window's chat", async () => {
     pinnedEntry();
-    openSettings();
+    openDesktopSettings();
     (document.querySelector("[data-make-theme]") as HTMLElement).click();
     m.redraw.sync();
     expect(document.querySelector("[data-desktop-settings]")).toBeNull();
@@ -594,12 +595,7 @@ describe("the desktop settings' theme row", () => {
   });
 
   async function saveSettingsWithTheme(theme: string | null, isWorkspaceDefault: boolean): Promise<void> {
-    (document.querySelector("[data-desktops-menu]") as HTMLElement).click();
-    m.redraw.sync();
-    const row = document.querySelector('[data-menu-part="menu"] [data-menu-row="settings"]') as HTMLElement;
-    row.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-    row.click();
-    m.redraw.sync();
+    openDesktopSettings();
     if (theme !== null) {
       (document.querySelector(`[data-theme="${theme}"]`) as HTMLButtonElement).click();
       m.redraw.sync();
