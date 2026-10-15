@@ -4053,6 +4053,9 @@ class AgentManager:
                 cached_state = self._activity_state_by_agent.get(agent_id)
                 if cached_state is not None:
                     updates.append(to_update(agent_state.field_ref().activity_state, cached_state))
+                previous_agent_state = self._agents.get(agent_id)
+                if previous_agent_state is not None and previous_agent_state.is_turn_closing:
+                    updates.append(to_update(agent_state.field_ref().is_turn_closing, True))
                 cached_choice = self._model_choice_by_agent.get(agent_id)
                 if cached_choice is not None:
                     updates.append(to_update(agent_state.field_ref().model_choice, cached_choice))

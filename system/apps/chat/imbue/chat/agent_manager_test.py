@@ -4076,6 +4076,40 @@ def test_a_turn_the_transcript_ends_before_its_hooks_do_reads_working_until_they
         manager.stop()
 
 
+def test_an_observe_event_during_a_closing_turn_keeps_it_closing(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every observe event rebuilds the tracked agents from the stream's payload, which carries no activity. A turn
+    still closing when one lands must not come out of it idle, or the chat is marked done before its wait is known."""
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    manager, _reader = _manager_reading_tasks(broadcaster, tmp_path)
+    agent = _agent_details("chat-1", labels={"user_created": "true"})
+    agent_id = str(agent.id)
+    state_dir = tmp_path / "agents" / agent_id
+    state_dir.mkdir(parents=True)
+    try:
+        manager._handle_observe_event(make_agent_state_event(agent))
+        manager.update_session_events(
+            agent_id, [{"type": "user_message", "timestamp": "2026-07-28T00:00:00Z", "content": "go"}]
+        )
+        (state_dir / "active").touch()
+        manager.update_session_events(
+            agent_id, [{"type": "assistant_message", "timestamp": "2026-07-28T00:00:05Z", "content": "started"}]
+        )
+        manager._recompute_activity_state(agent_id, broadcast_on_change=False)
+        assert [snapshot.status for snapshot in manager.get_chat_snapshots()] == [ChatStatus.WORKING]
+        client_queue = broadcaster.register()
+
+        manager._handle_observe_event(make_agent_state_event(agent))
+
+        pushed = [message for message in _drain(client_queue) if message.get("type") == "chats_updated"]
+        assert [message["chats"][0]["status"] for message in pushed] == ["working"]
+        (snapshot,) = manager.get_chat_snapshots()
+        assert snapshot.active_agent.is_busy
+    finally:
+        manager.stop()
+
+
 def test_a_turn_in_flight_reads_working_with_its_pending_tasks_listed(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
