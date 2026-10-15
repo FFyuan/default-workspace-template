@@ -1,16 +1,20 @@
 """The ``Content-Security-Policy`` an app's HTML pages are served under.
 
 Every page an app serves is reachable from the public internet once the
-workspace is shared, so each carries a policy that keeps an injected script
-from running or phoning home: scripts come only from the page's own origin
-(plus the page's own inline ``<script>`` blocks, each admitted by the hash of
-its body, computed from the response as it goes out), fetches and sockets
-reach only the page's origin (``'self'`` covers a same-host ``ws(s):`` socket in
-every browser since Safari 16; WebKit matched the spec in April 2022), and
-plugins and ``<base>`` retargeting are off.
+workspace is shared, so each carries a policy that keeps a script which
+reaches the page after the server rendered it (DOM injection, a browser
+extension, a tampering intermediary) from running or fetching: scripts come
+only from the page's own origin (plus the page's own inline ``<script>``
+blocks, each admitted by the hash of its body, computed from the response as
+it goes out, so an inline script the server itself rendered is admitted and
+escaping what a template interpolates stays the template's job), fetches and
+sockets reach only the page's origin (``'self'`` covers a same-host ``ws(s):``
+socket in every browser since Safari 16; WebKit matched the spec in April
+2022), and plugins and ``<base>`` retargeting are off.
 Styles may be inline, since the workspace's frontends set style attributes
 from script; images may come from anywhere, since a chat renders markdown
-that embeds them; and frames may hold any http(s) page, since the shell and
+that embeds them (an image request is thus the one cross-origin fetch left
+open); and frames may hold any http(s) page, since the shell and
 the chat frame sibling apps whose origins only the browser knows. The
 ``frame-ancestors`` directive is deliberately absent: the proxy in front of
 the workspace (the share gateway, or ``mngr forward`` locally) owns who may
