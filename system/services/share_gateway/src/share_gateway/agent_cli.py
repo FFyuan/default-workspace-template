@@ -31,14 +31,15 @@ import json
 import os
 import sys
 from collections.abc import Sequence
-from datetime import timedelta
 from pathlib import Path
 
 from share_gateway import materials as materials_module
+from share_gateway.agent_access import InvalidGrantLifetimeError
 from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import RevokeRefusedError
 from share_gateway.agent_access import default_agent_access_paths
 from share_gateway.agent_access import describe_grant
+from share_gateway.agent_access import grant_lifetime_from_days
 from share_gateway.agent_access import list_grants
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_access import reconcile
@@ -127,7 +128,10 @@ def _command_invite(args: argparse.Namespace) -> int:
         )
     except AgentScopeError as exc:
         return _fail(args, str(exc), "refused")
-    lifetime = None if args.expires_in_days is None else timedelta(days=args.expires_in_days)
+    try:
+        lifetime = grant_lifetime_from_days(args.expires_in_days)
+    except InvalidGrantLifetimeError as exc:
+        return _fail(args, str(exc), "refused")
     now = utc_now()
     try:
         minted = mint_invite(paths, scope, args.granter, args.name_hint, lifetime, now, via=_invoker())

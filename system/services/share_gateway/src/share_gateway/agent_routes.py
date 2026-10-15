@@ -16,7 +16,6 @@ from collections import deque
 from collections.abc import Callable
 from collections.abc import Sequence
 from datetime import datetime
-from datetime import timedelta
 from pathlib import Path
 
 from flask import Flask
@@ -24,11 +23,13 @@ from flask import Response
 from flask import request
 
 from share_gateway.agent_access import AgentAccessPaths
+from share_gateway.agent_access import InvalidGrantLifetimeError
 from share_gateway.agent_access import JoinRefusedError
 from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import RevokeRefusedError
 from share_gateway.agent_access import count_failed_join
 from share_gateway.agent_access import describe_grant
+from share_gateway.agent_access import grant_lifetime_from_days
 from share_gateway.agent_access import join
 from share_gateway.agent_access import list_grants
 from share_gateway.agent_access import mint_invite
@@ -67,7 +68,6 @@ HELPER_FILENAME = "wsvisit.cjs"
 HELPER_PATH = Path(__file__).parent / "helper" / HELPER_FILENAME
 _JOIN_ATTEMPTS_PER_MINUTE = 10
 _JOIN_WINDOW_SECONDS = 60.0
-_MAX_GRANT_LIFETIME = timedelta(days=3650)
 _MAX_BODY_BYTES = 16 * 1024
 
 
@@ -380,8 +380,8 @@ def register_agent_routes(
         if not isinstance(name_hint, str):
             return _error("name_hint must be a string", 400)
         try:
-            lifetime = _parse_lifetime(body.get("expires_in_days"))
-        except _InvalidLifetimeError as exc:
+            lifetime = grant_lifetime_from_days(body.get("expires_in_days"))
+        except InvalidGrantLifetimeError as exc:
             return _error(str(exc), 400)
         try:
             minted = mint_invite(
@@ -454,16 +454,3 @@ def register_agent_routes(
             log(f"Agent access is misconfigured: {exc}")
             return _error("agent access is misconfigured", 503)
         return _json({"revoked": revoked.agent_id})
-
-
-class _InvalidLifetimeError(ValueError):
-    """Raised when an invite's grant lifetime is not a positive number of days."""
-
-
-def _parse_lifetime(raw: object) -> timedelta | None:
-    """None for no expiry, else the lifetime; raises _InvalidLifetimeError for anything else."""
-    if raw is None:
-        return None
-    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw <= 0:
-        raise _InvalidLifetimeError("expires_in_days must be a positive number of days")
-    return min(timedelta(days=float(raw)), _MAX_GRANT_LIFETIME)

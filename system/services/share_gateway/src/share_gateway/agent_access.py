@@ -9,6 +9,7 @@ records an audit event.
 """
 
 import json
+import math
 import threading
 from datetime import datetime
 from datetime import timedelta
@@ -43,6 +44,7 @@ from share_gateway.json_values import is_json_object
 from share_gateway.log import log
 
 DEFAULT_AUTHORIZED_KEYS_PATH = Path.home() / ".ssh" / "authorized_keys"
+MAX_GRANT_LIFETIME = timedelta(days=3650)
 _LAST_SEEN_THROTTLE_SECONDS = 60.0
 
 
@@ -81,6 +83,24 @@ class JoinRefusedError(ValueError):
 
 class RevokeRefusedError(ValueError):
     """Raised when a revoke names no grant the caller may revoke."""
+
+
+class InvalidGrantLifetimeError(ValueError):
+    """Raised when an invite's grant lifetime is not a positive number of days."""
+
+
+def grant_lifetime_from_days(raw: object) -> timedelta | None:
+    """None for no expiry, else the lifetime an inviter asked for, capped at ``MAX_GRANT_LIFETIME``.
+
+    The one rule for every surface that mints an invite (the route's JSON body,
+    the CLI's ``--expires-in-days``): a positive finite number of days, so a
+    grant can never be minted already expired. Raises InvalidGrantLifetimeError.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw) or raw <= 0:
+        raise InvalidGrantLifetimeError("expires_in_days must be a positive number of days")
+    return min(timedelta(days=float(raw)), MAX_GRANT_LIFETIME)
 
 
 class MintedInvite:

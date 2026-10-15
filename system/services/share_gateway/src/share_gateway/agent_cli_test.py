@@ -54,6 +54,10 @@ def test_a_refusal_is_one_json_object_on_stderr_with_json_and_a_line_without(
     assert run(["invite", "--granter", "user:owner", "--scope", "no-such-app", "--json"]) == 2
     assert json.loads(capsys.readouterr().err)["kind"] == "refused"
 
+    assert run(["invite", "--granter", "user:owner", "--expires-in-days", "0", "--json"]) == 2
+    assert "positive number of days" in json.loads(capsys.readouterr().err)["error"]
+    assert len(load_agent_invites(AGENT_INVITES_FILE)) == 0
+
 
 def test_a_malformed_grants_file_is_reported_as_misconfigured(
     workspace_cwd: Path, capsys: pytest.CaptureFixture[str]
