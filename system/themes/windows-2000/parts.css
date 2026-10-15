@@ -263,7 +263,7 @@ select {
 }
 
 /* Desktop icon labels: white on the desktop's own blue. */
-[data-part="shortcut-label"] {
+[data-part="shortcut-label"] > * {
   color: #ffffff;
 }
 
