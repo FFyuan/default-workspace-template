@@ -5,10 +5,13 @@ A parked port is a listening socket on the app's registered host and port. Its f
 the listener (so the app can bind), asks for the app to be woken, and is answered with a loading page that
 reloads itself until the app answers, so neither ``mngr forward`` nor the share gateway learns anything about
 starting apps: they see a backend that answers. It reads the request only far enough to answer sensibly, never
-proxies anything, and answers every method and path the same way.
+proxies anything, and answers every method and path the same way. The page goes out under a
+``Content-Security-Policy`` admitting its inline stylesheet and nothing else, like the share gateway's own loading page.
 """
 
+import base64
 import errno
+import hashlib
 import html
 import socket
 import threading
@@ -66,11 +69,19 @@ def parking_target_of(url: str) -> ParkingTarget | None:
     return ParkingTarget(host=parsed.hostname, port=parsed.port)
 
 
+_PAGE_STYLE: Final[str] = (
+    "body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;\n"
+    "height:100vh;margin:0;color:#334155}div{text-align:center;max-width:32rem}code{font-size:0.9em}"
+)
+_PAGE_STYLE_HASH: Final[str] = base64.b64encode(hashlib.sha256(_PAGE_STYLE.encode("utf-8")).digest()).decode("ascii")
+_PAGE_CONTENT_SECURITY_POLICY: Final[str] = (
+    f"default-src 'none'; style-src 'sha256-{_PAGE_STYLE_HASH}'; base-uri 'none'; form-action 'none'"
+)
+
 _PAGE_TEMPLATE: Final[str] = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="{refresh}">
 <title>{title}</title>
-<style>body{{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;
-height:100vh;margin:0;color:#334155}}div{{text-align:center;max-width:32rem}}code{{font-size:0.9em}}</style></head>
+<style>{style}</style></head>
 <body><div><h1>{heading}</h1><p>{detail}</p></div></body></html>
 """
 
@@ -94,6 +105,7 @@ def parked_page_html(kind: ParkedPageKind, display_name: str, program: str) -> s
     match kind:
         case ParkedPageKind.STARTING:
             return _PAGE_TEMPLATE.format(
+                style=_PAGE_STYLE,
                 refresh=parked_refresh_seconds(kind),
                 title=f"Starting {name}",
                 heading=f"Starting {name}&hellip;",
@@ -101,6 +113,7 @@ def parked_page_html(kind: ParkedPageKind, display_name: str, program: str) -> s
             )
         case ParkedPageKind.FAILED:
             return _PAGE_TEMPLATE.format(
+                style=_PAGE_STYLE,
                 refresh=parked_refresh_seconds(kind),
                 title=f"{name} could not start",
                 heading=f"{name} could not start",
@@ -123,6 +136,7 @@ def parked_response_bytes(kind: ParkedPageKind, page: str) -> bytes:
         f"Retry-After: {parked_refresh_seconds(kind)}\r\n"
         "Cache-Control: no-store\r\n"
         "Content-Type: text/html; charset=utf-8\r\n"
+        f"Content-Security-Policy: {_PAGE_CONTENT_SECURITY_POLICY}\r\n"
         f"Content-Length: {len(body)}\r\n"
         "Connection: close\r\n"
         "\r\n"
