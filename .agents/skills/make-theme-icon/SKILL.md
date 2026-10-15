@@ -93,7 +93,8 @@ uv run workspace-themes icon fit /tmp/<app>-<theme>/candidate-0.png --theme <the
 ```
 
 `fit` clears a flat background, trims and squares the drawing, scales it to the canvas
-(nearest neighbour for a pixelated theme), and maps it to the palette or color count. This is
+(for a pixelated theme, shrinking averages each canvas pixel's area and enlarging copies pixels
+whole), and maps it to the palette or color count. This is
 what lets a drawing from any model sit beside the theme's own icons. A drawing already at the
 theme's size (a hand-drawn grid, a reference icon) is not trimmed or scaled: it keeps its
 pixels one for one. It prints `ok` or what still misses the limits.

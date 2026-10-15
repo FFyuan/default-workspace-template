@@ -14,4 +14,4 @@ Icons as Windows 2000 drew them: 32 by 32 pixels, at most 48 colors, no partial 
 - **Avoid** gradients smoother than the 48 colors allow, glow, text inside the icon, and modern flat design.
 
 `icons/files.png`, `icons/chat.png`, and `icons/terminal.png` show the style. `workspace-themes icon fit` scales
-any drawing down to 32 pixels without smoothing, limits it to 48 colors, and clears its background.
+any drawing down to 32 pixels, limits it to 48 colors with no partial transparency, and clears its background.
