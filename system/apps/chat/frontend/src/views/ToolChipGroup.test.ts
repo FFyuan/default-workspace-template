@@ -434,6 +434,12 @@ describe("a status chip in the row", () => {
     expect(mockRequestDetail).not.toHaveBeenCalled();
   });
 
+  it("is not marked as the tool-call part: it is not a tool the agent called", () => {
+    setBlockExpanded("chip:sc-1", true);
+    mount([statusChip("sc-1", "the summary")]);
+    expect(root.querySelector(".tool-chip-detail")?.hasAttribute("data-part")).toBe(false);
+  });
+
   it("clamps a long output the way a tool's is, and forgets the unfold when closed", () => {
     setBlockExpanded("chip:sc-1", true);
     const long = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n");

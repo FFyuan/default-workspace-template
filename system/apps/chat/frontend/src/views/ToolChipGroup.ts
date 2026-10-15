@@ -477,7 +477,8 @@ function renderDetail(entry: ChipEntry, toolResults: Map<string, ToolResultEvent
     {
       class: entry.kind === "tool" ? DETAIL_CLASS : `${DETAIL_CLASS} ${entry.detailClass}`,
       key: `detail-${entryId(entry)}`,
-      ...TOOL_CALL_PART,
+      // A status chip (a compaction) is not a tool the agent called.
+      ...(entry.kind === "tool" ? TOOL_CALL_PART : {}),
     },
     [
       renderDetailHeader(entry),
