@@ -156,7 +156,8 @@ def observer_holding_the_lock(events_base_dir: Path) -> Generator[None, None, No
 
 
 class StandInAnthropicApi:
-    """A loopback stand-in for the Anthropic API, to point Claude Code at with ``ANTHROPIC_BASE_URL``.
+    """A loopback stand-in for the Anthropic API, to point Claude Code at with ``ANTHROPIC_BASE_URL`` (or pi with a
+    ``models.json`` ``baseUrl`` for its ``anthropic`` provider).
 
     It records every request's path, auth headers and body. With ``reply_for`` set, ``POST /v1/messages`` gets a
     valid answer carrying the text ``reply_for`` picks from the request body: the server-sent events of a streamed
