@@ -433,3 +433,23 @@ def test_a_folder_that_cannot_be_read_makes_only_its_theme_unavailable(
     assert entry is not None and not entry.is_available
     assert any("cannot be read" in problem for problem in entry.problems)
     assert catalog.find_available("paper") is not None
+
+
+@pytest.mark.skipif(
+    os.geteuid() == 0, reason="permissions do not stop the root user reading"
+)
+def test_a_theme_root_that_cannot_be_listed_leaves_the_other_root_s_themes(
+    tmp_path: Path,
+) -> None:
+    write_standard_theme(tmp_path)
+    write_test_theme(tmp_path / BUILTIN_THEMES_DIRECTORY, "paper", _PARTS_CSS)
+    write_test_theme(tmp_path / WORKSPACE_THEMES_DIRECTORY, "mine", _PARTS_CSS)
+    workspace_root = tmp_path / WORKSPACE_THEMES_DIRECTORY
+    workspace_root.chmod(0)
+    try:
+        catalog = _catalog(tmp_path)
+    finally:
+        workspace_root.chmod(0o755)
+
+    assert catalog.find("mine") is None
+    assert catalog.find_available("paper") is not None

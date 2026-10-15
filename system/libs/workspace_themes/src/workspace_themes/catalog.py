@@ -133,9 +133,15 @@ def _find_theme_folders(roots: Sequence[ThemeRoot]) -> list[_FoundTheme]:
     for root in roots:
         if not root.directory.is_dir():
             continue
-        for folder in sorted(
-            path for path in root.directory.iterdir() if path.is_dir()
-        ):
+        # A root the system will not let us list shows none of its themes; the other root's themes still load.
+        try:
+            folders = sorted(path for path in root.directory.iterdir() if path.is_dir())
+        except OSError as error:
+            logger.warning(
+                "Theme folder {} cannot be listed: {}", root.directory, error
+            )
+            continue
+        for folder in folders:
             # A folder the system will not let us look into may be a theme; it is listed, with why it is
             # unavailable.
             unreadable_problem: str | None = None
