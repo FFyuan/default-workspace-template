@@ -50,8 +50,8 @@ whichever of the two shows less headroom. A local docker workspace under runc
 publishes the same file for itself: the `publish_cgroup_meminfo` program
 (`bin/publish_cgroup_meminfo.py`, over `cgroup_meminfo`) reads the container's
 own cgroup v2 controller at `/sys/fs/cgroup` four times a second and writes the
-limit as MemTotal and the limit minus the usage plus the reclaimable page cache
-and slab as MemAvailable, with the same formula as the gen-2 VM. It removes the
+limit as MemTotal and the limit minus the usage plus the inactive file cache as
+MemAvailable, with the same formula as the gen-2 VM. It removes the
 file while the container is uncapped (and keeps checking, since `mngr docker
 resize` can cap a running container), and touches nothing where it has no
 answer: no cgroup v2 memory controller (lima's root cgroup, gVisor's own
