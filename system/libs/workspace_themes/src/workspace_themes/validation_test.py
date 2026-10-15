@@ -333,6 +333,9 @@ def test_hidden_files_a_theme_never_serves_are_left_alone(tmp_path: Path) -> Non
     (tmp_path / ".parts.css.swp").write_bytes(b"b0VIM")
     (tmp_path / "icons").mkdir()
     (tmp_path / "icons" / ".gitkeep").write_text("", encoding="utf-8")
+    (tmp_path / ".git" / "objects" / "ab").mkdir(parents=True)
+    (tmp_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (tmp_path / ".git" / "objects" / "ab" / "cdef").write_bytes(b"x" * 1024)
     (tmp_path / "evil.js").write_text("alert(1)", encoding="utf-8")
 
     problems = check_folder_files(tmp_path)

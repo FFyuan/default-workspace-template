@@ -47,7 +47,7 @@ A theme folder may not be a link, nor contain one. `theme.css` at the top of the
 An id appears once across both roots; a workspace theme with a built-in theme's id is refused with an error that names both folders.
 `standard` is built in and reserved.
 
-Files a theme may contain: `.toml`, `.md`, `.json` and `.txt` (a vendoring map, notes), `.css`, `.woff2`, `.woff`, `.ttf`, `.otf`, `.png`, `.gif`, `.bmp`, `.webp`, `.jpg`, `.svg`, and license files (any name starting with `LICENSE` or `COPYING`). A hidden file of any other kind (a `.DS_Store`, an editor's swap file) is never served and is ignored.
+Files a theme may contain: `.toml`, `.md`, `.json` and `.txt` (a vendoring map, notes), `.css`, `.woff2`, `.woff`, `.ttf`, `.otf`, `.png`, `.gif`, `.bmp`, `.webp`, `.jpg`, `.svg`, and license files (any name starting with `LICENSE` or `COPYING`). A hidden file, or a file in a hidden folder, of any other kind (a `.DS_Store`, an editor's swap file, a `.git` folder) is never served and is ignored.
 A theme folder is at most 16 MB, and its style files together at most 2 MB.
 
 ### 3.1 `theme.toml`

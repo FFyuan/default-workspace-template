@@ -164,9 +164,10 @@ def check_folder_files(folder: Path) -> list[str]:
             continue
         if not path.is_file():
             continue
-        # A hidden file of a kind a theme never serves (a .DS_Store, an editor's swap file) cannot reach a page.
+        # A hidden file, or a file in a hidden folder, of a kind a theme never serves (a .DS_Store, an editor's swap
+        # file, a .git folder) cannot reach a page.
         if (
-            path.name.startswith(".")
+            any(part.startswith(".") for part in path.relative_to(folder).parts)
             and path.suffix.lower() not in ALLOWED_FILE_SUFFIXES
         ):
             continue
