@@ -91,13 +91,12 @@ ENV_APPS_FILE = "MINDS_APPS_FILE"
 # bookmarks/layouts keep working); see blueprint/random-service-labels/.
 #
 # A label is a strict RFC 1123 hostname label: a name's underscores become
-# hyphens in its label. Browsers tolerate an underscore in a hostname, but
-# ``java.net.URI`` (so every JDK-based HTTP client) refuses to parse it as a
-# host, and Python's ``ssl`` will not match a wildcard certificate against it,
-# so a share link like ``system_interface-<rand>.<ws-domain>`` was unreachable
-# from a whole class of tools. Labels minted before this rule keep their
-# underscore (a label never changes once persisted), and every reader maps a
-# label back to its name through the registry, never by stripping a suffix.
+# hyphens. Browsers tolerate an underscore in a hostname, but ``java.net.URI``
+# (so every JDK-based HTTP client) refuses to parse it as a host, and Python's
+# ``ssl`` will not match a wildcard certificate against it. Labels minted
+# before this rule keep their underscore (a label never changes once
+# persisted), so readers map a label back to its name through the registry,
+# never by transforming the label.
 _LABEL_RANDOM_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
 _LABEL_RANDOM_LENGTH = 8
 
