@@ -15,6 +15,7 @@ from workspace_themes.contract import (
     BUILTIN_THEMES_DIRECTORY,
     GENERATED_ICONS_DIRECTORY,
     MAX_BASE_CHAIN_DEPTH,
+    THEME_MANIFEST_FILENAME,
     WORKSPACE_THEMES_DIRECTORY,
 )
 from workspace_themes.data_types import ThemeCatalog
@@ -53,18 +54,27 @@ def test_themes_are_listed_standard_first_then_built_in_then_the_workspace_s_own
     assert all(entry.is_available for entry in catalog.entries)
 
 
+def _write_dark_paper(repo_root: Path, manifest_tables: str) -> Path:
+    """A workspace theme based on paper, with the given tables after its manifest's head."""
+    folder = repo_root / WORKSPACE_THEMES_DIRECTORY / "dark-paper"
+    folder.mkdir(parents=True)
+    (folder / THEME_MANIFEST_FILENAME).write_text(
+        'contract = 1\nid = "dark-paper"\nname = "Dark paper"\ndescription = "Paper at night."\n'
+        f'base = "paper"\n{manifest_tables}',
+        encoding="utf-8",
+    )
+    return folder
+
+
 def test_a_theme_resolves_through_its_bases_style_files_chrome_and_icons(
     tmp_path: Path,
 ) -> None:
     write_standard_theme(tmp_path)
     builtin = tmp_path / BUILTIN_THEMES_DIRECTORY
     write_test_theme(builtin, "paper", _PARTS_CSS, app_names_with_icons=("files",))
-    child = tmp_path / WORKSPACE_THEMES_DIRECTORY / "dark-paper"
-    child.mkdir(parents=True)
-    (child / "theme.toml").write_text(
-        'contract = 1\nid = "dark-paper"\nname = "Dark paper"\ndescription = "Paper at night."\n'
-        'base = "paper"\n\n[styles]\nfiles = ["dark.css"]\n\n[chrome]\ntrailing = ["minimize", "maximize"]\n',
-        encoding="utf-8",
+    child = _write_dark_paper(
+        tmp_path,
+        '\n[styles]\nfiles = ["dark.css"]\n\n[chrome]\ntrailing = ["minimize", "maximize"]\n',
     )
     (child / "dark.css").write_text(":root { --c-bg: #000000; }\n", encoding="utf-8")
 
@@ -91,13 +101,7 @@ def test_a_theme_that_inherits_its_icon_spec_draws_its_own_icons_before_its_base
     write_test_theme(
         builtin, "paper", _PARTS_CSS, app_names_with_icons=("files", "chat")
     )
-    child = tmp_path / WORKSPACE_THEMES_DIRECTORY / "dark-paper"
-    child.mkdir(parents=True)
-    (child / "theme.toml").write_text(
-        'contract = 1\nid = "dark-paper"\nname = "Dark paper"\ndescription = "Paper at night."\n'
-        'base = "paper"\n',
-        encoding="utf-8",
-    )
+    child = _write_dark_paper(tmp_path, "")
     write_test_icon(child / "icons" / "chat.png", 32)
     write_test_icon(child / "icons" / "app.png", 32)
 
@@ -117,13 +121,7 @@ def test_a_theme_that_inherits_its_icon_spec_has_its_own_icons_checked_against_i
 ) -> None:
     write_standard_theme(tmp_path)
     write_test_theme(tmp_path / BUILTIN_THEMES_DIRECTORY, "paper", _PARTS_CSS)
-    child = tmp_path / WORKSPACE_THEMES_DIRECTORY / "dark-paper"
-    child.mkdir(parents=True)
-    (child / "theme.toml").write_text(
-        'contract = 1\nid = "dark-paper"\nname = "Dark paper"\ndescription = "Paper at night."\n'
-        'base = "paper"\n',
-        encoding="utf-8",
-    )
+    child = _write_dark_paper(tmp_path, "")
     write_test_icon(child / "icons" / "chat.png", 48)
     (child / "icons" / "app.png").write_text("not an image", encoding="utf-8")
 
@@ -237,13 +235,7 @@ def test_a_theme_that_inherits_its_icon_spec_draws_the_icons_generated_for_its_b
 ) -> None:
     write_standard_theme(tmp_path)
     write_test_theme(tmp_path / BUILTIN_THEMES_DIRECTORY, "paper", _PARTS_CSS)
-    child = tmp_path / WORKSPACE_THEMES_DIRECTORY / "dark-paper"
-    child.mkdir(parents=True)
-    (child / "theme.toml").write_text(
-        'contract = 1\nid = "dark-paper"\nname = "Dark paper"\ndescription = "Paper at night."\n'
-        'base = "paper"\n',
-        encoding="utf-8",
-    )
+    _write_dark_paper(tmp_path, "")
     before = _catalog(tmp_path).find_available("dark-paper")
 
     generated = tmp_path / GENERATED_ICONS_DIRECTORY / "paper" / "icons" / "notes.png"
