@@ -111,7 +111,6 @@ def _call(
 def draw(
     client: httpx.Client, payload: dict[str, Any], poll_interval_seconds: float
 ) -> dict[str, Any]:
-    # One key for the drawing, so the API can tell a resent request from a new (billed) one.
     task_id = _call(
         client,
         "POST",
