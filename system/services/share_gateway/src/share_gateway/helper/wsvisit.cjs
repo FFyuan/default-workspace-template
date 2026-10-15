@@ -700,12 +700,26 @@ async function main(argv) {
   }
 }
 
+// A write to a pipe is asynchronous on macOS, and process.exit does not wait
+// for it; an empty write's callback runs once everything queued before it has
+// gone out.
+function flushStandardStreams() {
+  return Promise.all(
+    [process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write("", resolve))),
+  );
+}
+
+async function exitWith(exitCode) {
+  await flushStandardStreams();
+  process.exit(exitCode);
+}
+
 if (require.main === module) {
   main(process.argv.slice(2)).then(
-    (exitCode) => process.exit(typeof exitCode === "number" ? exitCode : 0),
+    (exitCode) => exitWith(typeof exitCode === "number" ? exitCode : 0),
     (error) => {
       process.stderr.write(`wsvisit: ${error.message}\n`);
-      process.exit(error instanceof HelperError ? error.exitCode : 1);
+      return exitWith(error instanceof HelperError ? error.exitCode : 1);
     },
   );
 }
