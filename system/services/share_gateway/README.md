@@ -269,7 +269,9 @@ the same gateway:
   stderr, `{"error": ..., "kind": "refused" | "misconfigured"}`, with exit code
   2 or 3. `--granter`, `--revoker`, and `--owner` are what the caller asserts:
   the CLI trusts whoever reached the workspace with exec, and each event it
-  records says it came through the CLI and from which parent command.
+  records says it came through the CLI and through which chain of commands
+  (`uv run` sits directly above it, so the chain climbs past it to the shell
+  `mngr exec` spawned or the owner-exec daemon an agent came through).
 - **Orientation.** `GET /_agent/primer` renders
   `.agents/shared/references/visiting-agents.md` with the skills index, the
   apps, the connected accounts and granted permissions (read through latchkey,

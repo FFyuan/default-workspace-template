@@ -11,7 +11,7 @@ fifteen minutes), and ``--json`` gives a caller the answer to parse.
 whoever reached the workspace with exec, because that reach is the authority
 (the owner's, over ``mngr exec``, or a workspace-scope agent's, whose exec
 owner-exec records under its key). Each audit event the CLI writes says it came
-through the CLI and from which parent command.
+through the CLI and through which chain of commands above it.
 
 With ``--json`` a refusal or a misconfiguration is one JSON object on stderr,
 ``{"error": <message>, "kind": "refused" | "misconfigured"}``, with exit code
@@ -30,6 +30,7 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Callable
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -72,6 +73,7 @@ from share_gateway.materials import read_share_materials
 _EXIT_REFUSED = 2
 _EXIT_MISCONFIGURED = 3
 _EXIT_CODE_BY_KIND = {"refused": _EXIT_REFUSED, "misconfigured": _EXIT_MISCONFIGURED}
+_INVOKER_ANCESTOR_LIMIT = 6
 
 
 def _parse_scope_argument(raw: str) -> "str | list[str]":
@@ -109,13 +111,55 @@ def _fail(args: argparse.Namespace, message: str, kind: str) -> int:
     return _EXIT_CODE_BY_KIND[kind]
 
 
-def _invoker() -> str:
-    """Which surface asserted the caller's identity: the CLI, run by its parent command (best effort, Linux)."""
+def _process_command_line(pid: int) -> str:
     try:
-        cmdline = Path(f"/proc/{os.getppid()}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
     except OSError:
-        cmdline = ""
-    return f"cli ({cmdline.strip()})" if cmdline.strip() else "cli"
+        return ""
+    return raw.replace(b"\0", b" ").decode(errors="replace").strip()
+
+
+def _parent_pid(pid: int) -> int | None:
+    try:
+        status = Path(f"/proc/{pid}/status").read_text()
+    except OSError:
+        return None
+    for line in status.splitlines():
+        if line.startswith("PPid:"):
+            try:
+                parent = int(line.split(":", 1)[1].strip())
+            except ValueError:
+                return None
+            return parent if parent > 0 else None
+    return None
+
+
+def ancestor_command_lines(
+    start_pid: int,
+    read_command_line: Callable[[int], str],
+    read_parent_pid: Callable[[int], int | None],
+    limit: int = _INVOKER_ANCESTOR_LIMIT,
+) -> list[str]:
+    """The command lines from ``start_pid`` up its parents, nearest first, at most ``limit`` of them."""
+    chain: list[str] = []
+    pid: int | None = start_pid
+    while pid is not None and len(chain) < limit:
+        command_line = read_command_line(pid)
+        if command_line:
+            chain.append(command_line)
+        pid = read_parent_pid(pid)
+    return chain
+
+
+def _invoker() -> str:
+    """Which surface asserted the caller's identity: the CLI, with the commands above it (best effort, Linux).
+
+    The immediate parent is always ``uv run``, which only repeats the CLI's own
+    arguments; the chain above it (the shell ``mngr exec`` spawned, or the
+    owner-exec daemon a visiting agent came through) is what tells callers apart.
+    """
+    chain = ancestor_command_lines(os.getppid(), _process_command_line, _parent_pid)
+    return f"cli ({' <- '.join(chain)})" if chain else "cli"
 
 
 def _command_invite(args: argparse.Namespace) -> int:

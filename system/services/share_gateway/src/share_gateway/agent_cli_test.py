@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from share_gateway.agent_cli import ancestor_command_lines
 from share_gateway.agent_cli import run
 from share_gateway.agent_grants import AGENT_INVITES_FILE
 from share_gateway.agent_grants import load_agent_invites
@@ -75,3 +76,20 @@ def test_changes_refuses_a_naive_since(workspace_cwd: Path, capsys: pytest.Captu
     assert run(["changes", "--since", "2000-01-01T00:00:00Z"]) == 0
     feed = json.loads(capsys.readouterr().out)
     assert [entry["subject"] for entry in feed["commits"]] == ["Initial workspace commit"]
+
+
+def test_the_invoker_chain_climbs_past_uv_to_what_reached_the_workspace() -> None:
+    command_lines = {
+        40: "uv run --no-sync agent-access invite --granter user:owner --json",
+        30: "sh -c if [ -f system/services/share_gateway/src/share_gateway/agent_cli.py ]; then uv run ...; fi",
+        20: "",
+        10: "sshd: user@notty",
+    }
+    parents = {40: 30, 30: 20, 20: 10, 10: 1, 1: None}
+    chain = ancestor_command_lines(40, lambda pid: command_lines.get(pid, ""), lambda pid: parents.get(pid))
+    assert chain[0].startswith("uv run") and chain[1].startswith("sh -c") and chain[2] == "sshd: user@notty"
+    assert len(chain) == 3
+    assert ancestor_command_lines(40, lambda pid: command_lines.get(pid, ""), lambda pid: parents.get(pid), 1) == [
+        command_lines[40]
+    ]
+    assert ancestor_command_lines(99, lambda pid: "", lambda pid: None) == []
