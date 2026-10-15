@@ -133,8 +133,8 @@
     },
     {
       "selector": "^\\.form-95$",
-      "property": "^(margin-top|color)$",
-      "why": "Spacing and a grey ink for the demo's form layout; a field sits where its row puts it and writes in the theme's text color."
+      "property": "^(margin-top|color|padding-left)$",
+      "why": "Spacing and a grey ink for the demo's form layout; a field sits where its row puts it, writes in the theme's text color, and brings its own padding, which leaves room for an icon inside it."
     }
   ],
   "colors": [

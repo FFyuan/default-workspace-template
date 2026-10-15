@@ -161,7 +161,7 @@ input[type="radio"] {
   accent-color: #000000;
 }
 
-/* Fields: white and sunk. */
+/* Fields: white and sunk. A field keeps its own side padding, which leaves room for an icon inside it. */
 [data-part="field"],
 select {
   border: none;
@@ -169,13 +169,12 @@ select {
   background-color: #ffffff;
   box-shadow: var(--theme-sunken);
   font-family: var(--font-sans);
-  padding-left: 5px;
-  padding-right: 5px;
 }
 
 /* A drop-down list: the sunk field with a raised arrow button at its right end. */
 select {
   appearance: none;
+  padding-left: 5px;
   padding-right: 22px;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='17' shape-rendering='crispEdges'%3E%3Cpath fill='%23d4d0c8' d='M0 0h16v17H0z'/%3E%3Cpath fill='%23ffffff' d='M1 1h14v1H1zM1 1h1v15H1z'/%3E%3Cpath fill='%23404040' d='M0 16h16v1H0zM15 0h1v17h-1z'/%3E%3Cpath fill='%23808080' d='M1 15h14v1H1zM14 1h1v15h-1z'/%3E%3Cpath d='M5 7h7v1H5zM6 8h5v1H6zM7 9h3v1H7zM8 10h1v1H8z'/%3E%3C/svg%3E") right 2px center / 16px 17px no-repeat, #ffffff;
 }
