@@ -30,7 +30,7 @@ terminal's shell and the rootless Docker daemons sit at 200.
 
 ```bash
 supervisorctl status earlyoom         # RUNNING
-pgrep -a earlyoom                     # one process, with the -m/-s/-N/--avoid args
+pgrep -ax earlyoom                    # one process, with the -m/-s/-N/--avoid args
 ```
 
 ## 1. Confirm the priority bands are set
