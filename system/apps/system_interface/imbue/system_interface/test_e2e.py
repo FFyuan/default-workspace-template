@@ -1305,12 +1305,16 @@ def test_every_theme_keeps_a_window_movable_resizable_from_every_edge_and_its_co
     _drag_title_bar(page, window_id, _OPEN_SPOT[0] - opened["x"], _OPEN_SPOT[1] - opened["y"])
     page.mouse.move(0, 0)
 
-    # The page wears the theme the fixture made the default, its bundle loaded, before anything is measured.
+    # The page wears the theme the fixture made the default, its bundle and every file it imports loaded, before
+    # anything is measured: the bundle's own sheet parses before the files it imports arrive.
     page.wait_for_function(
         "(theme) => document.documentElement.getAttribute('data-ui-theme') === theme", arg=themed_e2e_server.theme
     )
     page.wait_for_function(
-        "() => [...document.querySelectorAll('link[data-workspace-theme]')].every((link) => link.sheet !== null)"
+        """() => [...document.querySelectorAll('link[data-workspace-theme]')].every(
+            (link) => link.sheet !== null
+                && [...link.sheet.cssRules].every((rule) => !(rule instanceof CSSImportRule) || rule.styleSheet !== null)
+        )"""
     )
     bar = window.locator("[data-drag-handle]")
 
