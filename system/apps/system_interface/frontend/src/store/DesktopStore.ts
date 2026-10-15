@@ -444,8 +444,8 @@ export class DesktopStore {
   // push answers older than the push, and must not overwrite it.
   private avatarSelectionPushes = 0;
   private entryPushes = 0;
-  // Bumped by every pushed theme catalog and by every read of it as the read starts: a read answers only if neither
-  // came since.
+  // Bumped by every pushed theme catalog, by this client's own change of the default, and by every read of the
+  // catalog as the read starts: a read answers only if none of them came since.
   private themeCatalogChanges = 0;
   // Resolved by the first app list to land: the bootstrap's inventory read, or the socket's ``apps_updated`` when
   // the socket is quicker; a deep link's open or launch waits for it.
