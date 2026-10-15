@@ -54,8 +54,8 @@ def _skip_reason_of(longrepr: object) -> str:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_load_initial_conftests(early_config: pytest.Config) -> None:
-    # The earliest hook a plugin gets: clearing here, before any conftest is imported, also covers a value read at
-    # import time, and every subprocess a test starts inherits the cleared environment.
+    # Runs before pytest imports any conftest, so clearing here also covers a value read at import time, and every
+    # subprocess a test starts inherits the cleared environment.
     cleared = tuple(sorted(name for name in os.environ if is_agent_env_var(name)))
     for name in cleared:
         del os.environ[name]
