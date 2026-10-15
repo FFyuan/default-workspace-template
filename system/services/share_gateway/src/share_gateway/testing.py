@@ -10,9 +10,20 @@ from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.hazmat.primitives.serialization import PublicFormat
+from flask import Flask
 from werkzeug.serving import make_server
 from werkzeug.wrappers import Request
 from werkzeug.wrappers import Response
+
+from share_gateway.agent_routes import AgentAccessContext
+from share_gateway.agent_routes import register_agent_routes
+from share_gateway.caddyfile import RegisteredApp
+from share_gateway.handoff import JwksCache
+from share_gateway.handoff import SingleUseJtiRegistry
+from share_gateway.materials import ShareMaterials
+from share_gateway.runner import build_agent_admitter
+from share_gateway.server import PendingLoginRegistry
+from share_gateway.server import build_gateway_app
 
 
 def set_cookies_by_name(response: Response) -> dict[str, str]:
@@ -85,3 +96,42 @@ def new_ed25519_public_key_line(comment: str = "") -> str:
         Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.OpenSSH, PublicFormat.OpenSSH).decode("ascii")
     )
     return f"{line} {comment}" if comment else line
+
+
+def build_agent_test_app(
+    context: AgentAccessContext,
+    apps: list[RegisteredApp],
+    share_grants_path: Path,
+    workspace_domain: str,
+    auth_label: str,
+    signing_secret: str,
+) -> Flask:
+    """The gateway app with bearer admission and the /_agent/* routes wired to ``context``, as the runner builds it."""
+    materials = ShareMaterials(
+        workspace_domain=workspace_domain,
+        relay_token="tok",
+        connector_url=f"https://connector.{workspace_domain}",
+        broker_url=f"https://accounts.{workspace_domain}",
+        chrome_origin="",
+    )
+    app = build_gateway_app(
+        materials=materials,
+        grants_path=share_grants_path,
+        signing_secret=signing_secret,
+        jwks_cache=JwksCache(f"https://accounts.{workspace_domain}/share/jwks.json", preloaded_keys_by_kid={}),
+        jti_registry=SingleUseJtiRegistry(),
+        pending_logins=PendingLoginRegistry(),
+        auth_label=auth_label,
+        get_registered_apps=lambda: apps,
+        admit_agent=build_agent_admitter(context, lambda: list(apps)),
+    )
+    register_agent_routes(
+        app,
+        context=context,
+        workspace_domain=workspace_domain,
+        auth_label=auth_label,
+        signing_secret=signing_secret,
+        share_grants_path=share_grants_path,
+        get_registered_apps=lambda: apps,
+    )
+    return app

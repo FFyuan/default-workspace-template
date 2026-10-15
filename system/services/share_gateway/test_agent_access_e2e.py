@@ -33,15 +33,9 @@ from share_gateway.agent_access import revoke
 from share_gateway.agent_grants import fingerprint_of_public_key_line
 from share_gateway.agent_routes import AgentAccessContext
 from share_gateway.agent_routes import HELPER_PATH
-from share_gateway.agent_routes import register_agent_routes
 from share_gateway.agent_workspace import WorkspaceCoordinates
 from share_gateway.caddyfile import RegisteredApp
-from share_gateway.handoff import JwksCache
-from share_gateway.handoff import SingleUseJtiRegistry
-from share_gateway.materials import ShareMaterials
-from share_gateway.runner import build_agent_admitter
-from share_gateway.server import PendingLoginRegistry
-from share_gateway.server import build_gateway_app
+from share_gateway.testing import build_agent_test_app
 from share_gateway.testing import make_workspace_repo
 from werkzeug.serving import make_server
 
@@ -142,32 +136,8 @@ def _gateway(
         skills_cache_path=tmp_path / "state" / "skills_index.json",
         now=lambda: datetime.now(timezone.utc),
     )
-    materials = ShareMaterials(
-        workspace_domain=_DOMAIN,
-        relay_token="tok",
-        connector_url="https://connector.example.test",
-        broker_url="https://accounts.example.test",
-        chrome_origin="",
-    )
-    app = build_gateway_app(
-        materials=materials,
-        grants_path=share_grants,
-        signing_secret="e2e-signing-secret-long-enough-for-hs256-use",
-        jwks_cache=JwksCache("https://accounts.example.test/share/jwks.json", preloaded_keys_by_kid={}),
-        jti_registry=SingleUseJtiRegistry(),
-        pending_logins=PendingLoginRegistry(),
-        auth_label=_AUTH_LABEL,
-        get_registered_apps=lambda: apps,
-        admit_agent=build_agent_admitter(context, lambda: list(apps)),
-    )
-    register_agent_routes(
-        app,
-        context=context,
-        workspace_domain=_DOMAIN,
-        auth_label=_AUTH_LABEL,
-        signing_secret="e2e-signing-secret-long-enough-for-hs256-use",
-        share_grants_path=share_grants,
-        get_registered_apps=lambda: apps,
+    app = build_agent_test_app(
+        context, apps, share_grants, _DOMAIN, _AUTH_LABEL, "e2e-signing-secret-long-enough-for-hs256-use"
     )
     server = make_server("127.0.0.1", 0, app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, name="e2e-gateway", daemon=True)

@@ -17,19 +17,13 @@ from share_gateway.agent_access import mint_invite
 from share_gateway.agent_grants import load_agent_grants
 from share_gateway.agent_routes import AgentAccessContext
 from share_gateway.agent_routes import JoinRateLimiter
-from share_gateway.agent_routes import register_agent_routes
 from share_gateway.agent_workspace import WorkspaceCoordinates
 from share_gateway.caddyfile import RegisteredApp
-from share_gateway.handoff import JwksCache
-from share_gateway.handoff import SingleUseJtiRegistry
 from share_gateway.identity import IDENTITY_HEADER
 from share_gateway.identity import RequesterIdentity
-from share_gateway.materials import ShareMaterials
-from share_gateway.runner import build_agent_admitter
-from share_gateway.server import PendingLoginRegistry
-from share_gateway.server import build_gateway_app
 from share_gateway.session_cookie import SESSION_COOKIE_NAME
 from share_gateway.session_cookie import mint_session_cookie_value
+from share_gateway.testing import build_agent_test_app
 from share_gateway.testing import make_workspace_repo
 from share_gateway.testing import new_ed25519_public_key_line
 
@@ -105,33 +99,7 @@ def make_harness(tmp_path: Path) -> _Harness:
         skills_cache_path=tmp_path / "state" / "skills_index.json",
         now=clock,
     )
-    materials = ShareMaterials(
-        workspace_domain=_DOMAIN,
-        relay_token="tok",
-        connector_url="https://connector.example.com",
-        broker_url="https://accounts.example.com",
-        chrome_origin="",
-    )
-    app = build_gateway_app(
-        materials=materials,
-        grants_path=share_grants_path,
-        signing_secret=_SIGNING_SECRET,
-        jwks_cache=JwksCache("https://accounts.example.com/share/jwks.json", preloaded_keys_by_kid={}),
-        jti_registry=SingleUseJtiRegistry(),
-        pending_logins=PendingLoginRegistry(),
-        auth_label=_AUTH_LABEL,
-        get_registered_apps=lambda: _APPS,
-        admit_agent=build_agent_admitter(context, lambda: list(_APPS)),
-    )
-    register_agent_routes(
-        app,
-        context=context,
-        workspace_domain=_DOMAIN,
-        auth_label=_AUTH_LABEL,
-        signing_secret=_SIGNING_SECRET,
-        share_grants_path=share_grants_path,
-        get_registered_apps=lambda: _APPS,
-    )
+    app = build_agent_test_app(context, _APPS, share_grants_path, _DOMAIN, _AUTH_LABEL, _SIGNING_SECRET)
     return _Harness(app, app.test_client(), context, clock, repo)
 
 
