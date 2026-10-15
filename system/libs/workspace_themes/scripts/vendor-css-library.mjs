@@ -15,13 +15,14 @@
 // Along the way it applies the config's adaptations, each with its reason in the config: `droppedRules`
 // and `droppedDeclarations` (matched against the library's own selectors, or an at-rule's `@name`), `fontFamilies` (renaming a
 // library face so it never stands in for an installed font of the same name), and `colors`. It copies every
-// file a url() names into `assets/` beside the output and points the url() at the copy.
+// file a url() names into `assets/` beside the output and points the url() at the copy. That folder is rewritten
+// whole on every run, so a theme's vendor folder holds one library's config.
 //
 // The sources are pinned and checked by sha256: an npm tarball (`"unpack": "npm-tarball"`) or plain files.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import postcss from "postcss";
@@ -217,6 +218,12 @@ async function vendor(configPath) {
   const config = loadConfig(configPath);
   const vendorDir = dirname(configPath);
   const assetDir = join(vendorDir, "assets");
+  const configsBeside = readdirSync(vendorDir).filter((name) => name.endsWith(".vendor.json"));
+  if (configsBeside.length > 1) {
+    throw new Error(
+      `${vendorDir} holds ${configsBeside.join(", ")}; their libraries would share assets/, so keep one`,
+    );
+  }
   const downloadDir = mkdtempSync(join(tmpdir(), "vendor-css-library-"));
   try {
     await download(config, downloadDir);
