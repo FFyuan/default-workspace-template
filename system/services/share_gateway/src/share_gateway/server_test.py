@@ -574,13 +574,11 @@ def test_gateway_pages_carry_a_policy_admitting_exactly_their_stylesheet(tmp_pat
     for page in (loading, forbidden):
         policy = page.headers["Content-Security-Policy"]
         assert policy == PAGE_CONTENT_SECURITY_POLICY
-        # A browser enforcing the policy renders the page as styled (its one
-        # inline stylesheet is admitted by hash) and loads nothing else, so an
-        # injected script or form has nowhere to run or go.
+        # The hash is the page's actual stylesheet, so a browser enforcing the
+        # policy still renders the page as styled.
         assert f"'sha256-{_inline_style_hash(page.get_data(as_text=True))}'" in policy
         assert "default-src 'none'" in policy
         assert "'unsafe-inline'" not in policy
-    # Answers that are not pages carry no page policy.
     assert "Content-Security-Policy" not in harness.client.get("/_health").headers
 
 

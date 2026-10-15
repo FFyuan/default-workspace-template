@@ -200,8 +200,7 @@ def test_caddyfile_wires_forward_auth_and_loading_fallback() -> None:
     # Textual position inside a handle block does NOT decide when the strip
     # runs: caddy sorts directives by its own order, which puts forward_auth
     # before request_header. Only the global order override makes the strip
-    # run first (the caddy version pin in setup_system.sh is what keeps that
-    # override meaning the same thing).
+    # run first.
     assert "order request_header before forward_auth" in rendered
     assert "rewrite * /_auth/loading" in rendered
     assert "auto_https off" in rendered
@@ -234,9 +233,6 @@ def _hardening_block(indent: str) -> str:
 def test_caddyfile_hardens_every_response_including_the_error_path() -> None:
     rendered = _render()
 
-    # Site-wide, so proxied services and the gateway's own routes alike carry
-    # the headers; deferred, so the backend's Server header is removed rather
-    # than re-added after the delete, and its own HSTS does not ride alongside.
     assert _hardening_block("    ") in rendered
     # handle_errors runs a handler chain of its own, so the 502 loading page
     # needs the block of its own.

@@ -63,19 +63,16 @@ _SYSTEM_INTERFACE_SERVICE_NAME = "system_interface"
 # routes).
 _SHELL_SERVICE_NAME = "system_interface"
 
-# The one stylesheet the gateway's own pages carry, inlined so a page is a
-# single response. Its hash is what the page's policy admits, so a change here
-# is picked up by the policy on its own.
+# The stylesheet the gateway's own pages inline; the page policy admits it by hash.
 _PAGE_STYLE = (
     "body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;\n"
     "height:100vh;margin:0;color:#334155}div{text-align:center}"
 )
 _PAGE_STYLE_HASH = base64.b64encode(hashlib.sha256(_PAGE_STYLE.encode("utf-8")).digest()).decode("ascii")
 
-# The policy for the gateway's own HTML pages: nothing loads but the hashed
-# inline stylesheet (no scripts, images, fonts, frames, form targets or
-# base URL), stated in full because the frame-ancestors policy caddy adds
-# governs embedding only. The two headers compose by intersection.
+# The gateway's own pages load nothing but their inline stylesheet. Stated in
+# full here because the frame-ancestors policy caddy adds governs embedding
+# only; the two headers compose by intersection.
 PAGE_CONTENT_SECURITY_POLICY = (
     f"default-src 'none'; style-src 'sha256-{_PAGE_STYLE_HASH}'; base-uri 'none'; form-action 'none'"
 )
