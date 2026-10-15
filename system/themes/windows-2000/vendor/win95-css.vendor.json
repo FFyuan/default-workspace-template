@@ -126,6 +126,11 @@
       "selector": "^\\.header-inactive$",
       "property": "^background$",
       "why": "The theme draws the inactive gradient."
+    },
+    {
+      "selector": "^\\.form-95$",
+      "property": "^(margin-top|color)$",
+      "why": "Spacing and a grey ink for the demo's form layout; a field sits where its row puts it and writes in the theme's text color."
     }
   ],
   "colors": [
