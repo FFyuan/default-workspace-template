@@ -11,7 +11,6 @@
  */
 
 import m from "mithril";
-import { partAttrs } from "@imbue/workspace-ui/src/themes/parts";
 import { targetElementOf } from "@imbue/workspace-ui/src/context_menu_rows";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import { icon } from "@imbue/workspace-ui/src/components/icons";
@@ -50,7 +49,6 @@ export const TaskbarEntry: m.Component<TaskbarEntryAttrs> = {
         "data-minimized": entry.isMinimized ? "true" : "false",
         "data-detached": entry.isDetached ? "true" : "false",
         "data-focused": entry.isFocused ? "true" : "false",
-        ...partAttrs("taskbar-entry"),
         "aria-pressed": entry.isFocused ? "true" : "false",
         // The visible title names it; this is the same string, with the avatar's staleness note when
         // there is one, so a reader is told what a looker can see.

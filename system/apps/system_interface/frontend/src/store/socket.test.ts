@@ -67,7 +67,6 @@ beforeEach(() => {
     onAvatarStatus: vi.fn(),
     onAvatarSelectionChanged: vi.fn(),
     onUpdateNoticeChanged: vi.fn(),
-    onThemesChanged: vi.fn(),
     onLayoutOp: vi.fn(),
     onPresenceUpdated: vi.fn(),
     onConnected: vi.fn(),
@@ -210,22 +209,6 @@ describe("ShellSocket", () => {
       WireShapeError,
     );
     expect(handlers.onUpdateNoticeChanged).toHaveBeenCalledTimes(2);
-  });
-
-  it("delivers the theme catalog the shell pushes, leaving out a malformed theme", () => {
-    current().open();
-    current().receive({
-      type: "themes_changed",
-      catalog: {
-        default: "mac-classic",
-        themes: [{ id: "mac-classic", name: "Classic Mac", available: true, revision: "r1" }, { name: "no id" }],
-      },
-    });
-    const [catalog] = vi.mocked(handlers.onThemesChanged).mock.calls[0];
-    expect(catalog.default).toBe("mac-classic");
-    expect(catalog.themes.map((theme) => [theme.id, theme.name, theme.available, theme.revision])).toEqual([
-      ["mac-classic", "Classic Mac", true, "r1"],
-    ]);
   });
 
   it("delivers a layout op for this client or for everyone, and drops another client's or an unknown op", () => {

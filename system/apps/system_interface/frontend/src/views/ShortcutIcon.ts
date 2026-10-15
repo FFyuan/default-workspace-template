@@ -12,7 +12,6 @@
  */
 
 import m from "mithril";
-import { partAttrs } from "@imbue/workspace-ui/src/themes/parts";
 import { targetElementOf } from "@imbue/workspace-ui/src/context_menu_rows";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import type { PixelPoint, PixelRect } from "../geometry/frames";
@@ -93,10 +92,7 @@ function shortcutContent(app: AppRecord | undefined, label: string, isLifted: bo
     // its edges. A filter paints the same silhouette from outside the clip.
     m(
       "span",
-      {
-        ...partAttrs("shortcut-label"),
-        class: "shortcut-label relative w-full [filter:var(--desk-shortcut-label-shadow)]",
-      },
+      { class: "shortcut-label relative w-full [filter:var(--desk-shortcut-label-shadow)]" },
       m(
         "span",
         {
@@ -168,7 +164,6 @@ export function ShortcutIcon(): m.Component<ShortcutIconAttrs> {
           "data-connecting": isConnecting ? "true" : null,
           "data-lifted": lift === null ? null : "true",
           "aria-pressed": isSelected ? "true" : "false",
-          ...partAttrs("shortcut"),
           class:
             "shortcut group absolute flex cursor-grab flex-col items-center justify-start " +
             "px-(--desk-cell-gap) text-center outline-none touch-none select-none " +

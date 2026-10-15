@@ -77,8 +77,6 @@ export interface Desktop {
   readonly color: string;
   readonly glyph: number;
   readonly wallpaper: Wallpaper | null;
-  /** The theme the desktop wears by its own choice (Desktop settings); null wears the workspace's default. */
-  readonly theme: string | null;
   readonly shortcuts: readonly DesktopShortcut[];
   readonly windows: readonly WindowRecord[];
 }
@@ -403,7 +401,6 @@ export function parseDesktop(raw: unknown): Desktop {
     color: asString(record.color, "desktop.color"),
     glyph: asNumber(record.glyph, "desktop.glyph"),
     wallpaper: parseWallpaper(record.wallpaper),
-    theme: asOptionalString(record.theme, "desktop.theme"),
     shortcuts: asArray(record.shortcuts, "desktop.shortcuts").map(parseShortcut),
     windows: asArray(record.windows, "desktop.windows").map(parseWindow),
   };
