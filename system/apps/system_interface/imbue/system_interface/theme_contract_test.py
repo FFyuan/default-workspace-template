@@ -28,7 +28,7 @@ def test_the_validator_and_the_frontend_name_the_same_parts_in_the_same_order() 
 
 
 @pytest.mark.frontend
-def test_every_color_token_the_design_system_declares_is_a_contract_token() -> None:
+def test_the_design_system_and_the_validator_name_the_same_color_tokens() -> None:
     root_block = (
         (_WORKSPACE_UI_SOURCE / "base.css").read_text(encoding="utf-8").split(":root {", 1)[1].split("\n}", 1)[0]
     )
