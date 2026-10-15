@@ -47,7 +47,7 @@ cat /proc/<claude_pid>/oom_score_adj          # 600 for a worker, 300-800 for a 
 cat /proc/<subprocess_pid>/oom_score_adj      # 900
 # A built-in service sits at its SERVICE_BANDS value (system_interface = 20):
 cat /proc/$(pgrep -f system-interface | head -1)/oom_score_adj   # 20
-# The never-kill infra (sshd, supervisord, earlyoom, tini, tmux) stays at 0:
+# The never-kill infra (sshd, supervisord, earlyoom, earlyoom-stamp, tini, tmux) stays at 0:
 cat /proc/$(pgrep -x supervisord | head -1)/oom_score_adj        # 0
 ```
 

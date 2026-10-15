@@ -77,7 +77,7 @@ ever acting on a laptop with swap.
   engagement and elapsed idle time (see "Dynamic chat band" below).
   Bands are positive-only: a negative value (true "never kill")
   needs `CAP_SYS_RESOURCE`, which the container does not have, so the never-kill
-  infrastructure (sshd, supervisord, earlyoom, tini, tmux) simply keeps the
+  infrastructure (sshd, supervisord, earlyoom, earlyoom-stamp, tini, tmux) simply keeps the
   inherited default of 0 and is additionally shielded by earlyoom `--avoid`. The
   service order is a best-effort steer, not a hard guarantee -- see "Protection
   is soft" below.
@@ -100,7 +100,7 @@ without inspecting the process tree:
 
 | What | When | Band | Set by |
 |---|---|---|---|
-| never-kill infra (sshd, supervisord, earlyoom, tini, tmux) | (inherited) | protected (0) | nothing -- 0 is the default, plus earlyoom `--avoid` |
+| never-kill infra (sshd, supervisord, earlyoom, earlyoom-stamp, tini, tmux) | (inherited) | protected (0) | nothing -- 0 is the default, plus earlyoom `--avoid` |
 | a built-in supervisord service or app | launch | its `SERVICE_BANDS` value (an app's is the `priority` its manifest declares) | `system/services/oom_priority/bin/oom_tag_service.py <service>` (command prefix) |
 | a user-created supervisord service or app | launch | user service (above every built-in) | `system/services/oom_priority/bin/oom_tag_service.py user` (command prefix) |
 | a workspace terminal's shell (a `terminal-N` tmux session's pane, and everything run in it) | session creation | `terminal-session` (the user-service level, 200) | `system/services/oom_priority/bin/oom_tag_service.py terminal-session bash -l`, the session command the terminal app gives `tmux new-session` (a pane otherwise inherits the tmux server's protected 0) |
@@ -391,7 +391,7 @@ list and the free memory, and stops only what the user approves:
 Two things here are best-effort, not hard guarantees:
 
 - **The never-kill infrastructure isn't truly immortal.** Positive-only bands
-  plus `--avoid` keep sshd, supervisord, earlyoom, tini, and tmux very unlikely
+  plus `--avoid` keep sshd, supervisord, earlyoom, earlyoom-stamp, tini, and tmux very unlikely
   to be shed, but under sustained pressure with nothing else to kill earlyoom
   will eventually take one. Hard "never kill" protection (`oom_score_adj -1000`)
   needs `CAP_SYS_RESOURCE`, which the container does not grant -- a deferred
