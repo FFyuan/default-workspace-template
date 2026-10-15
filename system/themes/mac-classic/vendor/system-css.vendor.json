@@ -90,8 +90,8 @@
     },
     {
       "selector": "^\\.title-bar \\.title$",
-      "property": "^font-size$",
-      "why": "The title bar's type size is the theme's."
+      "property": "^(font-size|font-weight|line-height)$",
+      "why": "The title bar's type size, weight, and line are the theme's."
     },
     {
       "selector": "^\\.title-bar$",
