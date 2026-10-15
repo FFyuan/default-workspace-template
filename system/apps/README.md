@@ -38,6 +38,10 @@ Built-in apps:
   frontend from that same npm workspace.
 - `browser/` - The live browser: a fleet of Chromium browsers streamed to the
   UI by its daemon (`browser-service`).
+- `datalib/` - The Datalib app: datalib's web UI (`datalib-http`) over the store
+  the `datalib` skill writes. Not announced to users yet: its program is not in
+  `system/supervisord.conf.d/` until that skill's install script copies it there,
+  so the app is not listed until then.
 
 Every app describes itself in an `app.toml` manifest beside its code: its
 registered name, the display name users see, its icon, the launch paths the
