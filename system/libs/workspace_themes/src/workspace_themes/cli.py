@@ -448,11 +448,18 @@ def icon_grid(
     """Draw a pixel grid written as text (one character per pixel), fitted to the theme's limits."""
     icons = _require_png_icons(theme_id, repo_root)
     try:
-        drawn = render_pixel_grid(
-            Path(grid_file).read_text(encoding="utf-8"), _parse_legend(legend)
-        )
-        fitted = fit_icon_image(drawn, icons.spec)
+        grid = Path(grid_file).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise click.ClickException(
+            f"{grid_file} cannot be read as UTF-8 text: {error}"
+        ) from None
+    try:
+        drawn = render_pixel_grid(grid, _parse_legend(legend))
     except (IconImageError, InvalidThemeValueError) as error:
+        raise click.ClickException(str(error)) from None
+    try:
+        fitted = fit_icon_image(drawn, icons.spec)
+    except IconImageError as error:
         raise click.ClickException(str(error)) from None
     _save_fitted(fitted, icons, output_path, preview_path)
     _report_icon_problems(check_icon_image(fitted, icons.spec), output_path)

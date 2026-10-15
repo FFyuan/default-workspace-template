@@ -150,6 +150,35 @@ def test_icon_spec_lists_no_missing_icon_for_the_standard_theme(tmp_path: Path) 
     assert json.loads(spec.output)["apps_without_icon"] == []
 
 
+def test_a_grid_file_that_is_not_utf8_is_refused_with_a_message(
+    tmp_path: Path,
+) -> None:
+    root = _workspace(tmp_path)
+    grid = tmp_path / "files.txt"
+    grid.write_bytes(b"k\xff\n")
+
+    drawn = CliRunner().invoke(
+        main,
+        [
+            "icon",
+            "grid",
+            str(grid),
+            "--theme",
+            "paper",
+            "--legend",
+            "k=#000000",
+            "--out",
+            str(tmp_path / "files.png"),
+            "--repo-root",
+            str(root),
+        ],
+    )
+
+    assert drawn.exit_code == 1
+    assert "cannot be read as UTF-8 text" in drawn.output
+    assert not (tmp_path / "files.png").exists()
+
+
 def test_an_icon_drawn_as_a_grid_is_fitted_checked_and_installed_for_a_built_in_theme(
     tmp_path: Path,
 ) -> None:
