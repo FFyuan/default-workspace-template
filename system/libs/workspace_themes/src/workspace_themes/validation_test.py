@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from workspace_themes.contract import CORE_PARTS
-from workspace_themes.data_types import ResolvedChrome, ThemeIconSpec
+from workspace_themes.contract import CONTRACT_VERSION, CORE_PARTS
+from workspace_themes.data_types import ResolvedChrome, ThemeIconSpec, ThemeManifest
 from workspace_themes.primitives import (
     ChromeSlot,
     IconBackground,
@@ -18,6 +18,7 @@ from workspace_themes.validation import (
     StyleSheetContext,
     check_folder_files,
     check_icon_files,
+    check_manifest_rules,
     check_resolved_chrome,
     check_style_sheet,
     read_theme_manifest,
@@ -198,6 +199,67 @@ def test_chrome_keeps_every_control_once() -> None:
         "chrome: close appear more than once across leading and trailing",
         "chrome: every control stays on the title bar, but menu, minimize, refresh is missing",
     ]
+
+
+_ICONS = {
+    "guide": "icons/guide.md",
+    "format": "png",
+    "size": 32,
+    "rendering": "pixelated",
+    "background": "transparent",
+    "derive": "none",
+}
+
+
+@pytest.mark.parametrize(
+    ("folder_name", "fields", "expected"),
+    [
+        ("paper", {}, []),
+        (
+            "ink",
+            {},
+            ["theme.toml: id 'paper' must equal the folder's name 'ink'"],
+        ),
+        (
+            "paper",
+            {"contract": CONTRACT_VERSION + 1},
+            [
+                f"theme.toml: contract {CONTRACT_VERSION + 1} is not one this workspace reads (it reads "
+                f"{CONTRACT_VERSION})"
+            ],
+        ),
+        (
+            "paper",
+            {"base": "paper"},
+            ["theme.toml: a theme cannot be its own base"],
+        ),
+        ("standard", {"id": "standard", "icons": _ICONS}, []),
+        (
+            "standard",
+            {"id": "standard", "base": "paper", "icons": _ICONS},
+            ["theme.toml: the standard theme has no base"],
+        ),
+        (
+            "standard",
+            {"id": "standard"},
+            ["theme.toml: the standard theme must declare [icons]"],
+        ),
+    ],
+)
+def test_a_manifest_breaks_each_rule_the_catalog_holds_it_to(
+    folder_name: str, fields: dict[str, object], expected: list[str]
+) -> None:
+    manifest = ThemeManifest.model_validate(
+        {
+            "contract": CONTRACT_VERSION,
+            "id": "paper",
+            "name": "Paper",
+            "description": "A paper theme.",
+            **fields,
+        }
+    )
+
+    assert check_manifest_rules(manifest, folder_name) == expected
 
 
 def test_a_manifest_with_an_unknown_key_or_a_bad_value_names_each(
