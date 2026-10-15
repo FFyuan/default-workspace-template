@@ -5840,29 +5840,39 @@ def test_the_rebind_runners_record_callbacks_raise_its_own_cancelled_error(
 
 
 @pytest.mark.parametrize(
-    ("lifecycle", "activity", "is_permission_pending", "is_busy", "expected"),
+    ("lifecycle", "activity", "is_permission_pending", "is_busy", "is_turn_closing", "expected"),
     [
-        ("RUNNING", ActivityState.THINKING, False, True, ChatStatus.WORKING),
-        ("RUNNING", ActivityState.TOOL_RUNNING, False, True, ChatStatus.WORKING),
-        ("WAITING", ActivityState.COMPACTING, False, False, ChatStatus.WORKING),
-        ("RUNNING", ActivityState.IDLE, False, False, ChatStatus.IDLE),
-        ("WAITING", None, False, False, ChatStatus.IDLE),
-        ("UNKNOWN", ActivityState.THINKING, False, True, ChatStatus.WORKING),
-        ("RUNNING", ActivityState.THINKING, True, True, ChatStatus.ATTENTION),
-        ("STOPPED", ActivityState.THINKING, True, True, ChatStatus.STOPPED),
-        ("DONE", None, False, False, ChatStatus.STOPPED),
+        ("RUNNING", ActivityState.THINKING, False, True, False, ChatStatus.WORKING),
+        ("RUNNING", ActivityState.TOOL_RUNNING, False, True, False, ChatStatus.WORKING),
+        ("WAITING", ActivityState.COMPACTING, False, False, False, ChatStatus.WORKING),
+        ("RUNNING", ActivityState.IDLE, False, False, False, ChatStatus.IDLE),
+        ("WAITING", None, False, False, False, ChatStatus.IDLE),
+        ("UNKNOWN", ActivityState.THINKING, False, True, False, ChatStatus.WORKING),
+        ("RUNNING", ActivityState.THINKING, True, True, False, ChatStatus.ATTENTION),
+        ("STOPPED", ActivityState.THINKING, True, True, False, ChatStatus.STOPPED),
+        ("DONE", None, False, False, False, ChatStatus.STOPPED),
         # A pending background task: busy with no turn in flight.
-        ("WAITING", ActivityState.IDLE, False, True, ChatStatus.BACKGROUND),
-        ("WAITING", None, False, True, ChatStatus.BACKGROUND),
+        ("WAITING", ActivityState.IDLE, False, True, False, ChatStatus.BACKGROUND),
+        ("WAITING", None, False, True, False, ChatStatus.BACKGROUND),
         # A permission prompt outranks the wait, and a dead agent outranks everything.
-        ("WAITING", ActivityState.IDLE, True, True, ChatStatus.ATTENTION),
-        ("STOPPED", None, False, True, ChatStatus.STOPPED),
+        ("WAITING", ActivityState.IDLE, True, True, False, ChatStatus.ATTENTION),
+        ("STOPPED", None, False, True, False, ChatStatus.STOPPED),
+        # A closing turn is still the turn: it outranks the wait it may be recording, and is
+        # outranked by a permission prompt and a dead agent.
+        ("RUNNING", ActivityState.IDLE, False, True, True, ChatStatus.WORKING),
+        ("RUNNING", ActivityState.IDLE, True, True, True, ChatStatus.ATTENTION),
+        ("STOPPED", ActivityState.IDLE, False, True, True, ChatStatus.STOPPED),
     ],
 )
 def test_status_mapping_follows_the_chat_row(
-    lifecycle: str, activity: ActivityState | None, is_permission_pending: bool, is_busy: bool, expected: ChatStatus
+    lifecycle: str,
+    activity: ActivityState | None,
+    is_permission_pending: bool,
+    is_busy: bool,
+    is_turn_closing: bool,
+    expected: ChatStatus,
 ) -> None:
-    assert chat_status_for_agent(lifecycle, activity, is_permission_pending, is_busy) is expected
+    assert chat_status_for_agent(lifecycle, activity, is_permission_pending, is_busy, is_turn_closing) is expected
 
 
 def test_mint_awaiting_chat_lists_a_provisional_chat_with_a_minted_name_and_no_seed(

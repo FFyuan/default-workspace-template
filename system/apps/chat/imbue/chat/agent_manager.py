@@ -564,7 +564,7 @@ def chat_status_for_agent(
     activity_state: ActivityState | None,
     is_permission_pending: bool,
     is_busy: bool,
-    is_turn_closing: bool = False,
+    is_turn_closing: bool,
 ) -> ChatStatus:
     """The chat row's status rule: a dead lifecycle wins, then a pending permission, then a live turn, a compaction or
     a turn still closing, then a busy chat (one a pending background task will wake)."""
