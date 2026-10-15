@@ -476,12 +476,7 @@ def build_agent_admitter(
         if not grant.admits_service(service_name, grantable):
             return None
         context.last_seen.touch(grant.agent_id, context.now(), time.monotonic())
-        return AgentIdentity(
-            agent_id=grant.agent_id,
-            agent_name=grant.name,
-            granter=grant.granter,
-            is_workspace_scope=grant.is_workspace_scope,
-        )
+        return AgentIdentity(agent_id=grant.agent_id, agent_name=grant.name, granter=grant.granter)
 
     return admit
 

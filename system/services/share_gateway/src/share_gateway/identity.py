@@ -47,11 +47,10 @@ def render_identity_header(identity: RequesterIdentity) -> str:
 class AgentIdentity:
     """A visiting agent making a request: never the owner, never a human account; named by its grant."""
 
-    def __init__(self, agent_id: str, agent_name: str, granter: str, is_workspace_scope: bool) -> None:
+    def __init__(self, agent_id: str, agent_name: str, granter: str) -> None:
         self.agent_id = agent_id
         self.agent_name = agent_name
         self.granter = granter
-        self.is_workspace_scope = is_workspace_scope
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, AgentIdentity):
