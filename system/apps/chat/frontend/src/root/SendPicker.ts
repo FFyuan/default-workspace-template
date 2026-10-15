@@ -102,6 +102,7 @@ export function SendPicker(): m.Component<SendPickerAttrs> {
                       role: "option",
                       "data-send-target": row.chatId,
                       "aria-selected": row === highlightedRow ? "true" : "false",
+                      "data-highlighted": row === highlightedRow ? "true" : "false",
                       class:
                         menuRowClass({ extra: "rounded-md text-(length:--font-size-row) text-primary" }) +
                         (row === highlightedRow ? " bg-fill-active" : ""),
