@@ -298,7 +298,7 @@ def assert_document_policy_admits_page(response: TestResponse) -> None:
     assert policy.startswith("default-src 'self'; "), policy
     page = response.get_data(as_text=True)
     for attributes, body in re.findall(r"<script\b([^>]*)>(.*?)</script>", page, re.IGNORECASE | re.DOTALL):
-        if not body or re.search(r"\bsrc\s*=", attributes, re.IGNORECASE):
+        if not body or re.search(r"(?<![\w-])src\s*=", attributes, re.IGNORECASE):
             continue
         digest = base64.b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode("ascii")
         assert f"'sha256-{digest}'" in policy, (body[:80], policy)

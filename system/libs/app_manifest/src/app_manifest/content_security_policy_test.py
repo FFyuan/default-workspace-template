@@ -17,6 +17,7 @@ _PAGE_WITH_SCRIPTS = (
     "<script></script>"
     "<SCRIPT>console.log(1)</SCRIPT>"
     "<script>console.log(1)</script>"
+    '<script data-src="/lazy.js">lazy()</script>'
     "</body></html>"
 )
 
@@ -35,6 +36,7 @@ def test_inline_script_hashes_cover_each_inline_body_once_and_skip_external_and_
     assert inline_script_hashes(_PAGE_WITH_SCRIPTS) == (
         _sha256_source('\n  import { a } from "/a.js";\n'),
         _sha256_source("console.log(1)"),
+        _sha256_source("lazy()"),
     )
     assert inline_script_hashes("<p>no scripts</p>") == ()
 
@@ -52,6 +54,7 @@ def test_build_document_policy_appends_hashes_to_script_src_and_applies_override
             "'self' blob:",
             _sha256_source('\n  import { a } from "/a.js";\n'),
             _sha256_source("console.log(1)"),
+            _sha256_source("lazy()"),
         )
     )
     assert directives["worker-src"] == "blob:"

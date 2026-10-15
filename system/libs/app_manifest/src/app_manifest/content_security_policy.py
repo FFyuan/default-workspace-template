@@ -54,7 +54,8 @@ DOCUMENT_POLICY_DIRECTIVES: Final[Mapping[str, str]] = {
 _SCRIPT_ELEMENT: Final[re.Pattern[str]] = re.compile(
     r"<script\b([^>]*)>(.*?)</script>", re.IGNORECASE | re.DOTALL
 )
-_SRC_ATTRIBUTE: Final[re.Pattern[str]] = re.compile(r"\bsrc\s*=", re.IGNORECASE)
+# Not preceded by a word character or a hyphen, so ``data-src=`` is not taken for ``src=``.
+_SRC_ATTRIBUTE: Final[re.Pattern[str]] = re.compile(r"(?<![\w-])src\s*=", re.IGNORECASE)
 
 
 def inline_script_hashes(html: str) -> tuple[str, ...]:
