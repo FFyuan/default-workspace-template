@@ -10,4 +10,4 @@ New library and CLI, `workspace-themes`, for workspace themes (`docs/system/blue
 
 - `scripts/vendor-css-library.mjs` adapts a CSS library (system.css, win95.css, ...) onto the contract's parts from a pinned, digest-checked source; it refuses two library assets with one file name, and never reads text inside an attribute selector or string as a class.
 
-- `workspace-themes icon missing [<id>...]` lists, for every theme with icons of its own, the apps it has no icon for, and exits 1 when there are any. A theme that keeps the standard icons has none to draw.
+- `workspace-themes icon missing [<id>...]` lists, for every theme with icons of its own, the apps it has no icon for (naming the folder too when two folders share an id), and exits 1 when there are any. A theme that keeps the standard icons has none to draw.
