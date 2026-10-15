@@ -136,6 +136,10 @@
     background: var(--c-danger);
     color: var(--c-text-on-accent);
   }
+  [data-part="button"][data-variant="destructive"]:not(:disabled):hover {
+    border-color: var(--c-danger-hover);
+    background: var(--c-danger-hover);
+  }
 
   /* A text field or text area: <input data-part="field">, <textarea data-part="field">. */
   [data-part="field"] {
