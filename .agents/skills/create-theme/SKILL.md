@@ -96,8 +96,8 @@ screenshot it, and look hard: text that does not contrast with its surface, a co
 does not look pressable, a title bar whose controls collide, a field you cannot see the edge
 of. Fix what reads badly and look again. The page lists any problem with the theme at its top.
 
-The gallery checks that a window's frame and content stay clear over the app beneath; a theme
-that paints them hides the app.
+The gallery lays each window over a stand-in page, as a live window is laid over its app: a
+theme that paints a window's frame or content hides that page there, and would hide the app.
 
 ## 6. Make the icons
 
