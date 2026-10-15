@@ -119,11 +119,12 @@ class AgentGrant:
         return self.expires_at is not None and now >= self.expires_at
 
     def admits_service(self, service_name: str | None, grantable_service_names: Sequence[str]) -> bool:
-        """Whether this grant admits the agent to ``service_name`` (None = the workspace shell).
+        """Whether this grant admits the agent to ``service_name`` (None = the auth origin, which names no service).
 
         Workspace scope admits every origin, internal apps included. An app
         scope admits exactly the named apps, and only while each is registered
-        and grantable (an app that has since become internal is not admitted).
+        and grantable (an app that has since become internal is not admitted);
+        the shell is a registered app that is never grantable.
         """
         if self.is_workspace_scope:
             return True
