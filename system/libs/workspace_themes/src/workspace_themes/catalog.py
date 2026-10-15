@@ -207,7 +207,6 @@ def _resolve_chain(
     """The theme's base chain, standard first and ending with the theme, and what breaks it."""
     chain: list[ThemeId] = [theme.id]
     current = theme
-    # Each pass adds one theme to the chain, which a cycle or the depth limit ends, so the loop ends.
     while (base_id := _base_of(current)) is not None:
         if base_id in chain:
             return tuple(reversed(chain)), [
