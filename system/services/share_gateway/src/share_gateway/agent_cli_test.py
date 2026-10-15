@@ -72,5 +72,6 @@ def test_a_malformed_grants_file_is_reported_as_misconfigured(
 def test_changes_refuses_a_naive_since(workspace_cwd: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert run(["changes", "--since", "2026-10-15T18:00:00", "--json"]) == 2
     assert "timezone" in json.loads(capsys.readouterr().err)["error"]
-    assert run(["changes", "--since", "2026-10-15T18:00:00Z"]) == 0
-    assert "commits" in json.loads(capsys.readouterr().out) or True
+    assert run(["changes", "--since", "2000-01-01T00:00:00Z"]) == 0
+    feed = json.loads(capsys.readouterr().out)
+    assert [entry["subject"] for entry in feed["commits"]] == ["Initial workspace commit"]
