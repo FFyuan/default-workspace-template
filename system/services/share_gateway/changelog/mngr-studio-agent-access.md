@@ -7,3 +7,5 @@ When the helper cannot reach the workspace, it says the workspace may not be pub
 A workspace record the gateway cannot read (a truncated host `data.json`, an unreadable host public key) is logged rather than silently read as empty, so a join answer with no host id or host key can be traced to its cause; an absent record still reads as empty quietly.
 
 A join or a revoke that drops an expired grant records the `expired` event for it, as the gateway's start-up reconcile already did, so a grant's audit trail always ends with its expiry or its revocation.
+
+The auth-origin label is created atomically: the gateway starting the stack and the `agent-access` CLI minting an invite can both create it on a workspace's first publish, and the one that loses now answers the label the other stored, instead of a second label the running gateway would not serve.
