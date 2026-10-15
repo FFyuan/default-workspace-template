@@ -207,7 +207,7 @@ select {
   --c-accent: #ffffff;
   --c-accent-hover: #ffffff;
 }
-/* Only the text inside turns: a switch or dot drawn as a background keeps its colour. */
+/* Only the text inside turns: a dot drawn in a colour other than the accent keeps it. */
 [data-part="menu-item"]:not([aria-disabled="true"]):hover * {
   color: #ffffff;
 }
@@ -258,7 +258,7 @@ select {
   --c-accent: #ffffff;
   --c-accent-hover: #ffffff;
 }
-/* Only the text inside turns: a status dot drawn as a background keeps its colour. */
+/* Only the text inside turns: a status dot drawn in a colour other than the accent keeps it. */
 [data-part="list-row"][aria-current="true"] * {
   color: #ffffff;
 }
