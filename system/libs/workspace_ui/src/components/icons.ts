@@ -136,8 +136,8 @@ export function icon(name: IconName, opts: IconOptions = {}): string {
 
 let badgeMaskCount = 0;
 
-/** `name` with `badge` small in its bottom-right corner, in the same colour and weight, the icon cut away in a
- *  circle around it so the two never touch. */
+/** `name` with `badge` small at its bottom-right corner, hanging past it, in the same colour and weight, the icon
+ *  cut away in a circle around it so the two never touch. */
 export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = {}): string {
   const dims = opts.size === undefined ? "" : ` width="${opts.size}" height="${opts.size}"`;
   const cls = opts.className ? ` class="${opts.className}"` : "";
@@ -145,9 +145,11 @@ export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = 
   return (
     `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
     `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" overflow="visible" aria-hidden="true">` +
-    `<mask id="${mask}"><rect width="24" height="24" fill="#fff"/><circle cx="19" cy="19" r="7" fill="#000"/></mask>` +
+    // The badge is 9/16 of the icon and hangs a quarter of its own size past the bottom-right corner.
+    `<mask id="${mask}" maskUnits="userSpaceOnUse" x="-4" y="-4" width="36" height="36">` +
+    `<rect x="-4" y="-4" width="36" height="36" fill="#fff"/><circle cx="23.25" cy="21.75" r="8.25" fill="#000"/></mask>` +
     `<g mask="url(#${mask})">${STROKE_PATHS[name]}</g>` +
-    `<g transform="translate(13.96 13.96) scale(0.42)" stroke-width="4.4">${STROKE_PATHS[badge]}</g></svg>`
+    `<g transform="translate(16.5 15) scale(0.5625)" stroke-width="2.6">${STROKE_PATHS[badge]}</g></svg>`
   );
 }
 

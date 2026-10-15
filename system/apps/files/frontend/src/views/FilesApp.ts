@@ -124,11 +124,11 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
     },
     [
       row.iconBadge === undefined
-        ? m.trust(icon(row.icon, { size: 15, className: "shrink-0" }))
+        ? m.trust(icon(row.icon, { size: 16, className: "shrink-0" }))
         : m(
             "span.files-share-icon",
             { "data-share-badge": row.iconBadge, class: "flex shrink-0" },
-            m.trust(badgedIcon(row.icon, SHARE_BADGE_ICONS[row.iconBadge], { size: 15 })),
+            m.trust(badgedIcon(row.icon, SHARE_BADGE_ICONS[row.iconBadge], { size: 16 })),
           ),
       m("span.files-sidebar-label", { class: "min-w-0 flex-1 truncate" }, row.label),
       row.badges ?? null,
@@ -192,7 +192,7 @@ function pendingRow(waiting: PendingConnection): m.Vnode {
       class: "flex h-7 w-full shrink-0 items-center gap-2 rounded-md px-2 text-(length:--font-size-row) text-faint",
     },
     [
-      m.trust(icon(waiting.isFolder ? "folder" : "file", { size: 15, className: "shrink-0" })),
+      m.trust(icon(waiting.isFolder ? "folder" : "file", { size: 16, className: "shrink-0" })),
       m("span", { class: "min-w-0 flex-1 truncate" }, waiting.name),
       mark("pending", "Waiting for approval", m("span.spinner.spinner--sm"), "text-faint"),
     ],
@@ -208,7 +208,7 @@ function dropToConnectRow(): m.Vnode {
       class:
         "flex h-7 w-full shrink-0 items-center gap-2 rounded-md border border-dashed border-accent px-2 text-(length:--font-size-row) text-accent",
     },
-    [m.trust(icon("plus", { size: 15, className: "shrink-0" })), m("span", { class: "truncate" }, "Drop to connect")],
+    [m.trust(icon("plus", { size: 16, className: "shrink-0" })), m("span", { class: "truncate" }, "Drop to connect")],
   );
 }
 
@@ -319,7 +319,7 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
                     },
                   },
                   [
-                    m.trust(icon("plus", { size: 15, className: "shrink-0" })),
+                    m.trust(icon("plus", { size: 16, className: "shrink-0" })),
                     m("span", { class: "truncate" }, "Connect a file or folder…"),
                   ],
                 ),
