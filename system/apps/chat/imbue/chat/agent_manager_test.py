@@ -3730,7 +3730,7 @@ def test_offline_codex_chip_matches_the_persisted_selection_from_the_sidecar(age
     assert choice.matched.id == "gpt-5.6-terra"
 
 
-# The shared agent-state poller.
+# The shared model-state poller.
 
 
 def test_model_state_poller_recomputes_and_broadcasts_when_the_state_file_changes(
@@ -3780,7 +3780,7 @@ def _manager_reading_tasks(
 
 
 def _let_unclaimed_finished_tasks_lapse(manager: AgentManager) -> None:
-    """Run the state-poller passes after which a finished task's held removal goes with no turn to claim it."""
+    """Run the background-task poller passes after which a finished task's held removal goes with no turn to claim it."""
     for _ in range(_FINISHED_TASK_TURN_GRACE_PASSES):
         manager._background_tasks_poller.poll_once()
 

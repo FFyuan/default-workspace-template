@@ -145,8 +145,8 @@ one marker file each under `data/.apps/chat/background_tasks/<chat-id>/`,
 written by `system/scripts/run_in_background.py` and by Claude's Stop hook, and
 read through the `system/libs/chat_background_tasks` library (`background_tasks.py`
 here wraps it, and creates the directory's root at startup so the shell's avatar
-can watch it). The state poller reads each chat's directory beside its
-agent's model-state file, re-reads it when its entries change, and rechecks the
+can watch it). A poller of its own reads each chat's directory, keyed by the
+agent the chat runs on, re-reads it when its entries change, and rechecks the
 pids of every chat with markers on each pass, so a killed runner returns its
 chat to idle within a second. In a chat whose transcript this app is tailing
 (one a page has shown, or that the app has sent to, interrupted or switched),

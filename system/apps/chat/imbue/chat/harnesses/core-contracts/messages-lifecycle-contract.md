@@ -218,7 +218,7 @@ its chat is **busy**, and the chat's status says so: **`background`**, distinct 
 - **A wait ends exactly:** when the task's marker goes (its report delivered or given up; for a
   Claude task, the next Stop that no longer lists it, or, in a chat whose transcript the app is
   tailing, its end in the transcript's `<task-notification>`) or its writer's process dies, the
-  chat returns to `idle` within one poll of the state poller.
+  chat returns to `idle` within one poll of the background-task poller.
 - **The wait belongs to the chat, not the agent:** a switch stops the retiring agent, which ends
   its tasks. A runner still reports how its command ended to the chat, and that report's turn
   runs on the successor; the harness's own tasks end unreported. The successor is told which

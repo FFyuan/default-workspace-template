@@ -236,7 +236,7 @@ _RENAME_TIMEOUT_SECONDS: Final[float] = 30.0
 
 # A finished harness task's notice normally starts a turn at once; the marker of one whose notice
 # starts none (a task the user stopped from the harness's own task list) goes after this many
-# state-poller passes instead.
+# background-task poller passes instead.
 _FINISHED_TASK_TURN_GRACE_PASSES: Final[int] = 3
 # Cap on the ``uv sync --all-packages`` a failed chat create runs before it retries; a sync
 # with nothing to do takes well under a second.
@@ -605,7 +605,9 @@ class _FinishedTasksAwaitingTurn(FrozenModel):
 
     harness: HarnessType = Field(description="The harness whose markers they are")
     task_ids: tuple[str, ...] = Field(description="The finished tasks, in the order the transcript reported them")
-    passes_left: int = Field(description="State-poller passes still to wait for that turn before removing them anyway")
+    passes_left: int = Field(
+        description="Background-task poller passes still to wait for that turn before removing them anyway"
+    )
 
 
 def _monotonic_to_epoch(monotonic_at: float, now: float) -> float:
