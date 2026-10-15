@@ -9,9 +9,7 @@ proxies anything, and answers every method and path the same way. The page goes 
 ``Content-Security-Policy`` admitting its inline stylesheet and nothing else, like the share gateway's own loading page.
 """
 
-import base64
 import errno
-import hashlib
 import html
 import socket
 import threading
@@ -21,6 +19,7 @@ from typing import Final
 from typing import assert_never
 from urllib.parse import urlsplit
 
+from app_manifest.content_security_policy import inline_source
 from loguru import logger
 from pydantic import Field
 from pydantic import PrivateAttr
@@ -73,9 +72,8 @@ _PAGE_STYLE: Final[str] = (
     "body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;\n"
     "height:100vh;margin:0;color:#334155}div{text-align:center;max-width:32rem}code{font-size:0.9em}"
 )
-_PAGE_STYLE_HASH: Final[str] = base64.b64encode(hashlib.sha256(_PAGE_STYLE.encode("utf-8")).digest()).decode("ascii")
 _PAGE_CONTENT_SECURITY_POLICY: Final[str] = (
-    f"default-src 'none'; style-src 'sha256-{_PAGE_STYLE_HASH}'; base-uri 'none'; form-action 'none'"
+    f"default-src 'none'; style-src {inline_source(_PAGE_STYLE)}; base-uri 'none'; form-action 'none'"
 )
 
 _PAGE_TEMPLATE: Final[str] = """<!DOCTYPE html>

@@ -8,6 +8,7 @@ from app_manifest.content_security_policy import (
     attach_document_policy,
     build_document_policy,
     inline_script_hashes,
+    inline_source,
 )
 from app_manifest.testing import assert_document_policy_admits_page
 
@@ -39,6 +40,7 @@ def test_inline_script_hashes_cover_each_inline_body_once_and_skip_external_and_
         _sha256_source("lazy()"),
     )
     assert inline_script_hashes("<p>no scripts</p>") == ()
+    assert inline_source("console.log(1)") == _sha256_source("console.log(1)")
 
 
 def test_build_document_policy_appends_hashes_to_script_src_and_applies_overrides() -> (

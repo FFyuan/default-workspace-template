@@ -58,14 +58,19 @@ _SCRIPT_ELEMENT: Final[re.Pattern[str]] = re.compile(
 _SRC_ATTRIBUTE: Final[re.Pattern[str]] = re.compile(r"(?<![\w-])src\s*=", re.IGNORECASE)
 
 
+def inline_source(text: str) -> str:
+    """The ``'sha256-...'`` source admitting one inline script or stylesheet whose text is exactly ``text``."""
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    return f"'sha256-{base64.b64encode(digest).decode('ascii')}'"
+
+
 def inline_script_hashes(html: str) -> tuple[str, ...]:
     """The ``'sha256-...'`` source admitting each inline script of ``html``, in document order, each once."""
     sources: dict[str, None] = {}
     for attributes, body in _SCRIPT_ELEMENT.findall(html):
         if not body or _SRC_ATTRIBUTE.search(attributes):
             continue
-        digest = hashlib.sha256(body.encode("utf-8")).digest()
-        sources[f"'sha256-{base64.b64encode(digest).decode('ascii')}'"] = None
+        sources[inline_source(body)] = None
     return tuple(sources)
 
 

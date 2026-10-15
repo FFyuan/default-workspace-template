@@ -82,7 +82,9 @@ The models behind a workspace app's two descriptions:
   `overrides` replace whole directives for an app that needs more (the browser
   app's `blob:` worklet). `frame-ancestors` is left to the proxy in front of the
   workspace, which appends its own policy. `build_document_policy(html,
-  overrides)` and `inline_script_hashes(html)` are the pieces; a built document
+  overrides)`, `inline_script_hashes(html)` and `inline_source(text)` (the
+  `'sha256-...'` source for one inline script or stylesheet, which the shell's
+  parked-port page uses for its stylesheet) are the pieces; a built document
   served with `send_file` is not read and must carry no inline script.
 - `app_manifest.scope`: the footprint computation. `compute_app_scope`,
   `compute_skill_scope`, `with_diff_against_base`, and `render_scope_file` build
