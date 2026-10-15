@@ -146,6 +146,11 @@ kbd {
 [data-part="button"][data-variant="ghost-inverse"] {
   color: #ffffff;
 }
+/* Keyboard focus: the dotted focus rectangle inside the face, in the glyph's colour. */
+[data-part="button"]:focus-visible {
+  outline: 1px dotted currentColor;
+  outline-offset: -4px;
+}
 
 /* Check boxes: a sunk white 13-pixel box with the system's black tick; radios keep the browser's, in black. */
 input[type="checkbox"] {
