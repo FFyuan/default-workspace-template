@@ -79,10 +79,10 @@ _FORWARD_PORT_PATH = (
 )
 LOWEST_AUTO_PORT = 8080
 # The browser-side files every app serves from its own origin (a module import is a fetch
-# without cookies, which the forwarder refuses across origins): the app contract, the
-# element context menu and the page kit, built by the shell's frontend into its static
-# output. Mirrors app_manifest.registry's SHELL_*_PATH constants; the scaffold
-# runs in its own environment and cannot import the library, so it carries the path.
+# without cookies, which the forwarder refuses across origins), built by the shell's
+# frontend into its static output. Mirrors app_manifest.registry's SHELL_*_PATH
+# constants; the scaffold runs in its own environment and cannot import the library,
+# so it carries the path.
 SHELL_STATIC_MODULES_DIR = (
     "system/apps/system_interface/imbue/system_interface/static/_static"
 )
