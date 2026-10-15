@@ -53,9 +53,7 @@ class HelperError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Keys and the OpenSSH line
-// ---------------------------------------------------------------------------
 
 function sshString(bytes) {
   const length = Buffer.alloc(4);
@@ -109,9 +107,7 @@ function privateKeyFromPem(pem) {
   return crypto.createPrivateKey({ key: pem, format: "pem" });
 }
 
-// ---------------------------------------------------------------------------
 // The signing profile
-// ---------------------------------------------------------------------------
 
 function sfString(value) {
   return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
@@ -248,9 +244,7 @@ function headerValue(headers, name) {
   return "";
 }
 
-// ---------------------------------------------------------------------------
 // State on disk
-// ---------------------------------------------------------------------------
 
 function stateRoot() {
   return path.join(process.env.WSVISIT_STATE_DIR || path.join(os.homedir(), ".config", "imbue-workspace"));
@@ -308,9 +302,7 @@ function resolveConfig(options) {
   return config;
 }
 
-// ---------------------------------------------------------------------------
 // HTTP
-// ---------------------------------------------------------------------------
 
 async function fetchWithTimeout(url, init, timeoutMs) {
   const controller = new AbortController();
@@ -413,9 +405,7 @@ async function withRecovery(config, action) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Orientation
-// ---------------------------------------------------------------------------
 
 function skillHashes(index) {
   const hashes = {};
@@ -457,9 +447,7 @@ async function refreshSkills(config, isForced) {
   return index;
 }
 
-// ---------------------------------------------------------------------------
 // Commands
-// ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
   const options = {};
