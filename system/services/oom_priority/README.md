@@ -79,9 +79,8 @@ ever acting on a laptop with swap.
   needs `CAP_SYS_RESOURCE`, which the container does not have, so the never-kill
   infrastructure (sshd, supervisord, earlyoom, earlyoom-stamp, tini, tmux)
   simply keeps the inherited default of 0 and is additionally shielded by
-  earlyoom `--avoid`. The
-  service order is a best-effort steer, not a hard guarantee -- see "Protection
-  is soft" below.
+  earlyoom `--avoid`. The service order is a best-effort steer, not a hard
+  guarantee -- see "Protection is soft" below.
 - **`cgroup_meminfo`** -- the container's own memory headroom, read from its
   cgroup, in the form earlyoom's `--host-meminfo` takes; the
   `publish_cgroup_meminfo` program writes it under runc.
@@ -394,10 +393,9 @@ Two things here are best-effort, not hard guarantees:
 - **The never-kill infrastructure isn't truly immortal.** Positive-only bands
   plus `--avoid` keep sshd, supervisord, earlyoom, earlyoom-stamp, tini, and
   tmux very unlikely to be shed, but under sustained pressure with nothing else
-  to kill earlyoom
-  will eventually take one. Hard "never kill" protection (`oom_score_adj -1000`)
-  needs `CAP_SYS_RESOURCE`, which the container does not grant -- a deferred
-  follow-up.
+  to kill earlyoom will eventually take one. Hard "never kill" protection
+  (`oom_score_adj -1000`) needs `CAP_SYS_RESOURCE`, which the container does not
+  grant -- a deferred follow-up.
 - **The service ordering can be reordered by memory usage.** earlyoom picks the
   highest badness, which adds each process's live memory on top of its
   `oom_score_adj` (one band point is worth MemTotal/1000 of memory). The service
