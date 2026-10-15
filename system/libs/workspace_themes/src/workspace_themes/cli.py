@@ -332,14 +332,10 @@ def icon_missing(theme_ids: tuple[str, ...], repo_root: str) -> None:
         ]
     )
     app_names = _app_names(root)
-    missing_by_theme = {
-        str(entry.id): _apps_without_icon(catalog, icons, app_names)
-        for entry, icons in icons_by_theme
-    }
     lines = [
-        f"{theme_id}: {', '.join(apps)}"
-        for theme_id, apps in missing_by_theme.items()
-        if apps
+        f"{_validation_label(catalog, entry)}: {', '.join(apps)}"
+        for entry, icons in icons_by_theme
+        if (apps := _apps_without_icon(catalog, icons, app_names))
     ]
     if not lines:
         click.echo("every theme has an icon for every app")

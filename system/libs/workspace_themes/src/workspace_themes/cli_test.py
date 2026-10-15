@@ -470,6 +470,18 @@ def test_icon_missing_lists_the_apps_a_theme_draws_no_icon_for_and_skips_themes_
     assert covered.output == "every theme has an icon for every app\n"
 
 
+def test_icon_missing_reports_each_folder_of_a_repeated_id(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    write_test_theme(root / "themes", "paper", "", app_names_with_icons=("files",))
+
+    missing = CliRunner().invoke(main, ["icon", "missing", "--repo-root", str(root)])
+
+    assert missing.exit_code == 1
+    assert missing.output == (
+        f"paper ({root / BUILTIN_THEMES_DIRECTORY / 'paper'}): files\n"
+    )
+
+
 def test_a_theme_with_its_own_icons_draws_its_generic_icon_with_the_icon_tools(
     tmp_path: Path,
 ) -> None:
