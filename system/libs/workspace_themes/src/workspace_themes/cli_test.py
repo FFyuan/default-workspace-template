@@ -45,6 +45,31 @@ def test_validate_reports_each_theme_and_fails_on_a_problem(tmp_path: Path) -> N
     assert ".x is a class" in failing.output
 
 
+def test_list_names_every_theme_and_whether_it_is_available(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    write_test_theme(root / "themes", "classy", ".x { color: red; }\n")
+    runner = CliRunner()
+
+    text = runner.invoke(main, ["list", "--repo-root", str(root)])
+    listed = runner.invoke(main, ["list", "--json", "--repo-root", str(root)])
+
+    themes = root / BUILTIN_THEMES_DIRECTORY
+    assert text.exit_code == 0, text.output
+    assert text.output.splitlines() == [
+        f"standard\tStandard\tbuiltin\tavailable\t{themes / 'standard'}",
+        f"paper\tTest paper\tbuiltin\tavailable\t{themes / 'paper'}",
+        f"classy\tTest classy\tworkspace\tunavailable (1 problems)\t{root / 'themes' / 'classy'}",
+    ]
+    assert listed.exit_code == 0, listed.output
+    records = {record["id"]: record for record in json.loads(listed.output)}
+    assert list(records) == ["standard", "paper", "classy"]
+    assert records["paper"]["chain"] == ["standard", "paper"]
+    assert records["paper"]["available"] is True and records["paper"]["problems"] == []
+    assert records["classy"]["source"] == "workspace"
+    assert records["classy"]["available"] is False
+    assert ".x is a class" in records["classy"]["problems"][0]
+
+
 def test_validate_reports_a_workspace_theme_that_repeats_a_built_in_id(
     tmp_path: Path,
 ) -> None:
