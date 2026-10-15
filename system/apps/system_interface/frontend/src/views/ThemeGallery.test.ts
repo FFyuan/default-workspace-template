@@ -2,12 +2,24 @@
 import "../testing/dom";
 import { mountView, unmountViews } from "@imbue/workspace-ui/src/testing/mount";
 import m from "mithril";
-import { afterEach, describe, expect, it } from "vitest";
+import { PARTS } from "@imbue/workspace-ui/src/themes/parts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThemeChrome } from "../model/themes";
 import { appRecord, themeCatalog, themeRecord } from "../testing/records";
 import { ThemeGallery, galleryStateOf } from "./ThemeGallery";
 
-afterEach(unmountViews);
+beforeEach(() => {
+  // jsdom has no matchMedia, which the workspace character asks about reduced motion.
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+  );
+});
+
+afterEach(() => {
+  unmountViews();
+  vi.unstubAllGlobals();
+});
 
 const CENTERED_CHROME: ThemeChrome = {
   title_align: "center",
@@ -58,6 +70,21 @@ describe("ThemeGallery", () => {
     const bar = root.querySelector('[data-part="title-bar"]') as HTMLElement;
     const controls = Array.from(bar.querySelectorAll("[data-control]")).map((c) => c.getAttribute("data-control"));
     expect(controls).toEqual(["refresh", "menu", "minimize", "maximize", "close"]);
+  });
+
+  it("draws every part of the contract, the avatar in both its kinds", () => {
+    const state = galleryStateOf(themeCatalog(BROKEN), "broken", [appRecord("files")]);
+    if (state === null) throw new Error("the catalog has the broken theme");
+    const root = mountView(() => m(ThemeGallery, { state }));
+
+    const drawn = new Set(
+      Array.from(root.querySelectorAll("[data-part]"), (element) => element.getAttribute("data-part")),
+    );
+    expect(PARTS.filter((part) => !drawn.has(part))).toEqual([]);
+    const avatarKinds = Array.from(root.querySelectorAll('[data-part="avatar"]'), (avatar) =>
+      avatar.getAttribute("data-avatar-kind"),
+    );
+    expect(avatarKinds).toEqual(["character", "image"]);
   });
 
   it("draws a button of every variant the contract names", () => {

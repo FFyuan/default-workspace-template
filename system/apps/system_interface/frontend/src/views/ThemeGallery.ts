@@ -30,8 +30,10 @@ import {
   TILE_PART,
   partAttrs,
 } from "@imbue/workspace-ui/src/themes/parts";
+import { avatarImageUrl } from "../model/api";
 import type { AppRecord } from "../model/records";
 import { chromeOf, resolveDesktopTheme, type ThemeCatalog, type ThemeRecord } from "../model/themes";
+import { IMBUE_CHARACTER_DESIGN_ID, ImbueCharacter } from "./character/ImbueCharacter";
 import { appGlyph } from "./glyphs";
 import { TitleBar } from "./TitleBar";
 
@@ -270,6 +272,21 @@ function tilesAndRows(): m.Children {
   ]);
 }
 
+/** The avatar both ways the contract names: the workspace's own character, in the theme's avatar colours, and a
+ *  design drawn as a picture (the character's still, which the image route always serves). */
+function avatars(): m.Children {
+  return m("div", { class: "flex items-center gap-8" }, [
+    m(ImbueCharacter, { mood: "idle", interactive: false, size: 56 }),
+    m("img", {
+      ...partAttrs("avatar"),
+      "data-avatar-kind": "image",
+      src: avatarImageUrl(IMBUE_CHARACTER_DESIGN_ID, "idle", true),
+      alt: "",
+      class: "size-14",
+    }),
+  ]);
+}
+
 function terminalPalette(): m.Children {
   // A theme that sets no terminal colors leaves the terminal its own, so there is nothing to swatch.
   const isPaletteSet = getComputedStyle(document.documentElement).getPropertyValue(TERMINAL_TOKENS[0]).trim() !== "";
@@ -324,6 +341,7 @@ export function ThemeGallery(): m.Component<{ state: GalleryState }> {
         section("The desktop", desktop(state)),
         section("The taskbar", taskbar(state)),
         section("Tiles, rows, badges, and tooltips", tilesAndRows()),
+        section("The avatar", avatars()),
         section("The terminal", terminalPalette()),
         m("p", { class: "type-helper text-faint" }, `Contract 1 parts: ${PARTS.join(", ")}`),
       ]);
