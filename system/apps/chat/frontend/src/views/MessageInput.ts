@@ -83,7 +83,7 @@ const MESSAGE_ROW_CLASS =
   "data-[stacked]:gap-y-0.5";
 
 const ATTACH_BUTTON_CLASS =
-  "message-input-attach-button group/attach col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2";
+  "message-input-attach-button col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2";
 
 const TOOLBAR_CLASS =
   "message-input-toolbar col-start-3 row-start-1 flex shrink-0 items-center gap-1 justify-self-end " +
@@ -1462,12 +1462,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                   disabled: isComposerDisabled,
                   onclick: openFilePicker,
                 },
-                // Faint at rest, a step quieter than the toolbar's other glyphs.
-                m(
-                  "span",
-                  { class: "inline-flex text-faint group-hover/attach:text-primary" },
-                  m.trust(icon("attach", { size: 16, strokeWidth: 1.5 })),
-                ),
+                m.trust(icon("attach", { size: 16, strokeWidth: 1.5 })),
               ),
               m("div", { class: TOOLBAR_CLASS }, [
                 isCancelSwitchVisible
