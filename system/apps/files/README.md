@@ -123,7 +123,7 @@ files --path /home/user/workspace/data/notes/` is the same thing). The page show
 folder in place and reports it as its location (`shell:location`,
 desktop-interface contracts.md section 7), as it does after every move, so the
 window's stored path follows, a reload reopens the folder, and the window is
-titled after it.
+titled after it. A `path` that names a file opens that file's page instead.
 
 Framed by the shell, opening a file opens its `?view` page in a Files window of
 its own, and Edit its `?edit` page, each through the app contract's `shell:open`

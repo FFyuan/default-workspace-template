@@ -448,6 +448,12 @@ def test_a_path_param_opens_that_folder(open_files_page: OpenFilesPage) -> None:
     assert page.title() == "app"
 
 
+def test_a_path_param_naming_a_file_opens_its_page(open_files_page: OpenFilesPage) -> None:
+    page = open_files_page("/?path=/projects/app/main.py")
+    expect(page.locator(".files-file-name")).to_have_text("main.py")
+    assert page.url.endswith("/projects/app/main.py?view")
+
+
 def test_a_phone_lists_entries_and_opens_one_with_a_tap(
     open_files_page: OpenFilesPage,
 ) -> None:

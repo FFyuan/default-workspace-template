@@ -17,7 +17,7 @@ import { installElementContextMenu } from "@imbue/workspace-ui/src/context_menu"
 import type { ContextMenuRow } from "@imbue/workspace-ui/src/context_menu_rows";
 import { installCursorHidingWhileTyping } from "@imbue/workspace-ui/src/hideCursorWhileTyping";
 
-import { entryOf, readPageData, urlOf } from "./models/dufs";
+import { entryOf, pageUrlOf, readPageData, urlOf } from "./models/dufs";
 import { decodePathname, isFolderPath, titleOf } from "./models/paths";
 import { ENTRY_PATH_ATTR, FOLDER_SURFACE_ATTR } from "./views/entries";
 import { FilePage, FilePageModel } from "./views/FilePage";
@@ -49,8 +49,9 @@ function bootstrap(): void {
   if (root === null || data === null) return;
 
   const requested = rootedPathParam(window.location.search);
+  // A path without its slash is a file's (to its page) or a folder named loosely, which dufs lists at `?view` too.
   if (requested !== null && !isFolderPath(requested)) {
-    window.location.replace(urlOf(requested));
+    window.location.replace(pageUrlOf(requested, "view"));
     return;
   }
 
