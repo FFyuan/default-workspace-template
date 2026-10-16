@@ -43,11 +43,18 @@ class FakeComputer:
     """The user's computer as the gateway reaches it: the permissions it granted, the folders it holds, and every
     request it was sent."""
 
-    def __init__(self, permissions: list[str], folders: dict[str, list[tuple[str, bool, int]]], is_awake: bool = True):
+    def __init__(
+        self,
+        permissions: list[str],
+        folders: dict[str, list[tuple[str, bool, int]]],
+        is_awake: bool = True,
+        is_writable: bool = True,
+    ):
         self.permissions = permissions
         self.folders = folders
         self.files: dict[str, bytes] = {}
         self.is_awake = is_awake
+        self.is_writable = is_writable
         self.requests: list[httpx.Request] = []
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -88,6 +95,8 @@ class FakeComputer:
                     (b"Content-Disposition", f'inline; filename="{name}"'.encode()),
                 ],
             )
+        if request.method == "PUT" and not self.is_writable:
+            return httpx.Response(403, text="forbidden")
         if request.method == "PUT":
             self.files[on_computer] = request.read()
             return httpx.Response(201)

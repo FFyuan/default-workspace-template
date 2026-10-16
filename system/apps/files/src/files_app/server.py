@@ -28,6 +28,7 @@ from files_app.connections import list_connections
 from files_app.connections import list_on_device
 from files_app.gateway import Gateway
 from files_app.gateway import device_files_path
+from files_app.webdav import DavEntry
 
 API_PREFIX: Final[str] = "/__files/api"
 REMOTE_PREFIX: Final[str] = "/__remote"
@@ -117,6 +118,29 @@ def _text(message: str, status: int) -> Response:
     return Response(message, status=status, mimetype="text/plain")
 
 
+def _index_data(href: str, children: list[DavEntry]) -> dict[str, object]:
+    """A shared folder's listing in the shape dufs gives a page or a ``?json`` answer."""
+    return {
+        "href": href,
+        "kind": "Index",
+        "uri_prefix": "/",
+        "allow_upload": True,
+        "allow_delete": True,
+        "allow_search": False,
+        "allow_archive": False,
+        "dir_exists": True,
+        "paths": [
+            {
+                "path_type": "Dir" if child.is_folder else "File",
+                "name": child.name,
+                "mtime": child.mtime,
+                "size": child.size,
+            }
+            for child in children
+        ],
+    }
+
+
 def create_app(
     dufs_url: str,
     gateway: Gateway | None,
@@ -196,27 +220,7 @@ def create_app(
         entries = list_on_device(gateway, device, path, depth=1) if gateway else None
         if entries is None:
             return _text(_UNREACHABLE, 502)
-        return _json(
-            {
-                "href": f"{REMOTE_PREFIX}/{device}{path}",
-                "kind": "Index",
-                "uri_prefix": "/",
-                "allow_upload": True,
-                "allow_delete": True,
-                "allow_search": False,
-                "allow_archive": False,
-                "dir_exists": True,
-                "paths": [
-                    {
-                        "path_type": "Dir" if entry.is_folder else "File",
-                        "name": entry.name,
-                        "mtime": entry.mtime,
-                        "size": entry.size,
-                    }
-                    for entry in entries[1:]
-                ],
-            }
-        )
+        return _json(_index_data(f"{REMOTE_PREFIX}/{device}{path}", entries[1:]))
 
     @app.route(f"{REMOTE_PREFIX}/<device>/", defaults={"path": ""}, methods=_ALL_METHODS)
     @app.route(f"{REMOTE_PREFIX}/<device>/<path:path>", methods=_ALL_METHODS)
@@ -236,23 +240,14 @@ def create_app(
         if method == "MOVE":
             return _text("Renaming isn't supported on files shared from your computer.", 501)
         if method in ("GET", "HEAD") and ("view" in query or "edit" in query or device_path.endswith("/")):
-            described = list_on_device(gateway, device, device_path, depth=0)
+            # Depth 1, so a folder's page carries its listing, which the frontend shows without asking again.
+            described = list_on_device(gateway, device, device_path, depth=1)
             if described is None or len(described) == 0:
                 return _text(_UNREACHABLE, 502)
             entry = described[0]
             href = f"{REMOTE_PREFIX}/{device}{device_path}"
             if entry.is_folder:
-                return page(
-                    {
-                        "href": href,
-                        "kind": "Index",
-                        "uri_prefix": "/",
-                        "allow_upload": True,
-                        "allow_delete": True,
-                        "dir_exists": True,
-                        "paths": [],
-                    }
-                )
+                return page(_index_data(href, described[1:]))
             editable = entry.size <= _EDITABLE_LIMIT and bool(_TEXT_TYPES.match(entry.content_type))
             kind = "Edit" if "edit" in query else "View"
             return page(

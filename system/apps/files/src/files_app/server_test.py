@@ -146,6 +146,8 @@ def test_a_shared_folder_with_no_copy_is_listed_live_in_dufs_own_shape(tmp_path:
     assert page.startswith('<script src="/__dufs_v0.46.0__/index.js">')
     data = json.loads(base64.b64decode(page.split("</script>")[1]))
     assert data["kind"] == "Index"
+    # The page carries the listing: the frontend shows it as the folder's and does not ask again.
+    assert [path["name"] for path in data["paths"]] == ["Mono.otf", "Variable"]
 
     assert client.open(f"/__remote/{DEVICE}/Users/kim/Atkinson/Mono.otf", method="MOVE").status_code == 501
 
@@ -159,6 +161,15 @@ def test_a_shared_file_is_streamed_from_the_computer_and_written_back_with_write
 
     assert client.put(f"/__remote/{DEVICE}/Users/kim/photo.png", data=b"new").status_code == 201
     assert computer.files["/Users/kim/photo.png"] == b"new"
+
+
+def test_a_change_the_computer_refuses_is_answered_as_read_only(tmp_path: Path) -> None:
+    computer = FakeComputer(permissions=["minds-file-server-read-/Users/kim/photo.png"], folders={}, is_writable=False)
+    computer.files["/Users/kim/photo.png"] = b"\x89PNG"
+    response = _app(computer, tmp_path).put(f"/__remote/{DEVICE}/Users/kim/photo.png", data=b"new")
+    assert response.status_code == 403
+    assert response.get_data(as_text=True) == "Your computer only shares this to read."
+    assert computer.files["/Users/kim/photo.png"] == b"\x89PNG"
 
 
 def test_asking_for_a_share_reaches_imbue_studio_as_a_file_sharing_request_from_the_main_chat(tmp_path: Path) -> None:
