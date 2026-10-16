@@ -239,7 +239,8 @@ export function prependToComposer(chatId: string, block: string): void {
 }
 
 /** Lay the composer out for its text: the buttons beside a message that fits on one line, or in a
- *  row under a longer one, so the text gets the full width. Wrapping is measured with the buttons
+ *  row under a longer one, so the text gets the full width. A row holding attachments
+ *  (``data-attachments``) is always stacked, whatever the text's length. Wrapping is measured with the buttons
  *  beside the text whichever layout is showing, so the stacked layout's extra width cannot unwrap
  *  the text and flip it back.
  *
