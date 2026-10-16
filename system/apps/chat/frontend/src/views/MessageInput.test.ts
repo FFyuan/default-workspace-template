@@ -586,6 +586,60 @@ describe("MessageInput send button", () => {
   });
 });
 
+describe("MessageInput layout with attachments", () => {
+  beforeEach(() => {
+    mocks.agent.activity_state = undefined;
+    localStorage.clear();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe(): void {}
+        disconnect(): void {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    mocks.getComposerAttachments.mockReturnValue([]);
+    vi.unstubAllGlobals();
+  });
+
+  /** Lay the composer out, as the browser would, for one line of text that fits; returns whether the row stacked. */
+  function stacksOneLineOfText(): boolean {
+    const tree = MessageInput().view!({ attrs: { chatId: "agent-1" } } as never);
+    const rowVnode = findByClass(tree, "message-input-row");
+    const attributes = new Set<string>();
+    if (rowVnode?.attrs?.["data-attachments"] !== undefined) attributes.add("data-attachments");
+    const row = {
+      clientWidth: 600,
+      style: {},
+      getBoundingClientRect: () => ({ height: 36 }),
+      hasAttribute: (name: string) => attributes.has(name),
+      removeAttribute: (name: string) => attributes.delete(name),
+      toggleAttribute: (name: string, force: boolean) => {
+        if (force) attributes.add(name);
+        else attributes.delete(name);
+        return force;
+      },
+    };
+    const textarea = { style: {}, scrollHeight: 28, clientHeight: 28, focus: () => undefined };
+    (rowVnode?.attrs?.oncreate as (vnode: unknown) => void)({ dom: row });
+    (findByTag(tree, "textarea")?.attrs?.onupdate as (vnode: unknown) => void)({ dom: textarea });
+    return attributes.has("data-stacked");
+  }
+
+  it("keeps one line of text beside its buttons with no attachments", () => {
+    expect(stacksOneLineOfText()).toBe(false);
+  });
+
+  it("stacks the row whenever it holds attachments, even for one line of text", () => {
+    mocks.getComposerAttachments.mockReturnValue([
+      { localId: "a1", fileName: "notes.txt", isImage: false, status: "uploading", localSize: 7 },
+    ]);
+    expect(stacksOneLineOfText()).toBe(true);
+  });
+});
+
 describe("MessageInput stop button during a compaction", () => {
   beforeEach(() => {
     mocks.agent.activity_state = "COMPACTING";
