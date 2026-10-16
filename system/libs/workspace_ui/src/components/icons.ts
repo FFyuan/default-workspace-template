@@ -136,26 +136,6 @@ export function icon(name: IconName, opts: IconOptions = {}): string {
   );
 }
 
-let badgeMaskCount = 0;
-
-/** `name` with `badge` small at its bottom-right corner, hanging past it, in the same colour and weight, the icon
- *  cut away in a circle around it so the two never touch. */
-export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = {}): string {
-  const dims = opts.size === undefined ? "" : ` width="${opts.size}" height="${opts.size}"`;
-  const cls = opts.className ? ` class="${opts.className}"` : "";
-  const mask = `icon-badge-${(badgeMaskCount += 1)}`;
-  return (
-    `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
-    `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" overflow="visible" aria-hidden="true">` +
-    // The badge is 9/16 of the icon and hangs a little past its bottom-right corner. The icon is cut away in a
-    // square there whose edges fall on whole pixels at 16px (9px in, 8px down), clipped rather than masked,
-    // so the lines it crosses end sharp; a round cut, or a mask, leaves their ends blurred.
-    `<clipPath id="${mask}"><path clip-rule="evenodd" d="M-4-4h36v36h-36zM13.5 12h24v24h-24z"/></clipPath>` +
-    `<g clip-path="url(#${mask})">${STROKE_PATHS[name]}</g>` +
-    `<g transform="translate(15 13.5) scale(0.5625)" stroke-width="2.6">${STROKE_PATHS[badge]}</g></svg>`
-  );
-}
-
 /** Solid square "stop / interrupt" glyph (filled, not stroked). */
 export function stopIcon(size = 14): string {
   return (

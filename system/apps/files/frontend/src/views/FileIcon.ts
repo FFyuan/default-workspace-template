@@ -34,10 +34,19 @@ const PAGE_SVG =
   '<path d="M17.2 4.7C24.1 4.25 31.2 4.35 37.5 4.55C39 4.6 40 5.05 41.05 6.1L51.1 16.3C52.05 17.3 52.45 18.35 52.45 19.85C52.65 30.2 51.6 44.1 49.65 55.3C49.4 58.6 47.6 59.9 44.6 60.05C36 60.35 25 59.35 17.6 58.9C14.6 58.65 13 57.15 12.75 54.25C12.25 44.2 12.3 26.1 12.85 9.35C12.95 6.2 14.35 4.85 17.2 4.7Z" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linejoin="round"/>' +
   '<path d="M37.75 4.75C38.35 8.9 38.25 12.5 38.5 15.35C38.7 17.55 39.8 18.6 42.05 18.75C45.4 18.95 49.05 18.8 52.3 18.95" fill="none" style="stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
 
+const PAGE_LINES_PATH =
+  "M20.2 30.3C27 29.9 37 30.1 43.8 29.9M20.1 37.2C27.5 36.9 36.5 37.1 43.9 36.8M20.2 44.1C25.5 43.9 31.5 44.2 37 43.9";
+
 /** The ruled lines on a page with no tag, drawn by hand like the page and leaning 2 degrees, a little less than a
- *  tag. */
-const PAGE_LINES_SVG =
-  '<path transform="rotate(2 32 37)" d="M20.2 30.3C27 29.9 37 30.1 43.8 29.9M20.1 37.2C27.5 36.9 36.5 37.1 43.9 36.8M20.2 44.1C25.5 43.9 31.5 44.2 37 43.9" fill="none" style="stroke:var(--c-border-strong)" stroke-width="2.5" stroke-linecap="round"/>';
+ *  tag. Below 32px they are drawn heavier and darker, or a page in a list row would look blank. */
+function pageLinesSvg(isSmall: boolean): string {
+  const color = isSmall ? "var(--c-text-faint)" : "var(--c-border-strong)";
+  const width = isSmall ? 4.5 : 2.5;
+  return (
+    `<path transform="rotate(2 32 37)" d="${PAGE_LINES_PATH}" fill="none" style="stroke:${color}" ` +
+    `stroke-width="${width}" stroke-linecap="round"/>`
+  );
+}
 
 /** The corner an icon's badge sits in: a white disc with a hairline edge at the bottom right, the glyph 60% of
  *  its width. */
@@ -92,7 +101,9 @@ export function fileIconSvg(name: string, isFolder: boolean, badge: IconBadge | 
   } else {
     const family = familyOf(name, false);
     const tagText = badgeOf(name);
-    body = PAGE_SVG + (family === "other" && tagText === "" ? PAGE_LINES_SVG : tagSvg(family, tagText, size >= 32));
+    body =
+      PAGE_SVG +
+      (family === "other" && tagText === "" ? pageLinesSvg(size < 32) : tagSvg(family, tagText, size >= 32));
   }
   if (badge !== null) body += cornerBadgeSvg(BADGE_GLYPHS[badge]);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">${body}</svg>`;

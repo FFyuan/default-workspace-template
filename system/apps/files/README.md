@@ -66,8 +66,9 @@ the page asks for them with a per-build `?v=` stamp.
 A folder window has a sidebar, a toolbar (the path, the view switcher, the +
 button, and the view options), and the folder. The sidebar lists Shortcuts
 (Workspace and Uploads, each shown when it exists) and Connected: every file
-and folder shared from the user's computers. A share's icon wears a badge in
-its corner for how it reaches the workspace (a chain: linked, read live from
+and folder shared from the user's computers, each drawn with the folder views'
+own folder or page icon and a small badge over its corner for how it reaches
+the workspace (a chain: linked, read live from
 the computer; circular arrows: synced, a copy kept here), and its own entry
 wears the same badge wherever a folder view lists it. After the label come
 marks only when there is something to say: a "Read-only" word badge, a filled

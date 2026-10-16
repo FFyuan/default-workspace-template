@@ -9,7 +9,7 @@ import m from "mithril";
 
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
-import { alertDotIcon, badgedIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
+import { alertDotIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 import { Toasts } from "@imbue/workspace-ui/src/components/toasts";
@@ -36,6 +36,7 @@ import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
 import { isFileDrag, sourcesFromDrop } from "../models/uploads";
 import { DROP_FOLDER_ATTR, ENTRY_DRAG_TYPE, FOLDER_SURFACE_ATTR } from "./entries";
 import { menuRowsOf, type FilesController } from "./FilesController";
+import { fileIconSvg } from "./FileIcon";
 import { ColumnView, IconView, ListView } from "./FolderViews";
 import { iconButton } from "./iconButton";
 import { handleKeydown } from "./keyboard";
@@ -111,11 +112,7 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
     [
       row.iconBadge === undefined
         ? m.trust(icon(row.icon, { size: 16, className: "shrink-0" }))
-        : m(
-            "span.files-share-icon",
-            { "data-share-badge": row.iconBadge, class: "flex shrink-0" },
-            m.trust(badgedIcon(row.icon, SHARE_BADGE_ICONS[row.iconBadge], { size: 16 })),
-          ),
+        : sharedItemIcon(row.label, row.icon === "folder", row.iconBadge),
       m("span.files-sidebar-label", { class: "min-w-0 flex-1 truncate" }, row.label),
       row.badges ?? null,
     ],
@@ -123,6 +120,22 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
 }
 
 const SHARE_BADGE_ICONS: Record<ShareBadge, IconName> = { linked: "link", synced: "refresh" };
+
+/** A shared item drawn as the folder views draw it, with a small disc over its corner saying how it reaches the
+ *  workspace. */
+function sharedItemIcon(name: string, isFolder: boolean, badge: ShareBadge): m.Vnode {
+  return m("span.files-share-icon", { "data-share-badge": badge, class: "relative flex shrink-0" }, [
+    m.trust(fileIconSvg(name, isFolder, null, 18)),
+    m(
+      "span",
+      {
+        class:
+          "absolute -right-1 -bottom-0.5 flex size-[11px] items-center justify-center rounded-full border border-strong bg-surface text-secondary",
+      },
+      m.trust(icon(SHARE_BADGE_ICONS[badge], { size: 7, strokeWidth: 2.6 })),
+    ),
+  ]);
+}
 
 function mark(kind: string, label: string, body: m.Children, extra: string): m.Vnode {
   return m("span.files-share-mark", { "data-mark": kind, "aria-label": label, class: `flex shrink-0 ${extra}` }, body);
@@ -179,7 +192,7 @@ function pendingRow(waiting: PendingConnection): m.Vnode {
       class: "flex h-7 w-full shrink-0 items-center gap-2 rounded-md px-2 text-(length:--font-size-row) text-faint",
     },
     [
-      m.trust(icon(waiting.isFolder ? "folder" : "page", { size: 16, className: "shrink-0" })),
+      m("span", { class: "flex shrink-0" }, m.trust(fileIconSvg(waiting.name, waiting.isFolder, null, 18))),
       m("span", { class: "min-w-0 flex-1 truncate" }, waiting.name),
       mark("pending", "Waiting for approval", m("span.spinner.spinner--sm"), "text-faint"),
     ],
