@@ -111,6 +111,21 @@ def test_double_clicking_a_folder_opens_it_and_the_history_keys_return(
     expect(_entry(page, "/projects/app/")).to_be_visible()
 
 
+def test_going_back_to_a_folder_opened_without_its_slash_lists_it_by_its_own_paths(
+    open_files_page: OpenFilesPage,
+) -> None:
+    # A chat link to a folder opens it at `/projects?view`.
+    page = open_files_page("/projects?view")
+    expect(_entry(page, "/projects/app/")).to_be_visible()
+    assert page.url.endswith("/projects/")
+    _entry(page, "/projects/app/").dblclick()
+    expect(_entry(page, "/projects/app/main.py")).to_be_visible()
+
+    page.keyboard.press("ControlOrMeta+BracketLeft")
+    expect(_entry(page, "/projects/app/")).to_be_visible()
+    assert page.url.endswith("/projects/")
+
+
 def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the_workspace(
     open_files_page: OpenFilesPage, files_root: Path, connections: Any
 ) -> None:

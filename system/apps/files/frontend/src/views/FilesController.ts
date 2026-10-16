@@ -88,7 +88,8 @@ export class FilesController {
       folder,
       initial,
     );
-    win.history.replaceState({ index: 0 }, "", win.location.pathname);
+    // The folder's own address, slash and all: a page reached at `/a/b?view` would otherwise come back as `/a/b`.
+    win.history.replaceState({ index: 0 }, "", urlOf(folder));
     win.addEventListener("popstate", (event) => {
       const index = typeof event.state?.index === "number" ? (event.state.index as number) : 0;
       this.model.restore(decodePathname(win.location.pathname), index);

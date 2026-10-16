@@ -283,14 +283,15 @@ export class FilesModel {
 
   /** The browser moved through its history (back, forward) to `folder`. */
   restore(folder: string, index: number): void {
-    this.settleColumnRoot(folder, false);
-    this.folder = folder;
+    const target = isFolderPath(folder) ? folder : `${folder}/`;
+    this.settleColumnRoot(target, false);
+    this.folder = target;
     this.historyIndex = index;
     this.selection = [];
     this.anchor = null;
     this.rename = null;
     this.clearSearch();
-    void this.load(folder);
+    void this.load(target);
     this.loadColumns();
     this.host.redraw();
   }
