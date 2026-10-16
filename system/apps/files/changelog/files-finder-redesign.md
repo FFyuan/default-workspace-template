@@ -17,3 +17,5 @@ The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files a
 - On a phone-sized window the sidebar floats over the folder from a toolbar button, the column view steps aside, a tap opens, and each item has a "..." menu.
 
 The column preview of a text file and a text file's own page use the shared type scale (helper and body sizes) rather than hand-set pixel sizes, and the list's sortable column headers drop the medium weight, as buttons do.
+
+A note Files leaves when something fails (a move, a save, a copy) rises at the foot of the window like the desktop's, several stack rather than replace one another, and each can be closed. The pointer hides while you type, as everywhere else in the workspace.

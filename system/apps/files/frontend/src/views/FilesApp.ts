@@ -11,6 +11,7 @@ import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import { alertDotIcon, badgedIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
+import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 import { Toasts } from "@imbue/workspace-ui/src/components/toasts";
 
 import { formatItemCount, formatSize } from "../models/format";
@@ -437,34 +438,17 @@ function Toolbar(): m.Component<{ app: FilesController }> {
         },
       ];
       const modes = VIEW_MODES.filter((view) => !(app.isNarrow && view.mode === "columns"));
-      // A light outline around the whole switch, and the chosen view a solid grey inside it.
-      const viewSwitch = m(
-        "div.files-view-switch",
-        {
-          role: "group",
-          "aria-label": "View",
-          class: "flex shrink-0 items-center gap-0.5 rounded-lg border border-default p-0.5",
-        },
-        modes.map((view) => {
-          const isChosen = app.viewMode === view.mode;
-          return m(
-            "button",
-            {
-              key: view.mode,
-              type: "button",
-              "aria-label": `View as ${view.label}`,
-              "data-view-mode": view.mode,
-              "aria-pressed": isChosen ? "true" : "false",
-              class: `flex h-6 w-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-(--dur-base) ${
-                isChosen ? "bg-fill-active text-primary" : "text-secondary hover:bg-fill-hover hover:text-primary"
-              }`,
-              ...hoverTooltipAttrs(`View as ${view.label}`),
-              onclick: () => model.setViewMode(view.mode),
-            },
-            m.trust(icon(view.icon, { size: 15 })),
-          );
-        }),
-      );
+      const viewSwitch = m(SegmentedControl<ViewMode>, {
+        label: "View",
+        segments: modes.map((view) => ({
+          value: view.mode,
+          label: `View as ${view.label}`,
+          icon: view.icon,
+          attrs: { "data-view-mode": view.mode },
+        })),
+        value: app.viewMode,
+        onSelect: (mode: ViewMode) => model.setViewMode(mode),
+      });
       const add = m("div", { class: "flex shrink-0" }, [
         iconButton("Add", "plus", { "data-action": "add", ...addMenu.triggerAttrs() }, { tooltip: false }),
         addMenu.view(menuRowsOf(app.folderActions(model.folder).reverse())),
