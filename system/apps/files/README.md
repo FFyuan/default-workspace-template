@@ -35,8 +35,10 @@ for every other registered app.
 - `/__remote/<device id>/<path>`: a share with no copy here, read live from the
   computer's file server over WebDAV and answered in dufs's own shape (a page,
   `?json`, the bytes, PUT, DELETE, MKCOL), so the frontend browses it like any
-  folder. Renaming is not offered there (the computer's file server has no
-  MOVE), nor is downloading a folder as a zip. The file server's paths carry no device id (the permissions match
+  folder. Renaming and moving are not offered there (the computer's file server
+  has no MOVE, and dufs would take a MOVE or COPY whose destination is under
+  `/__remote/` for a folder on its own disk, so the proxy refuses one), nor is
+  downloading a folder as a zip. The file server's paths carry no device id (the permissions match
   `/minds-api-proxy/api/v1/files/<path>`); the device goes in the
   `X-Latchkey-Device` header.
 - Every answer's `Content-Disposition` is made ASCII-safe. dufs names a file in
@@ -103,7 +105,8 @@ shared by every window.
   which the + button offers too.
 - Files dragged in from outside upload into the folder under the pointer (a
   folder's tile or row, a column, a shortcut, a path segment) or else the folder
-  on show, folders included; entries dragged onto a folder move into it. An
+  on show, folders included; entries dragged onto a folder move into it, except
+  to or from a folder read live from a computer, which says it can't. An
   upload whose name is taken asks whether to replace it or keep both. Uploads
   show their progress in a panel at the bottom right, which goes away a moment
   after the last one lands and stays up when one failed.
