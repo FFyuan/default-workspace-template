@@ -384,13 +384,14 @@
 }
 
 /* The switch that turns the card over. Only the row around it is styled here -- the switch
-   itself is the shared one from `modelProviderMenuStyles`, at its own size. No side padding, so
-   the switch ends flush with the composer's right edge. */
+   itself is the shared one from `modelProviderMenuStyles`, at its own size. Its 8px side padding
+   matches the model selector's, so at rest the switch sits as far in from the composer's right
+   edge as the model's name does from its left. */
 .terminal-view-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 0;
+  padding: 2px 8px;
   border: none;
   background: none;
   border-radius: var(--radius-md);
