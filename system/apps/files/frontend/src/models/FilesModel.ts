@@ -578,7 +578,7 @@ export class FilesModel {
     this.selection = this.selection.filter((path) => !moved.has(path));
     const touched = new Set([folder, ...moving.map((path) => parentOf(path) ?? ROOT)]);
     await Promise.all([...touched].filter((f) => this.folders.has(f)).map((f) => this.load(f)));
-    if (failures.length > 0) this.toasts.show(failures.join("\n"));
+    if (failures.length > 0) this.toasts.show([...new Set(failures)].join("\n"));
   }
 
   /** Send files into a folder, asking first about names that are already taken there. */

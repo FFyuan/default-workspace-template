@@ -191,10 +191,13 @@ describe("renaming", () => {
 });
 
 describe("moving", () => {
-  it("moves nothing into or out of a folder read live from a computer, and says why", async () => {
+  it("moves nothing into or out of a folder read live from a computer, and says why once a drag", async () => {
     const { model } = harness();
     await model.moveInto(["/home/b.txt"], "/__remote/host-mac/Users/kim/");
-    await model.moveInto(["/__remote/host-mac/Users/kim/notes.md"], "/home/zeta/");
+    await model.moveInto(
+      ["/__remote/host-mac/Users/kim/notes.md", "/__remote/host-mac/Users/kim/plan.md"],
+      "/home/zeta/",
+    );
     expect(dufs.movePath).not.toHaveBeenCalled();
     expect(model.toasts.current().map((toast) => toast.message)).toEqual([
       "Moving isn't supported on files shared from your computer.",
