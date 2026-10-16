@@ -31,6 +31,6 @@ def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) ->
     expected_paths = {
         flask_rule_to_openapi_path(rule.rule)
         for rule in client.application.url_map.iter_rules()
-        if rule.endpoint != "static" and not rule.endpoint.endswith(API_SCHEMA_ENDPOINT)
+        if rule.endpoint != "static" and rule.endpoint.rsplit(".", 1)[-1] != API_SCHEMA_ENDPOINT
     }
     assert set(document["paths"]) == expected_paths

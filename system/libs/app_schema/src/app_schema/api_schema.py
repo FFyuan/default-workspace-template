@@ -17,7 +17,7 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Final
 
-from flask import Blueprint, Flask, Response, current_app, jsonify
+from flask import Blueprint, Flask, Response, current_app, jsonify, request
 from imbue.imbue_common.frozen_model import FrozenModel
 from pydantic import BaseModel, Field
 
@@ -199,23 +199,18 @@ def register_api_schema_route(
 
     def api_schema() -> Response:
         """The OpenAPI 3.1 document describing this app's HTTP API."""
+        # The route's own endpoint, whatever name the blueprint carrying it was registered under.
+        assert request.endpoint is not None
         document = build_openapi_document(
             current_app,
             title=title,
             description=description,
             version=version,
             route_models=models_by_route,
-            excluded_endpoints=frozenset({_endpoint_name(target)}),
+            excluded_endpoints=frozenset({request.endpoint}),
         )
         return jsonify(document)
 
     target.add_url_rule(
         path, endpoint=API_SCHEMA_ENDPOINT, view_func=api_schema, methods=["GET"]
     )
-
-
-def _endpoint_name(target: Flask | Blueprint) -> str:
-    """The endpoint the schema view registers under: prefixed by the blueprint's name when it lives on one."""
-    if isinstance(target, Blueprint):
-        return f"{target.name}.{API_SCHEMA_ENDPOINT}"
-    return API_SCHEMA_ENDPOINT
