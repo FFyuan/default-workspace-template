@@ -170,6 +170,14 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     expect(
         page.locator('[data-sidebar-row="share:host-mac:/Users/kim/photo.png"] [data-mark="read-only"]')
     ).to_have_text("Read-only")
+    # A shared folder's row takes drops like any folder; a shared file's does not.
+    expect(page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]')).to_have_attribute(
+        "data-drop-folder", "/home/user/synced_folders/host-mac/Users/kim/notes/"
+    )
+    assert (
+        page.locator('[data-sidebar-row="share:host-mac:/Users/kim/photo.png"]').get_attribute("data-drop-folder")
+        is None
+    )
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').hover()
     expect(page.get_by_role("tooltip")).to_have_text("Synced from Kims-Mac. Read-only. Hasn't caught up yet.")

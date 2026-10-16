@@ -77,6 +77,8 @@ interface SidebarRow {
   /** Marks after the label, shown only when there is something to say: read-only, stuck, not answering. */
   badges?: m.Children;
   isFaint?: boolean;
+  /** A shared file opens its page and takes no drops; every other row is a folder. */
+  isFile?: boolean;
   onOpen?: () => void;
 }
 
@@ -88,7 +90,7 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
       key: row.key,
       type: "button",
       "data-sidebar-row": row.key,
-      [DROP_FOLDER_ATTR]: row.path,
+      [DROP_FOLDER_ATTR]: row.isFile === true ? undefined : row.path,
       "aria-current": isCurrent ? "true" : undefined,
       ...(row.title === undefined ? {} : hoverTooltipAttrs(row.title, "right", { maxWidth: 260 })),
       class: `flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
@@ -155,6 +157,7 @@ function shareRow(app: FilesController, connections: Connections, share: Share):
     iconBadge: shareBadgeOf(share),
     title: describeShare(share, deviceNameOf(connections, share.device)),
     isFaint: !share.is_reachable && share.synced_copy === null,
+    isFile: share.kind === "file",
     badges: [
       share.access === "read" ? readOnlyMark() : null,
       share.sync_state === "behind" ? stuckMark() : null,
