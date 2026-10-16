@@ -88,7 +88,6 @@ export class Dialogs {
     this.current = null;
     if (dialog.kind === "delete") dialog.resolve(false);
     else if (dialog.kind === "replace") dialog.resolve("cancel");
-    else if (dialog.kind === "connect") dialog.resolve(null);
     else dialog.resolve(null);
   }
 
