@@ -241,8 +241,10 @@ def create_app(
         """The files a connected computer shares, served the way the workspace's own files are.
 
         A ``GET`` with ``json`` lists a folder, with ``view`` or ``edit`` shows a file's
-        page, and otherwise downloads the file; ``PUT`` uploads one. Renaming, folder
-        downloads and the WebDAV methods are not supported on a computer's files.
+        page, and otherwise downloads the file; ``PUT`` uploads one, ``DELETE`` removes
+        one, ``MKCOL`` makes a folder, and ``PROPFIND`` is WebDAV's listing, each
+        forwarded to the computer. Renaming (``MOVE``) and folder downloads (``zip``)
+        are not supported on a computer's files.
         """
         if gateway is None:
             return no_gateway()
