@@ -86,6 +86,8 @@ export interface FilesHost {
   openFile(path: string): void;
   confirmDelete(entries: readonly Entry[]): Promise<boolean>;
   confirmReplace(names: readonly string[]): Promise<ConflictChoice>;
+  /** Ask what to call a new folder or file, `suggested` filled in; null when the user backs out. */
+  askNewName(suggested: string, isFolder: boolean): Promise<string | null>;
 }
 
 /** How a click changes the selection: to just this, this added or taken away, or the run from the last click. */
@@ -540,12 +542,20 @@ export class FilesModel {
     await this.createAndName("untitled.txt", false);
   }
 
+  /** Make the entry and name it in place; in a computer's live share, where nothing can be renamed, the name is asked
+   *  for first. */
   private async createAndName(baseName: string, isFolder: boolean): Promise<void> {
     this.clearSearch();
     const folder = this.folder;
-    const name = uniqueName(baseName, (candidate) => this.isNameTaken(folder, candidate));
+    const suggested = uniqueName(baseName, (candidate) => this.isNameTaken(folder, candidate));
+    const isLive = isLiveShared(folder);
+    const name = isLive ? await this.host.askNewName(suggested, isFolder) : suggested;
+    if (name === null) return;
     const path = childPath(folder, name, isFolder);
     try {
+      if (this.isNameTaken(folder, name) || (isLive && (await dufs.exists(path)))) {
+        throw new Error(`"${name}" is already taken.`);
+      }
       if (isFolder) await dufs.createFolder(path);
       else await dufs.writeFile(path, "");
     } catch (error) {
@@ -553,7 +563,13 @@ export class FilesModel {
       return;
     }
     await this.load(folder);
-    this.startRename(path);
+    if (isLive) {
+      this.selection = [path];
+      this.anchor = path;
+      this.host.redraw();
+    } else {
+      this.startRename(path);
+    }
   }
 
   /** Move entries into a folder, as a drag onto it asks. One that would land on a name already there stays put, and

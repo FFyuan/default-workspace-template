@@ -1,6 +1,6 @@
 /**
- * The questions the app stops to ask: whether to delete, what to do about names already taken by an upload, and
- * what to call a file renamed from its own page. Each is a promise its caller awaits; one dialog shows at a time.
+ * The questions the app stops to ask: whether to delete, what to do about names already taken by an upload, what
+ * to call a file renamed from its own page, and what to call something new made where it can't be renamed in place. Each is a promise its caller awaits; one dialog shows at a time.
  */
 
 import m from "mithril";
@@ -21,6 +21,9 @@ type Dialog =
   | {
       kind: "rename";
       name: string;
+      /** Whether it names something about to be made, which takes the suggested name as an answer too. */
+      isNew: boolean;
+      title: string;
       draft: string;
       error: string | null;
       resolve: (name: string | null) => void;
@@ -58,7 +61,17 @@ export class Dialogs {
 
   /** Ask for a new name for `name`; null when the user backs out. */
   askName(name: string): Promise<string | null> {
-    return new Promise((resolve) => this.show({ kind: "rename", name, draft: name, error: null, resolve }));
+    return new Promise((resolve) =>
+      this.show({ kind: "rename", name, isNew: false, title: "Rename", draft: name, error: null, resolve }),
+    );
+  }
+
+  /** Ask what to call a new folder or file, `suggested` filled in; null when the user backs out. */
+  askNewName(suggested: string, isFolder: boolean): Promise<string | null> {
+    const title = isFolder ? "New Folder" : "New File";
+    return new Promise((resolve) =>
+      this.show({ kind: "rename", name: suggested, isNew: true, title, draft: suggested, error: null, resolve }),
+    );
   }
 
   /** Ask what to connect from which computer; null when the user backs out. `dropped` is an item dragged in from it,
@@ -180,25 +193,30 @@ export class Dialogs {
         dialog.error = problem;
         return;
       }
-      this.answer(() => dialog.resolve(name === dialog.name ? null : name));
+      this.answer(() => dialog.resolve(name === dialog.name && !dialog.isNew ? null : name));
     };
+    const action = dialog.isNew ? "create" : "rename";
     return m(
       Modal,
       {
-        title: "Rename",
+        title: dialog.title,
         onDismiss: dismiss,
         onEscape: dismiss,
-        card: { "data-dialog": "rename" },
+        card: { "data-dialog": dialog.isNew ? "new-name" : "rename" },
         actions: [
           m(Button, { onclick: dismiss }, "Cancel"),
-          m(Button, { variant: "primary", "data-dialog-action": "rename", onclick: submit }, "Rename"),
+          m(
+            Button,
+            { variant: "primary", "data-dialog-action": action, onclick: submit },
+            dialog.isNew ? "Create" : "Rename",
+          ),
         ],
       },
       [
         m("input", {
           class: inputClass({ extra: "mb-2" }),
           value: dialog.draft,
-          "aria-label": "New name",
+          "aria-label": dialog.isNew ? "Name" : "New name",
           oncreate: ({ dom }: { dom: Element }) => {
             const input = dom as HTMLInputElement;
             input.focus();

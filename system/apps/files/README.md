@@ -38,7 +38,8 @@ for every other registered app.
   folder. Renaming and moving are not offered there (the computer's file server
   has no MOVE, and dufs would take a MOVE or COPY whose destination is under
   `/__remote/` for a folder on its own disk, so the proxy refuses one), nor is
-  downloading a folder as a zip. The file server's paths carry no device id (the permissions match
+  downloading a folder as a zip; a new folder or file made there is named in a
+  dialog before it is made, since it can't be renamed after. The file server's paths carry no device id (the permissions match
   `/minds-api-proxy/api/v1/files/<path>`); the device goes in the
   `X-Latchkey-Device` header.
 - Every answer's `Content-Disposition` is made ASCII-safe. dufs names a file in

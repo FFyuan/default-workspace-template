@@ -46,6 +46,7 @@ function harness(): Harness {
     openFile: vi.fn(),
     confirmDelete: vi.fn(async () => true),
     confirmReplace: vi.fn(async () => replaceAnswer.value),
+    askNewName: vi.fn(async () => null),
   };
   const model = new FilesModel(host, HOME, { exists: true, entries: ENTRIES });
   return { model, host, locations, replaceAnswer };
@@ -247,6 +248,23 @@ describe("creating", () => {
     model.folders.get(HOME)?.entries.push(folderEntry(HOME, "untitled folder"));
     await model.createFolder();
     expect(dufs.createFolder).toHaveBeenCalledWith("/home/untitled folder 2/");
+  });
+
+  it("asks for the name first in a computer's live share, where nothing can be renamed in place", async () => {
+    const live = "/__remote/host-mac/Users/kim/";
+    const host = harness().host;
+    const model = new FilesModel(host, live, { exists: true, entries: [folderEntry(live, "untitled folder")] });
+    vi.mocked(dufs.listFolder).mockResolvedValue({ exists: true, entries: [] });
+
+    await model.createFolder();
+    expect(host.askNewName).toHaveBeenCalledWith("untitled folder 2", true);
+    expect(dufs.createFolder).not.toHaveBeenCalled();
+
+    vi.mocked(host.askNewName).mockResolvedValueOnce("Drafts");
+    await model.createFolder();
+    expect(dufs.createFolder).toHaveBeenCalledWith(`${live}Drafts/`);
+    expect(model.rename).toBeNull();
+    expect(model.selection).toEqual([`${live}Drafts/`]);
   });
 });
 

@@ -84,6 +84,7 @@ export class FilesController {
         openFile: (path) => this.openPage(path, "view"),
         confirmDelete: (entries) => this.dialogs.confirmDelete(entries),
         confirmReplace: (names) => this.dialogs.confirmReplace(names),
+        askNewName: (suggested, isFolder) => this.dialogs.askNewName(suggested, isFolder),
       },
       folder,
       initial,
