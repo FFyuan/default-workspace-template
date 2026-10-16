@@ -172,7 +172,7 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     ).to_have_text("Read-only")
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').hover()
-    expect(page.get_by_role("tooltip")).to_have_text("Synced from Kims-Mac, read-only. Hasn't caught up yet.")
+    expect(page.get_by_role("tooltip")).to_have_text("Synced from Kims-Mac. Read-only. Hasn't caught up yet.")
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]').click()
     expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()

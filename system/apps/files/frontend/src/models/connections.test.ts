@@ -21,17 +21,17 @@ describe("describeShare", () => {
   it("says how a share reaches the workspace and how it stands, never its name", () => {
     const copy = "/home/user/synced_folders/host-mac/Users/kim/notes/";
     expect(describeShare(share({ synced_copy: copy, sync_state: "current" }), MAC)).toBe(
-      "Synced both ways. Up to date.",
+      "Synced with Kims-Mac. Up to date.",
     );
     expect(describeShare(share({ access: "read", synced_copy: copy, sync_state: "behind" }), MAC)).toBe(
-      "Synced from Kims-Mac, read-only. Hasn't caught up yet.",
+      "Synced from Kims-Mac. Read-only. Hasn't caught up yet.",
     );
     expect(describeShare(share({ synced_copy: copy, sync_state: "unknown", is_reachable: false }), MAC)).toBe(
-      "Synced both ways. Can't check: Kims-Mac isn't answering.",
+      "Synced with Kims-Mac. Can't check: not answering right now.",
     );
-    expect(describeShare(share({}), MAC)).toBe("Live from Kims-Mac, not copied.");
+    expect(describeShare(share({}), MAC)).toBe("On Kims-Mac.");
     expect(describeShare(share({ access: "read", is_reachable: false }), MAC)).toBe(
-      "Live from Kims-Mac, not copied, read-only. Kims-Mac isn't answering.",
+      "On Kims-Mac. Read-only. Not answering right now.",
     );
     expect(describeShare(share({}), MAC)).not.toContain("notes");
   });

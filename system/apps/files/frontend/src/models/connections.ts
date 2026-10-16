@@ -74,25 +74,26 @@ export function shortDeviceName(deviceName: string): string {
   return deviceName.replace(/\.local$/, "");
 }
 
-/** The hover text of a share: how it reaches the workspace, then how it stands, never its own name. */
+/** The hover text of a share: where it lives and how it reaches the workspace, whether it is read-only, and how it
+ *  stands, never its own name. */
 export function describeShare(share: Share, deviceName: string): string {
   const device = shortDeviceName(deviceName);
-  const access = share.access === "write" ? "" : ", read-only";
-  const kind = {
-    "two-way": "Synced both ways",
-    "one-way": `Synced from ${device}${access}`,
-    live: `Live from ${device}, not copied${access}`,
+  const where = {
+    "two-way": `Synced with ${device}.`,
+    "one-way": `Synced from ${device}.`,
+    live: `On ${device}.`,
   }[modeOf(share)];
-  return `${kind}. ${statusOf(share, device)}`.trim();
+  const access = share.access === "read" ? "Read-only." : "";
+  return [where, access, statusOf(share)].filter((part) => part !== "").join(" ");
 }
 
-function statusOf(share: Share, device: string): string {
-  if (share.synced_copy === null) return share.is_reachable ? "" : `${device} isn't answering.`;
+function statusOf(share: Share): string {
+  if (share.synced_copy === null) return share.is_reachable ? "" : "Not answering right now.";
   switch (share.sync_state) {
     case "behind":
       return "Hasn't caught up yet.";
     case "unknown":
-      return `Can't check: ${device} isn't answering.`;
+      return "Can't check: not answering right now.";
     default:
       return "Up to date.";
   }

@@ -21,12 +21,12 @@ const PAGE_SVG =
 const PAGE_LINES_SVG =
   '<path d="M20 30h24M20 37h24M20 44h17" style="stroke:var(--c-border-strong)" stroke-width="2.5" stroke-linecap="round"/>';
 
-/** The corner an icon's badge sits in: a white disc with a hairline edge at the bottom right, the glyph filling
- *  most of it. */
+/** The corner an icon's badge sits in: a white disc with a hairline edge at the bottom right, the glyph 60% of
+ *  its width. */
 function cornerBadgeSvg(glyph: string): string {
   return (
     '<circle cx="50" cy="52" r="9.5" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1"/>' +
-    `<g transform="translate(43.4 45.4) scale(0.55)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
+    `<g transform="translate(44.3 46.3) scale(0.475)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
   );
 }
 
