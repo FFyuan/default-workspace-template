@@ -262,6 +262,7 @@ def test_a_file_dropped_on_a_shared_folder_uploads_into_it_rather_than_connectin
         ],
     }
     page = open_files_page("/")
+    expect(page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]')).to_be_visible()
     page.evaluate(_DROP_FROM_COMPUTER, ['[data-sidebar-row="share:host-mac:/Users/kim/notes"]', "brief.pdf"])
 
     expect(page.locator(".files-uploads-summary")).to_have_text("Uploaded 1 item")
