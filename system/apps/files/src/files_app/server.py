@@ -234,6 +234,9 @@ def create_app(
             return no_gateway()
         raw_path = urllib.parse.unquote(urllib.parse.urlsplit(request.environ.get("REQUEST_URI", request.path)).path)
         device_path = "/" + raw_path[len(f"{REMOTE_PREFIX}/{device}/") :]
+        # The gateway client drops dot segments, so `..` would climb out of the file server to the gateway's own API.
+        if any(segment in (".", "..") for segment in device_path.split("/")):
+            return _text("That path isn't a file or folder on your computer.", 400)
         query = request.args
         method = request.method
         if method == "GET" and "json" in query:
