@@ -160,6 +160,11 @@ def create_app(
 
     @app.get(f"{API_PREFIX}/connections")
     def connections() -> Response:
+        """The person's connected computers and the folders each shares with this workspace.
+
+        Answers ``{"devices": [...], "shares": [...]}``; both lists are empty when the
+        workspace is not connected to Imbue Studio.
+        """
         if gateway is None:
             return _json({"devices": [], "shares": []})
         try:
@@ -170,6 +175,12 @@ def create_app(
 
     @app.post(f"{API_PREFIX}/connections")
     def request_connection() -> Response:
+        """Ask a connected computer to share a folder with this workspace.
+
+        The JSON body names the ``device``, the ``path`` on it (its home folder when
+        omitted), ``access`` (``read`` or ``write``) and whether to ``sync`` the folder
+        here; the person approves the request on that computer.
+        """
         if gateway is None:
             return no_gateway()
         body = request.get_json(silent=True) or {}
@@ -228,6 +239,12 @@ def create_app(
     @app.route(f"{REMOTE_PREFIX}/<device>/", defaults={"path": ""}, methods=_ALL_METHODS)
     @app.route(f"{REMOTE_PREFIX}/<device>/<path:path>", methods=_ALL_METHODS)
     def remote(device: str, path: str) -> Response:
+        """The files a connected computer shares, served the way the workspace's own files are.
+
+        A ``GET`` with ``json`` lists a folder, with ``view`` or ``edit`` shows a file's
+        page, and otherwise downloads the file; ``PUT`` uploads one. Renaming, folder
+        downloads and the WebDAV methods are not supported on a computer's files.
+        """
         if gateway is None:
             return no_gateway()
         raw_path = urllib.parse.unquote(urllib.parse.urlsplit(request.environ.get("REQUEST_URI", request.path)).path)
@@ -292,6 +309,12 @@ def create_app(
     @app.route("/", defaults={"path": ""}, methods=_ALL_METHODS)
     @app.route("/<path:path>", methods=_ALL_METHODS)
     def proxy(path: str) -> Response:
+        """The workspace's own files, served by dufs: a page per folder and file, WebDAV for every method.
+
+        ``GET`` with ``json`` lists a folder, with ``zip`` downloads one, and with
+        ``view`` or ``edit`` shows a file's page; ``PUT`` uploads, ``DELETE`` removes,
+        ``MKCOL`` makes a folder, ``MOVE`` renames, and ``PROPFIND`` is WebDAV's listing.
+        """
         target = request.environ.get("REQUEST_URI") or request.full_path
         headers = [(key, value) for key, value in request.headers.items() if key.lower() not in _HOP_BY_HOP]
         upstream_request = dufs.build_request(request.method, target, headers=headers, content=_request_body())
