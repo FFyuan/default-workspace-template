@@ -141,7 +141,10 @@ describe("passing the chrome's answers down", () => {
       () => [pageA, pageB] as unknown as Window[],
       () => undefined,
     );
-    const verdict = { type: "minds:permission-resolutions", resolutions: [{ requestId: "req-1", resolution: "granted" }] };
+    const verdict = {
+      type: "minds:permission-resolutions",
+      resolutions: [{ requestId: "req-1", resolution: "granted" }],
+    };
 
     deliver(verdict, parent);
     deliver(verdict, { name: "stranger" });
