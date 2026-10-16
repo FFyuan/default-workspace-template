@@ -147,7 +147,7 @@ function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
     const isLeft = side === "left";
     return [
       m("div", {
-        class: `pointer-events-none absolute top-0 h-10 w-8 ${isLeft ? "left-0" : "right-0"}`,
+        class: `pointer-events-none absolute top-0 ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-8 ${isLeft ? "left-0" : "right-0"}`,
         style: { backgroundImage: stripFade(isLeft ? "to right" : "to left") },
       }),
       // A bare chevron until hovered, when it fills in as a small floating button. It sits 10px
