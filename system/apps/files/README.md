@@ -18,7 +18,7 @@ for every other registered app.
 
 ## The Files server
 
-`server.py` relays every request to dufs and answers three things dufs cannot:
+`server.py` relays every request to dufs and answers four things dufs cannot:
 
 - `/__files/api/connections`: GET lists what the user has shared with the
   workspace from their computers, POST asks for more. Both go through the
@@ -32,6 +32,9 @@ for every other registered app.
   computer's to say when a copy has fallen behind. A request is a
   `file-sharing` permission request from the workspace's main agent
   (`MNGR_AGENT_ID`); Imbue Studio shows its sharing dialog on the computer.
+- `/__files/api/schema`: the OpenAPI document of the app's routes, built from its
+  url map (`system/libs/app_schema`); the manifest's `api_schema_path`, which the
+  visiting-agent primer links.
 - `/__remote/<device id>/<path>`: a share with no copy here, read live from the
   computer's file server over WebDAV and answered in dufs's own shape (a page,
   `?json`, the bytes, PUT, DELETE, MKCOL), so the frontend browses it like any
