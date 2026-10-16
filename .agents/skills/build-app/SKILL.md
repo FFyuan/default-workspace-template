@@ -419,7 +419,7 @@ which the scaffold already calls in `runner.py` with the manifest's
 `display_name` and `description`. The document is built from the live url
 map on each request, so every route you add is described automatically;
 what you owe it is a docstring on each view (its first line is the
-operation's summary, the rest its description) and, for a route that
+operation's summary, the whole of it the operation's description) and, for a route that
 validates a JSON body or answers a pydantic model, an entry in the
 `route_models` argument so the schemas are published. The scaffolded test
 `assert_api_schema_describes_app` keeps the document honest: it fails when
