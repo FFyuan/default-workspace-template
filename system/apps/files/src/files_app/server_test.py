@@ -168,6 +168,7 @@ def test_a_shared_folder_with_no_copy_is_listed_live_in_dufs_own_shape(tmp_path:
     assert [path["name"] for path in data["paths"]] == ["Mono.otf", "Variable"]
 
     assert client.open(f"/__remote/{DEVICE}/Users/kim/Atkinson/Mono.otf", method="MOVE").status_code == 501
+    assert client.open(f"/__remote/{DEVICE}/Users/kim/Atkinson/Mono.otf", method="COPY").status_code == 501
 
 
 def test_a_shared_file_is_streamed_from_the_computer_and_written_back_with_write_access(tmp_path: Path) -> None:

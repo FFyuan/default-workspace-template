@@ -68,6 +68,7 @@ _EDITABLE_LIMIT: Final[int] = 4 * 1024 * 1024
 _TEXT_TYPES: Final[re.Pattern[str]] = re.compile(r"^(text/|application/(json|xml|javascript|x-sh|toml|yaml))")
 _ASSETS_PREFIX: Final[re.Pattern[str]] = re.compile(r'src="(/__dufs_v[^"/]+__/)')
 _NO_MOVE_TO_COMPUTER: Final[str] = "Moving isn't supported on files shared from your computer."
+_NO_COPY_ON_COMPUTER: Final[str] = "Copying isn't supported on files shared from your computer."
 _UNREACHABLE: Final[str] = "Your computer isn't answering. It may be asleep, or Imbue Studio may be closed."
 
 
@@ -241,6 +242,8 @@ def create_app(
             return _text("Downloading a folder from your computer isn't supported yet.", 501)
         if method == "MOVE":
             return _text("Renaming isn't supported on files shared from your computer.", 501)
+        if method == "COPY":
+            return _text(_NO_COPY_ON_COMPUTER, 501)
         if method in ("GET", "HEAD") and ("view" in query or "edit" in query or device_path.endswith("/")):
             # Depth 1, so a folder's page carries its listing, which the frontend shows without asking again.
             described = list_on_device(gateway, device, device_path, depth=1)
