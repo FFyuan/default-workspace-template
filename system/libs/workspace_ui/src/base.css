@@ -257,7 +257,7 @@ body {
 @utility type-tag {
   font-size: var(--font-size-tag);
   font-weight: var(--weight-regular);
-  line-height: 1.6;
+  line-height: 1;
 }
 @utility type-section {
   font-size: var(--font-size-helper);
