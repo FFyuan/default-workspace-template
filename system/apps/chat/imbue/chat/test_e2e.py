@@ -1778,8 +1778,9 @@ _FOLDER_LINK_SESSION_EVENTS = _question_and_reply_events(
 def test_a_folder_link_raises_the_files_window_that_reached_the_folder_through_its_own_listing(
     tmp_path: Path, page: Page
 ) -> None:
-    """A Files window that walked into a folder through its own listing is at the path as Files spells it; a chat link to that folder spells it the shell's way, and the two must agree so the link raises that window
-    rather than opening a second one."""
+    """A Files window that walked into a folder through its own listing is at the path as Files spells it; a chat link
+    to that folder spells it the shell's way, and the two must agree so the link raises that window rather than
+    opening a second one."""
     root = tmp_path / "viewer-root"
     (root / _ODD_FOLDER_NAME).mkdir(parents=True)
     with running_files(root) as files_url:
