@@ -176,6 +176,8 @@ def test_a_manifest_reads_its_description_and_api_schema_path() -> None:
         AppManifest.model_validate(
             {**_full_manifest_data(), "api_schema_path": "api/schema?x=1"}
         )
+    with pytest.raises(ValidationError, match="also declares description"):
+        AppManifest.model_validate({**_full_manifest_data(), "api_schema_path": "/api/schema"})
 
 
 def test_window_closed_path_follows_the_launch_path_rule() -> None:
