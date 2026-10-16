@@ -221,7 +221,7 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
       // dufs calls any small file that decodes as text editable; Edit is offered only on one that reads as text.
       const canEdit = page.showsText && page.text.status === "ready" && isTextLike(name);
       return m("div.files-file-page", { class: "flex h-screen min-h-0 flex-col bg-surface text-primary" }, [
-        m("header.files-toolbar", { class: "flex h-12 shrink-0 items-center gap-2 border-b border-default px-3" }, [
+        m("header.files-toolbar", { class: "flex shrink-0 items-center gap-2 px-3 py-1" }, [
           m("div", { class: "flex min-w-0 flex-1 items-center gap-2" }, [
             m(FileIcon, { entry: { name, path, isFolder: false, isSymlink: false, size: 0, mtime: 0 }, size: 20 }),
             m("span.files-file-name", { class: "truncate text-(length:--font-size-row) font-semibold" }, name),

@@ -465,22 +465,18 @@ function Toolbar(): m.Component<{ app: FilesController }> {
         ),
         optionsMenu.view(optionRows),
       ]);
-      return m(
-        "header.files-toolbar",
-        { class: "flex h-12 shrink-0 items-center gap-1 border-b border-default bg-surface px-3" },
-        [
-          app.isNarrow
-            ? iconButton("Show sidebar", "panel-left", {
-                "data-action": "sidebar",
-                onclick: () => (app.isSidebarOpen = true),
-              })
-            : null,
-          m(Breadcrumb, { app }),
-          viewSwitch,
-          add,
-          options,
-        ],
-      );
+      return m("header.files-toolbar", { class: "flex shrink-0 items-center gap-1 bg-surface px-3 py-1" }, [
+        app.isNarrow
+          ? iconButton("Show sidebar", "panel-left", {
+              "data-action": "sidebar",
+              onclick: () => (app.isSidebarOpen = true),
+            })
+          : null,
+        m(Breadcrumb, { app }),
+        viewSwitch,
+        add,
+        options,
+      ]);
     },
   };
 }
