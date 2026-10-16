@@ -184,7 +184,9 @@ def create_app(
             return _json({"devices": [], "shares": []})
         try:
             listed = list_connections(gateway, synced_root)
-        except httpx.HTTPError as error:
+        except (httpx.HTTPError, ValueError) as error:
+            # ValueError: an answer from the gateway that is not the JSON it should be.
+            logger.warning("Couldn't read the shares through the gateway: {}", error)
             return _text(f"Couldn't read your shares: {error}", 502)
         return _json(listed.model_dump())
 
