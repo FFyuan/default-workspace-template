@@ -235,6 +235,15 @@ def test_the_connect_entry_asks_the_computer_to_share_something(
     ]
 
 
+def test_enter_on_a_focused_button_presses_it_rather_than_opening_the_selection(open_files_page: OpenFilesPage) -> None:
+    page = open_files_page("/")
+    _entry(page, "/projects/").click()
+    page.locator('[data-action="connect"]').focus()
+    page.keyboard.press("Enter")
+    expect(page.locator('[data-dialog="connect"]')).to_be_visible()
+    assert not page.url.endswith("/projects/")
+
+
 def test_the_connect_dialog_picks_which_computer_to_ask(open_files_page: OpenFilesPage, connections: Any) -> None:
     connections.listed = {
         "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}, {"id": "host-pc", "name": "Kims-PC"}],

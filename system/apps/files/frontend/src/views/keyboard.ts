@@ -19,6 +19,12 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || target.closest("input, textarea, select") !== null;
 }
 
+/** Whether Enter belongs to the control that has focus (a sidebar row, a crumb, a toolbar button) rather than to the
+ *  selected entries. */
+function isPressable(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest("button, a[href]") !== null;
+}
+
 /** How many tiles the icon grid fits on a row, read off where the tiles actually sit. */
 function tilesPerRow(): number {
   const tiles = Array.from(document.querySelectorAll<HTMLElement>(".files-tile"));
@@ -121,7 +127,7 @@ export function handleKeydown(app: FilesController, event: KeyboardEvent): void 
   if (
     (command && event.key === "ArrowDown") ||
     (command && event.key.toLowerCase() === "o") ||
-    event.key === "Enter"
+    (event.key === "Enter" && !isPressable(event.target))
   ) {
     const selected = model.selectedEntries();
     if (selected.length !== 1) return;
