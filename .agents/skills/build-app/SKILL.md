@@ -174,7 +174,12 @@ Required:
 - `--name`: kebab-case (lowercase letters/digits with single hyphens;
   must not start with `host-` or `agent-`) -- it becomes the service's
   hostname label.
-- `--description`: becomes the lib `pyproject.toml` description.
+- `--description`: the manifest's `description` -- one line of at most 200
+  characters saying what the app is for, in the person's terms. It is
+  what an agent reads to decide whether the app does what it needs (the
+  visiting-agent primer shows it, and the app's API document carries it),
+  so write it for them; it also becomes the lib `pyproject.toml`
+  description.
 - `--icon-file`: the icon you drew in pre-flight (`.svg` only); copied
   to `system/apps/<package>/icon.svg`, named by the manifest, and
   registered on every start.
@@ -193,7 +198,8 @@ Optional:
   `uv sync --all-packages` (for fast iteration / dry runs).
 
 The scaffolder fails non-zero with a clear stderr message if the lib
-already exists, the name is reserved or invalid, the requested port
+already exists, the name is reserved or invalid, the description is
+empty, spans lines or is over 200 characters, the requested port
 is taken, or the manifest check, the tool install or `uv sync` fails.
 
 What gets generated:
