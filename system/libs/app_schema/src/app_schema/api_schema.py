@@ -63,6 +63,8 @@ def _summary_and_description(
     if view_func is None or not view_func.__doc__:
         return None, None
     cleaned = inspect.cleandoc(view_func.__doc__)
+    if not cleaned:
+        return None, None
     return cleaned.splitlines()[0].strip(), cleaned
 
 

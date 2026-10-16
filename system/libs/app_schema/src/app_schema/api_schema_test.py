@@ -133,6 +133,27 @@ def test_the_document_covers_every_route_with_docstrings_parameters_and_models()
     )
 
 
+def test_a_blank_docstring_describes_nothing() -> None:
+    app = Flask("blank", static_folder=None)
+
+    @app.get("/")
+    def index() -> Response:
+        """   """
+        return Response("")
+
+    document = build_openapi_document(
+        app,
+        title="Blank",
+        description="x",
+        version="1.0",
+        route_models={},
+        excluded_endpoints=frozenset(),
+    )
+    operation = document["paths"]["/"]["get"]
+    assert "summary" not in operation
+    assert "description" not in operation
+
+
 def test_the_route_serves_the_document_without_describing_itself(
     notes_manifest_path: Path,
 ) -> None:
