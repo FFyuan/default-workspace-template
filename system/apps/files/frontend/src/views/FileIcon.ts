@@ -10,8 +10,9 @@ import { urlOf, type Entry } from "../models/dufs";
 import { badgeOf, familyOf, hasImageThumbnail, type FileFamily } from "../models/fileKinds";
 
 // The folder is the Files app icon's own hand-drawn shape (system/apps/files/icon.svg), drawn on that icon's grid
-// and fitted to 64 units. Its back shows above a wavy line, its front below it, each clipped from the one outline so
-// the edges match exactly and the darker back never bleeds through the front's rim.
+// and fitted to 64 units. Its back shows above a line that slopes down to the right, its front below it with its
+// top-left corner rounded, each clipped from the one outline so the edges match exactly and the darker back never
+// bleeds through the front's rim.
 const FOLDER_OUTLINE =
   "M21.34 15.75C24.52 15.67 26.57 15.75 27.93 15.9C29.52 16.05 30.35 16.89 31.26 18.25C32.17 19.61 32.7 20.29 34.14 20.37C37.16 20.52 41.15 20.22 44.26 20.37C46.83 20.52 48.14 22.49 47.99 24.98C47.76 29.07 47.16 34.22 46.47 38.23C46.02 40.8 44.43 42.09 41.55 42.17C34.89 42.32 26.19 42.32 20.36 42.09C17.56 41.94 16.37 41.03 16.17 38.23C15.67 31.23 16.42 24.53 16.8 20.29C17.03 17.34 18.47 15.83 21.34 15.75Z";
 
@@ -21,8 +22,8 @@ function folderSvg(): string {
   const id = `files-folder-${(folderClipCount += 1)}`;
   return (
     '<g transform="translate(-24 -18.8) scale(1.75)">' +
-    `<clipPath id="${id}-back"><path d="M14 10H50V22.1C38 22.6 25 22.85 14 23.65Z"/></clipPath>` +
-    `<clipPath id="${id}-front"><path d="M14 23.45C25 22.65 38 22.4 50 21.9V44H14Z"/></clipPath>` +
+    `<clipPath id="${id}-back"><path d="M14 10H50V23.6C38 23.05 26 22.45 19.6 22.15C17.3 22.2 16 23.3 15.3 25.8H14Z"/></clipPath>` +
+    `<clipPath id="${id}-front"><path d="M15.45 25.6C16.05 23.15 17.35 22 19.6 21.95C26 22.25 38 22.85 50 23.4V44H14V25.6Z"/></clipPath>` +
     `<path d="${FOLDER_OUTLINE}" clip-path="url(#${id}-back)" style="fill:var(--files-folder-back)"/>` +
     `<path d="${FOLDER_OUTLINE}" clip-path="url(#${id}-front)" style="fill:var(--files-folder)"/></g>`
   );
