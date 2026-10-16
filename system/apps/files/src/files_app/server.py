@@ -18,12 +18,12 @@ from pathlib import Path
 from typing import Final
 
 import httpx
-from app_schema.api_schema import register_api_schema_route
 from flask import Flask
 from flask import Response
 from flask import request
 from flask import stream_with_context
 
+from app_schema.api_schema import register_api_schema_route
 from files_app.connections import SYNCED_FOLDERS
 from files_app.connections import list_connections
 from files_app.connections import list_on_device

@@ -110,6 +110,7 @@ known-first-party = [
     "getting_started",
     "imbue",
     "app_manifest",
+    "app_schema",
     "workspace_layout",
 ]
 

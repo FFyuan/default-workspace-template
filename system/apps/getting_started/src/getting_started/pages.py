@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import Final
 from typing import assert_never
 
-from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
-from app_schema.api_schema import register_api_schema_route
 from flask import Blueprint
 from flask import Response
 from flask import jsonify
@@ -21,6 +19,8 @@ from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import NotFound
 
 from app_manifest.registry import APP_CONTRACT_ROUTE
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import register_api_schema_route
 from getting_started.template_catalog import TemplateCatalogAvailability
 from getting_started.template_catalog import TemplateCatalogStore
 from getting_started.template_catalog import catalog_wire_json

@@ -46,4 +46,4 @@ ignore = ["E501"]
 force-single-line = true
 case-sensitive = true
 order-by-type = false
-known-first-party = ["files_app", "imbue", "app_manifest"]
+known-first-party = ["files_app", "imbue", "app_manifest", "app_schema"]
