@@ -146,11 +146,10 @@ export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = 
     `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
     `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" overflow="visible" aria-hidden="true">` +
     // The badge is 9/16 of the icon and hangs a little past its bottom-right corner. The icon is cut away in a
-    // square there whose edges fall on whole pixels at 16px (9px in, 8px down), so the lines it crosses end
-    // sharp; a round cut crosses them on a slant and leaves their ends blurred.
-    `<mask id="${mask}" maskUnits="userSpaceOnUse" x="-4" y="-4" width="36" height="36">` +
-    `<rect x="-4" y="-4" width="36" height="36" fill="#fff"/><rect x="13.5" y="12" width="24" height="24" fill="#000"/></mask>` +
-    `<g mask="url(#${mask})">${STROKE_PATHS[name]}</g>` +
+    // square there whose edges fall on whole pixels at 16px (9px in, 8px down), clipped rather than masked,
+    // so the lines it crosses end sharp; a round cut, or a mask, leaves their ends blurred.
+    `<clipPath id="${mask}"><path clip-rule="evenodd" d="M-4-4h36v36h-36zM13.5 12h24v24h-24z"/></clipPath>` +
+    `<g clip-path="url(#${mask})">${STROKE_PATHS[name]}</g>` +
     `<g transform="translate(15 13.5) scale(0.5625)" stroke-width="2.6">${STROKE_PATHS[badge]}</g></svg>`
   );
 }
