@@ -101,6 +101,14 @@ export class FilePageModel {
     window.location.replace(dufs.pageUrlOf(target, this.options.page));
   }
 
+  async copyPath(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.options.path);
+    } catch {
+      this.toasts.show("Couldn't copy to the clipboard.");
+    }
+  }
+
   async delete(): Promise<void> {
     const path = this.options.path;
     const entry: dufs.Entry = { name: nameOf(path), path, isFolder: false, isSymlink: false, size: 0, mtime: 0 };
@@ -269,7 +277,7 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
                 key: "copy-path",
                 label: "Copy Path",
                 icon: "copy",
-                onSelect: () => void navigator.clipboard.writeText(path).catch(() => undefined),
+                onSelect: () => void page.copyPath(),
               },
               { kind: "divider" },
               {
