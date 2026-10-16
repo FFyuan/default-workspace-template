@@ -61,8 +61,8 @@ export class Dialogs {
     return new Promise((resolve) => this.show({ kind: "rename", name, draft: name, error: null, resolve }));
   }
 
-  /** Ask what to connect from which computer; null when the user backs out. */
-  /** What to ask a computer to share; `dropped` is an item dragged in from it, of which a browser tells only the name. */
+  /** Ask what to connect from which computer; null when the user backs out. `dropped` is an item dragged in from it,
+   *  of which a browser tells only the name. */
   askConnection(devices: readonly Device[], dropped: DroppedItem | null = null): Promise<ConnectionRequest | null> {
     const draft: ConnectionRequest = {
       device: devices[0]?.id ?? "",

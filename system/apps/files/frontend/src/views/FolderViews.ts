@@ -24,13 +24,13 @@ interface ViewAttrs {
   entries: readonly Entry[];
 }
 
-/** The entry's name as shown: a search result's own name, with the folder it is in said separately. */
 /** The badge of a shared folder's or file's own entry, so it reads as linked or synced wherever it is listed. */
 function shareBadgeFor(app: FilesController, entry: Entry): IconBadge | undefined {
   const share = shareRootAt(app.model.connections, entry.path);
   return share === undefined ? undefined : shareBadgeOf(share);
 }
 
+/** The entry's name as shown: a search result's own name, with the folder it is in said separately. */
 function displayName(app: FilesController, entry: Entry): string {
   return app.model.search === null ? entry.name : nameOf(entry.path);
 }

@@ -149,14 +149,14 @@ export class FilesController {
     }
   }
 
-  /** Ask the user what to connect, then ask their computer: Imbue Studio shows its sharing dialog there. The list
-   *  is read again for a while after, so an approval shows up without a reload. */
   /** Connections asked for and not yet approved, each shown as a waiting row in the sidebar. */
   pending: PendingConnection[] = [];
   /** Whether something from the user's computer is being dragged over the Connected section. */
   isConnectDropping = false;
 
-  /** Ask a computer to share something, from the connect entry or an item dropped on Connected. */
+  /** Ask the user what to connect (from the connect entry, or an item dropped on Connected), then ask their computer:
+   *  Imbue Studio shows its sharing dialog there. The list is read again for a while after, so an approval shows up
+   *  without a reload. */
   async connectLocal(dropped: DroppedItem | null = null): Promise<void> {
     const ask = await this.dialogs.askConnection(this.model.connections?.devices ?? [], dropped);
     if (ask === null) return;
