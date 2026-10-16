@@ -168,7 +168,7 @@ describe("while uploading", () => {
   it("carries the picked file's size, and an image's own pixels, which are never persisted", async () => {
     const createObjectURL = vi.fn(() => "blob:preview-1");
     const revokeObjectURL = vi.fn();
-    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL, revokeObjectURL }));
     uploadFilesToComposer(chatId, [
       new File(["pixels"], "photo.png", { type: "image/png" }),
       new File(["notes!!"], "notes.txt"),
