@@ -213,7 +213,7 @@ function dropToConnectRow(): m.Vnode {
 }
 
 function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
-  return m("div.files-sidebar-heading", { class: "flex items-center gap-1 px-2 pt-3 pb-1 type-section text-faint" }, [
+  return m("div.files-sidebar-heading", { class: "flex h-8 shrink-0 items-center gap-1 px-2 pt-3 pb-1 type-section text-faint" }, [
     m("span", { class: "min-w-0 flex-1 truncate" }, label),
     extra,
   ]);
