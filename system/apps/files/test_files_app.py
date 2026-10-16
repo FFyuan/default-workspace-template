@@ -180,7 +180,8 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     expect(page.locator(".files-crumb")).to_have_text(["Kims-Mac", "notes"])
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').click()
-    expect(page.locator(".files-stuck-sync")).to_contain_text("Not synced yet from Kims-Mac.")
+    expect(page.locator(".files-stuck-sync")).to_contain_text("Not synced yet from Kims-Mac")
+    expect(page.locator(".files-stuck-sync")).not_to_contain_text(".local")
     page.locator('[data-view-mode="columns"]').click()
     expect(page.locator(".files-column .files-stuck-sync")).to_contain_text("Not synced yet")
 
