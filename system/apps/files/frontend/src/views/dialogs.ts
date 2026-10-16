@@ -273,7 +273,7 @@ export class Dialogs {
           : dialog.devices.length === 1
             ? m("p", { class: "mb-3 type-helper text-secondary" }, `From ${device?.name ?? "your computer"}`)
             : m("div", { class: "mb-3" }, [
-                m(Dropdown<string>(), {
+                m(Dropdown<string>, {
                   options: dialog.devices.map((candidate) => ({ value: candidate.id, label: candidate.name })),
                   value: draft.device,
                   placeholder: "Pick a computer",
