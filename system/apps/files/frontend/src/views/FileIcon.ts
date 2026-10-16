@@ -67,8 +67,8 @@ export function fileIconSvg(name: string, isFolder: boolean, badge: IconBadge | 
     body = FOLDER_SVG;
   } else {
     const family = familyOf(name, false);
-    const badge = badgeOf(name);
-    body = PAGE_SVG + (family === "other" && badge === "" ? PAGE_LINES_SVG : tagSvg(family, badge, size >= 32));
+    const tagText = badgeOf(name);
+    body = PAGE_SVG + (family === "other" && tagText === "" ? PAGE_LINES_SVG : tagSvg(family, tagText, size >= 32));
   }
   if (badge !== null) body += cornerBadgeSvg(BADGE_GLYPHS[badge]);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">${body}</svg>`;
