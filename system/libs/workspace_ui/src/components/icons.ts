@@ -145,11 +145,11 @@ export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = 
   return (
     `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
     `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" overflow="visible" aria-hidden="true">` +
-    // The badge is 9/16 of the icon and hangs a quarter of its own size past the bottom-right corner.
+    // The badge is 9/16 of the icon and hangs a little past the bottom-right corner.
     `<mask id="${mask}" maskUnits="userSpaceOnUse" x="-4" y="-4" width="36" height="36">` +
-    `<rect x="-4" y="-4" width="36" height="36" fill="#fff"/><circle cx="23.25" cy="21.75" r="8.25" fill="#000"/></mask>` +
+    `<rect x="-4" y="-4" width="36" height="36" fill="#fff"/><circle cx="21.75" cy="20.25" r="8.25" fill="#000"/></mask>` +
     `<g mask="url(#${mask})">${STROKE_PATHS[name]}</g>` +
-    `<g transform="translate(16.5 15) scale(0.5625)" stroke-width="2.6">${STROKE_PATHS[badge]}</g></svg>`
+    `<g transform="translate(15 13.5) scale(0.5625)" stroke-width="2.6">${STROKE_PATHS[badge]}</g></svg>`
   );
 }
 
