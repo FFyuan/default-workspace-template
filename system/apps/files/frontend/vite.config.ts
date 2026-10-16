@@ -24,7 +24,7 @@ export default defineConfig({
     },
   },
   build: {
-    // The directory the `files` program line hands dufs as `--assets`.
+    // The directory the `files-app` entry point (system/apps/files/src/files_app/main.py) hands dufs as `--assets`.
     outDir: path.resolve(__dirname, "../static"),
     emptyOutDir: true,
     assetsDir: "",

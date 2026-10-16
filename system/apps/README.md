@@ -34,8 +34,9 @@ Built-in apps:
   internal); the program that registers it is the `terminal-pty` entry point of
   `terminal/`.
 - `files/` - Files: a Finder-like browser of the container's filesystem, opened
-  at the workspace folder. dufs serves the files from its program line, with a
-  frontend from that same npm workspace.
+  at the workspace folder. Its `files-app` entry point runs dufs, which serves the
+  files with a frontend from that same npm workspace, and a small server in front
+  of it for the files shared from the user's computers.
 - `browser/` - The live browser: a fleet of Chromium browsers streamed to the
   UI by its daemon (`browser-service`).
 - `datalib/` - The Datalib app: datalib's web UI (`datalib-http`) over the store
