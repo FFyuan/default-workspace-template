@@ -487,6 +487,92 @@ describe("MessageInput placeholder", () => {
   });
 });
 
+describe("MessageInput attachment chips", () => {
+  const render = () => MessageInput().view!({ attrs: { chatId: "agent-1" } } as never);
+
+  beforeEach(() => {
+    mocks.agent.activity_state = undefined;
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    mocks.getComposerAttachments.mockReturnValue([]);
+  });
+
+  function chip(tree: unknown, fileName: string): AnyVnode | undefined {
+    return flatten(tree).find(
+      (vnode) =>
+        typeof vnode.attrs?.className === "string" &&
+        vnode.attrs.className.includes("composer-attachment--") &&
+        flatten(vnode).some((inner) => inner.attrs?.alt === fileName || renderedText(inner).includes(fileName)),
+    );
+  }
+
+  it("shows an uploading image as its own pixels under a spinner, with no way to remove it yet", () => {
+    mocks.getComposerAttachments.mockReturnValue([
+      { localId: "a1", fileName: "photo.png", isImage: true, status: "uploading", previewUrl: "blob:local" },
+    ]);
+    const image = chip(render(), "photo.png");
+    expect(findByTag(image, "img")?.attrs?.src).toBe("blob:local");
+    expect(findByAttr(image, "aria-label", "Uploading")).toBeDefined();
+    expect(findByAttr(image, "aria-label", "Remove attachment")).toBeUndefined();
+  });
+
+  it("shows an uploading file by name and local size, with a spinner where its icon goes", () => {
+    mocks.getComposerAttachments.mockReturnValue([
+      { localId: "a1", fileName: "notes.txt", isImage: false, status: "uploading", localSize: 7 },
+    ]);
+    const file = chip(render(), "notes.txt");
+    expect(findByTag(file, "img")).toBeUndefined();
+    expect(findByAttr(findByClass(file, "composer-attachment-icon"), "aria-label", "Uploading")).toBeDefined();
+    expect(findByClass(file, "composer-attachment-summary")).toBeDefined();
+    expect(findByAttr(file, "aria-label", "Remove attachment")).toBeUndefined();
+  });
+
+  it("shows a ready image as its uploaded thumbnail alone, removable", () => {
+    mocks.getComposerAttachments.mockReturnValue([
+      {
+        localId: "a1",
+        fileName: "photo.png",
+        isImage: true,
+        status: "ready",
+        uploaded: { path: "/uploads/photo.png", name: "photo.png", size: 6, isImage: true, url: "/files/photo.png" },
+      },
+    ]);
+    const image = chip(render(), "photo.png");
+    expect(findByTag(image, "img")?.attrs?.src).toBe("/files/photo.png");
+    expect(findByClass(image, "composer-attachment-name")).toBeUndefined();
+    expect(findByAttr(image, "aria-label", "Uploading")).toBeUndefined();
+    expect(findByAttr(image, "aria-label", "Remove attachment")).toBeDefined();
+  });
+
+  it("says a failed upload failed, even for an image, and lets it be removed", () => {
+    mocks.getComposerAttachments.mockReturnValue([
+      { localId: "a1", fileName: "photo.png", isImage: true, status: "error", error: "boom" },
+    ]);
+    const failed = chip(render(), "photo.png");
+    expect(findByTag(failed, "img")).toBeUndefined();
+    expect(renderedText(failed)).toContain("Upload failed");
+    expect(findByAttr(failed, "aria-label", "Remove attachment")).toBeDefined();
+  });
+});
+
+describe("MessageInput send button", () => {
+  beforeEach(() => {
+    mocks.agent.activity_state = undefined;
+    localStorage.clear();
+  });
+
+  it("stays in place, disabled, with nothing to send, and is enabled once there is text", () => {
+    const component = MessageInput();
+    const render = () => component.view!({ attrs: { chatId: "agent-1" } } as never);
+    expect(findByAttr(render(), "aria-label", "Send message")?.attrs?.disabled).toBe(true);
+    const oninput = findByTag(render(), "textarea")?.attrs?.oninput as (event: unknown) => void;
+    oninput({ target: { value: "hello", style: {}, scrollHeight: 10 } });
+    expect(findByAttr(render(), "aria-label", "Send message")?.attrs?.disabled).toBe(false);
+  });
+});
+
 describe("MessageInput stop button during a compaction", () => {
   beforeEach(() => {
     mocks.agent.activity_state = "COMPACTING";
