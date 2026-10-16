@@ -55,14 +55,14 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
         picture = m("img.files-preview-image", {
           src: url,
           alt: "",
-          class: "max-h-[240px] max-w-full object-contain",
+          class: "max-h-full max-w-full object-contain",
         });
       } else if (preview === "video") {
         picture = m("video", {
           src: url,
           controls: true,
           preload: "metadata",
-          class: "max-h-[240px] w-full rounded-md",
+          class: "max-h-full w-full rounded-md",
         });
       } else if (preview === "audio") {
         picture = [m(FileIcon, { entry, size: 112 }), m("audio", { src: url, controls: true, class: "w-full" })];
@@ -71,7 +71,7 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
           "pre.files-preview-text",
           {
             class:
-              "max-h-[260px] w-full overflow-hidden rounded-md border border-subtle bg-surface p-3 font-mono text-(length:--font-size-helper) leading-snug whitespace-pre-wrap break-words text-secondary shadow-raised",
+              "h-full w-full overflow-hidden rounded-md border border-subtle bg-surface p-3 font-mono text-(length:--font-size-helper) leading-snug whitespace-pre-wrap break-words text-secondary shadow-raised",
           },
           snippet.text,
         );
@@ -79,7 +79,13 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
         picture = m(FileIcon, { entry, size: 128 });
       }
       return m("div.files-preview", { class: "flex flex-col items-center gap-3 p-4" }, [
-        m("div", { class: "flex min-h-[140px] w-full flex-col items-center justify-center gap-3" }, picture),
+        // One fixed box for whatever stands for the file, so the pane does not jump as an icon gives way to a file's
+        // text, or from one picture's shape to the next.
+        m(
+          "div.files-preview-picture",
+          { class: "flex h-[240px] w-full flex-col items-center justify-center gap-3" },
+          picture,
+        ),
         m("div", { class: "w-full text-center type-label break-words text-primary" }, entry.name),
         m(
           "div",

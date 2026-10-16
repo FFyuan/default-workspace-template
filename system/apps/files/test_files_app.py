@@ -77,6 +77,25 @@ def test_columns_open_to_the_right_and_end_in_a_preview_of_the_chosen_file(
     expect(page.locator(".files-preview")).to_have_count(0)
 
 
+def test_the_preview_keeps_one_height_whatever_it_shows(open_files_page: OpenFilesPage, files_root: Path) -> None:
+    (files_root / "archive.zip").write_bytes(b"PK")
+    page = open_files_page("/")
+    page.locator('[data-view-mode="columns"]').click()
+    picture = page.locator(".files-preview-picture")
+
+    def height_of(path: str, shown: str) -> float:
+        _entry(page, path).click()
+        expect(page.locator(f".files-preview {shown}")).to_be_visible()
+        box = picture.bounding_box()
+        assert box is not None
+        return box["height"]
+
+    assert height_of("/archive.zip", ".file-icon") == 240
+    assert height_of("/README.md", ".files-preview-text") == 240
+    _entry(page, "/photos/").click()
+    assert height_of("/photos/sunset.png", ".files-preview-image") == 240
+
+
 def test_double_clicking_a_folder_opens_it_and_the_history_keys_return(
     open_files_page: OpenFilesPage,
 ) -> None:
