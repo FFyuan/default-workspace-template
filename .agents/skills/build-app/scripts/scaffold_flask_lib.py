@@ -38,8 +38,8 @@ any failure (lib already exists, reserved name, sync failure, etc.).
 
 import argparse
 import functools
-import json
 import importlib.util
+import json
 import re
 import socket
 import subprocess
