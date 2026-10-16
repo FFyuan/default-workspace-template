@@ -63,19 +63,25 @@ function escapeText(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** How far a type tag leans, clockwise, so it sits on the hand-drawn page as if stuck on by hand. */
+const TAG_TILT_DEGREES = 3;
+
 function tagSvg(family: FileFamily, badge: string, withLetters: boolean): string {
   if (!withLetters) {
     // Too small for letters: a broader band of the colour, which still tells one family from another.
-    return `<rect x="17" y="33" width="30" height="20" rx="3" style="fill:var(--files-family-${family})"/>`;
+    return (
+      `<rect x="17" y="33" width="30" height="20" rx="3" transform="rotate(${TAG_TILT_DEGREES} 32 43)" ` +
+      `style="fill:var(--files-family-${family})"/>`
+    );
   }
   const rect = `<rect x="16" y="38" width="32" height="13" rx="3" style="fill:var(--files-family-${family})"/>`;
-  if (badge === "") return rect;
   const fontSize = badge.length > 3 ? 7.5 : 8.5;
-  return (
-    rect +
-    `<text x="32" y="47.4" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" ` +
-    `font-size="${fontSize}" letter-spacing="0.3" fill="#fff">${escapeText(badge)}</text>`
-  );
+  const letters =
+    badge === ""
+      ? ""
+      : `<text x="32" y="47.4" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" ` +
+        `font-size="${fontSize}" letter-spacing="0.3" fill="#fff">${escapeText(badge)}</text>`;
+  return `<g transform="rotate(${TAG_TILT_DEGREES} 32 44.5)">${rect}${letters}</g>`;
 }
 
 /** The SVG markup of an entry's icon at `size` pixels. */
