@@ -149,7 +149,7 @@ function body(page: FilePageModel): m.Children {
         m("img.files-file-image", {
           src: url,
           alt: name,
-          class: "max-h-full max-w-full object-contain shadow-raised",
+          class: "max-h-full max-w-full object-contain",
         }),
       );
     case "video":

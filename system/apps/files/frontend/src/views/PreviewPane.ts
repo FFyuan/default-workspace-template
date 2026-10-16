@@ -55,7 +55,7 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
         picture = m("img.files-preview-image", {
           src: url,
           alt: "",
-          class: "max-h-[240px] max-w-full rounded-md object-contain shadow-raised",
+          class: "max-h-[240px] max-w-full object-contain",
         });
       } else if (preview === "video") {
         picture = m("video", {
