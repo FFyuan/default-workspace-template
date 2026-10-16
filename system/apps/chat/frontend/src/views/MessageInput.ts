@@ -544,7 +544,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
   function renderComposerAttachment(chatId: string, attachment: ComposerAttachment): m.Vnode {
     const isUploading = attachment.status === "uploading";
     const isError = attachment.status === "error";
-    // The local pixels while uploading, then the uploaded copy once a reload has dropped them.
+    // The local pixels while uploading, then the uploaded copy.
     const thumbnailUrl = attachment.previewUrl ?? attachment.uploaded?.url;
     const isThumbnail = attachment.isImage && !isError && thumbnailUrl !== undefined;
     const size = attachment.uploaded?.size ?? attachment.localSize;

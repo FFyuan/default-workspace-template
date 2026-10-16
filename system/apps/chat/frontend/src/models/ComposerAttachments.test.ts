@@ -177,12 +177,40 @@ describe("while uploading", () => {
     expect(image).toMatchObject({ status: "uploading", localSize: 6, previewUrl: "blob:preview-1" });
     expect(file).toMatchObject({ status: "uploading", localSize: 7, previewUrl: undefined });
     expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).not.toHaveBeenCalled();
     await settle();
     expect(stored()?.map((item) => Object.keys(item as object).sort())).toEqual([
       ["fileName", "isImage", "localId", "uploaded"],
       ["fileName", "isImage", "localId", "uploaded"],
     ]);
-    removeComposerAttachment(chatId, image.localId);
+    // Once uploaded, the chip shows the uploaded copy and the local pixels are let go.
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:preview-1");
+    expect(getComposerAttachments(chatId)[0]).toMatchObject({ status: "ready", previewUrl: undefined });
+  });
+
+  it("lets an image's own pixels go when its upload fails", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal(
+      "URL",
+      Object.assign(class extends URL {}, { createObjectURL: () => "blob:preview-2", revokeObjectURL }),
+    );
+    uploadAnswers.push(() => Promise.resolve(new Response("nope", { status: 500 })));
+    uploadFilesToComposer(chatId, [new File(["pixels"], "photo.png", { type: "image/png" })]);
+    await settle();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:preview-2");
+    expect(getComposerAttachments(chatId)[0]).toMatchObject({ status: "error", previewUrl: undefined });
+  });
+
+  it("lets an image's own pixels go when it is removed before its upload settles", () => {
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal(
+      "URL",
+      Object.assign(class extends URL {}, { createObjectURL: () => "blob:preview-3", revokeObjectURL }),
+    );
+    uploadAnswers.push(() => new Promise<Response>(() => undefined));
+    uploadFilesToComposer(chatId, [new File(["pixels"], "photo.png", { type: "image/png" })]);
+    removeComposerAttachment(chatId, getComposerAttachments(chatId)[0].localId);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:preview-3");
   });
 });
