@@ -89,10 +89,6 @@ const TOOLBAR_CLASS =
   "message-input-toolbar col-start-3 row-start-1 flex shrink-0 items-center gap-1 justify-self-end " +
   "group-data-[stacked]/row:row-start-2";
 
-/** Send with nothing to send: a quiet grey square. */
-const SEND_BUTTON_IDLE_CLASS =
-  "disabled:border-transparent disabled:bg-fill-hover disabled:text-faint disabled:opacity-100";
-
 const ATTACHMENT_DETAIL_CLASS = "composer-attachment-detail truncate text-[11px] leading-[1.3]";
 
 const MESSAGE_TEXT_KEY_PREFIX = "message-text:";
@@ -1513,7 +1509,8 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                   : null,
                 // The send button reads "Switch and send" while a pending lane differs from the
                 // chat's harness (spec 5.1): the next send moves the chat, so the button says so.
-                // Otherwise it stays in place, greyed out while there is nothing it can send.
+                // Otherwise it stays in place: the green send button, or with nothing it can send a
+                // disabled ghost -- the bare arrow, faded.
                 canSendNow && switchTarget !== null
                   ? m(
                       Button,
@@ -1537,10 +1534,10 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                   : m(
                       Button,
                       {
-                        variant: "primary",
+                        variant: canSendNow ? "primary" : "ghost",
                         icon: true,
                         sm: true,
-                        extra: `message-input-send-button shrink-0 ${SEND_BUTTON_IDLE_CLASS}`,
+                        extra: "message-input-send-button shrink-0",
                         disabled: !canSendNow,
                         readonly: isSendHeldForSwitch,
                         ...hoverTooltipAttrs(
