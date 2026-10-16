@@ -50,7 +50,15 @@ function pageLinesSvg(isSmall: boolean): string {
 
 /** The corner an icon's badge sits in: a white disc with a hairline edge at the bottom right, the glyph 60% of
  *  its width. */
-function cornerBadgeSvg(glyph: string): string {
+function cornerBadgeSvg(glyph: string, size: number): string {
+  if (size < 32) {
+    // At list size the icon's own proportion would leave a disc under 3px; draw it about 10px across instead,
+    // hanging off the corner, with a hairline edge and a line that both stay near one pixel.
+    return (
+      '<circle cx="46" cy="47" r="17" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="3"/>' +
+      `<g transform="translate(35.8 36.8) scale(0.85)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
+    );
+  }
   return (
     '<circle cx="50" cy="52" r="9.5" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1"/>' +
     `<g transform="translate(44.3 46.3) scale(0.475)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
@@ -105,7 +113,7 @@ export function fileIconSvg(name: string, isFolder: boolean, badge: IconBadge | 
       PAGE_SVG +
       (family === "other" && tagText === "" ? pageLinesSvg(size < 32) : tagSvg(family, tagText, size >= 32));
   }
-  if (badge !== null) body += cornerBadgeSvg(BADGE_GLYPHS[badge]);
+  if (badge !== null) body += cornerBadgeSvg(BADGE_GLYPHS[badge], size);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">${body}</svg>`;
 }
 
