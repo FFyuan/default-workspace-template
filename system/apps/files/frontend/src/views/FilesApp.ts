@@ -577,8 +577,10 @@ function UploadPanel(): m.Component<{ app: FilesController }> {
       const busy = uploads.isBusy;
       const failed = uploads.items.filter((item) => item.status === "failed").length;
       const done = uploads.items.filter((item) => item.status === "done").length;
+      // The item under way, counted from the first: the ones already settled, then this one.
+      const settled = uploads.items.filter((item) => item.status !== "queued" && item.status !== "uploading").length;
       const summary = busy
-        ? `Uploading ${uploads.items.filter((item) => item.status === "queued" || item.status === "uploading").length} of ${uploads.items.length}`
+        ? `Uploading ${Math.min(settled + 1, uploads.items.length)} of ${uploads.items.length}`
         : failed > 0
           ? `${failed} upload${failed === 1 ? "" : "s"} failed`
           : `Uploaded ${formatItemCount(done)}`;
