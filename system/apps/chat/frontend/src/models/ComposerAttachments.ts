@@ -34,6 +34,11 @@ export interface ComposerAttachment {
   /** One line saying what the file stands for, when it is not the user's own file: an element
    *  reference's chip shows it in place of the size, and as its tooltip. */
   summary?: string;
+  /** The picked file's size, shown on the chip while it uploads. */
+  localSize?: number;
+  /** An image's own pixels, read locally so its thumbnail shows while it uploads. Lives only in this
+   *  document (a blob URL), so it is never persisted. */
+  previewUrl?: string;
   /** Present once the upload succeeds. */
   uploaded?: UploadedAttachment;
   /** Present when the upload failed. */
@@ -184,14 +189,21 @@ if (typeof window !== "undefined") {
   });
 }
 
+function _localPreviewUrl(file: File, isImage: boolean): string | undefined {
+  return isImage && typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : undefined;
+}
+
 function _startUpload(chatId: string, file: File, summary: string | undefined): void {
   const localId = _mintLocalId();
+  const isImage = file.type.startsWith("image/") || isImagePath(file.name);
   const item: ComposerAttachment = {
     localId,
     fileName: file.name,
-    isImage: file.type.startsWith("image/") || isImagePath(file.name),
+    isImage,
     status: "uploading",
     summary,
+    localSize: file.size,
+    previewUrl: _localPreviewUrl(file, isImage),
   };
   _setAttachments(chatId, [...getComposerAttachments(chatId), item]);
   item.uploadSettled = uploadAttachment(file)
@@ -242,6 +254,9 @@ export function removeComposerAttachment(chatId: string, localId: string): void 
     list.filter((attachment) => attachment.localId !== localId),
   );
   m.redraw();
+  if (item?.previewUrl !== undefined) {
+    URL.revokeObjectURL(item.previewUrl);
+  }
   if (item?.uploaded) {
     void deleteAttachment(item.uploaded.path);
   }

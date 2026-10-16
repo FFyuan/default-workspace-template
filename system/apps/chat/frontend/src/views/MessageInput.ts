@@ -55,7 +55,7 @@ import { COMPACTING_STATE, isWorkingActivityState } from "../models/activityStat
 import { harnessLabel } from "./harness-labels";
 import { handoffComposerPlaceholder } from "./handoff-phase";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
-import { icon, stopIcon } from "@imbue/workspace-ui/src/components/icons";
+import { icon, spinnerIcon, stopIcon } from "@imbue/workspace-ui/src/components/icons";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 
 const MAX_TEXTAREA_HEIGHT_PX = 240;
@@ -528,13 +528,18 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
   // registering one shared function reference from two overlays would be de-duplicated by
   // addEventListener and then torn down by whichever overlay closed first.
   /**
-   * One attachment chip, 40px tall: a ready image is its thumbnail alone; anything else is an icon
-   * (a spinner while uploading) beside its name and its size, or what it points at for a file the
-   * chat made for the user (an element reference). The remove button rides the top-right corner,
-   * shown on hover.
+   * One attachment chip, 40px tall: an image is its thumbnail alone; anything else is an icon beside
+   * its name and its size, or what it points at for a file the chat made for the user (an element
+   * reference). While uploading, a spinner sits over the thumbnail on a dark wash, or where the icon
+   * would be. The remove button rides the top-right corner, shown on hover.
    */
   function renderComposerAttachment(chatId: string, attachment: ComposerAttachment): m.Vnode {
-    const isReadyImage = attachment.status === "ready" && attachment.isImage && attachment.uploaded !== undefined;
+    const isUploading = attachment.status === "uploading";
+    // The local pixels while uploading, then the uploaded copy once a reload has dropped them.
+    const thumbnailUrl = attachment.previewUrl ?? attachment.uploaded?.url;
+    const isThumbnail = attachment.isImage && attachment.status !== "error" && thumbnailUrl !== undefined;
+    const size = attachment.uploaded?.size ?? attachment.localSize;
+    const spinner = m.trust(spinnerIcon(16));
     const isDescribed = attachment.summary !== undefined;
     const isError = attachment.status === "error";
     const remove =
@@ -550,7 +555,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                 "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
                 "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
               "aria-label": "Remove attachment",
-              ...hoverTooltipAttrs("Remove attachment", "above"),
+              ...hoverTooltipAttrs("Remove attachment"),
               onclick: () => removeComposerAttachment(chatId, attachment.localId),
             },
             m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
@@ -558,48 +563,58 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
     // The status modifier is an interpolated marker; the one status the look distinguishes (a
     // failed upload's red border) rides beside it.
     const chipMarker = `composer-attachment composer-attachment--${attachment.status}`;
-    if (isReadyImage) {
+    if (isThumbnail) {
       return m(
         "div",
         {
           key: attachment.localId,
           class: `${chipMarker} group/chip relative flex-none`,
-          ...hoverTooltipAttrs(attachment.fileName, "above"),
+          ...hoverTooltipAttrs(attachment.fileName),
         },
         [
           m("img", {
             class: `composer-attachment-thumb ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-10 rounded-md border border-subtle object-cover`,
-            src: attachment.uploaded?.url,
+            src: thumbnailUrl,
             alt: attachment.fileName,
           }),
+          isUploading
+            ? m(
+                "span",
+                {
+                  class:
+                    "composer-attachment-uploading absolute inset-0 flex items-center justify-center rounded-md " +
+                    "bg-black/40 text-white",
+                  "aria-label": "Uploading",
+                  role: "img",
+                },
+                spinner,
+              )
+            : null,
           remove,
         ],
       );
     }
+    const summary = attachment.summary ?? (size === undefined ? undefined : formatFileSize(size));
     const detail =
-      attachment.status === "ready" && attachment.uploaded !== undefined
-        ? m(
-            "span",
-            {
-              class:
-                "composer-attachment-detail composer-attachment-summary truncate text-[11px] leading-[1.3] text-secondary",
-            },
-            attachment.summary ?? formatFileSize(attachment.uploaded.size),
-          )
-        : attachment.status === "uploading"
-          ? m(
-              "span",
-              { class: "composer-attachment-detail truncate text-[11px] leading-[1.3] text-secondary" },
-              "Uploading…",
-            )
+      attachment.status !== "error"
+        ? summary === undefined
+          ? null
           : m(
               "span",
               {
                 class:
-                  "composer-attachment-detail composer-attachment-detail--error truncate text-[11px] leading-[1.3] text-danger",
+                  "composer-attachment-detail composer-attachment-summary truncate text-[11px] leading-[1.3] text-secondary",
               },
-              "Upload failed",
-            );
+              summary,
+            )
+        : m(
+            "span",
+            {
+              class:
+                "composer-attachment-detail composer-attachment-detail--error truncate text-[11px] leading-[1.3] text-danger",
+            },
+            "Upload failed",
+          );
     return m(
       "div",
       {
@@ -615,8 +630,8 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           {
             class: "composer-attachment-icon inline-flex h-6 w-6 flex-none items-center justify-center text-secondary",
           },
-          attachment.status === "uploading"
-            ? m("span", { class: "spinner spinner--current" })
+          isUploading
+            ? m("span", { class: "composer-attachment-uploading", "aria-label": "Uploading", role: "img" }, spinner)
             : m.trust(icon(isDescribed ? "pointer" : "file", { size: 16, strokeWidth: 1.8 })),
         ),
         m("span", { class: "composer-attachment-info flex min-w-0 flex-col" }, [
@@ -624,7 +639,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
             "span",
             {
               class: "composer-attachment-name truncate text-(length:--font-size-helper) text-primary",
-              ...hoverTooltipAttrs(attachment.summary ?? attachment.fileName, "above"),
+              ...hoverTooltipAttrs(attachment.summary ?? attachment.fileName),
             },
             attachment.fileName,
           ),

@@ -163,3 +163,26 @@ describe("persistence", () => {
     expect(stored()).toHaveLength(2);
   });
 });
+
+describe("while uploading", () => {
+  it("carries the picked file's size, and an image's own pixels, which are never persisted", async () => {
+    const createObjectURL = vi.fn(() => "blob:preview-1");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    uploadFilesToComposer(chatId, [
+      new File(["pixels"], "photo.png", { type: "image/png" }),
+      new File(["notes!!"], "notes.txt"),
+    ]);
+    const [image, file] = getComposerAttachments(chatId);
+    expect(image).toMatchObject({ status: "uploading", localSize: 6, previewUrl: "blob:preview-1" });
+    expect(file).toMatchObject({ status: "uploading", localSize: 7, previewUrl: undefined });
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    await settle();
+    expect(stored()?.map((item) => Object.keys(item as object).sort())).toEqual([
+      ["fileName", "isImage", "localId", "uploaded"],
+      ["fileName", "isImage", "localId", "uploaded"],
+    ]);
+    removeComposerAttachment(chatId, image.localId);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:preview-1");
+  });
+});
