@@ -269,9 +269,8 @@ the same gateway:
   stderr, `{"error": ..., "kind": "refused" | "misconfigured"}`, with exit code
   2 or 3. `--granter`, `--revoker`, and `--owner` are what the caller asserts:
   the CLI trusts whoever reached the workspace with exec, and each event it
-  records says it came through the CLI and through which chain of commands
-  (`uv run` sits directly above it, so the chain climbs past it to the shell
-  `mngr exec` spawned or the owner-exec daemon an agent came through).
+  records says the CLI asserted it, as opposed to the gateway, which verifies
+  its caller.
 - **Orientation.** `GET /_agent/primer` renders
   `.agents/shared/references/visiting-agents.md` with the skills index, the
   apps, the connected accounts and granted permissions (read through latchkey,
@@ -293,7 +292,9 @@ the same gateway:
   see (the owner everything, anyone else what they granted);
   `DELETE /_agent/grants/<id>` revokes (the owner any, a granter their own).
   Invites, joins, revocations, and expiries land in
-  `$MNGR_AGENT_STATE_DIR/events/agent_access/events.jsonl`; what an agent ran
-  is owner-exec's own audit log, keyed by key fingerprint.
+  `$MNGR_AGENT_STATE_DIR/events/agent_access/events.jsonl`, the owner's record
+  of the grants' lifecycle. Nothing records what an agent ran: a workspace-scope
+  agent holds the workspace's authority and can edit any file the workspace
+  keeps, so such a log would prove nothing.
 
 Grants, keys, and tokens survive an unpublish; only the tunnel goes away.

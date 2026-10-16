@@ -3,8 +3,9 @@
 They land at ``$MNGR_AGENT_STATE_DIR/events/agent_access/events.jsonl`` under
 the standard event envelope (``timestamp``, ``type``, ``event_id``,
 ``source``), beside the workspace's other event logs, so ``mngr event`` and the
-backups see them. What a visiting agent *ran* is owner-exec's own audit log,
-keyed by the signing key's fingerprint; the grants file maps that to a name.
+backups see them. They are the owner's record of the grants' lifecycle, not an
+audit log: a workspace-scope agent holds the workspace's authority and can edit
+any file the workspace keeps, so nothing kept here records what agents ran.
 """
 
 import json

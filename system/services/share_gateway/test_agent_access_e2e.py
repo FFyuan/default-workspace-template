@@ -30,7 +30,6 @@ from share_gateway.agent_access import AgentAccessPaths
 from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_access import revoke
-from share_gateway.agent_grants import fingerprint_of_public_key_line
 from share_gateway.agent_routes import AgentAccessContext
 from share_gateway.agent_routes import HELPER_PATH
 from share_gateway.agent_workspace import WorkspaceCoordinates
@@ -99,7 +98,6 @@ def _owner_exec(
                 "grants_enabled = false",
                 'share_env_path = ""',
                 "register_port = false",
-                f'audit_log_path = "{repo.parent / "owner_exec_events.jsonl"}"',
             ]
         )
         + "\n"
@@ -224,15 +222,6 @@ def test_a_visiting_agent_joins_runs_reads_writes_and_is_shut_out_on_revoke(tmp_
             missing = _wsvisit(state_dir, ["read", "data/absent.txt"])
             assert missing.returncode == 64, missing.stderr.decode()
             assert "no such file" in missing.stderr.decode()
-
-            # A daemon that carries the audit log recorded what the key ran; an older
-            # pinned daemon ignores the config key and records nothing.
-            audit_path = tmp_path / "owner_exec_events.jsonl"
-            if audit_path.exists():
-                audit_events = [json.loads(line) for line in audit_path.read_text().splitlines() if line]
-                assert [event["type"] for event in audit_events] == ["run", "write_file", "read_file"]
-                fingerprint = fingerprint_of_public_key_line(config["public_key_line"])
-                assert all(event["keyid"] == fingerprint for event in audit_events)
 
             me = _wsvisit(state_dir, ["me"])
             assert me.returncode == 0, me.stderr.decode()

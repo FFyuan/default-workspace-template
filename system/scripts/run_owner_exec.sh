@@ -41,15 +41,6 @@ python3 "${REPO_ROOT}/system/scripts/forward_port.py" \
     --url "http://127.0.0.1:8793" \
     --internal
 
-# Where the daemon records what each verified key ran (visiting agents are
-# told apart by their key fingerprint): the services agent's events directory,
-# beside the workspace's other event logs. A daemon older than the audit-log
-# pin ignores the key.
-AUDIT_LOG_PATH=""
-if [ -n "${MNGR_AGENT_STATE_DIR:-}" ]; then
-    AUDIT_LOG_PATH="${MNGR_AGENT_STATE_DIR}/events/owner_exec/events.jsonl"
-fi
-
 cat > "$CONFIG_PATH" <<TOML
 role = "inner"
 host_id = "${HOST_ID}"
@@ -63,7 +54,6 @@ share_env_path = "${REPO_ROOT}/data/.secrets/share.env"
 register_port = false
 service_name = "owner-exec"
 forward_port_script = "${REPO_ROOT}/system/scripts/forward_port.py"
-audit_log_path = "${AUDIT_LOG_PATH}"
 TOML
 
 exec /usr/local/bin/owner-exec --config "$CONFIG_PATH"
