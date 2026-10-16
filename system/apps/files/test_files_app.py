@@ -210,6 +210,22 @@ def test_the_connect_entry_asks_the_computer_to_share_something(
     ]
 
 
+def test_the_connect_dialog_picks_which_computer_to_ask(open_files_page: OpenFilesPage, connections: Any) -> None:
+    connections.listed = {
+        "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}, {"id": "host-pc", "name": "Kims-PC"}],
+        "shares": [],
+    }
+    page = open_files_page("/")
+    page.locator('[data-action="connect"]').click()
+    page.locator('[data-dialog="connect"] [data-dropdown-part="trigger"]').click()
+    # The list stays open through the redraw its opening causes, so its options can be picked.
+    page.locator('[data-dropdown-option="host-pc"]').click()
+    page.locator('[data-dialog-action="connect"]').click()
+
+    expect(page.locator("[data-toast]")).to_contain_text("Approve it in Imbue Studio")
+    assert [request["device"] for request in connections.requests] == ["host-pc"]
+
+
 _DROP_FROM_COMPUTER = """([selector, name]) => {
   const transfer = new DataTransfer();
   transfer.items.add(new File(["bytes"], name, { type: "application/pdf" }));
