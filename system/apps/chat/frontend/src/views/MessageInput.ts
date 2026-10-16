@@ -117,8 +117,8 @@ interface AttachmentStripAttrs {
  * hidden) and a < / > arrow over an edge fade appears at whichever end has more to show, each
  * paging the row by most of its width.
  *
- * The scroller has 6px of room above and right of the chips (cancelled by a negative top margin)
- * so the corner remove buttons aren't clipped by its overflow.
+ * The scroller has 2px of room above and right of the chips (cancelled by a negative top margin)
+ * so the corner remove buttons, which stick out that far, aren't clipped by its overflow.
  */
 function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
   let scroller: HTMLElement | null = null;
@@ -188,7 +188,7 @@ function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
           "div",
           {
             class:
-              "-mt-1.5 flex gap-1.5 overflow-x-auto pt-1.5 pr-1.5 [scrollbar-width:none] " +
+              "-mt-0.5 flex gap-1.5 overflow-x-auto pt-0.5 pr-0.5 [scrollbar-width:none] " +
               "[&::-webkit-scrollbar]:hidden",
           },
           vnode.attrs.children,
@@ -550,12 +550,13 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
             {
               type: "button",
               // z-10: above the strip's end fades, so a half-hidden chip's remove button stays usable.
+              // Only 2px out from the corner, leaving room under the chip's tooltip, 6px above it.
               class:
-                "composer-attachment-remove absolute -top-1.5 -right-1.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
+                "composer-attachment-remove absolute -top-0.5 -right-0.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
                 "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
                 "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
               "aria-label": "Remove attachment",
-              ...hoverTooltipAttrs("Remove attachment"),
+              ...hoverTooltipAttrs("Remove attachment", "above"),
               onclick: () => removeComposerAttachment(chatId, attachment.localId),
             },
             m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
@@ -569,7 +570,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         {
           key: attachment.localId,
           class: `${chipMarker} group/chip relative flex-none`,
-          ...hoverTooltipAttrs(attachment.fileName),
+          ...hoverTooltipAttrs(attachment.fileName, "above"),
         },
         [
           m("img", {
@@ -620,9 +621,10 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
       {
         key: attachment.localId,
         class:
-          `${chipMarker} group/chip relative flex ${ATTACHMENT_CHIP_HEIGHT_CLASS} max-w-[220px] flex-none items-center ` +
+          `${chipMarker} group/chip relative flex ${ATTACHMENT_CHIP_HEIGHT_CLASS} max-w-[160px] flex-none items-center ` +
           "gap-1 rounded-md border bg-surface-secondary pr-2 pl-1 " +
           (isError ? "border-danger-border" : "border-subtle"),
+        ...hoverTooltipAttrs(attachment.summary ?? attachment.fileName, "above"),
       },
       [
         m(
@@ -639,7 +641,6 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
             "span",
             {
               class: "composer-attachment-name truncate text-(length:--font-size-helper) text-primary",
-              ...hoverTooltipAttrs(attachment.summary ?? attachment.fileName),
             },
             attachment.fileName,
           ),
