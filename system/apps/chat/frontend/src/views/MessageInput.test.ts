@@ -1430,6 +1430,8 @@ describe("MessageInput on a chat awaiting its first send with nothing signed in"
 
     expect(renderedText(tree)).toContain("Connect an AI provider to start chatting.");
     expect(findByTag(tree, "textarea")?.attrs?.disabled).toBe(true);
+    // Send keeps its place opposite the disabled +, greyed out.
+    expect(findByAttr(tree, "aria-label", "Send message")?.attrs?.disabled).toBe(true);
     const chooseButton = findButton(tree, "Choose a provider");
     expect(chooseButton).toBeDefined();
     (chooseButton!.attrs!.onclick as () => void)();

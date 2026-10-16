@@ -1355,6 +1355,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         areAccountsLoaded() &&
         accountForFirstSend(awaitingFirstSend.account_id) === null;
       const isComposerDisabled = isBlockedBySignedOutAccount || isBlockedByNoProvider;
+      const canSendNow = canSend && !isComposerDisabled;
       const blockingNotice = isBlockedBySignedOutAccount
         ? renderSignedOutAccountNotice(chatId)
         : isBlockedByNoProvider
@@ -1505,50 +1506,49 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                   : null,
                 // The send button reads "Switch and send" while a pending lane differs from the
                 // chat's harness (spec 5.1): the next send moves the chat, so the button says so.
-                isComposerDisabled
-                  ? null
-                  : canSend && switchTarget !== null
-                    ? m(
-                        Button,
-                        {
-                          variant: "primary",
-                          sm: true,
-                          extra: "message-input-send-button message-input-send-button--switch shrink-0",
-                          ...hoverTooltipAttrs(`Switch this chat to ${switchTarget.label} and send`, "above"),
-                          "aria-label": "Switch and send",
-                          onclick: handleSubmit,
-                        },
-                        [
-                          m("span", "Switch and send"),
-                          m(
-                            "span",
-                            { class: "ml-1.5 inline-flex items-center" },
-                            m.trust(icon("send", { size: 14, strokeWidth: 2.5 })),
-                          ),
-                        ],
-                      )
-                    : m(
-                        Button,
-                        {
-                          variant: "primary",
-                          icon: true,
-                          sm: true,
-                          extra: `message-input-send-button shrink-0 ${SEND_BUTTON_IDLE_CLASS}`,
-                          disabled: !canSend,
-                          readonly: isSendHeldForSwitch,
-                          ...hoverTooltipAttrs(
-                            !canSend
-                              ? null
-                              : isSendHeldForSwitch
-                                ? "Sending is paused until the switch starts"
-                                : "Send message",
-                            "above",
-                          ),
-                          "aria-label": "Send message",
-                          onclick: handleSubmit,
-                        },
-                        m.trust(icon("send", { size: 16, strokeWidth: 2.5 })),
-                      ),
+                // Otherwise it stays in place, greyed out while there is nothing it can send.
+                canSendNow && switchTarget !== null
+                  ? m(
+                      Button,
+                      {
+                        variant: "primary",
+                        sm: true,
+                        extra: "message-input-send-button message-input-send-button--switch shrink-0",
+                        ...hoverTooltipAttrs(`Switch this chat to ${switchTarget.label} and send`, "above"),
+                        "aria-label": "Switch and send",
+                        onclick: handleSubmit,
+                      },
+                      [
+                        m("span", "Switch and send"),
+                        m(
+                          "span",
+                          { class: "ml-1.5 inline-flex items-center" },
+                          m.trust(icon("send", { size: 14, strokeWidth: 2.5 })),
+                        ),
+                      ],
+                    )
+                  : m(
+                      Button,
+                      {
+                        variant: "primary",
+                        icon: true,
+                        sm: true,
+                        extra: `message-input-send-button shrink-0 ${SEND_BUTTON_IDLE_CLASS}`,
+                        disabled: !canSendNow,
+                        readonly: isSendHeldForSwitch,
+                        ...hoverTooltipAttrs(
+                          !canSendNow
+                            ? null
+                            : isSendHeldForSwitch
+                              ? "Sending is paused until the switch starts"
+                              : "Send message",
+                          "above",
+                        ),
+                        "aria-label": "Send message",
+                        onclick: handleSubmit,
+                      },
+                      m.trust(icon("send", { size: 16, strokeWidth: 2.5 })),
+                    ),
               ]),
             ]),
           ],
