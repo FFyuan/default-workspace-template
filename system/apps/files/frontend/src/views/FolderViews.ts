@@ -7,6 +7,7 @@ import m from "mithril";
 
 import { alertDotIcon, icon } from "@imbue/workspace-ui/src/components/icons";
 
+import { deviceNameOf, shareAt, shareBadgeOf, shareRootAt, stuckSyncOf } from "../models/connections";
 import type { Entry } from "../models/dufs";
 import { formatModified, formatSize } from "../models/format";
 import { kindLabelOf } from "../models/fileKinds";
@@ -17,7 +18,6 @@ import { DROP_FOLDER_ATTR, EntryMenuButton, FOLDER_SURFACE_ATTR, RenameField, en
 import { FileIcon, type IconBadge } from "./FileIcon";
 import type { FilesController } from "./FilesController";
 import { PreviewPane } from "./PreviewPane";
-import { deviceNameOf, shareAt, shareBadgeOf, shareRootAt, stuckSyncOf } from "../models/connections";
 
 interface ViewAttrs {
   app: FilesController;

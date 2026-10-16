@@ -6,14 +6,14 @@
 import m from "mithril";
 
 import { Button } from "@imbue/workspace-ui/src/components/Button";
+import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 import { inputClass } from "@imbue/workspace-ui/src/components/Input";
 import { MODAL_MESSAGE_CLASS, Modal } from "@imbue/workspace-ui/src/components/Modal";
 
+import type { ConnectionRequest, Device, DroppedItem } from "../models/connections";
 import type { Entry } from "../models/dufs";
 import type { ConflictChoice } from "../models/FilesModel";
 import { invalidNameReason, stemLength } from "../models/paths";
-import type { ConnectionRequest, Device, DroppedItem } from "../models/connections";
-import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 
 type Dialog =
   | { kind: "delete"; entries: readonly Entry[]; resolve: (confirmed: boolean) => void }

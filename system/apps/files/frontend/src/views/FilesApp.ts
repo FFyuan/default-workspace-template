@@ -35,13 +35,13 @@ import type { SortKey, ViewMode } from "../models/preferences";
 import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
 import { isFileDrag, sourcesFromDrop } from "../models/uploads";
 import { DROP_FOLDER_ATTR, ENTRY_DRAG_TYPE, FOLDER_SURFACE_ATTR } from "./entries";
-
-/** Marks the Connected section, where an item dragged in from the user's computer is connected rather than uploaded. */
-const CONNECT_DROP_ATTR = "data-connect-drop";
 import { menuRowsOf, type FilesController } from "./FilesController";
 import { ColumnView, IconView, ListView } from "./FolderViews";
 import { iconButton } from "./iconButton";
 import { handleKeydown } from "./keyboard";
+
+/** Marks the Connected section, where an item dragged in from the user's computer is connected rather than uploaded. */
+const CONNECT_DROP_ATTR = "data-connect-drop";
 
 const SHORTCUT_ICONS: Record<string, IconName> = {
   workspace: "house",
