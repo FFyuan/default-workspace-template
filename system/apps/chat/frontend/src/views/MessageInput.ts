@@ -83,7 +83,7 @@ const MESSAGE_ROW_CLASS =
   "data-[stacked]:gap-y-0.5";
 
 const ATTACH_BUTTON_CLASS =
-  "message-input-attach-button col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2";
+  "message-input-attach-button group/attach col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2";
 
 const TOOLBAR_CLASS =
   "message-input-toolbar col-start-3 row-start-1 flex shrink-0 items-center gap-1 justify-self-end " +
@@ -464,11 +464,13 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           ...hoverTooltipAttrs(attachment.fileName, "above"),
         },
         [
+          // The image fills the whole 40px; its border is drawn over it rather than taking its edge.
           m("img", {
-            class: `composer-attachment-thumb ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-10 rounded-md border border-subtle object-cover`,
+            class: `composer-attachment-thumb block ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-10 rounded-md object-cover`,
             src: thumbnailUrl,
             alt: attachment.fileName,
           }),
+          m("span", { class: "pointer-events-none absolute inset-0 rounded-md border border-subtle" }),
           isUploading
             ? m(
                 "span",
@@ -1464,7 +1466,12 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                   disabled: isComposerDisabled,
                   onclick: openFilePicker,
                 },
-                m.trust(icon("plus", { size: 16, strokeWidth: 2 })),
+                // Faint at rest, a step quieter than the toolbar's other glyphs.
+                m(
+                  "span",
+                  { class: "inline-flex text-faint group-hover/attach:text-primary" },
+                  m.trust(icon("attach", { size: 16, strokeWidth: 1.5 })),
+                ),
               ),
               m("div", { class: TOOLBAR_CLASS }, [
                 isCancelSwitchVisible
@@ -1547,7 +1554,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                         "aria-label": "Send message",
                         onclick: handleSubmit,
                       },
-                      m.trust(icon("send", { size: 16, strokeWidth: 2.5 })),
+                      m.trust(icon("send", { size: 16, strokeWidth: 2 })),
                     ),
               ]),
             ]),
