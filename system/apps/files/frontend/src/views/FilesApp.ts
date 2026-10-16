@@ -7,7 +7,7 @@
 
 import m from "mithril";
 
-import { Button, buttonClass } from "@imbue/workspace-ui/src/components/Button";
+import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import { alertDotIcon, badgedIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
@@ -38,6 +38,7 @@ import { DROP_FOLDER_ATTR, ENTRY_DRAG_TYPE, FOLDER_SURFACE_ATTR } from "./entrie
 const CONNECT_DROP_ATTR = "data-connect-drop";
 import { menuRowsOf, type FilesController } from "./FilesController";
 import { ColumnView, IconView, ListView } from "./FolderViews";
+import { iconButton } from "./iconButton";
 import { handleKeydown } from "./keyboard";
 
 const SHORTCUT_ICONS: Record<string, IconName> = {
@@ -57,25 +58,6 @@ const SORT_LABELS: Record<SortKey, string> = {
   size: "Size",
   kind: "Kind",
 };
-
-function iconButton(
-  label: string,
-  name: IconName,
-  attrs: m.Attributes,
-  options: { selected?: boolean; tooltip?: boolean } = {},
-): m.Vnode {
-  return m(
-    "button",
-    {
-      type: "button",
-      "aria-label": label,
-      class: buttonClass("ghost", { icon: true, sm: true, selected: options.selected }),
-      ...(options.tooltip === false ? {} : hoverTooltipAttrs(label)),
-      ...attrs,
-    },
-    m.trust(icon(name, { size: 16 })),
-  );
-}
 
 // Sidebar
 

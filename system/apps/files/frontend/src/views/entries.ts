@@ -5,14 +5,13 @@
 
 import m from "mithril";
 
-import { buttonClass } from "@imbue/workspace-ui/src/components/Button";
-import { icon } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu } from "@imbue/workspace-ui/src/components/menu";
 
 import type { Entry } from "../models/dufs";
 import type { SelectHow } from "../models/FilesModel";
 import { stemLength } from "../models/paths";
 import { menuRowsOf, type FilesController } from "./FilesController";
+import { iconButton } from "./iconButton";
 
 /** The drag payload of entries dragged within the app: their paths, as JSON. */
 export const ENTRY_DRAG_TYPE = "application/x-files-paths";
@@ -147,19 +146,17 @@ export function EntryMenuButton(): m.Component<{ app: FilesController; entry: En
       if (menu === null) return null;
       const entries = app.model.isSelected(entry.path) ? app.model.selectedEntries() : [entry];
       return m("span.files-entry-menu-button.flex.shrink-0", [
-        m(
-          "button",
+        iconButton(
+          `More for ${entry.name}`,
+          "ellipsis",
           {
-            type: "button",
-            class: buttonClass("ghost", { icon: true, sm: true }),
-            "aria-label": `More for ${entry.name}`,
             ...menu.triggerAttrs(),
             onclick: (event: MouseEvent) => {
               event.stopPropagation();
               menu?.toggle(event.currentTarget as HTMLElement);
             },
           },
-          m.trust(icon("ellipsis", { size: 16 })),
+          { tooltip: false },
         ),
         menu.view(menuRowsOf(app.entryActions(entries))),
       ]);

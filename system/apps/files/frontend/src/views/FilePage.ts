@@ -17,6 +17,7 @@ import { formatSize } from "../models/format";
 import { childPath, nameOf, parentOf } from "../models/paths";
 import { Dialogs } from "./dialogs";
 import { FileIcon } from "./FileIcon";
+import { iconButton } from "./iconButton";
 
 export interface FilePageOptions {
   path: string;
@@ -113,20 +114,6 @@ export class FilePageModel {
     this.isDeleted = true;
     m.redraw();
   }
-}
-
-function headerButton(label: string, name: Parameters<typeof icon>[0], attrs: m.Attributes): m.Vnode {
-  return m(
-    "button",
-    {
-      type: "button",
-      "aria-label": label,
-      class: buttonClass("ghost", { icon: true, sm: true }),
-      ...hoverTooltipAttrs(label),
-      ...attrs,
-    },
-    m.trust(icon(name, { size: 16 })),
-  );
 }
 
 function body(page: FilePageModel): m.Children {
@@ -270,9 +257,9 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
                   m.trust(icon("edit", { size: 16 })),
                 )
               : null,
-          headerButton("Download", "download", { "data-action": "download", onclick: () => downloadFile(path) }),
+          iconButton("Download", "download", { "data-action": "download", onclick: () => downloadFile(path) }),
           m("div", { class: "flex shrink-0" }, [
-            headerButton("More", "ellipsis", { "data-action": "more", ...menu.triggerAttrs() }),
+            iconButton("More", "ellipsis", { "data-action": "more", ...menu.triggerAttrs() }),
             menu.view([
               { kind: "action", key: "rename", label: "Rename", icon: "edit", onSelect: () => void page.rename() },
               {
