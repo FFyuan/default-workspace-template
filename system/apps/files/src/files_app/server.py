@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Final
 
 import httpx
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import register_api_schema_route
 from flask import Flask
 from flask import Response
 from flask import request
@@ -30,6 +32,10 @@ from files_app.gateway import Gateway
 from files_app.gateway import device_files_path
 
 API_PREFIX: Final[str] = "/__files/api"
+APP_DISPLAY_NAME: Final[str] = "Files"
+APP_DESCRIPTION: Final[str] = (
+    "The workspace's file browser: the files here and on the person's connected computers, to open, upload and share."
+)
 REMOTE_PREFIX: Final[str] = "/__remote"
 
 _HOP_BY_HOP: Final[frozenset[str]] = frozenset(
@@ -126,6 +132,7 @@ def create_app(
     client: httpx.Client | None = None,
 ) -> Flask:
     app = Flask(__name__, static_folder=None)
+    register_api_schema_route(app, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION)
     dufs = client or httpx.Client(base_url=dufs_url, timeout=httpx.Timeout(30.0, read=None))
     assets_prefix: list[str] = []
 

@@ -199,7 +199,9 @@ is taken, or the manifest check, the tool install or `uv sync` fails.
 What gets generated:
 
 - `system/apps/<package>/app.toml` -- the app's manifest: its registered
-  `name`, `display_name`, `icon`,
+  `name`, `display_name`, `description` (the one-liner, which is what an
+  agent reads to know what the app is for), `api_schema_path` (`/api/schema`,
+  where the app describes its own API; see below), `icon`,
   `priority = "user"` (shed before any built-in under memory pressure),
   `program` (its supervisord program), and `stop_when_no_windows = true` (the
   shell stops the app a minute after its last window closes and starts it
@@ -225,6 +227,9 @@ What gets generated:
   `ty` project (an empty `[tool.ty]` table and a pinned `ty` dev dependency)
   for the ratchets' type check.
 - `system/apps/<package>/src/<package>/__init__.py` -- empty.
+- `system/apps/<package>/src/<package>/runner_test.py` -- the one test every
+  app starts with: its API document at `/api/schema` says what its manifest
+  says and covers every route (see "The app describes its own API" below).
 - `system/apps/<package>/src/<package>/runner.py` -- sync Flask starter.
   Builds a `Flask` app and serves it with
   `werkzeug.serving.run_simple(..., threaded=True)`. It serves at `/`,
@@ -398,6 +403,24 @@ itself. Stand it up, show it to the user, and confirm it's what they wanted befo
 investing in configuration or integration around it.
 
 ## Step 2: Build the real routes to a usable site (after confirmation)
+
+### The app describes its own API
+
+Every app with an HTTP API serves an OpenAPI document of its routes at
+`/api/schema` (the manifest's `api_schema_path`), built by
+`app_schema.api_schema.register_api_schema_route(app, DEFAULT_API_SCHEMA_PATH, title=..., description=...)`,
+which the scaffold already calls in `runner.py` with the manifest's
+`display_name` and `description`. The document is built from the live url
+map on each request, so every route you add is described automatically;
+what you owe it is a docstring on each view (its first line is the
+operation's summary, the rest its description) and, for a route that
+validates a JSON body or answers a pydantic model, an entry in the
+`route_models` argument so the schemas are published. The scaffolded test
+`assert_api_schema_describes_app` keeps the document honest: it fails when
+the manifest's `description` and the document disagree, or when a route is
+missing. This document is how a visiting agent (`.agents/shared/references/visiting-agents.md`)
+and any other agent learns what the app can do without reading its code, so
+keep the docstrings in the user's terms.
 
 Everything from here runs **only after** the user has confirmed the mock. The
 goal of the foreground work is a *usable* site the user can actually try -- not a

@@ -240,7 +240,7 @@ def test_the_scaffold_writes_the_port_it_picked(tmp_path: Path) -> None:
     }
     runner = (root / "system/apps/news/src/news/runner.py").read_text()
     assert runner == scaffold_flask_lib._lib_runner(
-        "news", "news", _DESCRIPTION, program_port
+        "news", "news", _DESCRIPTION, program_port, scaffold_flask_lib._display_name(_DESCRIPTION, None)
     )
     assert program_port >= scaffold_flask_lib.LOWEST_AUTO_PORT
     assert program_port not in {8080, 8081}
@@ -333,6 +333,9 @@ def test_write_lib_writes_a_manifest_the_library_accepts(tmp_path: Path) -> None
     assert manifest.priority == "user"
     assert manifest.program == "inbox-status"
     assert manifest.default_shortcut is None
+    assert manifest.description == "inbox status dashboard"
+    assert manifest.api_schema_path == "/api/schema"
+    assert (lib_dir / "src" / "inbox_status" / "runner_test.py").exists()
 
 
 def _test_function_names(source: str) -> frozenset[str]:
@@ -491,6 +494,13 @@ def test_the_runner_serves_the_shell_modules_and_nothing_else(
     page = client.get("/")
     assert page.status_code == 200
     assert b'from "/_static/context_menu.js"' in page.data
+    document = client.get("/api/schema").get_json()
+    assert document["info"] == {
+        "title": "inbox-status",
+        "version": "1.0",
+        "description": "inbox status dashboard",
+    }
+    assert set(document["paths"]) == {"/", "/_static/{basename}", "/health"}
 
 
 def test_the_runner_does_not_use_reloader() -> None:

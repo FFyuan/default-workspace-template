@@ -61,6 +61,7 @@ from types import FrameType
 from typing import Any
 
 from app_manifest.registry import APP_CONTRACT_ROUTE, SHELL_APP_CONTRACT_PATH
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH, register_api_schema_route
 from flask import Flask, Response, jsonify, request, send_file
 from flask.typing import ResponseReturnValue
 from flask_sock import Sock
@@ -155,6 +156,12 @@ bridge = AsyncLoopBridge()
 manager = BrowserSessionManager()
 
 application = Flask(__name__, static_folder=None)
+register_api_schema_route(
+    application,
+    DEFAULT_API_SCHEMA_PATH,
+    title="Browser",
+    description="Live Chromium browsers inside the workspace, each driven by one chat or by the person, with pages to watch them.",
+)
 application.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 # Clipboard paste-in bodies carry raw image bytes over HTTP (the WS proxy's ~1 MiB cap
 # is why clipboard rides HTTP, not the stream socket). Bound it so a giant paste is

@@ -16,6 +16,7 @@ from pydantic import model_validator
 
 from app_manifest.errors import InvalidManifestValueError
 from app_manifest.errors import ManifestLoadError
+from app_manifest.primitives import AppDescription
 from app_manifest.primitives import AppName
 from app_manifest.primitives import DisplayName
 from app_manifest.primitives import EnvVarName
@@ -361,6 +362,15 @@ class AppManifest(FrozenModel):
 
     name: AppName = Field(description="The registered app name")
     display_name: DisplayName = Field(description="What users see")
+    description: AppDescription | None = Field(
+        default=None,
+        description="One line saying what the app is for, shown wherever the app is described to an agent",
+    )
+    api_schema_path: LaunchPathValue | None = Field(
+        default=None,
+        description="The path under the app's origin that answers an OpenAPI document describing its HTTP API; "
+        "absent when the app describes none",
+    )
     icon: IconPath | None = Field(default=None, description="The icon file, relative to the manifest; required unless internal")
     critical: bool = Field(
         default=False,

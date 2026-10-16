@@ -38,6 +38,7 @@ any failure (lib already exists, reserved name, sync failure, etc.).
 
 import argparse
 import functools
+import json
 import importlib.util
 import re
 import socket
@@ -244,7 +245,7 @@ def _pick_port(
 
 
 def _format_dep_list(extras: Iterable[str]) -> str:
-    base = ['"flask>=3.0"', '"flask-sock>=0.7"', '"werkzeug>=3.0"']
+    base = ['"app-schema"', '"flask>=3.0"', '"flask-sock>=0.7"', '"werkzeug>=3.0"']
     extras_lines = [f'"{dep}"' for dep in extras]
     all_lines = base + extras_lines
     return ",\n    ".join(all_lines)
@@ -283,9 +284,18 @@ dev = [
 """
 
 
-def _lib_runner(name: str, package: str, description: str, port: int) -> str:
+def _lib_runner(
+    name: str,
+    package: str,
+    description: str,
+    port: int,
+    display_name: str | None = None,
+) -> str:
     env_var = f"{package.upper()}_DATA_DIR"
     port_env_var = f"{package.upper()}_PORT"
+    # Python literals for the generated source: the document's title is the manifest's display name.
+    title_literal = repr(display_name if display_name is not None else name)
+    description_literal = repr(description)
     return f'''"""{description}.
 
 Services run from /home/user/workspace (the repo root). Conventions:
@@ -320,6 +330,7 @@ WebSockets.
 import os
 from pathlib import Path
 
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH, register_api_schema_route
 from flask import Flask, Response, abort, send_file
 from werkzeug.serving import run_simple
 
@@ -367,6 +378,9 @@ SHELL_PAGE_SCRIPT = """\
 </script>"""
 
 app = Flask("{package}", static_folder=None)
+# The app describes its own API: an OpenAPI document of every route below, served at the
+# manifest's api_schema_path (build-app skill, "The app describes its own API").
+register_api_schema_route(app, DEFAULT_API_SCHEMA_PATH, title={title_literal}, description={description_literal})
 
 
 @app.route("/")
@@ -544,15 +558,35 @@ def _write_lib(
     )
     (lib_dir / "app.toml").write_text(
         _MANIFEST_TEMPLATE.format(
-            name=name, display_name=display_name, package_upper=package.upper()
+            name=name,
+            display_name=display_name,
+            description_toml=json.dumps(description),
+            package_upper=package.upper(),
         )
     )
     (lib_dir / "README.md").write_text(_lib_readme(name, description))
     (lib_dir / "icon.svg").write_text(icon_markup.strip() + "\n")
     (lib_dir / f"test_{package}_ratchets.py").write_text(_lib_ratchets())
     (src_dir / "__init__.py").write_text("")
-    (src_dir / "runner.py").write_text(_lib_runner(name, package, description, port))
+    (src_dir / "runner.py").write_text(
+        _lib_runner(name, package, description, port, display_name)
+    )
+    (src_dir / "runner_test.py").write_text(_lib_runner_test(package))
     return lib_dir
+
+
+def _lib_runner_test(package: str) -> str:
+    """The one test every scaffolded app starts with: its API document says what its manifest says."""
+    return f"""from pathlib import Path
+
+from app_schema.testing import assert_api_schema_describes_app
+
+from {package}.runner import app
+
+
+def test_the_app_describes_its_api_the_way_its_manifest_says() -> None:
+    assert_api_schema_describes_app(app.test_client(), Path(__file__).resolve().parents[2] / "app.toml")
+"""
 
 
 # The manifest (system/apps/<package>/app.toml; see system/libs/app_manifest).
@@ -566,6 +600,10 @@ def _write_lib(
 _MANIFEST_TEMPLATE = """\
 name = "{name}"
 display_name = "{display_name}"
+# What the app is for, in the person's terms: what an agent reads to decide whether this app
+# does what it needs. The app's API document (served at api_schema_path) carries it too.
+description = {description_toml}
+api_schema_path = "/api/schema"
 icon = "icon.svg"
 priority = "user"
 program = "{name}"

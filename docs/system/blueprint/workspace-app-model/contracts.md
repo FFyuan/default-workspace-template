@@ -29,6 +29,8 @@ Parsed by the `app_manifest` library (section 14) with pydantic, `extra = "forbi
 |---|---|---|---|---|
 | `name` | string | yes | | An app name (section 1). Must equal the `--name` passed at registration. |
 | `display_name` | string | yes | | Non-empty, at most 64 characters. What users see. |
+| `description` | string | no | absent | One non-empty line, at most 200 characters: what the app is for, in the person's terms. Shown wherever the app is described to an agent (the visiting-agent primer's apps table). |
+| `api_schema_path` | string | no | absent | A path under the app's origin (the launch path rule: rooted, no query string, nothing to escape) that answers an OpenAPI 3.1 document describing the app's HTTP API, built from its routes by `app_schema.api_schema.register_api_schema_route` (`/api/schema` by convention). Absent when the app serves no API of its own (ttyd, datalib-http). An app that declares it also declares `description`, which the document carries as its own; the app's tests assert both with `app_schema.testing.assert_api_schema_describes_app`. |
 | `icon` | string | unless `internal` | | Path relative to the manifest, `.svg`, validated by `forward_port.py`'s `validate_icon` at registration. |
 | `instances` | bool | no | `false` | `true` exposes the instances API. |
 | `instances_url` | string | no | the app URL | `http://127.0.0.1:<port>` or `http://localhost:<port>`; where the shell reaches the instances API. Only allowed with `instances = true`. |
@@ -78,6 +80,8 @@ Each `[[apps]]` row:
 |---|---|---|
 | `name`, `url`, `label`, `icon`, `internal`, `program` | the registration (`name`, `icon`, `internal`, and `program` from the manifest when one is given) | `label` is the unguessable origin label, minted at first registration, and is never an identifier. |
 | `display_name` | manifest, or `--display-name` | Absent unless one was given; the shell then uses `name`. |
+| `description` | manifest | Absent unless the manifest declares one. |
+| `api_schema_path` | manifest | Absent unless the manifest declares one; the share gateway's primer links `https://<label>.<domain><api_schema_path>` for the app. |
 | `instances` | manifest | Absent reads as `false`. |
 | `instances_url` | manifest | Absent reads as `url`. |
 | `critical` | manifest | Absent reads as `false`. |

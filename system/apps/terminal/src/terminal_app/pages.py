@@ -19,6 +19,7 @@ from typing import Final
 
 from app_manifest.primitives import AppName
 from app_manifest.registry import APP_CONTRACT_ROUTE, read_origin_label
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH, register_api_schema_route
 from flask import Blueprint, Response, jsonify, request, send_file
 from flask.typing import ResponseReturnValue
 from imbue.imbue_common.frozen_model import FrozenModel
@@ -46,6 +47,8 @@ from terminal_app.sessions import TmuxSessionSource
 BLUEPRINT_NAME: Final[str] = "terminal_pages"
 NEW_PATH: Final[str] = "/new"
 HEALTH_PATH: Final[str] = "/api/health"
+APP_DISPLAY_NAME: Final[str] = "Terminal"
+APP_DESCRIPTION: Final[str] = "Web terminals inside the workspace, one per window."
 # Where the shell posts a closed window of the terminal (the manifest's ``window_closed_path``): a sweep runs at once.
 WINDOW_CLOSED_PATH: Final[str] = "/api/window-closed"
 HTTP_NO_CONTENT: Final[int] = 204
@@ -392,6 +395,12 @@ def build_pages_blueprint(
     the page refreshes from, the health probe, and
     the app contract module at ``contract_path`` (the shell's build output, served from this origin)."""
     blueprint = Blueprint(BLUEPRINT_NAME, __name__)
+    register_api_schema_route(
+        blueprint,
+        DEFAULT_API_SCHEMA_PATH,
+        title=APP_DISPLAY_NAME,
+        description=APP_DESCRIPTION,
+    )
 
     def session_page(name: TmuxSessionName) -> SessionPage:
         listed = next((terminal for terminal in source.list_terminals() if terminal.name == name), None)

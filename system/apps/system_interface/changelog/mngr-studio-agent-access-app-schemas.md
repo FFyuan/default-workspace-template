@@ -1,0 +1,1 @@
+The shell describes its own API: `GET /api/schema` answers an OpenAPI document built from its routes (the inventory, instances, layout and presence routes among them), and its manifest carries a one-line `description` and the `api_schema_path`, which the visiting-agent primer links for workspace-scope agents.

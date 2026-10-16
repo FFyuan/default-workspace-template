@@ -11,6 +11,8 @@ from app_manifest.registry import APP_CONTRACT_ROUTE
 from app_manifest.registry import CONTEXT_MENU_ROUTE
 from app_manifest.registry import SHELL_APP_CONTRACT_PATH
 from app_manifest.registry import SHELL_CONTEXT_MENU_PATH
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import register_api_schema_route
 from flask import Flask
 from flask import Response
 from flask import request
@@ -782,6 +784,9 @@ def _run_ws_broadcast_loop(websocket: Any, shell: ShellState, initial_presence: 
         ws_broadcaster.unregister(client_queue)
 
 
+APP_DESCRIPTION: Final[str] = "The workspace's shell: its windows, desktops and apps, and who is here."
+
+
 def create_application(state: SystemInterfaceState) -> Flask:
     """Assemble the Flask app around an already-built ``SystemInterfaceState``.
 
@@ -802,6 +807,7 @@ def create_application(state: SystemInterfaceState) -> Flask:
     application.add_url_rule(TOUCH_ICON_PATH, view_func=_touch_icon, methods=["GET"])
     application.add_url_rule(MANIFEST_PATH, view_func=_web_manifest, methods=["GET"])
     application.add_url_rule("/api/health", view_func=_health_endpoint, methods=["GET"])
+    register_api_schema_route(application, DEFAULT_API_SCHEMA_PATH, title="Workspace", description=APP_DESCRIPTION)
     application.add_url_rule(APP_CONTRACT_ROUTE, view_func=_serve_app_contract, methods=["GET"])
     application.add_url_rule(CONTEXT_MENU_ROUTE, view_func=_serve_context_menu, methods=["GET"])
     application.add_url_rule(PRESENCE_PATH, view_func=_presence_endpoint, methods=["GET"])

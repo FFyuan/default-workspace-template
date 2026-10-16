@@ -30,6 +30,7 @@ RESERVED_APP_NAMES: Final[frozenset[str]] = frozenset(
 RESERVED_APP_NAME_PREFIXES: Final[tuple[str, ...]] = ("host-", "agent-")
 
 MAX_DISPLAY_NAME_LENGTH: Final[int] = 64
+MAX_APP_DESCRIPTION_LENGTH: Final[int] = 200
 
 LAUNCH_PATH_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 
@@ -211,6 +212,31 @@ def _describe_launch_path_problem(value: str) -> str | None:
     if quote(value, safe=_LAUNCH_PATH_SAFE_CHARACTERS) != value:
         return f"invalid launch path {value!r}: nothing a URL would escape (no whitespace, quotes, or non-ASCII)"
     return None
+
+
+class AppDescription(str):
+    """One line saying what an app is for, in the person's terms: non-empty, at most 200 characters."""
+
+    def __new__(cls, value: str) -> Self:
+        if not value.strip():
+            raise InvalidManifestValueError("description must not be empty")
+        if "\n" in value or "\r" in value:
+            raise InvalidManifestValueError(
+                f"invalid description {value!r}: a description is a single line"
+            )
+        if len(value) > MAX_APP_DESCRIPTION_LENGTH:
+            raise InvalidManifestValueError(
+                f"description must be at most {MAX_APP_DESCRIPTION_LENGTH} characters, got {len(value)}"
+            )
+        return super().__new__(cls, value)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            cls, core_schema.str_schema()
+        )
 
 
 class LaunchPathValue(str):

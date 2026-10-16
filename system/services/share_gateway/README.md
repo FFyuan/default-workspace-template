@@ -273,7 +273,8 @@ the same gateway:
   its caller.
 - **Orientation.** `GET /_agent/primer` renders
   `.agents/shared/references/visiting-agents.md` with the skills index, the
-  apps, the connected accounts and granted permissions (read through latchkey,
+  apps (each with the one-line purpose and the API-description address its
+  manifest declares, `description` and `api_schema_path`), the connected accounts and granted permissions (read through latchkey,
   cached a minute), and the recent changes filled in, cut to the agent's scope;
   `GET /_agent/skills` is the index (name, description, path, a content hash
   per skill and when it last changed, computed once per HEAD commit); `GET

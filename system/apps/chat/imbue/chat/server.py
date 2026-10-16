@@ -22,6 +22,8 @@ from uuid import uuid4
 from app_manifest.primitives import AppName
 from app_manifest.registry import read_origin_label
 from app_manifest.registry_location import registry_path
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import register_api_schema_route
 from flask import Flask
 from flask import Response
 from flask import current_app
@@ -2294,6 +2296,11 @@ def _add_chat_route(
     application.add_url_rule(f"/api/chats/<chat_id>/{suffix}", view_func=view_func, methods=list(methods))
 
 
+APP_DESCRIPTION: Final[str] = (
+    "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
+)
+
+
 def create_application(state: ChatAppState) -> Flask:
     """Assemble the chat app around an already-built ``ChatAppState``.
 
@@ -2313,6 +2320,7 @@ def create_application(state: ChatAppState) -> Flask:
     application.add_url_rule("/favicon.ico", view_func=_favicon, methods=["GET"])
     application.add_url_rule("/assets/<path:filename>", view_func=_serve_asset, methods=["GET"])
     application.add_url_rule("/api/health", view_func=_health_endpoint, methods=["GET"])
+    register_api_schema_route(application, DEFAULT_API_SCHEMA_PATH, title="Chat", description=APP_DESCRIPTION)
     sock.route("/api/ws")(_ws_endpoint)
     application.add_url_rule("/plugins/<basename>", view_func=_serve_static_file, methods=["GET"])
     application.add_url_rule("/api/agents", view_func=_list_agents_endpoint, methods=["GET"])

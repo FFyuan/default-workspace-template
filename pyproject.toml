@@ -109,6 +109,7 @@ pytest-workspace-env = { workspace = true }
 tk-command-parsing = { workspace = true }
 oom-priority = { workspace = true }
 app-manifest = { workspace = true }
+app-schema = { workspace = true }
 workspace-layout = { workspace = true }
 # Apps that other members depend on (their test suites boot each other).
 system-interface = { workspace = true }

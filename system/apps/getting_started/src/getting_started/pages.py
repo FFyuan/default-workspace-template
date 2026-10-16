@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Final
 from typing import assert_never
 
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import register_api_schema_route
 from flask import Blueprint
 from flask import Response
 from flask import jsonify
@@ -25,6 +27,8 @@ from getting_started.template_catalog import catalog_wire_json
 
 BLUEPRINT_NAME: Final[str] = "getting_started_pages"
 HEALTH_PATH: Final[str] = "/api/health"
+APP_DISPLAY_NAME: Final[str] = "Getting Started"
+APP_DESCRIPTION: Final[str] = "The ways into the workspace: things to start, and the published templates to adapt."
 TEMPLATES_CATALOG_PATH: Final[str] = "/api/templates-catalog"
 PAGE_DOCUMENT_FILENAME: Final[str] = "index.html"
 
@@ -43,6 +47,7 @@ _NOT_BUILT_PAGE: Final[str] = (
 
 def build_pages_blueprint(static_directory: Path, catalog: TemplateCatalogStore, contract_path: Path) -> Blueprint:
     blueprint = Blueprint(BLUEPRINT_NAME, __name__)
+    register_api_schema_route(blueprint, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION)
 
     @blueprint.get("/")
     def page() -> ResponseReturnValue:

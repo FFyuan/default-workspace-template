@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from app_schema.testing import assert_api_schema_describes_app
 from flask import Flask
 from flask.testing import FlaskClient
 
@@ -13,6 +14,7 @@ from getting_started.testing import catalog_document
 from getting_started.testing import catalog_template_document
 
 _CATALOG_URL = "https://example.test/catalog/new-tab-templates.json"
+_MANIFEST_PATH = Path(__file__).resolve().parents[2] / "app.toml"
 
 
 def _client(
@@ -93,3 +95,7 @@ def test_the_contract_module_is_served_from_this_origin_once_the_shell_has_built
         assert b"connectToShell" in response.data
     else:
         assert response.status_code == 404
+
+
+def test_the_app_describes_its_api_the_way_its_manifest_says(tmp_path: Path) -> None:
+    assert_api_schema_describes_app(_client(tmp_path), _MANIFEST_PATH)

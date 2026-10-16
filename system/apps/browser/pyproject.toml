@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     # The manifest primitives the daemon names itself with.
     "app-manifest",
+    "app-schema",
     "flask>=3.0",
     "flask-sock>=0.7",
     "oom-priority",
