@@ -50,6 +50,9 @@ function arrowOrder(app: FilesController): { order: Entry[]; at: number } {
 
 function moveTo(app: FilesController, entry: Entry | undefined, extend: boolean, order: readonly Entry[]): void {
   if (entry === undefined) return;
+  // The keys that follow are the entries' again: Enter opens this one rather than pressing a button clicked before.
+  const focused = document.activeElement;
+  if (focused instanceof HTMLElement && isPressable(focused)) focused.blur();
   app.revealSelection = true;
   if (app.viewMode === "columns" && app.model.search === null)
     app.model.selectInColumn(entry, extend ? "extend" : "only");

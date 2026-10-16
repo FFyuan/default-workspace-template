@@ -235,13 +235,26 @@ def test_the_connect_entry_asks_the_computer_to_share_something(
     ]
 
 
-def test_enter_on_a_focused_button_presses_it_rather_than_opening_the_selection(open_files_page: OpenFilesPage) -> None:
+def test_enter_on_a_focused_button_presses_it_rather_than_opening_the_selection(
+    open_files_page: OpenFilesPage,
+) -> None:
     page = open_files_page("/")
     _entry(page, "/projects/").click()
     page.locator('[data-action="connect"]').focus()
     page.keyboard.press("Enter")
     expect(page.locator('[data-dialog="connect"]')).to_be_visible()
     assert not page.url.endswith("/projects/")
+
+
+def test_enter_opens_an_entry_chosen_by_the_arrows_after_a_button_was_pressed(open_files_page: OpenFilesPage) -> None:
+    page = open_files_page("/")
+    expect(_entry(page, "/photos/")).to_be_visible()
+    page.locator('[data-action="connect"]').focus()
+    page.keyboard.press("ArrowDown")
+    expect(_entry(page, "/photos/")).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("Enter")
+    expect(_entry(page, "/photos/sunset.png")).to_be_visible()
+    expect(page.locator('[data-dialog="connect"]')).to_have_count(0)
 
 
 def test_the_connect_dialog_picks_which_computer_to_ask(open_files_page: OpenFilesPage, connections: Any) -> None:
