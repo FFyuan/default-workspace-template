@@ -15,6 +15,7 @@ import type { ShellHandshake } from "@imbue/workspace-ui/src/app_contract";
 import { createContextMenuOpener } from "@imbue/workspace-ui/src/components/contextMenuOpener";
 import { installElementContextMenu } from "@imbue/workspace-ui/src/context_menu";
 import type { ContextMenuRow } from "@imbue/workspace-ui/src/context_menu_rows";
+import { installCursorHidingWhileTyping } from "@imbue/workspace-ui/src/hideCursorWhileTyping";
 
 import { entryOf, readPageData, urlOf } from "./models/dufs";
 import { decodePathname, isFolderPath, titleOf } from "./models/paths";
@@ -57,6 +58,8 @@ function bootstrap(): void {
   const connection = connectToShell({ onHandshake: (received) => (handshake = received) });
   window.addEventListener("focus", () => connection.focused());
   const opener = createContextMenuOpener();
+  // The pointer hides while text is typed into the editor or a name being changed.
+  installCursorHidingWhileTyping(document);
 
   const path = decodePathname(window.location.pathname);
   if (data.kind !== "Index") {
