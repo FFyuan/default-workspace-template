@@ -27,7 +27,8 @@ export interface AttachmentStripAttrs {
  * paging the row by most of its width.
  *
  * The scroller has 2px of room above and right of the chips (cancelled by a negative top margin)
- * so the corner remove buttons, which stick out that far, aren't clipped by its overflow.
+ * so the corner remove buttons, which stick out that far, aren't clipped by its overflow. The row
+ * is a flow root so that margin stays inside it, keeping the end fades level with the chips.
  */
 export function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
   let scroller: HTMLElement | null = null;
@@ -73,7 +74,7 @@ export function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
           "aria-label": isLeft ? "Scroll attachments left" : "Scroll attachments right",
           onclick: () => page(isLeft ? -1 : 1),
         },
-        m.trust(icon(isLeft ? "chevron-left" : "chevron-right", { size: 14, strokeWidth: 2.5 })),
+        m.trust(icon(isLeft ? "chevron-left" : "chevron-right", { size: 16, strokeWidth: 2.5 })),
       ),
     ];
   }
@@ -102,7 +103,7 @@ export function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
       scroller = null;
     },
     view(vnode) {
-      return m("div", { class: "message-input-attachments relative pb-1.5" }, [
+      return m("div", { class: "message-input-attachments relative flow-root pb-1.5" }, [
         m(
           "div",
           {

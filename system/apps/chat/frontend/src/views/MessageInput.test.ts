@@ -508,6 +508,19 @@ describe("MessageInput attachment chips", () => {
     );
   }
 
+  it("puts the attachments inside the text's row, marked so it lays them out between the text and the buttons", () => {
+    const withoutAttachments = findByClass(render(), "message-input-row");
+    expect(withoutAttachments?.attrs?.["data-attachments"]).toBeUndefined();
+    expect(findByClass(withoutAttachments, "composer-attachment")).toBeUndefined();
+
+    mocks.getComposerAttachments.mockReturnValue([
+      { localId: "a1", fileName: "notes.txt", isImage: false, status: "uploading", localSize: 7 },
+    ]);
+    const row = findByClass(render(), "message-input-row");
+    expect(row?.attrs?.["data-attachments"]).toBe("");
+    expect(chip(row, "notes.txt")).toBeDefined();
+  });
+
   it("shows an uploading image as its own pixels under a spinner, with no way to remove it yet", () => {
     mocks.getComposerAttachments.mockReturnValue([
       { localId: "a1", fileName: "photo.png", isImage: true, status: "uploading", previewUrl: "blob:local" },

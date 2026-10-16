@@ -76,18 +76,20 @@ const INPUT_BOX_CLASS =
   "message-input-box flex flex-col gap-0.5 rounded-[13px] border bg-composer p-1.5 " +
   "[transition:border-color_150ms] focus-within:border-2 focus-within:border-accent focus-within:p-[5px]";
 
-/** The text and its buttons: + | text | toolbar. ``fitComposer`` sets ``data-stacked`` on the row once the text
- *  needs a second line; the text then takes the full width, with + and the toolbar on a row under it. */
+/** The text and its buttons: paperclip | text | toolbar. ``fitComposer`` sets ``data-stacked`` on the row once
+ *  the text needs a second line or there are attachments (``data-attachments``); the text then takes the full
+ *  width, with the paperclip and the toolbar on a row under it, and any attachments on a row between the two. */
 const MESSAGE_ROW_CLASS =
   "message-input-row group/row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-0.5 " +
   "data-[stacked]:gap-y-0.5";
 
 const ATTACH_BUTTON_CLASS =
-  "message-input-attach-button col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2";
+  "message-input-attach-button col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2 " +
+  "group-data-[attachments]/row:row-start-3!";
 
 const TOOLBAR_CLASS =
   "message-input-toolbar col-start-3 row-start-1 flex shrink-0 items-center gap-1 justify-self-end " +
-  "group-data-[stacked]/row:row-start-2";
+  "group-data-[stacked]/row:row-start-2 group-data-[attachments]/row:row-start-3!";
 
 const ATTACHMENT_DETAIL_CLASS = "composer-attachment-detail truncate text-[11px] leading-[1.3]";
 
@@ -250,7 +252,10 @@ function fitComposer(row: HTMLElement, textarea: HTMLTextAreaElement): void {
   row.removeAttribute("data-stacked");
   textarea.style.overflowY = "hidden";
   textarea.style.height = "auto";
-  row.toggleAttribute("data-stacked", textarea.scrollHeight > textarea.clientHeight);
+  row.toggleAttribute(
+    "data-stacked",
+    row.hasAttribute("data-attachments") || textarea.scrollHeight > textarea.clientHeight,
+  );
   textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
   textarea.style.overflowY = textarea.scrollHeight > MAX_TEXTAREA_HEIGHT_PX ? "auto" : "hidden";
   row.style.height = "";
@@ -1405,151 +1410,164 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           vnode.attrs.leading,
           // With no provider to send to, the composer stays in view, holding any draft, but takes nothing.
           [
-            attachments.length > 0
-              ? m(AttachmentStrip, {
-                  children: attachments.map((attachment) => renderComposerAttachment(chatId, attachment)),
-                })
-              : null,
-            m("div", { class: MESSAGE_ROW_CLASS, oncreate: attachMessageRow, onremove: detachMessageRow }, [
-              m("textarea", {
-                class:
-                  "message-input-textbox col-start-2 row-start-1 w-full resize-none border-none bg-transparent " +
-                  "px-1 py-0.5 font-sans text-(length:--font-size-body) leading-6 text-primary focus:outline-none " +
-                  "placeholder:text-faint group-data-[stacked]/row:col-span-3 group-data-[stacked]/row:col-start-1 " +
-                  "disabled:cursor-not-allowed disabled:opacity-60",
-                placeholder:
-                  handoff !== null
-                    ? handoffComposerPlaceholder(handoff)
-                    : isAgentWorking
-                      ? "Type to queue more messages..."
-                      : "Type a message...",
-                rows: 1,
-                disabled: isComposerDisabled,
-                value: messageText,
-                oncreate: (textareaVnode: m.VnodeDOM) => {
-                  messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
-                  wasComposerDisabled = isComposerDisabled;
-                  refitComposer();
-                  focusMessageTextarea();
-                },
-                onupdate: (textareaVnode: m.VnodeDOM) => {
-                  messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
-                  refitComposer();
-                  if (wasComposerDisabled && !isComposerDisabled) focusMessageTextarea();
-                  wasComposerDisabled = isComposerDisabled;
-                },
-                onremove: () => {
-                  messageTextareaElement = null;
-                },
-                oninput: (event: Event) => {
-                  const textarea = event.target as HTMLTextAreaElement;
-                  messageText = textarea.value;
-                  localStorage.setItem(messageTextKey(chatId), messageText);
-                  refitComposer();
-                },
-                onkeydown: handleKeydown,
-                onpaste: handlePaste,
-              }),
-              m(
-                Button,
-                {
-                  variant: "ghost",
-                  icon: true,
-                  sm: true,
-                  extra: ATTACH_BUTTON_CLASS,
-                  ...hoverTooltipAttrs("Attach files", "above"),
-                  "aria-label": "Attach files",
+            m(
+              "div",
+              {
+                class: MESSAGE_ROW_CLASS,
+                "data-attachments": attachments.length > 0 ? "" : undefined,
+                oncreate: attachMessageRow,
+                onremove: detachMessageRow,
+              },
+              [
+                m("textarea", {
+                  class:
+                    "message-input-textbox col-start-2 row-start-1 w-full resize-none border-none bg-transparent " +
+                    "px-1 py-1 font-sans text-(length:--font-size-body) leading-[1.4] text-primary focus:outline-none " +
+                    "placeholder:text-faint group-data-[stacked]/row:col-span-3 group-data-[stacked]/row:col-start-1 " +
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  placeholder:
+                    handoff !== null
+                      ? handoffComposerPlaceholder(handoff)
+                      : isAgentWorking
+                        ? "Type to queue more messages..."
+                        : "Type a message...",
+                  rows: 1,
                   disabled: isComposerDisabled,
-                  onclick: openFilePicker,
-                },
-                m.trust(icon("attach", { size: 16, strokeWidth: 1.5 })),
-              ),
-              m("div", { class: TOOLBAR_CLASS }, [
-                isCancelSwitchVisible
+                  value: messageText,
+                  oncreate: (textareaVnode: m.VnodeDOM) => {
+                    messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
+                    wasComposerDisabled = isComposerDisabled;
+                    refitComposer();
+                    focusMessageTextarea();
+                  },
+                  onupdate: (textareaVnode: m.VnodeDOM) => {
+                    messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
+                    refitComposer();
+                    if (wasComposerDisabled && !isComposerDisabled) focusMessageTextarea();
+                    wasComposerDisabled = isComposerDisabled;
+                  },
+                  onremove: () => {
+                    messageTextareaElement = null;
+                  },
+                  oninput: (event: Event) => {
+                    const textarea = event.target as HTMLTextAreaElement;
+                    messageText = textarea.value;
+                    localStorage.setItem(messageTextKey(chatId), messageText);
+                    refitComposer();
+                  },
+                  onkeydown: handleKeydown,
+                  onpaste: handlePaste,
+                }),
+                m(
+                  Button,
+                  {
+                    variant: "ghost",
+                    icon: true,
+                    sm: true,
+                    extra: ATTACH_BUTTON_CLASS,
+                    ...hoverTooltipAttrs("Attach files", "above"),
+                    "aria-label": "Attach files",
+                    disabled: isComposerDisabled,
+                    onclick: openFilePicker,
+                  },
+                  m.trust(icon("attach", { size: 16, strokeWidth: 1.5 })),
+                ),
+                attachments.length > 0
                   ? m(
-                      Button,
-                      {
-                        variant: "secondary",
-                        sm: true,
-                        extra: "message-input-cancel-switch-button shrink-0",
-                        readonly: isCancelSwitchInFlight,
-                        ...hoverTooltipAttrs(
-                          "Keep this chat on its current agent; your message comes back here",
-                          "above",
-                        ),
-                        "aria-label": "Cancel switch",
-                        onclick: () => void handleCancelSwitch(),
-                      },
-                      isCancelSwitchInFlight ? "Cancelling…" : "Cancel switch",
+                      "div",
+                      { class: "col-span-3 col-start-1 row-start-2 min-w-0 pt-1" },
+                      m(AttachmentStrip, {
+                        children: attachments.map((attachment) => renderComposerAttachment(chatId, attachment)),
+                      }),
                     )
                   : null,
-                isStopButtonVisible
-                  ? m(
-                      Button,
-                      {
-                        variant: "stop",
-                        icon: true,
-                        sm: true,
-                        extra: "message-input-stop-button shrink-0",
-                        // The label states what THIS press will do. The button always interrupts;
-                        // it only hands messages back when there are some parked in the harness,
-                        // so promising that unconditionally described a case that usually is not
-                        // the one in front of the user.
-                        ...hoverTooltipAttrs(stopButtonLabel, "above"),
-                        "aria-label": stopButtonLabel,
-                        onclick: handleStopToComposer,
-                      },
-                      m.trust(stopIcon(14)),
-                    )
-                  : null,
-                // The send button reads "Switch and send" while a pending lane differs from the
-                // chat's harness (spec 5.1): the next send moves the chat, so the button says so.
-                // Otherwise it stays in place: the green send button, or with nothing it can send a
-                // disabled ghost -- the bare arrow, faded.
-                canSendNow && switchTarget !== null
-                  ? m(
-                      Button,
-                      {
-                        variant: "primary",
-                        sm: true,
-                        extra: "message-input-send-button message-input-send-button--switch shrink-0",
-                        ...hoverTooltipAttrs(`Switch this chat to ${switchTarget.label} and send`, "above"),
-                        "aria-label": "Switch and send",
-                        onclick: handleSubmit,
-                      },
-                      [
-                        m("span", "Switch and send"),
-                        m(
-                          "span",
-                          { class: "ml-1.5 inline-flex items-center" },
-                          m.trust(icon("send", { size: 14, strokeWidth: 2.5 })),
-                        ),
-                      ],
-                    )
-                  : m(
-                      Button,
-                      {
-                        variant: canSendNow ? "primary" : "ghost",
-                        icon: true,
-                        sm: true,
-                        extra: "message-input-send-button shrink-0",
-                        disabled: !canSendNow,
-                        readonly: isSendHeldForSwitch,
-                        ...hoverTooltipAttrs(
-                          !canSendNow
-                            ? null
-                            : isSendHeldForSwitch
-                              ? "Sending is paused until the switch starts"
-                              : "Send message",
-                          "above",
-                        ),
-                        "aria-label": "Send message",
-                        onclick: handleSubmit,
-                      },
-                      m.trust(icon("send", { size: 16, strokeWidth: 2 })),
-                    ),
-              ]),
-            ]),
+                m("div", { class: TOOLBAR_CLASS }, [
+                  isCancelSwitchVisible
+                    ? m(
+                        Button,
+                        {
+                          variant: "secondary",
+                          sm: true,
+                          extra: "message-input-cancel-switch-button shrink-0",
+                          readonly: isCancelSwitchInFlight,
+                          ...hoverTooltipAttrs(
+                            "Keep this chat on its current agent; your message comes back here",
+                            "above",
+                          ),
+                          "aria-label": "Cancel switch",
+                          onclick: () => void handleCancelSwitch(),
+                        },
+                        isCancelSwitchInFlight ? "Cancelling…" : "Cancel switch",
+                      )
+                    : null,
+                  isStopButtonVisible
+                    ? m(
+                        Button,
+                        {
+                          variant: "stop",
+                          icon: true,
+                          sm: true,
+                          extra: "message-input-stop-button shrink-0",
+                          // The label states what THIS press will do. The button always interrupts;
+                          // it only hands messages back when there are some parked in the harness,
+                          // so promising that unconditionally described a case that usually is not
+                          // the one in front of the user.
+                          ...hoverTooltipAttrs(stopButtonLabel, "above"),
+                          "aria-label": stopButtonLabel,
+                          onclick: handleStopToComposer,
+                        },
+                        m.trust(stopIcon(14)),
+                      )
+                    : null,
+                  // The send button reads "Switch and send" while a pending lane differs from the
+                  // chat's harness (spec 5.1): the next send moves the chat, so the button says so.
+                  // Otherwise it stays in place: the green send button, or with nothing it can send a
+                  // disabled ghost -- the bare arrow, faded.
+                  canSendNow && switchTarget !== null
+                    ? m(
+                        Button,
+                        {
+                          variant: "primary",
+                          sm: true,
+                          extra: "message-input-send-button message-input-send-button--switch shrink-0",
+                          ...hoverTooltipAttrs(`Switch this chat to ${switchTarget.label} and send`, "above"),
+                          "aria-label": "Switch and send",
+                          onclick: handleSubmit,
+                        },
+                        [
+                          m("span", "Switch and send"),
+                          m(
+                            "span",
+                            { class: "ml-1.5 inline-flex items-center" },
+                            m.trust(icon("send", { size: 14, strokeWidth: 2.5 })),
+                          ),
+                        ],
+                      )
+                    : m(
+                        Button,
+                        {
+                          variant: canSendNow ? "primary" : "ghost",
+                          icon: true,
+                          sm: true,
+                          extra: "message-input-send-button shrink-0",
+                          disabled: !canSendNow,
+                          readonly: isSendHeldForSwitch,
+                          ...hoverTooltipAttrs(
+                            !canSendNow
+                              ? null
+                              : isSendHeldForSwitch
+                                ? "Sending is paused until the switch starts"
+                                : "Send message",
+                            "above",
+                          ),
+                          "aria-label": "Send message",
+                          onclick: handleSubmit,
+                        },
+                        m.trust(icon("send", { size: 16, strokeWidth: 2 })),
+                      ),
+                ]),
+              ],
+            ),
           ],
         ),
       ]);
