@@ -180,6 +180,14 @@ describe("renaming", () => {
     expect(dufs.movePath).toHaveBeenCalledWith("/home/zeta/", "/home/eta/");
     expect(model.folder).toBe("/home/eta/sub/");
   });
+
+  it("does not start on an entry read live from a computer, which cannot be renamed there", () => {
+    const live = "/__remote/host-mac/Users/kim/";
+    const host = harness().host;
+    const model = new FilesModel(host, live, { exists: true, entries: [fileEntry(live, "notes.md")] });
+    model.startRename(`${live}notes.md`);
+    expect(model.rename).toBeNull();
+  });
 });
 
 describe("deleting", () => {

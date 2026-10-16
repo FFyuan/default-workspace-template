@@ -67,6 +67,11 @@ export function targetOf(share: Share): string {
   return share.kind === "file" ? live : `${live.replace(/\/+$/, "")}/`;
 }
 
+/** Whether `path` is read live from a computer, whose file server can neither rename nor zip a folder. */
+export function isLiveShared(path: string): boolean {
+  return path.startsWith(REMOTE_PREFIX);
+}
+
 export function labelOf(share: Share): string {
   return nameOf(share.path) || share.path;
 }

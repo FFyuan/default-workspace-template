@@ -14,7 +14,7 @@ import { FilesModel, type HistoryMode } from "../models/FilesModel";
 import { isTextLike } from "../models/fileKinds";
 import { decodePathname, nameOf, titleOf } from "../models/paths";
 import { sourcesFromFileList } from "../models/uploads";
-import { requestConnection, type DroppedItem, type PendingConnection } from "../models/connections";
+import { isLiveShared, requestConnection, type DroppedItem, type PendingConnection } from "../models/connections";
 import { Dialogs } from "./dialogs";
 import { startDownload } from "./download";
 
@@ -224,15 +224,16 @@ export class FilesController {
         opening.push({ key: "edit", label: "Edit", icon: "edit", run: () => this.openPage(single.path, "edit") });
       }
     }
-    const handling: FilesAction[] = [
-      {
+    const handling: FilesAction[] = [];
+    if (!entries.some((entry) => entry.isFolder && isLiveShared(entry.path))) {
+      handling.push({
         key: "download",
         label: single?.isFolder === true ? "Download as ZIP" : "Download",
         icon: "download",
         run: () => this.download(entries),
-      },
-    ];
-    if (single !== null) {
+      });
+    }
+    if (single !== null && !isLiveShared(single.path)) {
       handling.push({ key: "rename", label: "Rename", icon: "edit", run: () => model.startRename(single.path) });
     }
     handling.push({

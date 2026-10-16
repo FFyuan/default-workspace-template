@@ -31,7 +31,7 @@ import {
   type ViewMode,
 } from "./preferences";
 import { UploadQueue, type UploadSource } from "./uploads";
-import { fetchConnections, targetOf, type Connections } from "./connections";
+import { fetchConnections, isLiveShared, targetOf, type Connections } from "./connections";
 
 export const WORKSPACE = "/home/user/workspace/";
 
@@ -449,7 +449,7 @@ export class FilesModel {
   // Changing things
 
   startRename(path: string): void {
-    if (this.entryFor(path) === undefined) return;
+    if (this.entryFor(path) === undefined || isLiveShared(path)) return;
     this.selection = [path];
     this.anchor = path;
     this.rename = { path, draft: nameOf(path), error: null, isSaving: false };

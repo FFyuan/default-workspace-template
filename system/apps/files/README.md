@@ -36,7 +36,7 @@ for every other registered app.
   computer's file server over WebDAV and answered in dufs's own shape (a page,
   `?json`, the bytes, PUT, DELETE, MKCOL), so the frontend browses it like any
   folder. Renaming is not offered there (the computer's file server has no
-  MOVE). The file server's paths carry no device id (the permissions match
+  MOVE), nor is downloading a folder as a zip. The file server's paths carry no device id (the permissions match
   `/minds-api-proxy/api/v1/files/<path>`); the device goes in the
   `X-Latchkey-Device` header.
 - Every answer's `Content-Disposition` is made ASCII-safe. dufs names a file in

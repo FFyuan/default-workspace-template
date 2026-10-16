@@ -13,6 +13,7 @@ import { createMenu, type Menu } from "@imbue/workspace-ui/src/components/menu";
 import { Toasts } from "@imbue/workspace-ui/src/components/toasts";
 import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";
 
+import { isLiveShared } from "../models/connections";
 import * as dufs from "../models/dufs";
 import { isTextLike, previewKindOf } from "../models/fileKinds";
 import { formatSize } from "../models/format";
@@ -267,7 +268,17 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
           m("div", { class: "flex shrink-0" }, [
             iconButton("More", "ellipsis", { "data-action": "more", ...menu.triggerAttrs() }),
             menu.view([
-              { kind: "action", key: "rename", label: "Rename", icon: "edit", onSelect: () => void page.rename() },
+              ...(isLiveShared(path)
+                ? []
+                : [
+                    {
+                      kind: "action" as const,
+                      key: "rename",
+                      label: "Rename",
+                      icon: "edit" as const,
+                      onSelect: () => void page.rename(),
+                    },
+                  ]),
               {
                 kind: "action",
                 key: "copy-path",
