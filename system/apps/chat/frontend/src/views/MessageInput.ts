@@ -68,10 +68,9 @@ const MAX_TEXTAREA_HEIGHT_PX = 240;
 
 /** The composer card. No shadow: it sits at the foot of its own pane
  *  rather than floating over the transcript. Focus thickens its border to 2px
- *  in the accent, giving the padding back the extra pixel so nothing moves --
- *  one stroke rather than a ring beside the border, which antialiases as two
- *  arcs with a seam on the corners. Its corners are concentric with the
- *  buttons and chips inside: their 6px radius plus the padding and the border. */
+ *  in the accent, taking the extra pixel out of the padding so nothing moves.
+ *  Its corners are concentric with the buttons and chips inside: their 6px
+ *  radius plus the padding and the border. */
 const INPUT_BOX_CLASS =
   "message-input-box flex flex-col gap-0.5 rounded-[13px] border bg-composer p-1.5 " +
   "[transition:border-color_150ms] focus-within:border-2 focus-within:border-accent focus-within:p-[5px]";
@@ -89,7 +88,7 @@ const TOOLBAR_CLASS =
   "message-input-toolbar col-start-3 row-start-1 flex shrink-0 items-center gap-1 justify-self-end " +
   "group-data-[stacked]/row:row-start-2";
 
-/** Send with nothing to send: a quiet grey square rather than a faded accent one. */
+/** Send with nothing to send: a quiet grey square. */
 const SEND_BUTTON_IDLE_CLASS =
   "disabled:border-transparent disabled:bg-fill-hover disabled:text-faint disabled:opacity-100";
 
