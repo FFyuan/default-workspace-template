@@ -535,9 +535,6 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
     messageRowElement = null;
   }
 
-  // Its own handler rather than the one above: each notice clears only its own state, and
-  // registering one shared function reference from two overlays would be de-duplicated by
-  // addEventListener and then torn down by whichever overlay closed first.
   /**
    * One attachment chip, 40px tall: an image is its thumbnail alone; anything else is an icon beside
    * its name and its size, or what it points at for a file the chat made for the user (an element
