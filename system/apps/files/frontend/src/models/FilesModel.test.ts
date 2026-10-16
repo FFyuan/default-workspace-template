@@ -190,6 +190,19 @@ describe("renaming", () => {
   });
 });
 
+describe("moving", () => {
+  it("moves nothing into or out of a folder read live from a computer, and says why", async () => {
+    const { model } = harness();
+    await model.moveInto(["/home/b.txt"], "/__remote/host-mac/Users/kim/");
+    await model.moveInto(["/__remote/host-mac/Users/kim/notes.md"], "/home/zeta/");
+    expect(dufs.movePath).not.toHaveBeenCalled();
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual([
+      "Moving isn't supported on files shared from your computer.",
+      "Moving isn't supported on files shared from your computer.",
+    ]);
+  });
+});
+
 describe("deleting", () => {
   it("deletes what was confirmed and nothing when it was not", async () => {
     const { model, host } = harness();

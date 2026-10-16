@@ -69,6 +69,24 @@ def test_dufs_answers_pass_through_with_their_path_and_body_and_a_safe_name_head
     assert seen[1].method == "PUT" and seen[1].read() == b"hello"
 
 
+def test_a_move_from_the_workspace_onto_a_computer_is_refused_before_dufs(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def dufs(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(201, stream=httpx.ByteStream(b""))
+
+    client = _app(None, tmp_path, mock_dufs(dufs))
+    destination = f"http://localhost/__remote/{DEVICE}/Users/kim/notes.txt"
+    response = client.open("/home/user/notes.txt", method="MOVE", headers={"Destination": destination})
+    assert response.status_code == 501
+    assert seen == []
+
+    moved = client.open("/home/user/notes.txt", method="MOVE", headers={"Destination": "http://localhost/tmp/n.txt"})
+    assert moved.status_code == 201
+    assert seen[0].method == "MOVE"
+
+
 def test_shares_are_read_from_the_permissions_with_write_winning_over_read() -> None:
     rules = {
         "rules": [

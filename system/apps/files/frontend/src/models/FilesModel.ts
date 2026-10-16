@@ -94,6 +94,7 @@ export type SelectHow = "only" | "toggle" | "extend";
 const SEARCH_DELAY_MS = 250;
 const TOAST_MS = 6000;
 const REFRESH_DELAY_MS = 300;
+const LIVE_MOVE_REFUSAL = "Moving isn't supported on files shared from your computer.";
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
@@ -554,7 +555,8 @@ export class FilesModel {
     this.startRename(path);
   }
 
-  /** Move entries into a folder, as a drag onto it asks. One that would land on a name already there stays put. */
+  /** Move entries into a folder, as a drag onto it asks. One that would land on a name already there stays put, and
+   *  nothing moves to or from a computer's live share, whose file server cannot move. */
   async moveInto(paths: readonly string[], folder: string): Promise<void> {
     const moving = paths.filter((path) => parentOf(path) !== folder && !isWithin(folder, path));
     if (moving.length === 0) return;
@@ -562,6 +564,7 @@ export class FilesModel {
     for (const path of moving) {
       const target = childPath(folder, nameOf(path), isFolderPath(path));
       try {
+        if (isLiveShared(path) || isLiveShared(folder)) throw new Error(LIVE_MOVE_REFUSAL);
         if (await dufs.exists(target))
           throw new Error(`${nameOf(folder)} already has an item named "${nameOf(path)}".`);
         await dufs.movePath(path, target);

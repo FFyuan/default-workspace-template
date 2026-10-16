@@ -67,6 +67,7 @@ _CHUNK: Final[int] = 64 * 1024
 _EDITABLE_LIMIT: Final[int] = 4 * 1024 * 1024
 _TEXT_TYPES: Final[re.Pattern[str]] = re.compile(r"^(text/|application/(json|xml|javascript|x-sh|toml|yaml))")
 _ASSETS_PREFIX: Final[re.Pattern[str]] = re.compile(r'src="(/__dufs_v[^"/]+__/)')
+_NO_MOVE_TO_COMPUTER: Final[str] = "Moving isn't supported on files shared from your computer."
 _UNREACHABLE: Final[str] = "Your computer isn't answering. It may be asleep, or Imbue Studio may be closed."
 
 
@@ -282,6 +283,10 @@ def create_app(
     @app.route("/", defaults={"path": ""}, methods=_ALL_METHODS)
     @app.route("/<path:path>", methods=_ALL_METHODS)
     def proxy(path: str) -> Response:
+        # dufs would take a destination under the live-share prefix for a folder on its own disk.
+        destination = urllib.parse.urlsplit(request.headers.get("Destination", "")).path
+        if request.method in ("MOVE", "COPY") and destination.startswith(f"{REMOTE_PREFIX}/"):
+            return _text(_NO_MOVE_TO_COMPUTER, 501)
         target = request.environ.get("REQUEST_URI") or request.full_path
         headers = [(key, value) for key, value in request.headers.items() if key.lower() not in _HOP_BY_HOP]
         upstream_request = dufs.build_request(request.method, target, headers=headers, content=_request_body())
