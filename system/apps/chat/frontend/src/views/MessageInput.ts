@@ -94,6 +94,8 @@ const SEND_BUTTON_IDLE_CLASS =
 
 const ATTACHMENT_CHIP_HEIGHT_CLASS = "h-10";
 
+const ATTACHMENT_DETAIL_CLASS = "composer-attachment-detail truncate text-[11px] leading-[1.3]";
+
 /** The attachment row's edge fade: 4px solid at the edge, then an ease-out falloff over the rest of
  *  the fade box, so there is no visible band where a linear ramp would end. */
 const STRIP_FADE_SOLID_PX = 4;
@@ -544,32 +546,31 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
    */
   function renderComposerAttachment(chatId: string, attachment: ComposerAttachment): m.Vnode {
     const isUploading = attachment.status === "uploading";
+    const isError = attachment.status === "error";
     // The local pixels while uploading, then the uploaded copy once a reload has dropped them.
     const thumbnailUrl = attachment.previewUrl ?? attachment.uploaded?.url;
-    const isThumbnail = attachment.isImage && attachment.status !== "error" && thumbnailUrl !== undefined;
+    const isThumbnail = attachment.isImage && !isError && thumbnailUrl !== undefined;
     const size = attachment.uploaded?.size ?? attachment.localSize;
     const spinner = m.trust(spinnerIcon(16));
     const isDescribed = attachment.summary !== undefined;
-    const isError = attachment.status === "error";
-    const remove =
-      attachment.status === "uploading"
-        ? null
-        : m(
-            "button",
-            {
-              type: "button",
-              // z-10: above the strip's end fades, so a half-hidden chip's remove button stays usable.
-              // Only 2px out from the corner, leaving room under the chip's tooltip, 6px above it.
-              class:
-                "composer-attachment-remove absolute -top-0.5 -right-0.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
-                "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
-                "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
-              "aria-label": "Remove attachment",
-              ...hoverTooltipAttrs("Remove attachment", "above"),
-              onclick: () => removeComposerAttachment(chatId, attachment.localId),
-            },
-            m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
-          );
+    const remove = isUploading
+      ? null
+      : m(
+          "button",
+          {
+            type: "button",
+            // z-10: above the strip's end fades, so a half-hidden chip's remove button stays usable.
+            // Only 2px out from the corner, leaving room under the chip's tooltip, 6px above it.
+            class:
+              "composer-attachment-remove absolute -top-0.5 -right-0.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
+              "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
+              "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
+            "aria-label": "Remove attachment",
+            ...hoverTooltipAttrs("Remove attachment", "above"),
+            onclick: () => removeComposerAttachment(chatId, attachment.localId),
+          },
+          m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
+        );
     // The status modifier is an interpolated marker; the one status the look distinguishes (a
     // failed upload's red border) rides beside it.
     const chipMarker = `composer-attachment composer-attachment--${attachment.status}`;
@@ -605,26 +606,15 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
       );
     }
     const summary = attachment.summary ?? (size === undefined ? undefined : formatFileSize(size));
-    const detail =
-      attachment.status !== "error"
-        ? summary === undefined
-          ? null
-          : m(
-              "span",
-              {
-                class:
-                  "composer-attachment-detail composer-attachment-summary truncate text-[11px] leading-[1.3] text-secondary",
-              },
-              summary,
-            )
-        : m(
-            "span",
-            {
-              class:
-                "composer-attachment-detail composer-attachment-detail--error truncate text-[11px] leading-[1.3] text-danger",
-            },
-            "Upload failed",
-          );
+    const detail = isError
+      ? m(
+          "span",
+          { class: `${ATTACHMENT_DETAIL_CLASS} composer-attachment-detail--error text-danger` },
+          "Upload failed",
+        )
+      : summary === undefined
+        ? null
+        : m("span", { class: `${ATTACHMENT_DETAIL_CLASS} composer-attachment-summary text-secondary` }, summary);
     return m(
       "div",
       {
