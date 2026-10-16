@@ -32,7 +32,7 @@ export interface ComposerAttachment {
   isImage: boolean;
   status: ComposerAttachmentStatus;
   /** One line saying what the file stands for, when it is not the user's own file: an element
-   *  reference's chip shows it in place of the size, and as its tooltip. */
+   *  reference's chip shows it in place of the size. */
   summary?: string;
   /** The picked file's size, shown on the chip while it uploads. */
   localSize?: number;
