@@ -26,6 +26,8 @@ packages = ["src/app_schema"]
 
 [dependency-groups]
 dev = [
+    # The library's own tests validate the documents they build.
+    "app-schema[testing]",
     # Used by test_no_type_errors in the ratchets, pinned to the version the shell and chat use.
     "ty==0.0.85",
 ]

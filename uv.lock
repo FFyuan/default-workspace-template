@@ -252,6 +252,7 @@ testing = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "ty" },
 ]
 
@@ -266,7 +267,10 @@ requires-dist = [
 provides-extras = ["testing"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ty", specifier = "==0.0.85" }]
+dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
+    { name = "ty", specifier = "==0.0.85" },
+]
 
 [[package]]
 name = "argon2-cffi"
