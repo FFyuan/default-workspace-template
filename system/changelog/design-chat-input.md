@@ -1,1 +1,1 @@
-The shared icon set gains a `plus` glyph, and the sign-in spinner is renamed `spinnerIcon` now that it also marks an attachment's upload. The message column narrows to 672px (`--width-message-column`).
+The shared icon set gains a `plus` glyph in place of the paperclip `attach` glyph it no longer has a use for, and the sign-in spinner is renamed `spinnerIcon` now that it also marks an attachment's upload. The message column narrows to 672px (`--width-message-column`).

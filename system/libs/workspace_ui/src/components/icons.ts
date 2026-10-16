@@ -19,8 +19,6 @@ const XMLNS = "http://www.w3.org/2000/svg";
 
 // Inner markup for stroke-outline icons, all drawn on a 24x24 grid.
 const STROKE_PATHS = {
-  attach:
-    '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
   // The single canonical "x".
   close: '<path d="M18 6L6 18"/><path d="M6 6l12 12"/>',
   file: '<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>',
