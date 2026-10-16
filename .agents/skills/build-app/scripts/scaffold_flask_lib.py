@@ -577,7 +577,9 @@ def _write_lib(
         _MANIFEST_TEMPLATE.format(
             name=name,
             display_name=display_name,
-            description_toml=json.dumps(description),
+            # ensure_ascii=False: a TOML basic string takes raw non-ASCII, but refuses the surrogate
+            # escapes json.dumps would otherwise write for a character outside the basic plane.
+            description_toml=json.dumps(description, ensure_ascii=False),
             package_upper=package.upper(),
         )
     )

@@ -338,6 +338,18 @@ def test_write_lib_writes_a_manifest_the_library_accepts(tmp_path: Path) -> None
     assert (lib_dir / "src" / "inbox_status" / "runner_test.py").exists()
 
 
+def test_the_manifest_keeps_a_description_with_quotes_and_characters_outside_the_basic_plane(
+    tmp_path: Path,
+) -> None:
+    description = 'notes, "quoted", with a clef \U0001d11e and an accent \u00e9'
+
+    lib_dir = scaffold_flask_lib._write_lib(
+        tmp_path, "notes", description, "Notes", 8081, [], _ICON
+    )
+
+    assert load_manifest(lib_dir / "app.toml").description == description
+
+
 def _test_function_names(source: str) -> frozenset[str]:
     return frozenset(
         node.name
