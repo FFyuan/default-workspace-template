@@ -13,14 +13,6 @@ from app_schema.api_schema import (
 )
 from app_schema.testing import assert_api_schema_describes_app
 
-_MANIFEST = """
-name = "notes"
-display_name = "Notes"
-icon = "icon.svg"
-description = "Keeps the person's notes and finds them again."
-api_schema_path = "/api/schema"
-"""
-
 
 class NoteBody(BaseModel):
     title: str
@@ -142,7 +134,7 @@ def test_the_document_covers_every_route_with_docstrings_parameters_and_models()
 
 
 def test_the_route_serves_the_document_without_describing_itself(
-    tmp_path: Path,
+    notes_manifest_path: Path,
 ) -> None:
     app = _notes_app()
     register_api_schema_route(
@@ -151,17 +143,14 @@ def test_the_route_serves_the_document_without_describing_itself(
         title="Notes",
         description="Keeps the person's notes and finds them again.",
     )
-    manifest = tmp_path / "app.toml"
-    manifest.write_text(_MANIFEST)
-    (tmp_path / "icon.svg").write_text("<svg/>")
     client = app.test_client()
 
-    assert_api_schema_describes_app(client, manifest)
+    assert_api_schema_describes_app(client, notes_manifest_path)
     assert "/api/schema" not in client.get("/api/schema").get_json()["paths"]
 
 
 def test_the_route_works_on_a_blueprint_and_sees_routes_registered_later(
-    tmp_path: Path,
+    notes_manifest_path: Path,
 ) -> None:
     blueprint = Blueprint("pages", __name__)
 
@@ -182,10 +171,7 @@ def test_the_route_works_on_a_blueprint_and_sees_routes_registered_later(
     def late() -> Response:
         return Response("late")
 
-    manifest = tmp_path / "app.toml"
-    manifest.write_text(_MANIFEST)
-    (tmp_path / "icon.svg").write_text("<svg/>")
-    assert_api_schema_describes_app(app.test_client(), manifest)
+    assert_api_schema_describes_app(app.test_client(), notes_manifest_path)
     assert set(app.test_client().get("/api/schema").get_json()["paths"]) == {
         "/api/health",
         "/late",
