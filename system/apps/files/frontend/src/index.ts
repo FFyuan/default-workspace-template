@@ -17,7 +17,7 @@ import { installElementContextMenu } from "@imbue/workspace-ui/src/context_menu"
 import type { ContextMenuRow } from "@imbue/workspace-ui/src/context_menu_rows";
 import { installCursorHidingWhileTyping } from "@imbue/workspace-ui/src/hideCursorWhileTyping";
 
-import { entryOf, pageUrlOf, readPageData, urlOf } from "./models/dufs";
+import { entryOf, pageUrlOf, readPageData } from "./models/dufs";
 import { decodePathname, isFolderPath, titleOf } from "./models/paths";
 import { ENTRY_PATH_ATTR, FOLDER_SURFACE_ATTR } from "./views/entries";
 import { FilePage, FilePageModel } from "./views/FilePage";
@@ -79,7 +79,6 @@ function bootstrap(): void {
 
   // A `?path=` folder is fetched rather than taken from the page, which lists the folder the launch landed on.
   const folder = requested ?? (isFolderPath(path) ? path : `${path}/`);
-  if (requested !== null) window.history.replaceState(null, "", urlOf(folder));
   const initial =
     requested === null
       ? { exists: data.dir_exists !== false, entries: (data.paths ?? []).map((item) => entryOf(folder, item)) }
