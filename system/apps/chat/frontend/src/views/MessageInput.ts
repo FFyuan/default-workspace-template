@@ -124,6 +124,7 @@ function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
   let scroller: HTMLElement | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let edges = { left: false, right: false };
+  let chipCount = 0;
 
   function updateEdges(): void {
     if (scroller === null) return;
@@ -163,7 +164,7 @@ function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
           "aria-label": isLeft ? "Scroll attachments left" : "Scroll attachments right",
           onclick: () => page(isLeft ? -1 : 1),
         },
-        m.trust(icon(isLeft ? "chevron-left" : "chevron-right", { size: 14 })),
+        m.trust(icon(isLeft ? "chevron-left" : "chevron-right", { size: 14, strokeWidth: 2.5 })),
       ),
     ];
   }
@@ -174,9 +175,18 @@ function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
       scroller.addEventListener("scroll", updateEdges, { passive: true });
       resizeObserver = new ResizeObserver(updateEdges);
       resizeObserver.observe(scroller);
+      chipCount = scroller.childElementCount;
       updateEdges();
     },
-    onupdate: updateEdges,
+    onupdate() {
+      // A chip just added goes on the end, so the row scrolls there to show it.
+      const count = scroller?.childElementCount ?? 0;
+      if (count > chipCount) {
+        scroller?.scrollTo({ left: scroller.scrollWidth, behavior: "smooth" });
+      }
+      chipCount = count;
+      updateEdges();
+    },
     onremove() {
       scroller?.removeEventListener("scroll", updateEdges);
       resizeObserver?.disconnect();
