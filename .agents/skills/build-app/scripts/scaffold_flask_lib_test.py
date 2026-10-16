@@ -407,7 +407,7 @@ def test_the_display_name_limit_matches_the_library() -> None:
 
 def test_the_runner_page_connects_to_the_shell_and_installs_the_element_menu() -> None:
     source = scaffold_flask_lib._lib_runner(
-        "inbox-status", "inbox_status", "inbox status dashboard", 8081
+        "inbox-status", "inbox_status", "inbox status dashboard", 8081, "inbox status dashboard"
     )
     assert 'from "/_static/app_contract.js"' in source
     assert 'from "/_static/context_menu.js"' in source
@@ -481,7 +481,7 @@ def test_the_runner_serves_the_shell_modules_and_nothing_else(
 ) -> None:
     """The scaffolded app answers the two shell-built modules from its own origin, and 404s any other name."""
     source = scaffold_flask_lib._lib_runner(
-        "inbox-status", "inbox_status", "inbox status dashboard", 8081
+        "inbox-status", "inbox_status", "inbox status dashboard", 8081, "inbox status dashboard"
     )
     runner = tmp_path / "runner.py"
     runner.write_text(source)
@@ -508,7 +508,7 @@ def test_the_runner_serves_the_shell_modules_and_nothing_else(
     assert b'from "/_static/context_menu.js"' in page.data
     document = client.get("/api/schema").get_json()
     assert document["info"] == {
-        "title": "inbox-status",
+        "title": "inbox status dashboard",
         "version": "1.0",
         "description": "inbox status dashboard",
     }
@@ -517,7 +517,7 @@ def test_the_runner_serves_the_shell_modules_and_nothing_else(
 
 def test_the_runner_does_not_use_reloader() -> None:
     source = scaffold_flask_lib._lib_runner(
-        "inbox-status", "inbox_status", "inbox status dashboard", 8081
+        "inbox-status", "inbox_status", "inbox status dashboard", 8081, "inbox status dashboard"
     )
     assert "use_reloader=False" in source
 
@@ -536,7 +536,7 @@ def test_the_runner_module_evaluates_its_environment_reads(tmp_path: Path) -> No
     """The runner reads its port and data dir from the environment at import; a
     runner whose imports do not cover that read crashes before serving anything."""
     source = scaffold_flask_lib._lib_runner(
-        "inbox-status", "inbox_status", "inbox status dashboard", 8081
+        "inbox-status", "inbox_status", "inbox status dashboard", 8081, "inbox status dashboard"
     )
     namespace: dict[str, object] = {"__name__": "inbox_status.runner"}
 

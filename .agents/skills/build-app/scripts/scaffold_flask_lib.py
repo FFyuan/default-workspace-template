@@ -291,12 +291,12 @@ def _lib_runner(
     package: str,
     description: str,
     port: int,
-    display_name: str | None = None,
+    display_name: str,
 ) -> str:
     env_var = f"{package.upper()}_DATA_DIR"
     port_env_var = f"{package.upper()}_PORT"
     # Python literals for the generated source: the document's title is the manifest's display name.
-    title_literal = repr(display_name if display_name is not None else name)
+    title_literal = repr(display_name)
     description_literal = repr(description)
     return f'''"""{description}.
 
