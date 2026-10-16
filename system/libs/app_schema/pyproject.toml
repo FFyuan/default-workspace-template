@@ -9,11 +9,13 @@ dependencies = [
     "app-manifest",
     "flask>=3.0",
     "imbue-common",
-    # What assert_api_schema_describes_app validates a served document with; a regular dependency
-    # because every app's own test suite calls it.
-    "openapi-spec-validator>=0.7",
     "pydantic>=2.0",
 ]
+
+[project.optional-dependencies]
+# What assert_api_schema_describes_app validates a served document with; an app's test suite
+# depends on app-schema[testing], its runtime on app-schema alone.
+testing = ["openapi-spec-validator>=0.7"]
 
 [build-system]
 requires = ["hatchling"]

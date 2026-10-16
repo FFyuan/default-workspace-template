@@ -18,6 +18,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "app-schema[testing]",
     "pytest>=9.0",
     "pytest-timeout>=2.3.0",
     "inline-snapshot>=0.13",

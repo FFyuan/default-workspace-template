@@ -387,6 +387,18 @@ def test_display_name_refuses_what_the_manifest_would_not_take(candidate: str) -
         scaffold_flask_lib._display_name("description", candidate)
 
 
+@pytest.mark.parametrize("candidate", ["", "   ", "two\nlines", "x" * 201])
+def test_a_description_the_manifest_would_refuse_is_refused_before_anything_is_written(candidate: str) -> None:
+    with pytest.raises(SystemExit):
+        scaffold_flask_lib._check_description(candidate)
+
+
+def test_the_description_limit_matches_the_library() -> None:
+    from app_manifest.primitives import MAX_APP_DESCRIPTION_LENGTH
+
+    assert scaffold_flask_lib.MAX_APP_DESCRIPTION_LENGTH == MAX_APP_DESCRIPTION_LENGTH
+
+
 def test_the_display_name_limit_matches_the_library() -> None:
     # The scaffold runs in its own PEP 723 environment and cannot import the
     # library, so it carries its own copy of the limit.

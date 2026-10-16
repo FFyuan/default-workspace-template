@@ -275,6 +275,8 @@ packages = ["src/{package}"]
 
 [dependency-groups]
 dev = [
+    # What runner_test.py asserts the API document with.
+    "app-schema[testing]",
     # Used by test_no_type_errors in the ratchets, pinned to the version the shell and chat use.
     "ty==0.0.85",
 ]
@@ -518,6 +520,21 @@ def _lib_readme(name: str, description: str) -> str:
 # This script runs in its own PEP 723 environment and cannot import the library;
 # a drift test in scaffold_flask_lib_test.py keeps the two equal.
 MAX_DISPLAY_NAME_LENGTH = 64
+MAX_APP_DESCRIPTION_LENGTH = 200
+
+
+def _check_description(description: str) -> str:
+    """The manifest's ``description``, refused before anything is written when the manifest would refuse it."""
+    if not description.strip():
+        sys.exit("error: --description must not be empty")
+    if "\n" in description or "\r" in description:
+        sys.exit("error: --description is a single line")
+    if len(description) > MAX_APP_DESCRIPTION_LENGTH:
+        sys.exit(
+            f"error: --description is over {MAX_APP_DESCRIPTION_LENGTH} characters ({len(description)}); "
+            "it is the one line an agent reads to know what the app is for"
+        )
+    return description
 
 
 def _display_name(description: str, explicit: str | None) -> str:
@@ -848,6 +865,7 @@ def main() -> None:
     package = _kebab_to_snake(args.name)
     port = _pick_port(repo_root, args.port, _is_port_bound)
     program_path = _reserve_supervisord_program_path(repo_root, args.name)
+    _check_description(args.description)
     display_name = _display_name(args.description, args.display_name)
 
     lib_dir = _write_lib(

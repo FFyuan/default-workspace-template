@@ -242,8 +242,12 @@ dependencies = [
     { name = "app-manifest" },
     { name = "flask" },
     { name = "imbue-common" },
-    { name = "openapi-spec-validator" },
     { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+testing = [
+    { name = "openapi-spec-validator" },
 ]
 
 [package.dev-dependencies]
@@ -256,9 +260,10 @@ requires-dist = [
     { name = "app-manifest", editable = "system/libs/app_manifest" },
     { name = "flask", specifier = ">=3.0" },
     { name = "imbue-common", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fimbue_common&rev=b62736d294d5a243eaff163e9e56954b0e1b296d" },
-    { name = "openapi-spec-validator", specifier = ">=0.7" },
+    { name = "openapi-spec-validator", marker = "extra == 'testing'", specifier = ">=0.7" },
     { name = "pydantic", specifier = ">=2.0" },
 ]
+provides-extras = ["testing"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ty", specifier = "==0.0.85" }]
@@ -488,6 +493,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "ty" },
 ]
 
@@ -509,7 +515,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ty", specifier = "==0.0.85" }]
+dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
+    { name = "ty", specifier = "==0.0.85" },
+]
 
 [[package]]
 name = "caretaker"
@@ -730,6 +739,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "coverage" },
     { name = "inline-snapshot" },
     { name = "mngr-cli-contract" },
@@ -775,6 +785,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
     { name = "coverage" },
     { name = "inline-snapshot", specifier = ">=0.13" },
     { name = "mngr-cli-contract", editable = "system/libs/mngr_cli_contract" },
@@ -1176,6 +1187,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "inline-snapshot" },
     { name = "pytest" },
     { name = "pytest-timeout" },
@@ -1197,6 +1209,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
     { name = "inline-snapshot", specifier = ">=0.13" },
     { name = "pytest", specifier = ">=9.0" },
     { name = "pytest-timeout", specifier = ">=2.3.0" },
@@ -1351,6 +1364,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "coverage" },
     { name = "inline-snapshot" },
     { name = "pytest" },
@@ -1377,6 +1391,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
     { name = "coverage" },
     { name = "inline-snapshot", specifier = ">=0.13" },
     { name = "pytest", specifier = ">=9.0" },
@@ -3654,6 +3669,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "chat" },
     { name = "coverage" },
     { name = "imbue-mngr" },
@@ -3690,6 +3706,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
     { name = "chat", editable = "system/apps/chat" },
     { name = "coverage" },
     { name = "imbue-mngr", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr&rev=b62736d294d5a243eaff163e9e56954b0e1b296d" },
@@ -3743,6 +3760,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "httpx" },
     { name = "imbue-mngr" },
     { name = "ty" },
@@ -3764,6 +3782,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "imbue-mngr", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr&rev=b62736d294d5a243eaff163e9e56954b0e1b296d" },
     { name = "ty", specifier = "==0.0.85" },

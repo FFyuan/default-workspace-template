@@ -155,13 +155,11 @@ _WS_CLOSE_TERMINATED = 4001
 bridge = AsyncLoopBridge()
 manager = BrowserSessionManager()
 
+APP_DISPLAY_NAME = "Browser"
+APP_DESCRIPTION = "Live Chromium browsers inside the workspace, each driven by one chat or by the person, with pages to watch them."
+
 application = Flask(__name__, static_folder=None)
-register_api_schema_route(
-    application,
-    DEFAULT_API_SCHEMA_PATH,
-    title="Browser",
-    description="Live Chromium browsers inside the workspace, each driven by one chat or by the person, with pages to watch them.",
-)
+register_api_schema_route(application, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION)
 application.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 # Clipboard paste-in bodies carry raw image bytes over HTTP (the WS proxy's ~1 MiB cap
 # is why clipboard rides HTTP, not the stream socket). Bound it so a giant paste is

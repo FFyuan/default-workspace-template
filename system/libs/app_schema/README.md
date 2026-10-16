@@ -22,7 +22,8 @@ app's document from its apps table.
   request and response schemas.
 - `app_schema.api_schema.build_openapi_document(app, title, description, version, route_models, excluded_endpoints)`:
   the document itself, for a caller that wants it without the route.
-- `app_schema.testing.assert_api_schema_describes_app(client, manifest_path)`:
+- `app_schema.testing.assert_api_schema_describes_app(client, manifest_path)` (an app's
+  tests depend on `app-schema[testing]` for it; the runtime needs `app-schema` alone):
   what every app's own tests assert: the route the manifest names answers a
   valid document whose title and description are the manifest's and whose
   paths are every route of the app.
