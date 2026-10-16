@@ -211,7 +211,7 @@ export class FilesController {
       opening.push({
         key: "open",
         label: "Open",
-        icon: single.isFolder ? "folder" : "file",
+        icon: single.isFolder ? "folder" : "page",
         run: () => model.open(single),
       });
       if (single.isFolder && this.connection.isFramed && !this.isNarrow) {

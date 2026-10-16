@@ -153,7 +153,7 @@ function shareRow(app: FilesController, connections: Connections, share: Share):
     key: `share:${share.device}:${share.path}`,
     label: labelOf(share),
     path: target,
-    icon: share.kind === "file" ? "file" : "folder",
+    icon: share.kind === "file" ? "page" : "folder",
     iconBadge: shareBadgeOf(share),
     title: describeShare(share, deviceNameOf(connections, share.device)),
     isFaint: !share.is_reachable && share.synced_copy === null,
@@ -179,7 +179,7 @@ function pendingRow(waiting: PendingConnection): m.Vnode {
       class: "flex h-7 w-full shrink-0 items-center gap-2 rounded-md px-2 text-(length:--font-size-row) text-faint",
     },
     [
-      m.trust(icon(waiting.isFolder ? "folder" : "file", { size: 16, className: "shrink-0" })),
+      m.trust(icon(waiting.isFolder ? "folder" : "page", { size: 16, className: "shrink-0" })),
       m("span", { class: "min-w-0 flex-1 truncate" }, waiting.name),
       mark("pending", "Waiting for approval", m("span.spinner.spinner--sm"), "text-faint"),
     ],

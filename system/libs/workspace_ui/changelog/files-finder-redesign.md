@@ -9,3 +9,5 @@ The type scale gains its smallest step, `--font-size-tag` (10px), and a `type-ta
 The shell's toasts move here, as `models/toasts.ts` (the queue) and `components/toasts.ts` (the stack), so Files shows its notes with them too. A page may pass `onDismiss` to give each toast a close button; the shell passes none, so its toasts still take no press.
 
 `SegmentedControl` is a few choices side by side in one outlined well, the chosen one filled, each a glyph or a label. It is a radio group, moved along with the arrow keys. Files' view switch is the first.
+
+The `folder` glyph is redrawn in the Files app icon's hand-drawn shape, and a matching hand-drawn `page` glyph joins it.

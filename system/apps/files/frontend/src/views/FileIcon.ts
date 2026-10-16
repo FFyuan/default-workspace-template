@@ -21,8 +21,8 @@ function folderSvg(): string {
   const id = `files-folder-${(folderClipCount += 1)}`;
   return (
     '<g transform="translate(-24 -18.8) scale(1.75)">' +
-    `<clipPath id="${id}-back"><path d="M14 10H50V22.95C33 23.3 22 23 14 23.45Z"/></clipPath>` +
-    `<clipPath id="${id}-front"><path d="M14 22.75C22 22.35 33 22.65 50 22.3V44H14Z"/></clipPath>` +
+    `<clipPath id="${id}-back"><path d="M14 10H50V22.1C38 22.6 25 22.85 14 23.65Z"/></clipPath>` +
+    `<clipPath id="${id}-front"><path d="M14 23.45C25 22.65 38 22.4 50 21.9V44H14Z"/></clipPath>` +
     `<path d="${FOLDER_OUTLINE}" clip-path="url(#${id}-back)" style="fill:var(--files-folder-back)"/>` +
     `<path d="${FOLDER_OUTLINE}" clip-path="url(#${id}-front)" style="fill:var(--files-folder)"/></g>`
   );
@@ -30,7 +30,7 @@ function folderSvg(): string {
 
 // A page in the same hand: no edge quite straight, corners a little uneven, the fold drawn rather than ruled.
 const PAGE_SVG =
-  '<path d="M17.2 4.7C24.1 4.25 31.2 4.35 37.5 4.55C39 4.6 40 5.05 41.05 6.1L51.1 16.3C52.05 17.3 52.45 18.35 52.45 19.85C52.65 30.2 52.35 44.1 51.65 55.3C51.45 58.3 49.85 59.55 47.05 59.7C37.1 60.15 27.05 60.1 17.5 59.75C14.5 59.6 12.95 58.25 12.75 55.25C12.25 44.2 12.3 26.1 12.85 9.35C12.95 6.2 14.35 4.85 17.2 4.7Z" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linejoin="round"/>' +
+  '<path d="M17.2 4.7C24.1 4.25 31.2 4.35 37.5 4.55C39 4.6 40 5.05 41.05 6.1L51.1 16.3C52.05 17.3 52.45 18.35 52.45 19.85C52.65 30.2 52.35 44.1 51.65 55.3C51.4 58.6 49.6 59.9 46.6 60.05C40.5 60.4 34.6 59.55 28.4 59.95C24.3 60.2 20.6 60.15 17.6 59.85C14.6 59.55 13 58.1 12.75 55.25C12.25 44.2 12.3 26.1 12.85 9.35C12.95 6.2 14.35 4.85 17.2 4.7Z" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linejoin="round"/>' +
   '<path d="M37.75 4.75C38.35 8.9 38.25 12.5 38.5 15.35C38.7 17.55 39.8 18.6 42.05 18.75C45.4 18.95 49.05 18.8 52.3 18.95C49 19 40.6 9.6 37.75 4.75Z" style="fill:var(--c-surface-secondary)"/>' +
   '<path d="M37.75 4.75C38.35 8.9 38.25 12.5 38.5 15.35C38.7 17.55 39.8 18.6 42.05 18.75C45.4 18.95 49.05 18.8 52.3 18.95" fill="none" style="stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
 
