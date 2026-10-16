@@ -399,7 +399,8 @@
   /* Faint, like the model chip beside it: a view setting under the composer is not something to
      draw the eye down there. */
   color: var(--c-text-faint);
-  font-size: var(--font-size-row);
+  /* The model selector's size, so the two ends of the bar read as one line of text. */
+  font-size: var(--font-size-helper);
   transition: color var(--dur-base);
 }
 .terminal-view-toggle:hover {

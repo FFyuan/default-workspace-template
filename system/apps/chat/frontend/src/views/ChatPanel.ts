@@ -837,7 +837,7 @@ export function ChatPanel(): m.Component<{ chatId: string; isVisible?: boolean; 
                 // whether or not anything in it has rendered yet, so the composer never moves;
                 // on a phone, where the chip is the settings button, only as tall as a notice in it.
                 class:
-                  `composer-under-bar relative mx-auto mt-2 flex w-full ${isCompact ? "" : "min-h-[30px]"} ` +
+                  `composer-under-bar relative mx-auto mt-1 flex w-full ${isCompact ? "" : "min-h-[30px]"} ` +
                   "max-w-(--width-message-column) items-center gap-2",
               },
               [
