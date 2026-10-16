@@ -54,8 +54,10 @@ export function shareRootAt(connections: Connections | null, path: string): Shar
   return connections?.shares.find((share) => targetOf(share) === path);
 }
 
+/** The name of the computer a share is on, as people say it. */
 export function deviceNameOf(connections: Connections, device: string): string {
-  return connections.devices.find((candidate) => candidate.id === device)?.name ?? "your computer";
+  const name = connections.devices.find((candidate) => candidate.id === device)?.name;
+  return name === undefined ? "your computer" : shortDeviceName(name);
 }
 
 /** Where opening a share goes: its synced copy, or the live view of it on its computer. */
@@ -76,8 +78,7 @@ export function shortDeviceName(deviceName: string): string {
 
 /** The hover text of a share: where it lives and how it reaches the workspace, whether it is read-only, and how it
  *  stands, never its own name. */
-export function describeShare(share: Share, deviceName: string): string {
-  const device = shortDeviceName(deviceName);
+export function describeShare(share: Share, device: string): string {
   const where = {
     "two-way": `Synced with ${device}.`,
     "one-way": `Synced from ${device}.`,

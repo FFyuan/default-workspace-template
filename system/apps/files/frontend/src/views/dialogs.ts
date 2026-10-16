@@ -10,7 +10,7 @@ import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 import { inputClass } from "@imbue/workspace-ui/src/components/Input";
 import { MODAL_MESSAGE_CLASS, Modal } from "@imbue/workspace-ui/src/components/Modal";
 
-import type { ConnectionRequest, Device, DroppedItem } from "../models/connections";
+import { shortDeviceName, type ConnectionRequest, type Device, type DroppedItem } from "../models/connections";
 import type { Entry } from "../models/dufs";
 import type { ConflictChoice } from "../models/FilesModel";
 import { invalidNameReason, stemLength } from "../models/paths";
@@ -270,10 +270,17 @@ export class Dialogs {
         dialog.devices.length === 0
           ? m("p", { class: MODAL_MESSAGE_CLASS }, "None of your computers is connected to Imbue Studio right now.")
           : dialog.devices.length === 1
-            ? m("p", { class: "mb-3 type-helper text-secondary" }, `From ${device?.name ?? "your computer"}`)
+            ? m(
+                "p",
+                { class: "mb-3 type-helper text-secondary" },
+                `From ${device === undefined ? "your computer" : shortDeviceName(device.name)}`,
+              )
             : m("div", { class: "mb-3" }, [
                 m(Dropdown<string>, {
-                  options: dialog.devices.map((candidate) => ({ value: candidate.id, label: candidate.name })),
+                  options: dialog.devices.map((candidate) => ({
+                    value: candidate.id,
+                    label: shortDeviceName(candidate.name),
+                  })),
                   value: draft.device,
                   placeholder: "Pick a computer",
                   "aria-label": "Computer",

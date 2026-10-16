@@ -177,10 +177,10 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/notes"]').click()
     expect(_entry(page, "/home/user/synced_folders/host-mac/Users/kim/notes/todo.md")).to_be_visible()
 
-    expect(page.locator(".files-crumb")).to_have_text(["Kims-Mac.local", "notes"])
+    expect(page.locator(".files-crumb")).to_have_text(["Kims-Mac", "notes"])
 
     page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Brand Fonts"]').click()
-    expect(page.locator(".files-stuck-sync")).to_contain_text("Not synced yet from Kims-Mac.local")
+    expect(page.locator(".files-stuck-sync")).to_contain_text("Not synced yet from Kims-Mac.")
     page.locator('[data-view-mode="columns"]').click()
     expect(page.locator(".files-column .files-stuck-sync")).to_contain_text("Not synced yet")
 
@@ -198,7 +198,8 @@ def test_the_connect_entry_asks_the_computer_to_share_something(
     page = open_files_page("/")
     page.locator('[data-action="connect"]').click()
     dialog = page.locator('[data-dialog="connect"]')
-    expect(dialog).to_contain_text("From Kims-Mac.local")
+    expect(dialog).to_contain_text("From Kims-Mac")
+    expect(dialog).not_to_contain_text(".local")
     page.locator(".files-connect-path").fill("~/Projects/site")
     page.locator('input[value="write"]').check()
     page.locator(".files-connect-sync").uncheck()
