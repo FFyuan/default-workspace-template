@@ -23,6 +23,8 @@ from app_manifest.primitives import AppName
 from app_manifest.registry import read_origin_label
 from app_manifest.registry_location import registry_path
 from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import RouteModels
+from app_schema.api_schema import RouteModelsByRoute
 from app_schema.api_schema import register_api_schema_route
 from flask import Flask
 from flask import Response
@@ -2300,6 +2302,34 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
+# The routes that validate a JSON body with a pydantic model, and the reads paired with them, keyed by
+# (method, OpenAPI path): the API document publishes these as their request and response schemas.
+# ``/api/chats/create`` is not among them: its body carries ``project_id`` beside ``CreateChatRequest``,
+# which forbids extra keys, so the model alone would advertise a body that refuses a key the route takes.
+_ROUTE_MODELS: Final[RouteModelsByRoute] = {
+    ("POST", "/api/chats/seed"): RouteModels(
+        request_model=SeedChatRequest, response_model=CreateChatResponse, success_status=201
+    ),
+    ("GET", "/api/settings"): RouteModels(response_model=ChatSettingsResponse),
+    ("PUT", "/api/settings"): RouteModels(request_model=ChatSettings, response_model=ChatSettingsResponse),
+    ("POST", "/api/chats/{chat_id}/message"): RouteModels(
+        request_model=SendMessageRequest, response_model=SendMessageResponse
+    ),
+    ("POST", "/api/chats/{chat_id}/model"): RouteModels(
+        request_model=SetModelChoiceRequest, response_model=SendMessageResponse
+    ),
+    ("POST", "/api/chats/{chat_id}/rename"): RouteModels(
+        request_model=RenameChatRequest, response_model=RenameChatResponse
+    ),
+    ("GET", "/api/chats/{chat_id}/fast-mode"): RouteModels(response_model=FastModeStateResponse),
+    ("PUT", "/api/chats/{chat_id}/fast-mode"): RouteModels(
+        request_model=ChatFastModeState, response_model=FastModeStateResponse
+    ),
+    ("GET", "/api/chats/{chat_id}/autocompact"): RouteModels(response_model=AutocompactStateResponse),
+    ("PUT", "/api/chats/{chat_id}/autocompact"): RouteModels(
+        request_model=ChatAutocompactState, response_model=AutocompactStateResponse
+    ),
+}
 
 
 def create_application(state: ChatAppState) -> Flask:
@@ -2321,7 +2351,13 @@ def create_application(state: ChatAppState) -> Flask:
     application.add_url_rule("/favicon.ico", view_func=_favicon, methods=["GET"])
     application.add_url_rule("/assets/<path:filename>", view_func=_serve_asset, methods=["GET"])
     application.add_url_rule("/api/health", view_func=_health_endpoint, methods=["GET"])
-    register_api_schema_route(application, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION)
+    register_api_schema_route(
+        application,
+        DEFAULT_API_SCHEMA_PATH,
+        title=APP_DISPLAY_NAME,
+        description=APP_DESCRIPTION,
+        route_models=_ROUTE_MODELS,
+    )
     sock.route("/api/ws")(_ws_endpoint)
     application.add_url_rule("/plugins/<basename>", view_func=_serve_static_file, methods=["GET"])
     application.add_url_rule("/api/agents", view_func=_list_agents_endpoint, methods=["GET"])
