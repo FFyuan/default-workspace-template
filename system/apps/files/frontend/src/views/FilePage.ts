@@ -18,6 +18,7 @@ import { isTextLike, previewKindOf } from "../models/fileKinds";
 import { formatSize } from "../models/format";
 import { childPath, nameOf, parentOf } from "../models/paths";
 import { Dialogs } from "./dialogs";
+import { startDownload } from "./download";
 import { FileIcon } from "./FileIcon";
 import { iconButton } from "./iconButton";
 
@@ -185,12 +186,7 @@ function body(page: FilePageModel): m.Children {
 }
 
 function downloadFile(path: string): void {
-  const anchor = document.createElement("a");
-  anchor.href = dufs.urlOf(path);
-  anchor.download = nameOf(path);
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  startDownload(document, dufs.urlOf(path), nameOf(path));
 }
 
 export function FilePage(): m.Component<{ page: FilePageModel }> {

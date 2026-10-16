@@ -16,6 +16,7 @@ import { decodePathname, nameOf, titleOf } from "../models/paths";
 import { sourcesFromFileList } from "../models/uploads";
 import { requestConnection, type DroppedItem, type PendingConnection } from "../models/connections";
 import { Dialogs } from "./dialogs";
+import { startDownload } from "./download";
 
 /** After asking to connect something, how often and how long the list is read again for the approval. */
 const CONNECTION_POLL_MS = 3000;
@@ -132,12 +133,8 @@ export class FilesController {
 
   download(entries: readonly Entry[]): void {
     for (const entry of entries) {
-      const anchor = this.win.document.createElement("a");
-      anchor.href = downloadUrlOf(entry.path, entry.isFolder);
-      anchor.download = entry.isFolder ? `${entry.name}.zip` : entry.name;
-      this.win.document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+      const filename = entry.isFolder ? `${entry.name}.zip` : entry.name;
+      startDownload(this.win.document, downloadUrlOf(entry.path, entry.isFolder), filename);
     }
   }
 
