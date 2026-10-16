@@ -31,7 +31,7 @@ function folderSvg(): string {
 
 // A page in the same hand: no edge quite straight, corners a little uneven, the fold drawn rather than ruled.
 const PAGE_SVG =
-  '<path d="M17.2 4.7C24.1 4.25 31.2 4.35 37.5 4.55C39 4.6 40 5.05 41.05 6.1L51.1 16.3C52.05 17.3 52.45 18.35 52.45 19.85C52.65 30.2 52.1 43.2 49.75 53.3C49.45 56.55 47.75 57.85 44.75 58.05C39.6 58.6 34.4 59.5 28.4 59.95C24.3 60.2 20.6 60.15 17.6 59.85C14.6 59.55 13 58.1 12.75 55.25C12.25 44.2 12.3 26.1 12.85 9.35C12.95 6.2 14.35 4.85 17.2 4.7Z" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linejoin="round"/>' +
+  '<path d="M17.2 4.7C24.1 4.25 31.2 4.35 37.5 4.55C39 4.6 40 5.05 41.05 6.1L51.1 16.3C52.05 17.3 52.45 18.35 52.45 19.85C52.65 30.2 51.6 44.1 49.65 55.3C49.4 58.6 47.6 59.9 44.6 60.05C39.5 60.4 34.6 59.55 28.4 59.95C24.3 59.6 20.6 58.75 17.6 57.85C14.6 57.55 13 56.1 12.75 53.25C12.25 44.2 12.3 26.1 12.85 9.35C12.95 6.2 14.35 4.85 17.2 4.7Z" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linejoin="round"/>' +
   '<path d="M37.75 4.75C38.35 8.9 38.25 12.5 38.5 15.35C38.7 17.55 39.8 18.6 42.05 18.75C45.4 18.95 49.05 18.8 52.3 18.95C49 19 40.6 9.6 37.75 4.75Z" style="fill:var(--c-surface-secondary)"/>' +
   '<path d="M37.75 4.75C38.35 8.9 38.25 12.5 38.5 15.35C38.7 17.55 39.8 18.6 42.05 18.75C45.4 18.95 49.05 18.8 52.3 18.95" fill="none" style="stroke:var(--c-border-strong)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
 
