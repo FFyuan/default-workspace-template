@@ -15,6 +15,7 @@ from typing import Final
 from typing import Literal
 
 import httpx
+from loguru import logger
 
 from files_app.gateway import Gateway
 from files_app.gateway import device_files_path
@@ -85,13 +86,16 @@ def list_on_device(gateway: Gateway, device: str, path: str, depth: int) -> list
             headers={"Depth": str(depth), "Content-Type": "application/xml"},
             content=PROPFIND_BODY,
         )
-    except httpx.HTTPError:
+    except httpx.HTTPError as error:
+        logger.debug("{} did not answer for {}: {}", device, path, error)
         return None
     if response.status_code != 207:
+        logger.debug("{} answered {} for {}", device, response.status_code, path)
         return None
     try:
         return parse_propfind(response.content)
-    except ElementTree.ParseError:
+    except ElementTree.ParseError as error:
+        logger.warning("{} sent a listing of {} that does not parse: {}", device, path, error)
         return None
 
 

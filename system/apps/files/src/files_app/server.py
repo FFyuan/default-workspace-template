@@ -22,6 +22,7 @@ from flask import Flask
 from flask import Response
 from flask import request
 from flask import stream_with_context
+from loguru import logger
 
 from files_app.connections import SYNCED_FOLDERS
 from files_app.connections import list_connections
@@ -268,7 +269,8 @@ def create_app(
         upstream_request = gateway.build(method, device_files_path(device_path), device, forwarded, _request_body())
         try:
             upstream = gateway.send(upstream_request)
-        except httpx.HTTPError:
+        except httpx.HTTPError as error:
+            logger.debug("{} did not answer {} {}: {}", device, method, device_path, error)
             return _text(_UNREACHABLE, 502)
         if upstream.status_code == 403:
             upstream.close()
