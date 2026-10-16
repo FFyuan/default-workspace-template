@@ -204,7 +204,7 @@ def test_the_connect_entry_asks_the_computer_to_share_something(
     page.locator(".files-connect-sync").uncheck()
     page.locator('[data-dialog-action="connect"]').click()
 
-    expect(page.locator(".files-notice")).to_contain_text("Approve it in Imbue Studio")
+    expect(page.locator("[data-toast]")).to_contain_text("Approve it in Imbue Studio")
     assert connections.requests == [
         {"device": "host-mac", "path": "~/Projects/site", "access": "write", "sync": False}
     ]

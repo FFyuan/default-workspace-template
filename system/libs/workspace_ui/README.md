@@ -15,13 +15,13 @@ workspace rooted at `system/package.json` (one `npm ci`, one lockfile).
   `system/apps/system_interface/frontend/style_guide.md` is the rule for all of
   them.
 - `src/components/`: the shared Mithril recipes (Button, Modal, NoticeDialog,
-  the Menu, the Dropdown that picks a value, icons, badges, tooltips, the modal
+  the Menu, the Dropdown that picks a value, icons, badges, tooltips, toasts, the modal
   backdrop); beside it at `src/`, `DestroyConfirmDialog.ts`, `portal.ts`, and
   `menu-position.ts` (the pure geometry the Menu and the Dropdown place
   themselves with).
 - `src/base-path.ts`, `src/origin.ts`, and
   `src/models/` (`ClientIdentity`, `http`, `backoff`, `ws-json`,
-  `request-error`): the base helpers every page shares.
+  `request-error`, and `toasts`, the queue `components/toasts.ts` draws): the base helpers every page shares.
 - `src/app_contract.ts`: an app page's side of the browser-side contract
   (contracts.md section 10 of the workspace app model, extended by section 7
   of the desktop interface's contracts.md), which the shell's frontend also

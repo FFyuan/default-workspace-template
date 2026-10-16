@@ -10,6 +10,8 @@ import { Button, buttonClass } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import { icon } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu } from "@imbue/workspace-ui/src/components/menu";
+import { Toasts } from "@imbue/workspace-ui/src/components/toasts";
+import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";
 
 import * as dufs from "../models/dufs";
 import { isTextLike, previewKindOf } from "../models/fileKinds";
@@ -32,7 +34,7 @@ export class FilePageModel {
   text: TextState = { status: "loading" };
   draft = "";
   isSaving = false;
-  notice: string | null = null;
+  readonly toasts = new ToastQueue(() => m.redraw());
   isDeleted = false;
   size: number | null = null;
   readonly dialogs = new Dialogs();
@@ -76,7 +78,7 @@ export class FilePageModel {
       this.text = { status: "ready", saved: content };
       this.size = new Blob([content]).size;
     } catch (error) {
-      this.notice = error instanceof Error ? error.message : String(error);
+      this.toasts.show(error instanceof Error ? error.message : String(error));
     }
     this.isSaving = false;
     m.redraw();
@@ -92,7 +94,7 @@ export class FilePageModel {
       if (await dufs.exists(target)) throw new Error(`"${name}" is already taken.`);
       await dufs.movePath(path, target);
     } catch (error) {
-      this.notice = error instanceof Error ? error.message : String(error);
+      this.toasts.show(error instanceof Error ? error.message : String(error));
       m.redraw();
       return;
     }
@@ -106,7 +108,7 @@ export class FilePageModel {
     try {
       await dufs.deletePath(path);
     } catch (error) {
-      this.notice = error instanceof Error ? error.message : String(error);
+      this.toasts.show(error instanceof Error ? error.message : String(error));
       m.redraw();
       return;
     }
@@ -282,29 +284,11 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
           ]),
         ]),
         m("main", { class: "min-h-0 flex-1" }, body(page)),
-        page.notice === null
-          ? null
-          : m(
-              "div.files-notice",
-              {
-                role: "alert",
-                class:
-                  "fixed bottom-6 left-1/2 z-(--z-sticky) flex max-w-[min(480px,calc(100vw-32px))] -translate-x-1/2 items-start gap-3 rounded-lg bg-inverse px-4 py-2.5 type-body text-on-accent shadow-overlay",
-              },
-              [
-                m("span", { class: "min-w-0 flex-1" }, page.notice),
-                m(
-                  "button",
-                  {
-                    type: "button",
-                    "aria-label": "Dismiss",
-                    class: "cursor-pointer text-white/70 hover:text-white",
-                    onclick: () => (page.notice = null),
-                  },
-                  m.trust(icon("close", { size: 14 })),
-                ),
-              ],
-            ),
+        m(Toasts, {
+          toasts: page.toasts.current(),
+          placementClass: "fixed bottom-6",
+          onDismiss: (id: number) => page.toasts.dismiss(id),
+        }),
         page.dialogs.view(),
       ]);
     },

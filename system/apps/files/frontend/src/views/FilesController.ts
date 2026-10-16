@@ -145,7 +145,7 @@ export class FilesController {
     try {
       await this.win.navigator.clipboard.writeText(paths.join("\n"));
     } catch {
-      this.model.showNotice("Couldn't copy to the clipboard.");
+      this.model.toasts.show("Couldn't copy to the clipboard.");
     }
   }
 
@@ -163,13 +163,13 @@ export class FilesController {
     try {
       await requestConnection(ask);
     } catch (error) {
-      this.model.showNotice(error instanceof Error ? error.message : String(error));
+      this.model.toasts.show(error instanceof Error ? error.message : String(error));
       return;
     }
     const name = nameOf(ask.path) || ask.path;
     const waiting: PendingConnection = { key: `${Date.now()}:${ask.path}`, name, isFolder: dropped?.isFolder ?? true };
     this.pending = [...this.pending, waiting];
-    this.model.showNotice("Approve it in Imbue Studio on your computer.");
+    this.model.toasts.show("Approve it in Imbue Studio on your computer.");
     void this.watchForApproval(waiting);
   }
 

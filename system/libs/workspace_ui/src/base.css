@@ -338,6 +338,14 @@ body {
   }
 }
 
+/* A toast rises into place (components/toasts.ts). */
+@keyframes toast-rise {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+}
+
 /* The activity dot's pulse (components/activityDot.ts); like the modal's, only the
  * @keyframes live here, the utility references them by name. */
 @keyframes agent-activity-pulse {

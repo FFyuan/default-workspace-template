@@ -11,6 +11,7 @@ import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import { alertDotIcon, badgedIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
+import { Toasts } from "@imbue/workspace-ui/src/components/toasts";
 
 import { formatItemCount, formatSize } from "../models/format";
 import { DEFAULT_PREFERENCES } from "../models/preferences";
@@ -581,7 +582,7 @@ function message(title: string, detail: string, retry?: () => void): m.Vnode {
   ]);
 }
 
-// The status line, the uploads, the notices
+// The uploads
 
 function UploadPanel(): m.Component<{ app: FilesController }> {
   return {
@@ -660,36 +661,6 @@ function UploadPanel(): m.Component<{ app: FilesController }> {
                 ],
               ),
             ),
-          ),
-        ],
-      );
-    },
-  };
-}
-
-function Notice(): m.Component<{ app: FilesController }> {
-  return {
-    view({ attrs: { app } }) {
-      const notice = app.model.notice;
-      if (notice === null) return null;
-      return m(
-        "div.files-notice",
-        {
-          role: "alert",
-          class:
-            "fixed bottom-10 left-1/2 z-(--z-sticky) flex max-w-[min(480px,calc(100vw-32px))] -translate-x-1/2 items-start gap-3 rounded-lg bg-inverse px-4 py-2.5 type-body whitespace-pre-line text-on-accent shadow-overlay",
-        },
-        [
-          m("span", { class: "min-w-0 flex-1" }, notice),
-          m(
-            "button",
-            {
-              type: "button",
-              "aria-label": "Dismiss",
-              class: "cursor-pointer text-white/70 hover:text-white",
-              onclick: () => app.model.dismissNotice(),
-            },
-            m.trust(icon("close", { size: 14 })),
           ),
         ],
       );
@@ -859,7 +830,11 @@ export function FilesApp(): m.Component<{ app: FilesController }> {
             ]
           : null,
         m(UploadPanel, { app }),
-        m(Notice, { app }),
+        m(Toasts, {
+          toasts: app.model.toasts.current(),
+          placementClass: "fixed bottom-10",
+          onDismiss: (id: number) => app.model.toasts.dismiss(id),
+        }),
         app.dialogs.view(),
       ]);
     },

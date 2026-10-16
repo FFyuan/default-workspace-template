@@ -5,6 +5,8 @@
  * address bar, the shell, the dialogs) through a `FilesHost`.
  */
 
+import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";
+
 import * as dufs from "./dufs";
 import type { Entry, Listing } from "./dufs";
 import { kindLabelOf } from "./fileKinds";
@@ -90,7 +92,7 @@ export interface FilesHost {
 export type SelectHow = "only" | "toggle" | "extend";
 
 const SEARCH_DELAY_MS = 250;
-const NOTICE_MS = 6000;
+const TOAST_MS = 6000;
 const REFRESH_DELAY_MS = 300;
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -134,7 +136,8 @@ export class FilesModel {
   preferences: Preferences;
   search: SearchState | null = null;
   rename: RenameState | null = null;
-  notice: string | null = null;
+  /** The notes a failed operation leaves at the foot of the window. */
+  readonly toasts = new ToastQueue(() => this.host.redraw(), TOAST_MS);
   /** The folder a drag is over. */
   dropTarget: string | null = null;
   /** Where the column view starts. It holds while the folder stays under it, so drilling into a folder that is
@@ -153,7 +156,6 @@ export class FilesModel {
   private readonly refreshTimers = new Map<string, number>();
   private searchTimer: number | null = null;
   private searchRequest: AbortController | null = null;
-  private noticeTimer: number | null = null;
 
   constructor(
     private readonly host: FilesHost,
@@ -522,7 +524,7 @@ export class FilesModel {
     }
     if (this.search !== null) void this.runSearch();
     await Promise.all([...new Set(entries.map((entry) => parentOf(entry.path) ?? ROOT))].map((f) => this.load(f)));
-    if (failures.length > 0) this.showNotice(failures.join("\n"));
+    if (failures.length > 0) this.toasts.show(failures.join("\n"));
   }
 
   /** Make an "untitled folder" in the folder on show and start naming it. */
@@ -544,7 +546,7 @@ export class FilesModel {
       if (isFolder) await dufs.createFolder(path);
       else await dufs.writeFile(path, "");
     } catch (error) {
-      this.showNotice(messageOf(error));
+      this.toasts.show(messageOf(error));
       return;
     }
     await this.load(folder);
@@ -569,7 +571,7 @@ export class FilesModel {
     this.selection = this.selection.filter((path) => !moving.includes(path));
     const touched = new Set([folder, ...moving.map((path) => parentOf(path) ?? ROOT)]);
     await Promise.all([...touched].filter((f) => this.folders.has(f)).map((f) => this.load(f)));
-    if (failures.length > 0) this.showNotice(failures.join("\n"));
+    if (failures.length > 0) this.toasts.show(failures.join("\n"));
   }
 
   /** Send files into a folder, asking first about names that are already taken there. */
@@ -606,22 +608,6 @@ export class FilesModel {
 
   private isNameTaken(folder: string, name: string): boolean {
     return (this.folders.get(folder)?.entries ?? []).some((entry) => entry.name === name);
-  }
-
-  // Notices
-
-  showNotice(message: string): void {
-    if (this.noticeTimer !== null) window.clearTimeout(this.noticeTimer);
-    this.notice = message;
-    this.noticeTimer = window.setTimeout(() => this.dismissNotice(), NOTICE_MS);
-    this.host.redraw();
-  }
-
-  dismissNotice(): void {
-    if (this.noticeTimer !== null) window.clearTimeout(this.noticeTimer);
-    this.noticeTimer = null;
-    this.notice = null;
-    this.host.redraw();
   }
 
   // Fetching
