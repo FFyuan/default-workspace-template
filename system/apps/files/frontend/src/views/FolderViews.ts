@@ -7,7 +7,7 @@ import m from "mithril";
 
 import { alertDotIcon, icon } from "@imbue/workspace-ui/src/components/icons";
 
-import { deviceNameOf, shareAt, shareBadgeOf, shareRootAt, stuckSyncOf } from "../models/connections";
+import { shareBadgeOf, shareRootAt, stuckSyncOf } from "../models/connections";
 import type { Entry } from "../models/dufs";
 import { formatModified, formatSize } from "../models/format";
 import { kindLabelOf } from "../models/fileKinds";
@@ -236,10 +236,7 @@ function columnBody(
     return m("div", { class: "px-3 py-4 type-helper text-danger" }, state.error);
   }
   if (entries.length === 0) {
-    const connections = app.model.connections;
-    const share = shareAt(connections, folder);
-    const stuck =
-      share === undefined || connections === null ? null : stuckSyncOf(share, deviceNameOf(connections, share.device));
+    const stuck = stuckSyncOf(app.model.connections, folder);
     if (stuck !== null) {
       return m(
         "div.files-stuck-sync",

@@ -493,12 +493,7 @@ function FolderBody(): m.Component<{ app: FilesController }> {
       const state = model.folderState(model.folder);
       const entries = model.shownEntries();
       const search = model.search;
-      const connections = model.connections;
-      const share = shareAt(connections, model.folder);
-      const stuck =
-        share === undefined || connections === null
-          ? null
-          : stuckSyncOf(share, deviceNameOf(connections, share.device));
+      const stuck = stuckSyncOf(model.connections, model.folder);
       let empty: m.Children = null;
       if (search !== null) {
         if (search.status === "error") empty = message("Search failed", search.error ?? "");

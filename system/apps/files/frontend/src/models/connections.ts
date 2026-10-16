@@ -107,11 +107,16 @@ export function shareAt(connections: Connections | null, folder: string): Share 
     .sort((a, b) => targetOf(b).length - targetOf(a).length)[0];
 }
 
-/** What to tell someone looking inside a copy that has fallen behind its computer, or null when it has not. */
-export function stuckSyncOf(share: Share | undefined, deviceName: string): { title: string; detail: string } | null {
-  if (share === undefined || share.sync_state !== "behind") return null;
+/** What to tell someone looking inside `folder` when it is in a copy that has fallen behind its computer, or null
+ *  when it is not. */
+export function stuckSyncOf(
+  connections: Connections | null,
+  folder: string,
+): { title: string; detail: string } | null {
+  const share = shareAt(connections, folder);
+  if (connections === null || share === undefined || share.sync_state !== "behind") return null;
   return {
-    title: `Not synced yet from ${deviceName}`,
+    title: `Not synced yet from ${deviceNameOf(connections, share.device)}`,
     detail:
       "Your computer has files here that haven't arrived. The sync may be stuck: check it in Imbue Studio on your computer, or connect this folder again.",
   };
