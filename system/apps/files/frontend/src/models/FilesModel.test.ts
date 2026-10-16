@@ -215,6 +215,23 @@ describe("deleting", () => {
     await model.deleteEntries(["/home/b.txt"]);
     expect(dufs.deletePath).toHaveBeenCalledTimes(2);
   });
+
+  it("keeps what could not be deleted selected, and stays in a folder whose delete failed", async () => {
+    const { model, locations } = harness();
+    vi.mocked(dufs.deletePath).mockImplementation(async (path) => {
+      if (path !== "/home/b.txt") throw new Error(`Couldn't delete ${path}`);
+    });
+    model.selection = ["/home/b.txt", "/home/a.png"];
+    await model.deleteEntries(model.selection);
+    expect(model.selection).toEqual(["/home/a.png"]);
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual(["Couldn't delete /home/a.png"]);
+
+    model.navigate("/home/zeta/");
+    await model.deleteEntries(["/home/zeta/"]);
+    expect(model.folder).toBe("/home/zeta/");
+    expect(locations[locations.length - 1]).toEqual(["/home/zeta/", "push", 1]);
+    vi.mocked(dufs.deletePath).mockReset();
+  });
 });
 
 describe("creating", () => {

@@ -511,18 +511,19 @@ export class FilesModel {
     const entries = paths.map((path) => this.entryFor(path)).filter((entry): entry is Entry => entry !== undefined);
     if (entries.length === 0 || !(await this.host.confirmDelete(entries))) return;
     const failures: string[] = [];
+    const deleted = new Set<string>();
     for (const entry of entries) {
       try {
         await dufs.deletePath(entry.path);
+        deleted.add(entry.path);
       } catch (error) {
         failures.push(messageOf(error));
       }
     }
-    const deleted = new Set(entries.map((entry) => entry.path));
     this.selection = this.selection.filter((path) => !deleted.has(path));
-    const enclosing = entries.find((entry) => isWithin(this.folder, entry.path));
+    const enclosing = [...deleted].find((path) => isWithin(this.folder, path));
     if (enclosing !== undefined) {
-      this.navigate(parentOf(enclosing.path) ?? ROOT, { history: "replace" });
+      this.navigate(parentOf(enclosing) ?? ROOT, { history: "replace" });
     }
     if (this.search !== null) void this.runSearch();
     await Promise.all([...new Set(entries.map((entry) => parentOf(entry.path) ?? ROOT))].map((f) => this.load(f)));
@@ -561,6 +562,7 @@ export class FilesModel {
     const moving = paths.filter((path) => parentOf(path) !== folder && !isWithin(folder, path));
     if (moving.length === 0) return;
     const failures: string[] = [];
+    const moved = new Set<string>();
     for (const path of moving) {
       const target = childPath(folder, nameOf(path), isFolderPath(path));
       try {
@@ -568,11 +570,12 @@ export class FilesModel {
         if (await dufs.exists(target))
           throw new Error(`${nameOf(folder)} already has an item named "${nameOf(path)}".`);
         await dufs.movePath(path, target);
+        moved.add(path);
       } catch (error) {
         failures.push(messageOf(error));
       }
     }
-    this.selection = this.selection.filter((path) => !moving.includes(path));
+    this.selection = this.selection.filter((path) => !moved.has(path));
     const touched = new Set([folder, ...moving.map((path) => parentOf(path) ?? ROOT)]);
     await Promise.all([...touched].filter((f) => this.folders.has(f)).map((f) => this.load(f)));
     if (failures.length > 0) this.toasts.show(failures.join("\n"));
