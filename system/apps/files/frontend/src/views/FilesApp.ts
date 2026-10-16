@@ -152,7 +152,7 @@ function readOnlyMark(): m.Vnode {
     "read-only",
     "Read-only",
     "Read-only",
-    "items-center rounded-full border border-border px-1.5 text-[10.5px] leading-4 text-faint",
+    "items-center rounded-full border border-border px-1.5 type-tag text-faint",
   );
 }
 

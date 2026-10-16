@@ -71,7 +71,7 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
           "pre.files-preview-text",
           {
             class:
-              "max-h-[260px] w-full overflow-hidden rounded-md border border-subtle bg-surface p-3 font-mono text-[11px] leading-snug whitespace-pre-wrap break-words text-secondary shadow-raised",
+              "max-h-[260px] w-full overflow-hidden rounded-md border border-subtle bg-surface p-3 font-mono text-(length:--font-size-helper) leading-snug whitespace-pre-wrap break-words text-secondary shadow-raised",
           },
           snippet.text,
         );

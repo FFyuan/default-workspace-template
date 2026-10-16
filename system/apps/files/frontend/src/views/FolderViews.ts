@@ -132,7 +132,7 @@ function ListHeader(): m.Component<{ app: FilesController }> {
               type: "button",
               "data-sort": header.key,
               "aria-sort": sort.key === header.key ? (sort.descending ? "descending" : "ascending") : "none",
-              class: `flex h-7 min-w-0 cursor-pointer items-center gap-1 type-helper font-medium ${sort.key === header.key ? "text-primary" : "text-secondary hover:text-primary"} ${header.extra}`,
+              class: `flex h-7 min-w-0 cursor-pointer items-center gap-1 type-helper ${sort.key === header.key ? "text-primary" : "text-secondary hover:text-primary"} ${header.extra}`,
               onclick: () => app.model.sortBy(header.key),
             },
             [

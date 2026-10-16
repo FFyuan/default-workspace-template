@@ -15,3 +15,5 @@ The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files a
 - A file opens in a window of its own, to be closed when you are done: it previews pictures, video, audio, and PDFs, shows text, and edits it (the Edit icon beside Download) with Save or Cmd/Ctrl+S; it also offers Rename, Copy Path, and Delete.
 
 - On a phone-sized window the sidebar floats over the folder from a toolbar button, the column view steps aside, a tap opens, and each item has a "..." menu.
+
+The column preview of a text file, and the text editor, use the shared type scale (helper and row sizes) rather than hand-set pixel sizes, and the list's sortable column headers drop the medium weight, as buttons do.

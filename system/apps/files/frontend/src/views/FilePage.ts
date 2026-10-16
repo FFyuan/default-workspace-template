@@ -171,7 +171,7 @@ function body(page: FilePageModel): m.Children {
         spellcheck: false,
         "aria-label": kind === "edit" ? `Editing ${name}` : name,
         class:
-          "block h-full w-full resize-none border-0 bg-surface px-6 py-4 font-mono text-[13px] leading-relaxed text-primary outline-none",
+          "block h-full w-full resize-none border-0 bg-surface px-6 py-4 font-mono text-(length:--font-size-row) leading-relaxed text-primary outline-none",
         oninput: (event: InputEvent) => {
           page.draft = (event.target as HTMLTextAreaElement).value;
         },
