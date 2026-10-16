@@ -104,9 +104,9 @@ function stripFade(direction: string): string {
   const stops = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1].map((t) => {
     const alpha = Math.round((1 - t) ** 2 * 1000) / 10;
     const at = `calc(${STRIP_FADE_SOLID_PX}px + (100% - ${STRIP_FADE_SOLID_PX}px) * ${t})`;
-    return `color-mix(in srgb, var(--color-composer) ${alpha}%, transparent) ${at}`;
+    return `color-mix(in srgb, var(--c-bg-composer) ${alpha}%, transparent) ${at}`;
   });
-  return `linear-gradient(${direction}, var(--color-composer) 0px, ${stops.join(", ")})`;
+  return `linear-gradient(${direction}, var(--c-bg-composer) 0px, ${stops.join(", ")})`;
 }
 
 interface AttachmentStripAttrs {
