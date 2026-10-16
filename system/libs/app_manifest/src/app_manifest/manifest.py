@@ -448,6 +448,10 @@ class AppManifest(FrozenModel):
             raise InvalidManifestValueError("icon is required unless internal = true")
         if self.critical and self.stop_when_no_windows:
             raise InvalidManifestValueError("a critical app cannot declare stop_when_no_windows = true")
+        if self.api_schema_path is not None and self.description is None:
+            raise InvalidManifestValueError(
+                "an app that declares api_schema_path also declares description: the API document carries it"
+            )
         reference_paths = [reference.path for reference in self.references]
         if len(set(reference_paths)) != len(reference_paths):
             raise InvalidManifestValueError(
