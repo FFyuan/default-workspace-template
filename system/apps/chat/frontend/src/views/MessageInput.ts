@@ -442,8 +442,9 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           {
             type: "button",
             // z-10: above the strip's end fades, so a half-hidden chip's remove button stays usable.
+            // Centred on the corner inside the chip's 1px border, not on the border's outer edge.
             class:
-              "composer-attachment-remove absolute -top-2.5 -right-2.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
+              "composer-attachment-remove absolute -top-[9px] -right-[9px] z-10 inline-flex h-5 w-5 cursor-pointer " +
               "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
               "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
             "aria-label": "Remove attachment",
