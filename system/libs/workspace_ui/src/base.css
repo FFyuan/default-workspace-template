@@ -281,9 +281,9 @@ body {
  * track/arc default to --c-border / --c-accent, overridable via
  * --spinner-track / --spinner-arc.
  * .spinner--current makes it monochrome (currentColor ring with a transparent
- * gap) for use on coloured contexts. (The login screen's fancier SVG arc is
- * its own svg drawing -- see spinnerIcon in components/icons.ts -- but shares
- * this @keyframes.) */
+ * gap) for use on coloured contexts. (The fancier SVG arc that sign-in and an
+ * attachment's upload show is its own svg drawing -- see spinnerIcon in
+ * components/icons.ts -- but shares this @keyframes.) */
 @keyframes spin {
   to {
     transform: rotate(360deg);
