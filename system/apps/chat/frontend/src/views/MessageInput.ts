@@ -1652,12 +1652,14 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
                           extra: `message-input-send-button shrink-0 ${SEND_BUTTON_IDLE_CLASS}`,
                           disabled: !canSend,
                           readonly: isSendHeldForSwitch,
-                          ...(canSend
-                            ? hoverTooltipAttrs(
-                                isSendHeldForSwitch ? "Sending is paused until the switch starts" : "Send message",
-                                "above",
-                              )
-                            : null),
+                          ...hoverTooltipAttrs(
+                            !canSend
+                              ? null
+                              : isSendHeldForSwitch
+                                ? "Sending is paused until the switch starts"
+                                : "Send message",
+                            "above",
+                          ),
                           "aria-label": "Send message",
                           onclick: handleSubmit,
                         },
