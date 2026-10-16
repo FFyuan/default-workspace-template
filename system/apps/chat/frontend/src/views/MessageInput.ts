@@ -442,9 +442,8 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           {
             type: "button",
             // z-10: above the strip's end fades, so a half-hidden chip's remove button stays usable.
-            // Only 2px out from the corner, leaving room under the chip's tooltip, 6px above it.
             class:
-              "composer-attachment-remove absolute -top-0.5 -right-0.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
+              "composer-attachment-remove absolute -top-2.5 -right-2.5 z-10 inline-flex h-5 w-5 cursor-pointer " +
               "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
               "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
             "aria-label": "Remove attachment",
@@ -462,7 +461,6 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         {
           key: attachment.localId,
           class: `${chipMarker} group/chip relative flex-none`,
-          ...hoverTooltipAttrs(attachment.fileName, "above"),
         },
         [
           // The image fills the whole 40px; its border is drawn over it rather than taking its edge.
@@ -505,15 +503,14 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         key: attachment.localId,
         class:
           `${chipMarker} group/chip relative flex ${ATTACHMENT_CHIP_HEIGHT_CLASS} max-w-[160px] flex-none items-center ` +
-          "gap-1 rounded-md border bg-surface-secondary pr-2 pl-1 " +
+          "gap-1 rounded-md border bg-surface-secondary pr-1.5 pl-1 " +
           (isError ? "border-danger-border" : "border-subtle"),
-        ...hoverTooltipAttrs(attachment.summary ?? attachment.fileName, "above"),
       },
       [
         m(
           "span",
           {
-            class: "composer-attachment-icon inline-flex h-6 w-6 flex-none items-center justify-center text-secondary",
+            class: "composer-attachment-icon inline-flex h-4 w-4 flex-none items-center justify-center text-secondary",
           },
           isUploading
             ? m("span", { class: "composer-attachment-uploading", "aria-label": "Uploading", role: "img" }, spinner)
@@ -523,7 +520,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           m(
             "span",
             {
-              class: "composer-attachment-name truncate text-(length:--font-size-helper) text-primary",
+              class: "composer-attachment-name truncate text-(length:--font-size-helper) leading-[1.3] text-primary",
             },
             attachment.fileName,
           ),

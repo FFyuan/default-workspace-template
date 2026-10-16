@@ -26,9 +26,9 @@ export interface AttachmentStripAttrs {
  * hidden) and a < / > arrow over an edge fade appears at whichever end has more to show, each
  * paging the row by most of its width.
  *
- * The scroller has 2px of room above and right of the chips (cancelled by a negative top margin)
- * so the corner remove buttons, which stick out that far, aren't clipped by its overflow. The row
- * is a flow root so that margin stays inside it, keeping the end fades level with the chips.
+ * The scroller has 10px of room above and right of the chips (cancelled by a negative top margin)
+ * so the remove buttons, centred on the chips' corners, aren't clipped by its overflow. The row is
+ * a flow root so that margin stays inside it, keeping the end fades level with the chips.
  */
 export function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
   let scroller: HTMLElement | null = null;
@@ -108,7 +108,7 @@ export function AttachmentStrip(): m.Component<AttachmentStripAttrs> {
           "div",
           {
             class:
-              "-mt-0.5 flex gap-1.5 overflow-x-auto pt-0.5 pr-0.5 [scrollbar-width:none] " +
+              "-mt-2.5 flex gap-1.5 overflow-x-auto pt-2.5 pr-2.5 [scrollbar-width:none] " +
               "[&::-webkit-scrollbar]:hidden",
           },
           vnode.attrs.children,
