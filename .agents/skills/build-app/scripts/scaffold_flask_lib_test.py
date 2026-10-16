@@ -23,6 +23,7 @@ import configparser
 import importlib.util
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -338,7 +339,7 @@ def test_write_lib_writes_a_manifest_the_library_accepts(tmp_path: Path) -> None
     assert (lib_dir / "src" / "inbox_status" / "runner_test.py").exists()
 
 
-def test_the_manifest_keeps_a_description_with_quotes_and_characters_outside_the_basic_plane(
+def test_the_manifest_and_the_pyproject_keep_a_description_with_quotes_and_characters_outside_the_basic_plane(
     tmp_path: Path,
 ) -> None:
     description = 'notes, "quoted", with a clef \U0001d11e and an accent \u00e9'
@@ -348,6 +349,8 @@ def test_the_manifest_keeps_a_description_with_quotes_and_characters_outside_the
     )
 
     assert load_manifest(lib_dir / "app.toml").description == description
+    pyproject = tomllib.loads((lib_dir / "pyproject.toml").read_text())
+    assert pyproject["project"]["description"] == description
 
 
 def _test_function_names(source: str) -> frozenset[str]:

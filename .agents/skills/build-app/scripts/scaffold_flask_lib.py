@@ -256,7 +256,7 @@ def _lib_pyproject(name: str, package: str, description: str, extras: list[str])
     return f"""[project]
 name = "{name}"
 version = "0.1.0"
-description = "{description}"
+description = {_toml_basic_string(description)}
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -523,6 +523,13 @@ MAX_DISPLAY_NAME_LENGTH = 64
 MAX_APP_DESCRIPTION_LENGTH = 200
 
 
+def _toml_basic_string(value: str) -> str:
+    """``value`` as a TOML basic string: the manifest's and the pyproject's ``description``."""
+    # ensure_ascii=False: a TOML basic string takes raw non-ASCII, but refuses the surrogate
+    # escapes json.dumps would otherwise write for a character outside the basic plane.
+    return json.dumps(value, ensure_ascii=False)
+
+
 def _check_description(description: str) -> str:
     """The manifest's ``description``, refused before anything is written when the manifest would refuse it."""
     if not description.strip():
@@ -577,9 +584,7 @@ def _write_lib(
         _MANIFEST_TEMPLATE.format(
             name=name,
             display_name=display_name,
-            # ensure_ascii=False: a TOML basic string takes raw non-ASCII, but refuses the surrogate
-            # escapes json.dumps would otherwise write for a character outside the basic plane.
-            description_toml=json.dumps(description, ensure_ascii=False),
+            description_toml=_toml_basic_string(description),
             package_upper=package.upper(),
         )
     )
