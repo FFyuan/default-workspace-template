@@ -16,4 +16,4 @@ The File Viewer is now Files, rebuilt to feel like Finder or the Windows Files a
 
 - On a phone-sized window the sidebar floats over the folder from a toolbar button, the column view steps aside, a tap opens, and each item has a "..." menu.
 
-The column preview of a text file, and the text editor, use the shared type scale (helper and row sizes) rather than hand-set pixel sizes, and the list's sortable column headers drop the medium weight, as buttons do.
+The column preview of a text file and a text file's own page use the shared type scale (helper and body sizes) rather than hand-set pixel sizes, and the list's sortable column headers drop the medium weight, as buttons do.
