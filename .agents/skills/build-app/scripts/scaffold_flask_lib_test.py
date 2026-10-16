@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 import scaffold_flask_lib
 from app_manifest.manifest import load_manifest
-from app_manifest.primitives import MAX_DISPLAY_NAME_LENGTH
+from app_manifest.primitives import MAX_APP_DESCRIPTION_LENGTH, MAX_DISPLAY_NAME_LENGTH
 from app_manifest.registry import SHELL_APP_CONTRACT_PATH, SHELL_CONTEXT_MENU_PATH
 
 _SCRIPT = Path(__file__).resolve().parent / "scaffold_flask_lib.py"
@@ -406,8 +406,6 @@ def test_a_description_the_manifest_would_refuse_is_refused_before_anything_is_w
 
 
 def test_the_description_limit_matches_the_library() -> None:
-    from app_manifest.primitives import MAX_APP_DESCRIPTION_LENGTH
-
     assert scaffold_flask_lib.MAX_APP_DESCRIPTION_LENGTH == MAX_APP_DESCRIPTION_LENGTH
 
 
