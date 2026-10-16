@@ -37,7 +37,8 @@ export interface ComposerAttachment {
   /** The picked file's size, shown on the chip while it uploads. */
   localSize?: number;
   /** An image's own pixels, read locally so its thumbnail shows while it uploads. Lives only in this
-   *  document (a blob URL), so it is never persisted, and is revoked once the upload settles. */
+   *  document (a blob URL), so it is never persisted, and is revoked once the upload settles or the chip is
+   *  removed. */
   previewUrl?: string;
   /** Present once the upload succeeds. */
   uploaded?: UploadedAttachment;
