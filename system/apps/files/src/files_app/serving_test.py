@@ -12,8 +12,8 @@ from files_app.serving import wait_for_shutdown_signal
 
 
 @contextmanager
-def _sleeping_process() -> Generator[subprocess.Popen[bytes], None, None]:
-    process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+def _idle_process() -> Generator[subprocess.Popen[bytes], None, None]:
+    process = subprocess.Popen([sys.executable, "-c", "import threading; threading.Event().wait()"])
     try:
         yield process
     finally:
@@ -32,7 +32,7 @@ def _restored_stop_handlers() -> Generator[None, None, None]:
 
 
 def test_the_shutdown_wait_ends_when_dufs_exits() -> None:
-    with _sleeping_process() as dufs, _restored_stop_handlers():
+    with _idle_process() as dufs, _restored_stop_handlers():
         killer = threading.Timer(0.3, dufs.kill)
         killer.start()
         try:
@@ -42,7 +42,7 @@ def test_the_shutdown_wait_ends_when_dufs_exits() -> None:
 
 
 def test_the_shutdown_wait_returns_128_plus_the_signal_while_dufs_runs() -> None:
-    with _sleeping_process() as dufs, _restored_stop_handlers():
+    with _idle_process() as dufs, _restored_stop_handlers():
         previous_handler = signal.getsignal(signal.SIGTERM)
         installed = threading.Event()
 
