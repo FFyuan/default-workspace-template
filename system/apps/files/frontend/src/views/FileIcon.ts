@@ -61,23 +61,6 @@ function pageLinesSvg(isSmall: boolean): string {
   );
 }
 
-/** The corner an icon's badge sits in: a white disc at the bottom right, with a hairline edge
- *  from icon size up, the glyph 60% of its width. */
-function cornerBadgeSvg(glyph: string, size: number): string {
-  if (size < 32) {
-    // At list size the icon's own proportion would leave a disc under 3px; draw it about 10px across instead,
-    // hanging off the corner, with no edge and a line that stays near one pixel.
-    return (
-      '<circle cx="46" cy="47" r="17" style="fill:var(--c-surface)"/>' +
-      `<g transform="translate(35.8 36.8) scale(0.85)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
-    );
-  }
-  return (
-    '<circle cx="50" cy="52" r="9.5" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="1"/>' +
-    `<g transform="translate(44.3 46.3) scale(0.475)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
-  );
-}
-
 /** What a badge in an icon's corner says: a symbolic link, or a share read live (linked) or kept as a copy (synced). */
 export type IconBadge = "symlink" | "linked" | "synced";
 
@@ -88,6 +71,40 @@ const BADGE_GLYPHS: Record<IconBadge, string> = {
   synced:
     '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
 };
+
+/** The disc an icon's badge sits in and the glyph in it, in whole pixels: the glyph centred with an even margin, so
+ *  neither lands between pixels and blurs. 11px and 7px at list size, as the icon's own proportion from icon size up. */
+function badgeMetrics(size: number): { disc: number; glyph: number; right: number; bottom: number; line: number } {
+  const disc = Math.max(11, Math.round((size * 19) / 64));
+  let glyph = Math.round(disc * 0.6);
+  if ((disc - glyph) % 2 !== 0) glyph -= 1;
+  if (size < 32) return { disc, glyph, right: -4, bottom: -2, line: 1 };
+  return {
+    disc,
+    glyph,
+    right: Math.round((size * 14) / 64 - disc / 2),
+    bottom: Math.round((size * 12) / 64 - disc / 2),
+    line: (size * 1.25) / 64,
+  };
+}
+
+/** A badge over an icon's bottom-right corner: a white disc, with a hairline edge from icon size up, holding the
+ *  badge's glyph. Its own layer rather than part of the icon's drawing, so it sits on whole pixels at any size. */
+export function cornerBadge(badge: IconBadge, size: number): m.Vnode {
+  const { disc, glyph, right, bottom, line } = badgeMetrics(size);
+  return m(
+    "span.files-corner-badge",
+    {
+      class: `absolute flex items-center justify-center rounded-full bg-surface text-secondary ${size < 32 ? "" : "border border-strong"}`,
+      style: `width:${disc}px;height:${disc}px;right:${right}px;bottom:${bottom}px`,
+    },
+    m.trust(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${glyph}" height="${glyph}" viewBox="0 0 24 24" fill="none" ` +
+        `stroke="currentColor" stroke-width="${(line * 24) / glyph}" stroke-linecap="round" stroke-linejoin="round" ` +
+        `aria-hidden="true">${BADGE_GLYPHS[badge]}</svg>`,
+    ),
+  );
+}
 
 function escapeText(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -115,7 +132,7 @@ function tagSvg(family: FileFamily, badge: string, withLetters: boolean): string
 }
 
 /** The SVG markup of an entry's icon at `size` pixels. */
-export function fileIconSvg(name: string, isFolder: boolean, badge: IconBadge | null, size: number): string {
+export function fileIconSvg(name: string, isFolder: boolean, size: number): string {
   let body: string;
   if (isFolder) {
     body = folderSvg();
@@ -126,7 +143,6 @@ export function fileIconSvg(name: string, isFolder: boolean, badge: IconBadge | 
       pageSvg(size < 32) +
       (family === "other" && tagText === "" ? pageLinesSvg(size < 32) : tagSvg(family, tagText, size >= 32));
   }
-  if (badge !== null) body += cornerBadgeSvg(BADGE_GLYPHS[badge], size);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">${body}</svg>`;
 }
 
@@ -169,9 +185,9 @@ export const FileIcon: m.Component<FileIconAttrs> = {
     }
     const badge = shareBadge ?? (entry.isSymlink ? "symlink" : null);
     return m(
-      "span.file-icon.flex.items-center.justify-center.shrink-0",
+      "span.file-icon.relative.flex.items-center.justify-center.shrink-0",
       { style: `width:${size}px;height:${size}px`, "data-icon-badge": badge ?? undefined },
-      m.trust(fileIconSvg(entry.name, entry.isFolder, badge, size)),
+      [m.trust(fileIconSvg(entry.name, entry.isFolder, size)), badge === null ? null : cornerBadge(badge, size)],
     );
   },
 };

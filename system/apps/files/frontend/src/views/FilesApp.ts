@@ -36,7 +36,7 @@ import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
 import { isFileDrag, sourcesFromDrop } from "../models/uploads";
 import { DROP_FOLDER_ATTR, ENTRY_DRAG_TYPE, FOLDER_SURFACE_ATTR } from "./entries";
 import { menuRowsOf, type FilesController } from "./FilesController";
-import { fileIconSvg } from "./FileIcon";
+import { cornerBadge, fileIconSvg } from "./FileIcon";
 import { ColumnView, IconView, ListView } from "./FolderViews";
 import { iconButton } from "./iconButton";
 import { handleKeydown } from "./keyboard";
@@ -122,11 +122,10 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
 /** A shared item drawn as the folder views draw it, with their small disc over its corner saying how it reaches the
  *  workspace. */
 function sharedItemIcon(name: string, isFolder: boolean, badge: ShareBadge): m.Vnode {
-  return m(
-    "span.files-share-icon",
-    { "data-share-badge": badge, class: "flex shrink-0" },
-    m.trust(fileIconSvg(name, isFolder, badge, 18)),
-  );
+  return m("span.files-share-icon", { "data-share-badge": badge, class: "relative flex shrink-0" }, [
+    m.trust(fileIconSvg(name, isFolder, 18)),
+    cornerBadge(badge, 18),
+  ]);
 }
 
 function mark(kind: string, label: string, body: m.Children, extra: string): m.Vnode {
@@ -184,7 +183,7 @@ function pendingRow(waiting: PendingConnection): m.Vnode {
       class: "flex h-7 w-full shrink-0 items-center gap-2 rounded-md px-2 text-(length:--font-size-row) text-faint",
     },
     [
-      m("span", { class: "flex shrink-0" }, m.trust(fileIconSvg(waiting.name, waiting.isFolder, null, 18))),
+      m("span", { class: "flex shrink-0" }, m.trust(fileIconSvg(waiting.name, waiting.isFolder, 18))),
       m("span", { class: "min-w-0 flex-1 truncate" }, waiting.name),
       mark("pending", "Waiting for approval", m("span.spinner.spinner--sm"), "text-faint"),
     ],
