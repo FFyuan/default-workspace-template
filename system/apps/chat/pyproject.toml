@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "app-manifest",
     "app-schema",
+    "chat-background-tasks",
     "concurrency-group",
     "flask>=3.0",
     "flask-sock>=0.7",
