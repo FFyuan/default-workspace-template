@@ -214,20 +214,25 @@ def _describe_launch_path_problem(value: str) -> str | None:
     return None
 
 
+@pure
+def _describe_one_line_problem(value: str, field_name: str, max_length: int) -> str | None:
+    """Why ``value`` cannot be one non-empty line of at most ``max_length`` characters, or None when it can."""
+    if not value.strip():
+        return f"{field_name} must not be empty"
+    if "\n" in value or "\r" in value:
+        return f"invalid {field_name} {value!r}: a {field_name} is a single line"
+    if len(value) > max_length:
+        return f"{field_name} must be at most {max_length} characters, got {len(value)}"
+    return None
+
+
 class AppDescription(str):
     """One line saying what an app is for, in the person's terms: non-empty, at most 200 characters."""
 
     def __new__(cls, value: str) -> Self:
-        if not value.strip():
-            raise InvalidManifestValueError("description must not be empty")
-        if "\n" in value or "\r" in value:
-            raise InvalidManifestValueError(
-                f"invalid description {value!r}: a description is a single line"
-            )
-        if len(value) > MAX_APP_DESCRIPTION_LENGTH:
-            raise InvalidManifestValueError(
-                f"description must be at most {MAX_APP_DESCRIPTION_LENGTH} characters, got {len(value)}"
-            )
+        problem = _describe_one_line_problem(value, "description", MAX_APP_DESCRIPTION_LENGTH)
+        if problem is not None:
+            raise InvalidManifestValueError(problem)
         return super().__new__(cls, value)
 
     @classmethod
@@ -578,16 +583,9 @@ class ReferenceNote(str):
     """One line saying why a referenced artifact belongs to an app and which surface it uses."""
 
     def __new__(cls, value: str) -> Self:
-        if not value.strip():
-            raise InvalidManifestValueError("a reference note must not be empty")
-        if "\n" in value or "\r" in value:
-            raise InvalidManifestValueError(
-                f"invalid reference note {value!r}: a note is a single line"
-            )
-        if len(value) > _MAX_REFERENCE_NOTE_LENGTH:
-            raise InvalidManifestValueError(
-                f"a reference note must be at most {_MAX_REFERENCE_NOTE_LENGTH} characters, got {len(value)}"
-            )
+        problem = _describe_one_line_problem(value, "reference note", _MAX_REFERENCE_NOTE_LENGTH)
+        if problem is not None:
+            raise InvalidManifestValueError(problem)
         return super().__new__(cls, value)
 
     @classmethod
