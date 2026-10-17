@@ -29,7 +29,8 @@ function folderSvg(): string {
   );
 }
 
-// A page in the same hand: no edge quite straight, corners a little uneven, the fold drawn rather than ruled, and unshaded.
+// A page in the same hand: no edge quite straight, corners a little uneven, the fold drawn rather than ruled,
+// and unshaded.
 const PAGE_OUTLINE =
   "M17.2 4.7C24.1 4.25 31.2 4.35 37.5 4.55C39 4.6 40 5.05 41.05 6.1L51.1 16.3C52.05 17.3 52.45 18.35 52.45 19.85C52.65 30.2 51.6 44.1 49.65 55.3C49.4 58.6 47.6 59.9 44.6 60.05C36 60.35 25 59.35 17.6 58.9C14.6 58.65 13 57.15 12.75 54.25C12.25 44.2 12.3 26.1 12.85 9.35C12.95 6.2 14.35 4.85 17.2 4.7Z";
 const PAGE_FOLD =
@@ -49,7 +50,8 @@ function pageSvg(isSmall: boolean): string {
 const PAGE_LINES_PATH =
   "M20.2 30.3C27 29.9 37 30.1 43.8 29.9M20.1 37.2C27.5 36.9 36.5 37.1 43.9 36.8M20.2 44.1C25.5 43.9 31.5 44.2 37 43.9";
 
-/** The ruled lines on a page with no tag, drawn by hand like the page and leaning 1 degree, less than a tag. Below 32px they are drawn heavier and darker, or a page in a list row would look blank. */
+/** The ruled lines on a page with no tag, drawn by hand like the page and leaning 1 degree, less than a tag.
+ *  Below 32px they are drawn heavier and darker, or a page in a list row would look blank. */
 function pageLinesSvg(isSmall: boolean): string {
   const color = isSmall ? "var(--c-text-faint)" : "var(--c-border-strong)";
   const width = isSmall ? 4.5 : 2.5;
