@@ -54,6 +54,8 @@ const mocks = vi.hoisted(() => {
     setPendingAccount: vi.fn(),
     openSwitchDialog: vi.fn(),
     beginSwitchToAccountId: vi.fn(),
+    // What the composer registered to hear of a model pick the chat app refused.
+    modelChoiceFailureListener: null as ((chatId: string, detail: string) => void) | null,
     // The account ids that read as signed out; empty at rest.
     signedOutAccountIds: new Set<string>(),
     loadAccounts: vi.fn(async () => {}),
@@ -138,6 +140,9 @@ vi.mock("@imbue/workspace-ui/src/models/request-error", () => ({
     typeof e === "object" && e !== null && "kind" in e ? (e as { kind: string }).kind : "unknown",
 }));
 vi.mock("../models/ModelSettings", () => ({
+  addModelChoiceFailureListener: (listener: (chatId: string, detail: string) => void) => {
+    mocks.modelChoiceFailureListener = listener;
+  },
   effectiveChoice: () => null,
   isPickInFlight: () => false,
   setModelChoice: vi.fn(),
@@ -882,6 +887,19 @@ describe("MessageInput send failure notice", () => {
   it("shows nothing when the send succeeds", async () => {
     const after = await typeAndSend(MessageInput(), "agent-1", "hello");
     expect(renderedText(after)).not.toContain("Couldn't send your message");
+  });
+
+  it("shows a model pick the chat app refused in the chat's notice, with its reason", () => {
+    const component = MessageInput();
+    mocks.modelChoiceFailureListener!("agent-1", "This chat is switching to Claude 2; try again once it has.");
+
+    const tree = component.view!({ attrs: { chatId: "agent-1" } } as never);
+
+    const text = renderedText(tree);
+    expect(text).toContain("Couldn't change the model");
+    expect(text).toContain("This chat is switching to Claude 2; try again once it has.");
+    expect(text).not.toContain("[object Object]");
+    expect(text).not.toContain("Retry");
   });
 
   it("offers Cancel, Retry and Force for a failed send", async () => {

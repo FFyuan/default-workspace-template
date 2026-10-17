@@ -17,6 +17,7 @@ import { stageElementReferences } from "../models/elementReferences";
 import { drainToComposer, getEventsForChat, interruptAgent, mintMessageId, sendMessage } from "../models/Response";
 import type { SendStatus } from "../models/Response";
 import { cancelHandoff, switchChat } from "../models/Handoffs";
+import { addModelChoiceFailureListener } from "../models/ModelSettings";
 import {
   getPendingPick,
   isSwitchSending,
@@ -316,6 +317,11 @@ function catchUpOnSignedOutAccount(sendError: unknown): void {
     (err: unknown) => console.error(`Failed to re-read the account list: ${describeRequestError(err)}`),
   );
 }
+
+// A pick in the model bar the chat app refused (the chat is switching providers, say) is told in the chat's notice.
+addModelChoiceFailureListener((chatId, detail) =>
+  raiseFailureNotice(chatId, { title: "Couldn't change the model", detail }),
+);
 
 /** The provider chooser for a chat whose account was signed out: the account signed in to or picked is the one the
  *  chat's next message moves it to. */
