@@ -100,7 +100,6 @@ def focus_chat_endpoint() -> Response:
     return model_response(FocusChatResponse(shown=answer.shown, window_id=str(answer.window_id)))
 
 
-# What the route exchanges, for the app's route table.
 ROUTE_TABLE: Final[RouteTable] = {
     ("POST", FOCUS_CHAT_ROUTE): RouteModels(request_model=FocusChatRequest, response_model=FocusChatResponse),
 }

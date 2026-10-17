@@ -408,7 +408,6 @@ def update_account(account_id: str) -> Response:
     return model_response(OkResponse())
 
 
-# What these routes exchange, for the app's route table.
 ROUTE_TABLE: Final[RouteTable] = {
     ("GET", "/api/lanes"): RouteModels(response_model=LanesResponse),
     ("GET", "/api/accounts"): RouteModels(response_model=AccountsResponse),

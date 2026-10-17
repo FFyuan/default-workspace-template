@@ -197,7 +197,6 @@ def decline(request_id: str) -> Response:
     return _request_response(declined, _deliver(declined, SecretResolutionVerdict.DECLINED))
 
 
-# What these routes exchange, for the app's route table.
 ROUTE_TABLE: Final[RouteTable] = {
     ("POST", "/api/secret-requests"): RouteModels(
         request_model=FileSecretRequestBody, response_model=FiledSecretRequestResponse, success_status=201

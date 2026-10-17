@@ -103,7 +103,6 @@ def submit_credentials() -> Response:
     )
 
 
-# What these routes exchange, for the app's route table.
 ROUTE_TABLE: Final[RouteTable] = {
     ("GET", STATUS_ROUTE): RouteModels(response_model=ClaudeAuthStatusResponse),
     ("POST", SUBMIT_CREDENTIALS_ROUTE): RouteModels(

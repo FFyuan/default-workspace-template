@@ -168,7 +168,6 @@ def get_scope_info(scope: str) -> Response:
     return model_response(info)
 
 
-# What the route exchanges, for the app's route table.
 ROUTE_TABLE: Final[RouteTable] = {
     ("GET", "/api/latchkey/scopes/{scope}"): RouteModels(response_model=LatchkeyScopeInfo),
 }
