@@ -1,7 +1,9 @@
-"""The Files server: dufs behind it for the workspace's own files, and three things dufs cannot do in front of it.
+"""The Files server: dufs behind it for the workspace's own files, and four things dufs cannot do in front of it.
 
 - ``/__files/api/connections`` lists what the user has shared from their computers (GET), and asks for a new share
   (POST), which pops Imbue Studio's sharing dialog on the computer.
+- ``/__files/api/schema`` is the OpenAPI document of these routes, built from the url map (``app_schema``); the
+  manifest's ``api_schema_path``, which the visiting-agent primer links.
 - ``/__remote/<device>/<path>`` is a shared item read live from the computer it is on, answered in dufs's own shape
   (a page, ``?json``, the bytes, PUT, DELETE, MKCOL), so the frontend browses it as it browses any folder.
 - Every answer's ``Content-Disposition`` is made ASCII-safe. dufs names the file in it as it is, and a name with a
