@@ -5,11 +5,12 @@ manifest names in ``api_schema_path`` (``/api/schema`` by convention), so an
 agent reaching the app, from inside the workspace or over the share, learns
 what the API offers without reading the app's code. The document is built from
 the Flask url map on every request: each rule except the static one and the
-schema route itself is a path, each method an operation whose summary and
-description come from the view's docstring, and each path parameter a required
-string parameter. An app that validates bodies with pydantic can register
-those models per route, and they are published as request and response
-schemas, as the Imbue Studio API does for its own.
+schema route itself is a path, each method an operation whose summary is the
+first paragraph of the view's docstring (as one line) and whose description is
+the whole of it, and each path parameter a required string parameter. An app
+that validates bodies with pydantic can register those models per route, and
+they are published as request and response schemas, as the Imbue Studio API
+does for its own.
 """
 
 import inspect
@@ -32,6 +33,7 @@ _OPENAPI_METHODS: Final[frozenset[str]] = frozenset(
 )
 OTHER_METHODS_KEY: Final[str] = "x-other-methods"
 _FLASK_PARAM_PATTERN: Final[re.Pattern[str]] = re.compile(r"<(?:[^:<>]+:)?([^<>]+)>")
+_PARAGRAPH_BREAK_PATTERN: Final[re.Pattern[str]] = re.compile(r"\n[ \t]*\n")
 
 
 class RouteModels(FrozenModel):
@@ -65,7 +67,10 @@ def _summary_and_description(
     cleaned = inspect.cleandoc(view_func.__doc__)
     if not cleaned:
         return None, None
-    return cleaned.splitlines()[0].strip(), cleaned
+    # The summary is the first paragraph as one line, so a first sentence that wraps is not cut short.
+    first_paragraph = _PARAGRAPH_BREAK_PATTERN.split(cleaned, maxsplit=1)[0]
+    summary = " ".join(line.strip() for line in first_paragraph.splitlines())
+    return summary, cleaned
 
 
 def _operation_id(method: str, openapi_path: str) -> str:

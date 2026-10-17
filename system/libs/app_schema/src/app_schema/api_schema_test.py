@@ -141,7 +141,7 @@ def test_a_blank_docstring_describes_nothing() -> None:
 
     @app.get("/")
     def index() -> Response:
-        """   """
+        """ """
         return Response("")
 
     document = build_openapi_document(
@@ -155,6 +155,42 @@ def test_a_blank_docstring_describes_nothing() -> None:
     operation = document["paths"]["/"]["get"]
     assert "summary" not in operation
     assert "description" not in operation
+
+
+def test_the_summary_is_the_first_paragraph_as_one_line() -> None:
+    app = Flask("wrapped", static_folder=None)
+
+    @app.get("/fleet")
+    def fleet() -> Response:
+        """Register a new browser and answer its name at once (the launch
+        runs in the background).
+
+        The fleet starts empty.
+        """
+        return Response("")
+
+    @app.get("/health")
+    def health() -> Response:
+        """Whether the app is up.
+
+        Always ok.
+        """
+        return Response("")
+
+    document = build_openapi_document(
+        app,
+        title="Wrapped",
+        description="x",
+        version="1.0",
+        route_models={},
+        excluded_endpoints=frozenset(),
+    )
+    fleet_operation = document["paths"]["/fleet"]["get"]
+    assert fleet_operation["summary"] == (
+        "Register a new browser and answer its name at once (the launch runs in the background)."
+    )
+    assert fleet_operation["description"].endswith("The fleet starts empty.")
+    assert document["paths"]["/health"]["get"]["summary"] == "Whether the app is up."
 
 
 def test_the_route_serves_the_document_without_describing_itself(

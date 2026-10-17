@@ -15,7 +15,7 @@ def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) ->
     The document's title and description are the manifest's ``display_name``
     and ``description``, every rule of the app's url map except the static
     route and the schema route itself appears among its paths, and every
-    operation carries a summary, which is the first line of its view's
+    operation carries a summary, which is the first paragraph of its view's
     docstring: a route without one is listed but says nothing about itself.
     """
     manifest = load_manifest(manifest_path)

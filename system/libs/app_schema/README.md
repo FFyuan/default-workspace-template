@@ -27,7 +27,7 @@ app's document from its apps table.
   what every app's own tests assert: the route the manifest names answers a
   valid document whose title and description are the manifest's, whose
   paths are every route of the app, and whose every operation has a summary
-  (the first line of the view's docstring), so a route cannot be added without
+  (the first paragraph of the view's docstring, as one line), so a route cannot be added without
   saying what it does.
 
 The scaffolder (`build-app`) registers the route in every new app and writes

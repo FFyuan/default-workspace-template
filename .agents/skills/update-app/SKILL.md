@@ -170,8 +170,8 @@ An app with an `api_schema_path` in its manifest describes its own API there:
 an OpenAPI document built from its routes on every request, which is what a
 visiting agent reads instead of the code (`build-app`, "The app describes its
 own API"). A route the change adds is listed on its own; what the change owes
-the document is a docstring on each new or changed view (its first line is the
-operation's summary, in the user's terms), a `route_models` entry for a route
+the document is a docstring on each new or changed view (its first paragraph is
+the operation's summary, in the user's terms), a `route_models` entry for a route
 that validates a JSON body or answers a pydantic model, and an updated
 `description` in `app.toml` when the change moves what the app is for. The
 app's own test (`runner_test.py` in a scaffolded app) fails when the document
