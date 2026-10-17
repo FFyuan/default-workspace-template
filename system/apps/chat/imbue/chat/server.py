@@ -92,6 +92,8 @@ from imbue.chat.errors import ChatAppError
 from imbue.chat.event_queues import AgentEventQueues
 from imbue.chat.file_serving import try_serve_file
 from imbue.chat.harnesses.account_binding import BindingError
+from imbue.chat.harnesses.auth_flows import FlowStart
+from imbue.chat.harnesses.auth_flows import FlowStatus
 from imbue.chat.harnesses.binding import resolve_binding
 from imbue.chat.harnesses.claude import auth_endpoints
 from imbue.chat.harnesses.interrupt import restart_drain
@@ -147,6 +149,7 @@ from imbue.chat.models import IntakeRequest
 from imbue.chat.models import IntakeResponse
 from imbue.chat.models import IntakeTarget
 from imbue.chat.models import InterruptAgentResponse
+from imbue.chat.models import LatchkeyScopeInfo
 from imbue.chat.models import ModelOptionsResponse
 from imbue.chat.models import PendingIntakeView
 from imbue.chat.models import PoweredByResponse
@@ -2369,12 +2372,13 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
-# The routes that validate a JSON body with a pydantic model or answer one, keyed by (method, OpenAPI path): the
-# API document publishes these as their request and response schemas. A route that builds its answer by hand
-# (the events, the screen capture, the harness catalogs) is listed without a schema rather than given a model it
-# does not use. ``/api/chats/create`` carries its response only: its body holds ``project_id`` beside
-# ``CreateChatRequest``, which forbids extra keys, so the model alone would advertise a body that refuses a key
-# the route takes.
+# The routes that validate a JSON body with a pydantic model or answer one, the sibling modules' routes among
+# them, keyed by (method, OpenAPI path): the API document publishes these as their request and response schemas.
+# A route that builds its answer by hand (the events, the screen capture, the harness catalogs, the sign-in
+# callback relay) is listed without a schema rather than given a model it does not use. ``/api/chats/create``
+# carries its response only: its body holds ``project_id`` beside ``CreateChatRequest``, which forbids extra
+# keys, so the model alone would advertise a body that refuses a key the route takes. ``/api/focus-chat`` carries
+# its request only: its answer is the shell's, built by hand.
 _ROUTE_MODELS: Final[RouteModelsByRoute] = {
     ("GET", "/api/agents"): RouteModels(response_model=AgentListResponse),
     ("GET", "/api/chats"): RouteModels(response_model=ChatListResponse),
@@ -2390,6 +2394,11 @@ _ROUTE_MODELS: Final[RouteModelsByRoute] = {
     ),
     ("POST", "/api/uploads"): RouteModels(response_model=AttachmentUploadResponse, success_status=201),
     ("GET", "/api/accounts/{account_id}/model-options"): RouteModels(response_model=ModelOptionsResponse),
+    ("POST", "/api/accounts"): RouteModels(response_model=FlowStart),
+    ("GET", "/api/accounts/flow/{flow_id}"): RouteModels(response_model=FlowStatus),
+    ("POST", "/api/accounts/flow/{flow_id}"): RouteModels(response_model=FlowStatus),
+    ("GET", "/api/latchkey/scopes/{scope}"): RouteModels(response_model=LatchkeyScopeInfo),
+    ("POST", "/api/focus-chat"): RouteModels(request_model=focus_chat.FocusChatRequest),
     ("POST", "/api/chats/{chat_id}/destroy"): RouteModels(response_model=DestroyAgentResponse),
     ("POST", "/api/chats/{chat_id}/start"): RouteModels(response_model=StartAgentResponse),
     ("POST", "/api/chats/{chat_id}/stop"): RouteModels(response_model=StopAgentResponse),
