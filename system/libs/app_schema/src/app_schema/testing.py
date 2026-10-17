@@ -6,7 +6,12 @@ from app_manifest.manifest import load_manifest
 from flask.testing import FlaskClient
 from openapi_spec_validator import validate
 
-from app_schema.api_schema import API_SCHEMA_ENDPOINT, OTHER_METHODS_KEY, flask_rule_to_openapi_path, is_static_endpoint
+from app_schema.api_schema import (
+    API_SCHEMA_ENDPOINT,
+    OTHER_METHODS_KEY,
+    flask_rule_to_openapi_path,
+    is_static_endpoint,
+)
 
 
 def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) -> None:
@@ -33,7 +38,8 @@ def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) ->
     expected_paths = {
         flask_rule_to_openapi_path(rule.rule)
         for rule in client.application.url_map.iter_rules()
-        if not is_static_endpoint(rule.endpoint) and rule.endpoint.rsplit(".", 1)[-1] != API_SCHEMA_ENDPOINT
+        if not is_static_endpoint(rule.endpoint)
+        and rule.endpoint.rsplit(".", 1)[-1] != API_SCHEMA_ENDPOINT
     }
     assert set(document["paths"]) == expected_paths
     undescribed = [
@@ -42,6 +48,7 @@ def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) ->
         for method, operation in path_item.items()
         if method != OTHER_METHODS_KEY and "summary" not in operation
     ]
-    assert not undescribed, "these routes have no docstring, so the document says nothing about them: " + ", ".join(
-        undescribed
+    assert not undescribed, (
+        "these routes have no docstring, so the document says nothing about them: "
+        + ", ".join(undescribed)
     )
