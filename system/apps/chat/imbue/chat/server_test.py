@@ -4894,14 +4894,15 @@ def test_the_document_publishes_the_models_of_every_route_that_validates_with_th
     document = client.get(DEFAULT_API_SCHEMA_PATH).get_json()
     schemas = document["components"]["schemas"]
     for (method, path), models in _ROUTE_MODELS.items():
+        assert models.request_model is not None or models.response_model is not None, (method, path)
         operation = document["paths"][path][method.lower()]
         if models.request_model is not None:
             body = operation["requestBody"]["content"]["application/json"]["schema"]
             assert body == {"$ref": f"#/components/schemas/{models.request_model.__name__}"}
             assert models.request_model.__name__ in schemas
-        assert models.response_model is not None
-        success = operation["responses"][str(models.success_status)]
-        assert success["content"]["application/json"]["schema"] == {
-            "$ref": f"#/components/schemas/{models.response_model.__name__}"
-        }
-        assert models.response_model.__name__ in schemas
+        if models.response_model is not None:
+            success = operation["responses"][str(models.success_status)]
+            assert success["content"]["application/json"]["schema"] == {
+                "$ref": f"#/components/schemas/{models.response_model.__name__}"
+            }
+            assert models.response_model.__name__ in schemas
