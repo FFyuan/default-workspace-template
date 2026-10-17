@@ -423,8 +423,8 @@ operation's summary, the whole of it the operation's description) and, for a rou
 validates a JSON body or answers a pydantic model, an entry in the
 `route_models` argument so the schemas are published. The scaffolded test
 `assert_api_schema_describes_app` keeps the document honest: it fails when
-the manifest's `description` and the document disagree, or when a route is
-missing. This document is how a visiting agent (`.agents/shared/references/visiting-agents.md`)
+the manifest's `description` and the document disagree, when a route is
+missing, or when a view has no docstring (its operation would say nothing). This document is how a visiting agent (`.agents/shared/references/visiting-agents.md`)
 and any other agent learns what the app can do without reading its code, so
 keep the docstrings in the user's terms.
 

@@ -175,7 +175,7 @@ operation's summary, in the user's terms), a `route_models` entry for a route
 that validates a JSON body or answers a pydantic model, and an updated
 `description` in `app.toml` when the change moves what the app is for. The
 app's own test (`runner_test.py` in a scaffolded app) fails when the document
-and the manifest disagree, so run it with the change.
+and the manifest disagree or a view has no docstring, so run it with the change.
 
 ### 2. Apply it so it actually takes effect
 

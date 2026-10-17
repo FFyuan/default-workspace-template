@@ -25,8 +25,10 @@ app's document from its apps table.
 - `app_schema.testing.assert_api_schema_describes_app(client, manifest_path)` (an app's
   tests depend on `app-schema[testing]` for it; the runtime needs `app-schema` alone):
   what every app's own tests assert: the route the manifest names answers a
-  valid document whose title and description are the manifest's and whose
-  paths are every route of the app.
+  valid document whose title and description are the manifest's, whose
+  paths are every route of the app, and whose every operation has a summary
+  (the first line of the view's docstring), so a route cannot be added without
+  saying what it does.
 
 The scaffolder (`build-app`) registers the route in every new app and writes
 the two manifest keys; `docs/system/blueprint/workspace-app-model/contracts.md`

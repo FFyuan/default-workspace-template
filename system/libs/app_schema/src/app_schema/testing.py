@@ -6,15 +6,17 @@ from app_manifest.manifest import load_manifest
 from flask.testing import FlaskClient
 from openapi_spec_validator import validate
 
-from app_schema.api_schema import API_SCHEMA_ENDPOINT, flask_rule_to_openapi_path
+from app_schema.api_schema import API_SCHEMA_ENDPOINT, OTHER_METHODS_KEY, flask_rule_to_openapi_path
 
 
 def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) -> None:
-    """The app answers its manifest's ``api_schema_path`` with a valid document that covers every route.
+    """The app answers its manifest's ``api_schema_path`` with a valid document that describes every route.
 
     The document's title and description are the manifest's ``display_name``
-    and ``description``, and every rule of the app's url map except the static
-    route and the schema route itself appears among its paths.
+    and ``description``, every rule of the app's url map except the static
+    route and the schema route itself appears among its paths, and every
+    operation carries a summary, which is the first line of its view's
+    docstring: a route without one is listed but says nothing about itself.
     """
     manifest = load_manifest(manifest_path)
     assert manifest.api_schema_path is not None, (
@@ -34,3 +36,12 @@ def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) ->
         if rule.endpoint != "static" and rule.endpoint.rsplit(".", 1)[-1] != API_SCHEMA_ENDPOINT
     }
     assert set(document["paths"]) == expected_paths
+    undescribed = [
+        f"{method.upper()} {path}"
+        for path, path_item in document["paths"].items()
+        for method, operation in path_item.items()
+        if method != OTHER_METHODS_KEY and "summary" not in operation
+    ]
+    assert not undescribed, "these routes have no docstring, so the document says nothing about them: " + ", ".join(
+        undescribed
+    )

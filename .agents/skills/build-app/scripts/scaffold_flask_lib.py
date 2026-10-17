@@ -387,6 +387,7 @@ register_api_schema_route(app, DEFAULT_API_SCHEMA_PATH, title={title_literal}, d
 
 @app.route("/")
 def index() -> Response:
+    """The app's page."""
     return Response(
         "<!doctype html><html><head><title>{name}</title></head><body>"
         "<h1>{name}</h1>"
@@ -399,6 +400,7 @@ def index() -> Response:
 
 @app.route("/_static/<basename>")
 def shell_module(basename: str) -> Response:
+    """One of the two browser-side modules the workspace shell builds and every app serves from its own origin."""
     # The two shell-built modules and nothing else: a name that is not one of
     # them is a 404, so this route can never read outside that directory.
     if basename not in SHELL_STATIC_MODULE_NAMES:
@@ -412,6 +414,7 @@ def shell_module(basename: str) -> Response:
 
 @app.route("/health")
 def health() -> Response:
+    """Whether the app is up."""
     return Response('{{"status": "ok"}}', mimetype="application/json")
 
 

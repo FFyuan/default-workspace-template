@@ -29,6 +29,7 @@ def _notes_app() -> Flask:
 
     @app.get("/")
     def index() -> Response:
+        """The notes page."""
         return Response("notes", mimetype="text/html")
 
     @app.post("/api/notes")
@@ -46,11 +47,13 @@ def _notes_app() -> Flask:
 
     @app.route("/dav/<path:name>", methods=["PROPFIND", "MKCOL", "GET"])
     def dav(name: str) -> Response:
+        """The notes over WebDAV."""
         return Response("")
 
     @app.route("/tree/", defaults={"subpath": ""})
     @app.route("/tree/<path:subpath>")
     def tree(subpath: str) -> Response:
+        """The folder tree, from the root or a subpath."""
         return Response(subpath)
 
     return app
@@ -177,6 +180,7 @@ def test_the_route_works_on_a_blueprint_and_sees_routes_registered_later(
 
     @blueprint.get("/api/health")
     def health() -> Response:
+        """Whether the app is up."""
         return Response("{}", mimetype="application/json")
 
     register_api_schema_route(
@@ -190,6 +194,7 @@ def test_the_route_works_on_a_blueprint_and_sees_routes_registered_later(
 
     @app.get("/late")
     def late() -> Response:
+        """A route registered after the document's."""
         return Response("late")
 
     assert_api_schema_describes_app(app.test_client(), notes_manifest_path)
