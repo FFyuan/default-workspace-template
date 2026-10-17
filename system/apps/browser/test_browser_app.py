@@ -50,7 +50,7 @@ def test_the_app_contract_module_is_the_shells_build_output_served_from_this_ori
     monkeypatch.chdir(tmp_path)
     missing = runner.application.test_client().get("/_static/app_contract.js")
     assert missing.status_code == 404
-    assert "not built" in missing.get_json()["error"]
+    assert "not built" in missing.get_json()["detail"]
 
     source = "export function connectToShell() {}\n"
     built = tmp_path / SHELL_APP_CONTRACT_PATH
@@ -170,7 +170,7 @@ def test_close_tab_closes_the_shown_tab_of_a_running_browser_and_refuses_the_res
     assert cdp.closed == ["t1"]
     assert running._active_target_id == "t2"
     assert still_launching.status_code == 409
-    assert "not running" in still_launching.get_json()["error"]
+    assert "not running" in still_launching.get_json()["detail"]
     assert unknown.status_code == 404
 
 
@@ -244,7 +244,7 @@ def test_open_url_holds_the_page_while_an_agent_drives_and_the_viewer_can_cancel
     [
         pytest.param({"client_id": "c-link", "url": "https://example.com/"}, "only an address on this machine", id="external"),
         pytest.param({"client_id": "c-link", "url": "ftp://localhost/"}, "absolute http or https URL", id="not-http"),
-        pytest.param({"client_id": "c-link", "url": 7}, "url: must be a string", id="not-a-string"),
+        pytest.param({"client_id": "c-link", "url": 7}, "'url'", id="not-a-string"),
         pytest.param({"client_id": "not a client", "url": "http://localhost:3000/"}, "client_id", id="bad-client"),
     ],
 )
