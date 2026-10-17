@@ -50,7 +50,7 @@ function pageSvg(isSmall: boolean): string {
 const PAGE_LINES_PATH =
   "M20.2 30.3C27 29.9 37 30.1 43.8 29.9M20.1 37.2C27.5 36.9 36.5 37.1 43.9 36.8M20.2 44.1C25.5 43.9 31.5 44.2 37 43.9";
 
-/** The ruled lines on a page with no tag, drawn by hand like the page and leaning 1 degree, less than a tag.
+/** The ruled lines on a page with no tag, drawn by hand like the page and leaning 1 degree, as a tag does.
  *  Below 32px they are drawn heavier and darker, or a page in a list row would look blank. */
 function pageLinesSvg(isSmall: boolean): string {
   const color = isSmall ? "var(--c-text-faint)" : "var(--c-border-strong)";
@@ -94,7 +94,7 @@ function escapeText(text: string): string {
 }
 
 /** How far a type tag leans, clockwise, so it sits on the hand-drawn page as if stuck on by hand. */
-const TAG_TILT_DEGREES = 3;
+const TAG_TILT_DEGREES = 1;
 
 function tagSvg(family: FileFamily, badge: string, withLetters: boolean): string {
   if (!withLetters) {
