@@ -1,7 +1,6 @@
 """The Files server: dufs behind it for the workspace's own files, and three things dufs cannot do in front of it.
 
-- ``/__files/api/connections`` lists what the user has shared from their computers (GET), and asks for a new share
-  (POST), which pops Imbue Studio's sharing dialog on the computer.
+- ``/__files/api/connections`` lists what the user has shared from their computers.
 - ``/__remote/<device>/<path>`` is a shared item read live from the computer it is on, answered in dufs's own shape
   (a page, ``?json``, the bytes, PUT, DELETE, MKCOL), so the frontend browses it as it browses any folder.
 - Every answer's ``Content-Disposition`` is made ASCII-safe. dufs names the file in it as it is, and a name with a
@@ -150,7 +149,6 @@ def create_app(
     dufs_url: str,
     gateway: Gateway | None,
     static_directory: Path,
-    agent_id: str,
     synced_root: Path = SYNCED_FOLDERS,
     client: httpx.Client | None = None,
 ) -> Flask:
@@ -200,35 +198,6 @@ def create_app(
             return _text(f"Couldn't read your shares: {error}", 502)
         device_paths.update({device.id: device.has_device_paths for device in listed.devices})
         return _json(listed.model_dump())
-
-    @app.post(f"{API_PREFIX}/connections")
-    def request_connection() -> Response:
-        if gateway is None:
-            return no_gateway()
-        body = request.get_json(silent=True) or {}
-        device = str(body.get("device", ""))
-        path = str(body.get("path") or "~").strip() or "~"
-        access = "WRITE" if body.get("access") == "write" else "READ"
-        payload: dict[str, object] = {"path": path, "access": access}
-        if body.get("sync") is True:
-            payload["sync"] = {"conflict": "NEWER"}
-        try:
-            response = gateway.request(
-                "POST",
-                "permission-requests",
-                device=device or None,
-                json={
-                    "agent_id": agent_id,
-                    "type": "file-sharing",
-                    "payload": payload,
-                    "rationale": "You asked Files to connect this from your computer.",
-                },
-            )
-        except httpx.HTTPError as error:
-            return _text(f"Couldn't ask Imbue Studio: {error}", 502)
-        if response.status_code >= 400:
-            return _text(response.text or "Imbue Studio refused the request.", response.status_code)
-        return _json({"requested": True})
 
     # Shared items, live
 

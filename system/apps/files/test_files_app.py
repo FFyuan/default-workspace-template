@@ -215,62 +215,25 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
     ).to_have_attribute("data-icon-badge", "synced")
 
 
-def test_the_connect_entry_asks_the_computer_to_share_something(
-    open_files_page: OpenFilesPage, connections: Any
-) -> None:
-    connections.listed = {"devices": [{"id": "host-mac", "name": "Kims-Mac.local"}], "shares": []}
-    page = open_files_page("/")
-    page.locator('[data-action="connect"]').click()
-    dialog = page.locator('[data-dialog="connect"]')
-    expect(dialog).to_contain_text("From Kims-Mac")
-    expect(dialog).not_to_contain_text(".local")
-    page.locator(".files-connect-path").fill("~/Projects/site")
-    page.locator('input[value="write"]').check()
-    page.locator(".files-connect-sync").uncheck()
-    page.locator('[data-dialog-action="connect"]').click()
-
-    expect(page.locator("[data-toast]")).to_contain_text("Approve it in Imbue Studio")
-    assert connections.requests == [
-        {"device": "host-mac", "path": "~/Projects/site", "access": "write", "sync": False}
-    ]
-
-
 def test_enter_on_a_focused_button_presses_it_rather_than_opening_the_selection(
     open_files_page: OpenFilesPage,
 ) -> None:
     page = open_files_page("/")
     _entry(page, "/projects/").click()
-    page.locator('[data-action="connect"]').focus()
+    page.locator('[data-sidebar-row="shortcut:uploads"]').focus()
     page.keyboard.press("Enter")
-    expect(page.locator('[data-dialog="connect"]')).to_be_visible()
+    expect(page.locator('[data-sidebar-row="shortcut:uploads"]')).to_have_attribute("aria-current", "true")
     assert not page.url.endswith("/projects/")
 
 
 def test_enter_opens_an_entry_chosen_by_the_arrows_after_a_button_was_pressed(open_files_page: OpenFilesPage) -> None:
     page = open_files_page("/")
     expect(_entry(page, "/photos/")).to_be_visible()
-    page.locator('[data-action="connect"]').focus()
+    page.locator('[data-sidebar-row="shortcut:uploads"]').focus()
     page.keyboard.press("ArrowDown")
     expect(_entry(page, "/photos/")).to_have_attribute("aria-selected", "true")
     page.keyboard.press("Enter")
     expect(_entry(page, "/photos/sunset.png")).to_be_visible()
-    expect(page.locator('[data-dialog="connect"]')).to_have_count(0)
-
-
-def test_the_connect_dialog_picks_which_computer_to_ask(open_files_page: OpenFilesPage, connections: Any) -> None:
-    connections.listed = {
-        "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}, {"id": "host-pc", "name": "Kims-PC"}],
-        "shares": [],
-    }
-    page = open_files_page("/")
-    page.locator('[data-action="connect"]').click()
-    page.locator('[data-dialog="connect"] [data-dropdown-part="trigger"]').click()
-    # The list stays open through the redraw its opening causes, so its options can be picked.
-    page.locator('[data-dropdown-option="host-pc"]').click()
-    page.locator('[data-dialog-action="connect"]').click()
-
-    expect(page.locator("[data-toast]")).to_contain_text("Approve it in Imbue Studio")
-    assert [request["device"] for request in connections.requests] == ["host-pc"]
 
 
 _DROP_FROM_COMPUTER = """([selector, name]) => {
@@ -283,48 +246,7 @@ _DROP_FROM_COMPUTER = """([selector, name]) => {
 }"""
 
 
-def test_a_file_dropped_on_connected_is_asked_for_and_waits_in_its_own_row(
-    open_files_page: OpenFilesPage, connections: Any
-) -> None:
-    connections.listed = {"devices": [{"id": "host-mac", "name": "Kims-Mac.local"}], "shares": []}
-    page = open_files_page("/")
-    page.evaluate(_DROP_FROM_COMPUTER, [".files-connected", "brief.pdf"])
-
-    expect(page.locator('[data-dialog="connect"]')).to_be_visible()
-    expect(page.locator(".files-connect-path")).to_have_value("~/brief.pdf")
-    expect(page.locator(".files-connect-hint")).to_contain_text("only tells Files the name")
-    expect(page.locator(".files-connect-sync")).not_to_be_checked()
-    page.locator(".files-connect-path").fill("~/Documents/brief.pdf")
-    page.locator('[data-dialog-action="connect"]').click()
-
-    waiting = page.locator(".files-pending-connection")
-    expect(waiting).to_have_text("brief.pdf")
-    expect(waiting.locator('[data-mark="pending"]')).to_have_count(1)
-    assert connections.requests == [
-        {"device": "host-mac", "path": "~/Documents/brief.pdf", "access": "read", "sync": False}
-    ]
-
-    connections.listed = {
-        "devices": [{"id": "host-mac", "name": "Kims-Mac.local"}],
-        "shares": [
-            {
-                "device": "host-mac",
-                "path": "/Users/kim/Documents/brief.pdf",
-                "access": "read",
-                "kind": "file",
-                "is_reachable": True,
-                "synced_copy": None,
-                "sync_state": None,
-            }
-        ],
-    }
-    expect(page.locator('[data-sidebar-row="share:host-mac:/Users/kim/Documents/brief.pdf"]')).to_be_visible(
-        timeout=10000
-    )
-    expect(waiting).to_have_count(0)
-
-
-def test_a_file_dropped_on_a_shared_folder_uploads_into_it_rather_than_connecting(
+def test_a_file_dropped_on_a_shared_folder_uploads_into_it(
     open_files_page: OpenFilesPage, files_root: Path, connections: Any
 ) -> None:
     copy = files_root / "home/user/synced_folders/host-mac/Users/kim/notes"
@@ -349,8 +271,6 @@ def test_a_file_dropped_on_a_shared_folder_uploads_into_it_rather_than_connectin
 
     expect(page.locator(".files-uploads-summary")).to_have_text("Uploaded 1 item")
     assert (copy / "brief.pdf").read_bytes() == b"bytes"
-    expect(page.locator('[data-dialog="connect"]')).to_have_count(0)
-    assert connections.requests == []
 
 
 def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
@@ -358,7 +278,9 @@ def test_the_sidebar_says_when_no_folder_is_connected_and_resizes_by_its_edge(
 ) -> None:
     page = open_files_page("/")
     expect(page.locator(".files-sidebar [data-sidebar-row^='share:']")).to_have_count(0)
-    expect(page.locator('[data-action="connect"]')).to_have_text("Connect a file or folder…")
+    expect(page.locator(".files-connected-empty")).to_have_text(
+        "Nothing yet. Share a file or folder from Imbue Studio on your computer."
+    )
     sidebar = page.locator(".files-sidebar")
     start = sidebar.bounding_box()
     assert start is not None and round(start["width"]) == 208

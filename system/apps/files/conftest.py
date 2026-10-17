@@ -66,11 +66,10 @@ def _is_text(path: Path) -> bool:
 
 
 class Connections:
-    """What the stand-in says is shared from the user's computers, and the requests for more it was sent."""
+    """What the stand-in says is shared from the user's computers."""
 
     def __init__(self) -> None:
         self.listed: dict[str, Any] = {"devices": [], "shares": []}
-        self.requests: list[dict[str, Any]] = []
 
 
 def _make_handler(root: Path, connections: Connections) -> type[http.server.BaseHTTPRequestHandler]:
@@ -160,11 +159,6 @@ def _make_handler(root: Path, connections: Connections) -> type[http.server.Base
             self.send_response(200 if found else 404)
             self.send_header("Content-Length", "0")
             self.end_headers()
-
-        def do_POST(self) -> None:
-            length = int(self.headers.get("Content-Length") or 0)
-            connections.requests.append(json.loads(self.rfile.read(length)))
-            self._send(200, b'{"requested": true}', "application/json")
 
         def do_PUT(self) -> None:
             target = on_disk(urlsplit(self.path).path)

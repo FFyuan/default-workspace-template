@@ -29,7 +29,6 @@ def _app(computer: FakeComputer | None, tmp_path: Path, dufs: httpx.Client | Non
         dufs_url="http://dufs.test",
         gateway=computer.gateway() if computer is not None else None,
         static_directory=static,
-        agent_id="agent-main",
         synced_root=tmp_path / "synced",
         client=dufs or mock_dufs(_dufs_page),
     ).test_client()
@@ -253,20 +252,6 @@ def test_a_change_the_computer_refuses_is_answered_as_read_only(tmp_path: Path) 
     assert computer.files["/Users/kim/photo.png"] == b"\x89PNG"
 
 
-def test_asking_for_a_share_reaches_imbue_studio_as_a_file_sharing_request_from_the_main_chat(tmp_path: Path) -> None:
-    computer = FakeComputer(permissions=[], folders={})
-    response = _app(computer, tmp_path).post(
-        "/__files/api/connections", json={"device": DEVICE, "path": "~/Projects", "access": "write", "sync": True}
-    )
-    assert response.status_code == 200
-    (asked,) = [request for request in computer.requests if request.url.path == "/permission-requests"]
-    body = json.loads(asked.read())
-    assert body["agent_id"] == "agent-main"
-    assert body["type"] == "file-sharing"
-    assert body["payload"] == {"path": "~/Projects", "access": "WRITE", "sync": {"conflict": "NEWER"}}
-    assert asked.headers["X-Latchkey-Device"] == DEVICE
-
-
 class _GarbledGateway(FakeComputer):
     """A gateway that answers the device list with a page that is not JSON."""
 
@@ -282,10 +267,9 @@ def test_a_gateway_answer_that_is_not_json_says_the_shares_could_not_be_read(tmp
     assert response.get_data(as_text=True).startswith("Couldn't read your shares")
 
 
-def test_with_no_gateway_there_are_no_shares_and_asking_explains_why(tmp_path: Path) -> None:
+def test_with_no_gateway_there_are_no_shares(tmp_path: Path) -> None:
     client = _app(None, tmp_path)
     assert json_of(client.get("/__files/api/connections")) == {"devices": [], "shares": []}
-    assert client.post("/__files/api/connections", json={}).status_code == 503
 
 
 def test_a_real_listing_from_the_computer_reads_names_kinds_and_sizes() -> None:

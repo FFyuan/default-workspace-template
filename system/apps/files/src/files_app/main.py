@@ -2,7 +2,6 @@
 registered, and both stopped together on supervisord's SIGTERM, or when dufs exits, so supervisord restarts the
 pair."""
 
-import os
 import shutil
 import subprocess
 import sys
@@ -53,7 +52,6 @@ def run_files_app(
             dufs_url=f"http://{HOST}:{dufs_port}",
             gateway=Gateway.from_environment(),
             static_directory=static_directory,
-            agent_id=os.environ.get("MNGR_AGENT_ID", ""),
         )
         with serve_in_background(HOST, app_port, app):
             if is_registered:

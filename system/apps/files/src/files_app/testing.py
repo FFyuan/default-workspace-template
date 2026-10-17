@@ -65,8 +65,6 @@ class FakeComputer:
             return httpx.Response(200, json={"devices": [{"device_id": DEVICE, "hostname": "Kims-Mac.local"}]})
         if path == "/permissions/self":
             return httpx.Response(200, json={"rules": [{"latchkey-self": list(self.permissions)}]})
-        if path == "/permission-requests":
-            return httpx.Response(201, json={"id": "request-1"})
         prefix = "/minds-api-proxy/api/v1/files"
         if not path.startswith(prefix):
             return httpx.Response(404)

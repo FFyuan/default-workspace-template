@@ -23,8 +23,7 @@ for every other registered app.
 `server.py` relays every request to dufs and answers three things dufs cannot:
 
 - `/__files/api/connections`: GET lists what the user has shared with the
-  workspace from their computers, POST asks for more. Both go through the
-  latchkey gateway (`gateway.py`), whose address and credentials every
+  workspace from their computers, read through the latchkey gateway (`gateway.py`), whose address and credentials every
   supervised program inherits. A share is a file-sharing permission the
   workspace holds (`minds-file-server-read-<device id>:<path>`, and `-write-`
   beside it when changes are allowed; a computer whose Imbue Studio predates
@@ -32,9 +31,8 @@ for every other registered app.
   Imbue Studio keeps a synced copy at `~/synced_folders/<device id>/<path>`
   (two-way with write access, one-way with read), and, since the workspace
   learns nothing from the sync itself, compares the copy's names with the
-  computer's to say when a copy has fallen behind. A request is a
-  `file-sharing` permission request from the workspace's main agent
-  (`MNGR_AGENT_ID`); Imbue Studio shows its sharing dialog on the computer.
+  computer's to say when a copy has fallen behind. Files does not ask for new
+  shares: the user makes them in Imbue Studio on their computer.
 - `/__remote/<device id>/<path>`: a share with no copy here, read live from the
   computer's file server over WebDAV and answered in dufs's own shape (a page,
   `?json`, the bytes, PUT, DELETE, MKCOL), so the frontend browses it like any
@@ -81,14 +79,9 @@ marks only when there is something to say: a "Read-only" word badge, a filled
 orange disc when a synced copy has not caught up, and a struck-through laptop
 when its computer is not answering. The row's tooltip says, without repeating
 the name, how it reaches the workspace and how it stands. A synced share opens
-at its copy, the others live. The list ends in "Connect a file or folder",
-which opens a dialog for the path, the access, and whether to keep a synced
-copy, which asks the computer; the request then waits in a row of its own until
-it is approved. Something dragged in from the computer onto the Connected
-section opens the same dialog, filled with its name (a browser tells a page
-nothing of where a dropped item lives, so the path is a guess the user, or
-Imbue Studio's own dialog, corrects); dropped on a share's row it uploads into
-that share instead, as onto any folder. The sidebar's width is dragged from
+at its copy, the others live. With nothing shared, the section says to share
+from Imbue Studio. Something dragged in from the computer onto a share's row
+uploads into that share, as onto any folder. The sidebar's width is dragged from
 its edge (double-click puts it back) and kept with the other preferences. Jumping to a sidebar row starts the
 column view afresh there; drilling down into a folder that happens to be a
 shortcut keeps the columns already open. There are no back and forward

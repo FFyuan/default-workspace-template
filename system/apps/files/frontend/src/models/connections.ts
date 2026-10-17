@@ -123,7 +123,7 @@ export function stuckSyncOf(
   return {
     title: `Not synced yet from ${deviceNameOf(connections, share.device)}`,
     detail:
-      "Your computer has files here that haven't arrived. The sync may be stuck: check it in Imbue Studio on your computer, or connect this folder again.",
+      "Your computer has files here that haven't arrived. The sync may be stuck: check it in Imbue Studio on your computer.",
   };
 }
 
@@ -136,34 +136,4 @@ export async function fetchConnections(signal?: AbortSignal): Promise<Connection
   const response = await fetch(CONNECTIONS_API, { signal });
   if (!response.ok) throw await failureOf(response, "Couldn't read your connections");
   return (await response.json()) as Connections;
-}
-
-/** Something dragged in from the user's computer to connect: all a browser tells of it is its name and kind. */
-export interface DroppedItem {
-  name: string;
-  isFolder: boolean;
-}
-
-/** A connection asked for and not yet approved: shown as a waiting row until its share appears. */
-export interface PendingConnection {
-  key: string;
-  name: string;
-  isFolder: boolean;
-}
-
-export interface ConnectionRequest {
-  device: string;
-  path: string;
-  access: "read" | "write";
-  sync: boolean;
-}
-
-/** Ask to share something more: Imbue Studio shows its sharing dialog on the computer, where the user decides. */
-export async function requestConnection(ask: ConnectionRequest): Promise<void> {
-  const response = await fetch(CONNECTIONS_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(ask),
-  });
-  if (!response.ok) throw await failureOf(response, "Couldn't ask your computer");
 }

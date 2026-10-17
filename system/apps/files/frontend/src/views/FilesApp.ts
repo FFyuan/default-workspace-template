@@ -27,8 +27,6 @@ import {
   stuckSyncOf,
   targetOf,
   type Connections,
-  type DroppedItem,
-  type PendingConnection,
   type Share,
 } from "../models/connections";
 import type { SortKey, ViewMode } from "../models/preferences";
@@ -40,9 +38,6 @@ import { cornerBadge, fileIconSvg } from "./FileIcon";
 import { ColumnView, IconView, ListView } from "./FolderViews";
 import { iconButton } from "./iconButton";
 import { handleKeydown } from "./keyboard";
-
-/** Marks the Connected section, where an item dragged in from the user's computer is connected rather than uploaded. */
-const CONNECT_DROP_ATTR = "data-connect-drop";
 
 const SHORTCUT_ICONS: Record<string, IconName> = {
   workspace: "house",
@@ -66,6 +61,7 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 const CONNECTED_INFO =
   "Files and folders shared from your computers. A synced one has a copy here; the rest open live from your computer while it's awake.";
+const NOTHING_CONNECTED = "Nothing yet. Share a file or folder from Imbue Studio on your computer.";
 
 interface SidebarRow {
   key: string;
@@ -171,38 +167,6 @@ function shareRow(app: FilesController, connections: Connections, share: Share):
   };
 }
 
-/** A connection asked for and waiting on its approval in Imbue Studio. */
-function pendingRow(waiting: PendingConnection): m.Vnode {
-  return m(
-    "div.files-pending-connection",
-    {
-      key: `pending:${waiting.key}`,
-      ...hoverTooltipAttrs("Waiting for you to approve it in Imbue Studio on your computer.", "right", {
-        maxWidth: 260,
-      }),
-      class: "flex h-7 w-full shrink-0 items-center gap-2 rounded-md px-2 text-(length:--font-size-row) text-faint",
-    },
-    [
-      m("span", { class: "flex shrink-0" }, m.trust(fileIconSvg(waiting.name, waiting.isFolder, 18))),
-      m("span", { class: "min-w-0 flex-1 truncate" }, waiting.name),
-      mark("pending", "Waiting for approval", m("span.spinner.spinner--sm"), "text-faint"),
-    ],
-  );
-}
-
-/** Where an item dragged in from the user's computer lands to be connected. */
-function dropToConnectRow(): m.Vnode {
-  return m(
-    "div.files-connect-drop",
-    {
-      key: "connect-drop",
-      class:
-        "flex h-7 w-full shrink-0 items-center gap-2 rounded-md border border-dashed border-accent px-2 text-(length:--font-size-row) text-accent",
-    },
-    [m.trust(icon("plus", { size: 16, className: "shrink-0" })), m("span", { class: "truncate" }, "Drop to connect")],
-  );
-}
-
 function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
   return m(
     "div.files-sidebar-heading",
@@ -260,9 +224,8 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
       if (shareRows.length > 0) {
         connectedBody = shareRows.map((row) => sidebarRow(app, row, row.key === current));
       } else {
-        const empty = model.connectionsError ?? (connections === null ? "Looking…" : null);
-        connectedBody =
-          empty === null ? null : m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, empty);
+        const empty = model.connectionsError ?? (connections === null ? "Looking…" : NOTHING_CONNECTED);
+        connectedBody = m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, empty);
       }
       return m(
         "nav.files-sidebar",
@@ -276,47 +239,21 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
           m("div", { class: "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-1 pb-3" }, [
             sectionHeading("Shortcuts"),
             shortcutRows.map((row) => sidebarRow(app, row, row.key === current)),
-            m(
-              "div.files-connected",
-              {
-                [CONNECT_DROP_ATTR]: "",
-                class: `flex flex-col gap-0.5 rounded-md ${app.isConnectDropping ? "bg-accent-light/40" : ""}`,
-              },
-              [
-                sectionHeading("Connected", [
-                  m(
-                    "span.files-connected-info",
-                    {
-                      tabindex: 0,
-                      "aria-label": CONNECTED_INFO,
-                      class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
-                      ...hoverTooltipAttrs(CONNECTED_INFO, "right", { maxWidth: 220 }),
-                    },
-                    m.trust(icon("info", { size: 13 })),
-                  ),
-                ]),
-                connectedBody,
-                app.pending.map((waiting) => pendingRow(waiting)),
-                app.isConnectDropping ? dropToConnectRow() : null,
+            m("div.files-connected", { class: "flex flex-col gap-0.5" }, [
+              sectionHeading("Connected", [
                 m(
-                  "button.files-connect",
+                  "span.files-connected-info",
                   {
-                    type: "button",
-                    "data-action": "connect",
-                    class:
-                      "flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) text-faint hover:bg-fill-hover hover:text-primary",
-                    onclick: () => {
-                      app.isSidebarOpen = false;
-                      void app.connectLocal();
-                    },
+                    tabindex: 0,
+                    "aria-label": CONNECTED_INFO,
+                    class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
+                    ...hoverTooltipAttrs(CONNECTED_INFO, "right", { maxWidth: 220 }),
                   },
-                  [
-                    m.trust(icon("plus", { size: 16, className: "shrink-0" })),
-                    m("span", { class: "truncate" }, "Connect a file or folder…"),
-                  ],
+                  m.trust(icon("info", { size: 13 })),
                 ),
-              ],
-            ),
+              ]),
+              connectedBody,
+            ]),
           ]),
           resizeHandle(app),
         ],
@@ -660,30 +597,6 @@ function dropFolderAt(app: FilesController, target: EventTarget | null): string 
   return element?.getAttribute(DROP_FOLDER_ATTR) ?? app.model.folder;
 }
 
-/** Whether a drag over `target` is on the Connected section itself, rather than on one of its shares, which a drop
- *  uploads into like any folder. */
-function isOverConnect(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  const section = target.closest(`[${CONNECT_DROP_ATTR}]`);
-  if (section === null) return false;
-  const folder = target.closest(`[${DROP_FOLDER_ATTR}]`);
-  return folder === null || !section.contains(folder);
-}
-
-/** The items a drop from the user's computer carries, by name and kind: a browser tells nothing of where they are. */
-function droppedItemsOf(transfer: DataTransfer): DroppedItem[] {
-  const items = Array.from(transfer.items)
-    .filter((item) => item.kind === "file")
-    .map((item) => item.webkitGetAsEntry?.() ?? null);
-  if (items.length > 0 && items.every((entry) => entry !== null)) {
-    return items.map((entry) => ({
-      name: (entry as FileSystemEntry).name,
-      isFolder: (entry as FileSystemEntry).isDirectory,
-    }));
-  }
-  return Array.from(transfer.files).map((file) => ({ name: file.name, isFolder: false }));
-}
-
 function installDropHandling(app: FilesController, root: HTMLElement): () => void {
   const model = app.model;
   const isEntryDrag = (event: DragEvent): boolean =>
@@ -693,23 +606,9 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
     model.dropTarget = folder;
     m.redraw();
   };
-  const setConnecting = (isOver: boolean): void => {
-    if (app.isConnectDropping === isOver) return;
-    app.isConnectDropping = isOver;
-    m.redraw();
-  };
   const onDragOver = (event: DragEvent): void => {
     const fromOutside = isFileDrag(event.dataTransfer);
     if (!fromOutside && !isEntryDrag(event)) return;
-    const isConnecting = fromOutside && isOverConnect(event.target);
-    setConnecting(isConnecting);
-    if (isConnecting) {
-      event.preventDefault();
-      if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy";
-      setTarget(null);
-      return;
-    }
-    if (!fromOutside && isOverConnect(event.target)) return;
     event.preventDefault();
     const folder = dropFolderAt(app, event.target);
     if (event.dataTransfer !== null) event.dataTransfer.dropEffect = fromOutside ? "copy" : "move";
@@ -718,7 +617,6 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
   const onDragLeave = (event: DragEvent): void => {
     if (event.relatedTarget === null || !root.contains(event.relatedTarget as Node)) {
       setTarget(null);
-      setConnecting(false);
     }
   };
   const onDrop = (event: DragEvent): void => {
@@ -726,12 +624,6 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
     if (transfer === null) return;
     const folder = dropFolderAt(app, event.target);
     setTarget(null);
-    setConnecting(false);
-    if (isFileDrag(transfer) && isOverConnect(event.target)) {
-      event.preventDefault();
-      void app.connectDropped(droppedItemsOf(transfer));
-      return;
-    }
     if (isFileDrag(transfer)) {
       event.preventDefault();
       void sourcesFromDrop(transfer).then((sources) => model.uploadInto(folder, sources));
@@ -743,10 +635,7 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
       void model.moveInto(paths, folder);
     }
   };
-  const onDragEnd = (): void => {
-    setTarget(null);
-    setConnecting(false);
-  };
+  const onDragEnd = (): void => setTarget(null);
   root.addEventListener("dragover", onDragOver);
   root.addEventListener("dragleave", onDragLeave);
   root.addEventListener("drop", onDrop);

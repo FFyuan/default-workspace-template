@@ -1,5 +1,5 @@
 """The latchkey gateway, as Files reaches it: the user's devices, the file-sharing permissions this workspace holds on
-each, a request for a new one, and the shared files themselves. Every supervised program inherits the gateway's address
+each, and the shared files themselves. Every supervised program inherits the gateway's address
 and credentials from its environment, as the chat app's latchkey endpoints do."""
 
 import os
@@ -58,7 +58,6 @@ class Gateway:
         device: str | None = None,
         headers: Mapping[str, str] | None = None,
         content: str | bytes | Iterable[bytes] | None = None,
-        json: object = None,
         timeout: float | None = DEFAULT_TIMEOUT_SECONDS,
     ) -> httpx.Response:
         """A whole response from ``path`` on the gateway (``devices``, ``permissions/self``, ...)."""
@@ -67,7 +66,6 @@ class Gateway:
             f"{self._base_url}/{path.lstrip('/')}",
             headers=self._headers(device, headers),
             content=content,
-            json=json,
             timeout=timeout,
         )
 
