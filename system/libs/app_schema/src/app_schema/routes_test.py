@@ -1,5 +1,5 @@
 import pytest
-from flask import Flask, Response
+from flask import Flask, Response, request
 from pydantic import BaseModel
 
 from app_schema.api_schema import (
@@ -134,3 +134,38 @@ def test_a_route_the_table_leaves_out_may_not_answer_a_model() -> None:
 
     with pytest.raises(RouteModelsMismatchError, match="does not list it"):
         client.get("/page")
+
+
+def test_a_view_that_parses_its_own_body_is_documented_but_not_checked() -> None:
+    app = Flask("own", static_folder=None)
+    app.config["PROPAGATE_EXCEPTIONS"] = True
+
+    @app.post("/greet")
+    def greet() -> Response:
+        """Greet, reading the body by hand."""
+        body = request.get_json(force=True, silent=True) or {}
+        return model_response(Greeted(text=f"hello {body.get('name', '?')}"))
+
+    register_api_schema_route(
+        app,
+        "/api/schema",
+        title="Own",
+        description="Parses on its own.",
+        route_table={
+            ("POST", "/greet"): RouteModels(
+                request_model=Greeting,
+                response_model=Greeted,
+                is_body_parsed_by_view=True,
+            )
+        },
+    )
+    client = app.test_client()
+
+    assert client.post("/greet", json={"name": "Kim"}).get_json() == {
+        "text": "hello Kim"
+    }
+    assert client.get("/api/schema").get_json()["paths"]["/greet"]["post"][
+        "requestBody"
+    ]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/Greeting"
+    }

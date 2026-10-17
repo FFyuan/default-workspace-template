@@ -58,10 +58,12 @@ class ErrorResponse(FrozenModel):
 
 
 class AlternateResponse(FrozenModel):
-    """A second success a route can answer with, under its own status."""
+    """A second success a route can answer with: another model, another status, or both."""
 
     status: int = Field(description="The HTTP status of this answer")
-    model: type[BaseModel] = Field(description="The answer's model")
+    model: type[BaseModel] | None = Field(
+        default=None, description="The answer's model; None for an answer with no body"
+    )
 
 
 class RouteModels(FrozenModel):
@@ -80,7 +82,13 @@ class RouteModels(FrozenModel):
     )
     alternate_responses: tuple[AlternateResponse, ...] = Field(
         default=(),
-        description="The other successes the route can answer, each under its own status",
+        description="The other successes the route can answer; several models under one status are published "
+        "as a choice between them",
+    )
+    is_body_parsed_by_view: bool = Field(
+        default=False,
+        description="The view validates its body itself, with a parser whose refusals are its own contract; "
+        "the request model then documents the body's shape without parsing it",
     )
 
 
@@ -136,15 +144,26 @@ def _json_content(model: type[BaseModel]) -> dict[str, object]:
 
 
 def _success_responses(models: RouteModels) -> dict[str, object]:
-    primary: dict[str, object] = {"description": "Success"}
+    """One response per success status; a status several models answer offers the choice between them."""
+    models_by_status: dict[int, list[type[BaseModel]]] = {models.success_status: []}
     if models.response_model is not None:
-        primary["content"] = _json_content(models.response_model)
-    responses: dict[str, object] = {str(models.success_status): primary}
+        models_by_status[models.success_status].append(models.response_model)
     for alternate in models.alternate_responses:
-        responses[str(alternate.status)] = {
-            "description": "Success",
-            "content": _json_content(alternate.model),
-        }
+        answers = models_by_status.setdefault(alternate.status, [])
+        if alternate.model is not None:
+            answers.append(alternate.model)
+    responses: dict[str, object] = {}
+    for status, answers in models_by_status.items():
+        response: dict[str, object] = {"description": "Success"}
+        if len(answers) == 1:
+            response["content"] = _json_content(answers[0])
+        elif answers:
+            response["content"] = {
+                "application/json": {
+                    "schema": {"oneOf": [_schema_reference(model) for model in answers]}
+                }
+            }
+        responses[str(status)] = response
     return responses
 
 
@@ -201,7 +220,11 @@ def _models_of(entry: RouteModels) -> list[type[BaseModel]]:
         for model in (entry.request_model, entry.response_model)
         if model is not None
     ]
-    models.extend(alternate.model for alternate in entry.alternate_responses)
+    models.extend(
+        alternate.model
+        for alternate in entry.alternate_responses
+        if alternate.model is not None
+    )
     return models
 
 
