@@ -10,7 +10,7 @@ from getting_started.template_catalog import CATALOG_CACHE_FILENAME
 from getting_started.template_catalog import TemplateCatalogAvailability
 from getting_started.template_catalog import TemplateCatalogFormatError
 from getting_started.template_catalog import TemplateCatalogStore
-from getting_started.template_catalog import catalog_wire_json
+from getting_started.template_catalog import catalog_wire
 from getting_started.template_catalog import parse_template_catalog
 from getting_started.template_catalog import resolve_thumbnail_url
 from getting_started.testing import FakeTemplateCatalogFetcher
@@ -89,7 +89,7 @@ def test_wire_json_carries_resolved_thumbnail_urls_and_the_shelves() -> None:
         ),
         _CATALOG_URL,
     )
-    wire = catalog_wire_json(catalog, _CATALOG_URL)
+    wire = catalog_wire(catalog, _CATALOG_URL).model_dump(mode="json")
     assert wire["templates"][0]["thumbnail_url"] == "https://example.test/catalog/thumbnails/someone--inbox.svg"
     assert "thumbnail" not in wire["templates"][0]
     assert wire["shelves"] == [{"key": "popular", "title": "Most popular", "slugs": ["inbox"]}]
