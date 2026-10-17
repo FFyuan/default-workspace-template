@@ -130,7 +130,7 @@ function sharedItemIcon(name: string, isFolder: boolean, badge: ShareBadge): m.V
       "span",
       {
         class:
-          "absolute -right-1 -bottom-0.5 flex size-[11px] items-center justify-center rounded-full border border-strong bg-surface text-secondary",
+          "absolute -right-1 -bottom-0.5 flex size-[11px] items-center justify-center rounded-full bg-surface text-secondary",
       },
       m.trust(icon(SHARE_BADGE_ICONS[badge], { size: 7, strokeWidth: 2.6 })),
     ),

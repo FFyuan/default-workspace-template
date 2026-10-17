@@ -61,14 +61,14 @@ function pageLinesSvg(isSmall: boolean): string {
   );
 }
 
-/** The corner an icon's badge sits in: a white disc with a hairline edge at the bottom right, the glyph 60% of
- *  its width. */
+/** The corner an icon's badge sits in: a white disc at the bottom right, with a hairline edge
+ *  from icon size up, the glyph 60% of its width. */
 function cornerBadgeSvg(glyph: string, size: number): string {
   if (size < 32) {
     // At list size the icon's own proportion would leave a disc under 3px; draw it about 10px across instead,
-    // hanging off the corner, with a hairline edge and a line that both stay near one pixel.
+    // hanging off the corner, with no edge and a line that stays near one pixel.
     return (
-      '<circle cx="46" cy="47" r="17" style="fill:var(--c-surface);stroke:var(--c-border-strong)" stroke-width="3"/>' +
+      '<circle cx="46" cy="47" r="17" style="fill:var(--c-surface)"/>' +
       `<g transform="translate(35.8 36.8) scale(0.85)" fill="none" style="stroke:var(--c-text-secondary)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
     );
   }
@@ -82,7 +82,7 @@ function cornerBadgeSvg(glyph: string, size: number): string {
 export type IconBadge = "symlink" | "linked" | "synced";
 
 const BADGE_GLYPHS: Record<IconBadge, string> = {
-  symlink: '<path d="M7 17 17 7"/><path d="M8 7h9v9"/>',
+  symlink: '<path d="M5 19 19 5"/><path d="M7 5h12v12"/>',
   linked:
     '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   synced:
