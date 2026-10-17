@@ -3751,6 +3751,7 @@ version = "0.1.0"
 source = { editable = "system/apps/system_monitor" }
 dependencies = [
     { name = "app-manifest" },
+    { name = "app-schema" },
     { name = "flask" },
     { name = "oom-priority" },
     { name = "werkzeug" },
@@ -3758,19 +3759,24 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "app-schema", extra = ["testing"] },
     { name = "ty" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "app-manifest", editable = "system/libs/app_manifest" },
+    { name = "app-schema", editable = "system/libs/app_schema" },
     { name = "flask", specifier = ">=3.0" },
     { name = "oom-priority", editable = "system/services/oom_priority" },
     { name = "werkzeug", specifier = ">=3.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ty", specifier = "==0.0.85" }]
+dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
+    { name = "ty", specifier = "==0.0.85" },
+]
 
 [[package]]
 name = "tabulate"
