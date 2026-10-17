@@ -22,10 +22,15 @@ from uuid import uuid4
 from app_manifest.primitives import AppName
 from app_manifest.registry import read_origin_label
 from app_manifest.registry_location import registry_path
+from app_schema.api_schema import AlternateResponse
 from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
 from app_schema.api_schema import RouteModels
-from app_schema.api_schema import RouteModelsByRoute
+from app_schema.api_schema import RouteTable
+from app_schema.api_schema import SchemalessRoute
 from app_schema.api_schema import register_api_schema_route
+from app_schema.routes import error_response
+from app_schema.routes import model_response
+from app_schema.routes import parse_request_body
 from flask import Flask
 from flask import Response
 from flask import current_app
@@ -92,8 +97,6 @@ from imbue.chat.errors import ChatAppError
 from imbue.chat.event_queues import AgentEventQueues
 from imbue.chat.file_serving import try_serve_file
 from imbue.chat.harnesses.account_binding import BindingError
-from imbue.chat.harnesses.auth_flows import FlowStart
-from imbue.chat.harnesses.auth_flows import FlowStatus
 from imbue.chat.harnesses.binding import resolve_binding
 from imbue.chat.harnesses.claude import auth_endpoints
 from imbue.chat.harnesses.interrupt import restart_drain
@@ -128,12 +131,13 @@ from imbue.chat.models import ChatListResponse
 from imbue.chat.models import ChatSegmentInfo
 from imbue.chat.models import ChatSettingsResponse
 from imbue.chat.models import ChatSnapshot
+from imbue.chat.models import ChatWatchersResponse
+from imbue.chat.models import ConvergingResponse
 from imbue.chat.models import CreateChatRequest
 from imbue.chat.models import CreateChatResponse
 from imbue.chat.models import CreatedChat
 from imbue.chat.models import DestroyAgentResponse
 from imbue.chat.models import DrainToComposerResponse
-from imbue.chat.models import ErrorResponse
 from imbue.chat.models import FastModeStateResponse
 from imbue.chat.models import HandoffCancelResponse
 from imbue.chat.models import HandoffError
@@ -141,6 +145,7 @@ from imbue.chat.models import HandoffPhase
 from imbue.chat.models import HandoffRetryRequest
 from imbue.chat.models import HandoffRetryResponse
 from imbue.chat.models import HandoffState
+from imbue.chat.models import HealthResponse
 from imbue.chat.models import HeldSendOrigin
 from imbue.chat.models import HeldSendResponse
 from imbue.chat.models import IntakeApplyRequest
@@ -149,15 +154,17 @@ from imbue.chat.models import IntakeRequest
 from imbue.chat.models import IntakeResponse
 from imbue.chat.models import IntakeTarget
 from imbue.chat.models import InterruptAgentResponse
-from imbue.chat.models import LatchkeyScopeInfo
 from imbue.chat.models import ModelOptionsResponse
+from imbue.chat.models import OkResponse
 from imbue.chat.models import PendingIntakeView
 from imbue.chat.models import PoweredByResponse
 from imbue.chat.models import ProvisionalChat
 from imbue.chat.models import ProvisionalChatPhase
 from imbue.chat.models import RenameChatRequest
 from imbue.chat.models import RenameChatResponse
+from imbue.chat.models import ScreenCaptureResponse
 from imbue.chat.models import SeedChatRequest
+from imbue.chat.models import SendFailureResponse
 from imbue.chat.models import SendMessageRequest
 from imbue.chat.models import SendMessageResponse
 from imbue.chat.models import SetModelChoiceRequest
@@ -176,8 +183,6 @@ from imbue.chat.primitives import parse_chat_ref
 from imbue.chat.request_helpers import answer_chat_app_error
 from imbue.chat.request_helpers import handle_unhandled_exception
 from imbue.chat.request_helpers import json_response
-from imbue.chat.request_helpers import parse_json_object_body
-from imbue.chat.request_helpers import parse_request_body
 from imbue.chat.request_helpers import require_loopback
 from imbue.chat.secret_requests import ChatLookup
 from imbue.chat.secret_requests import NoticeDeliveryError
@@ -221,20 +226,16 @@ def _find_active_agent(chat_id: str) -> AgentInfo | None:
 
 
 def _chat_not_found_response(chat_id: str) -> Response:
-    error = ErrorResponse(detail=f"Chat '{chat_id}' not found")
-    return json_response(error.model_dump(), status_code=404)
+    return error_response(f"Chat '{chat_id}' not found", 404)
 
 
 def _agent_list_not_known_response() -> Response:
-    failure = ErrorResponse(detail="The chat app has not read its agent list from mngr yet; try again shortly.")
-    return json_response(failure.model_dump(), status_code=503)
+    return error_response("The chat app has not read its agent list from mngr yet; try again shortly.", 503)
 
 
 def _converging_response(handoff: HandoffState) -> Response:
-    return json_response(
-        {"detail": converging_detail(handoff.phase, handoff.target_label), "phase": handoff.phase.value},
-        status_code=409,
-    )
+    detail = converging_detail(handoff.phase, handoff.target_label)
+    return model_response(ConvergingResponse(detail=detail, phase=handoff.phase), 409)
 
 
 def _refuse_while_converging(chat_id: str) -> Response | None:
@@ -268,8 +269,7 @@ def _get_event_detail(chat_id: str, event_id: str) -> Response:
         return _chat_not_found_response(chat_id)
     detail = transcript.get_event_detail(event_id)
     if detail is None:
-        error = ErrorResponse(detail=f"Payload for event '{event_id}' is no longer available")
-        return json_response(error.model_dump(), status_code=404)
+        return error_response(f"Payload for event '{event_id}' is no longer available", 404)
     return json_response({"event_id": event_id, **detail})
 
 
@@ -759,7 +759,7 @@ def _send_to_chat(
             return _chat_not_found_response(str(chat_id))
         if is_refused_on_signed_out_account and _is_account_signed_out(agent_info):
             detail = "You signed out of the account this chat runs on. Choose a provider to continue it on."
-            return json_response({"detail": detail, "kind": ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND}, status_code=409)
+            return model_response(SendFailureResponse(detail=detail, kind=ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND), 409)
         try:
             outcome = _deliver_message(state, agent_info, send_message_request.message, message_id)
         except AgentNotFoundError as e:
@@ -774,17 +774,13 @@ def _send_to_chat(
             # can clear a blocked input and cannot help when there is nothing left to talk to.
             # A /compact the chat declines is its own refusal, not a failure.
             status_code = 409 if send_failure.kind in _DECLINED_SEND_FAILURE_KINDS else 500
-            return json_response({"detail": send_failure.detail, "kind": send_failure.kind}, status_code=status_code)
+            return model_response(SendFailureResponse(detail=send_failure.detail, kind=send_failure.kind), status_code)
         if outcome is SendOutcome.NOT_READY:
-            failure = ErrorResponse(
-                detail=f"Agent '{agent_info.name}' is not ready to receive messages yet (its daemon is starting)."
+            return error_response(
+                f"Agent '{agent_info.name}' is not ready to receive messages yet (its daemon is starting).", 503
             )
-            return json_response(failure.model_dump(), status_code=503)
         if outcome is SendOutcome.FAILED:
-            failure = ErrorResponse(
-                detail=f"Failed to send message to agent '{agent_info.name}' (0 successful agents)"
-            )
-            return json_response(failure.model_dump(), status_code=500)
+            return error_response(f"Failed to send message to agent '{agent_info.name}' (0 successful agents)", 500)
         is_compaction_requested = (
             _composer_compact_handling_of(agent_info, send_message_request.message)
             is ComposerCompactHandling.REQUESTED_FROM_MNGR
@@ -848,7 +844,7 @@ def _send_message_endpoint(chat_id: str) -> Response:
     if _find_active_agent(chat_id) is None:
         return _chat_not_found_response(chat_id)
 
-    send_message_request = SendMessageRequest.model_validate(request.get_json())
+    send_message_request = parse_request_body(SendMessageRequest)
     message_id = send_message_request.message_id or uuid4().hex
     # Alongside the delivery rather than after it, which can take seconds: the name should land
     # while the agent is still answering.
@@ -861,11 +857,9 @@ def _send_message_endpoint(chat_id: str) -> Response:
     # A 202 tells the page to keep its "Sending" placeholder and the script that nothing needs
     # backing off.
     if accepted.held_phase is not None:
-        return json_response(
-            HeldSendResponse(status="held", phase=accepted.held_phase).model_dump(mode="json"), status_code=202
-        )
+        return model_response(HeldSendResponse(status="held", phase=accepted.held_phase), 202)
     status = COMPACTION_REQUESTED_SEND_STATUS if accepted.is_compaction_requested else "ok"
-    return json_response(SendMessageResponse(status=status).model_dump())
+    return model_response(SendMessageResponse(status=status))
 
 
 @pure
@@ -978,13 +972,13 @@ def _set_model_choice_endpoint(chat_id: str) -> Response:
     if converging is not None:
         return converging
 
-    req = SetModelChoiceRequest.model_validate(request.get_json())
+    req = parse_request_body(SetModelChoiceRequest)
     agent_manager: AgentManager = get_state().agent_manager
     options = _agent_switch_options(agent_manager, agent_info)
     try:
         validate_model_pick(options, req.model_id, req.effort, req.fast)
     except InvalidModelPickError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+        return error_response(str(e), 400)
 
     # The live read is harness-neutral (shared reader), so the resolver -- which owns only
     # the switch/offer side -- is built inline from agent_info rather than cached.
@@ -998,12 +992,12 @@ def _set_model_choice_endpoint(chat_id: str) -> Response:
     )
     if not result.ok:
         detail = result.detail or f"Failed to switch model for agent '{agent_info.name}'"
-        return json_response(ErrorResponse(detail=detail).model_dump(), status_code=500)
+        return error_response(detail, 500)
 
     # Force one authoritative broadcast so the optimistic pick reconciles even when
     # the resolved value is unchanged (see H1 in the model-bar plan).
     agent_manager.refresh_model_choice(agent_info.id)
-    return json_response(SendMessageResponse(status="ok").model_dump())
+    return model_response(SendMessageResponse(status="ok"))
 
 
 def _get_model_options_endpoint(chat_id: str) -> Response:
@@ -1033,8 +1027,8 @@ def _get_model_options_endpoint(chat_id: str) -> Response:
         # resolves offline after a restart.
         if dynamic_options:
             get_state().agent_manager.get_or_create_session(agent_info).note_offered_options(dynamic_options)
-        return json_response(ModelOptionsResponse(options=dynamic_options).model_dump())
-    return json_response(ModelOptionsResponse(models=resolver.list_offered_models()).model_dump())
+        return model_response(ModelOptionsResponse(options=dynamic_options))
+    return model_response(ModelOptionsResponse(models=resolver.list_offered_models()))
 
 
 def _get_powered_by_endpoint(chat_id: str) -> Response:
@@ -1050,12 +1044,12 @@ def _get_powered_by_endpoint(chat_id: str) -> Response:
     agent_info = _find_active_agent(chat_id)
     if agent_info is None:
         return _chat_not_found_response(chat_id)
-    return json_response(PoweredByResponse(label=get_catalog(agent_info.harness).powered_by_text).model_dump())
+    return model_response(PoweredByResponse(label=get_catalog(agent_info.harness).powered_by_text))
 
 
 def _get_settings_endpoint() -> Response:
     """``GET /api/settings``: the workspace-wide chat settings."""
-    return json_response(ChatSettingsResponse(settings=get_state().chat_settings.read()).model_dump(mode="json"))
+    return model_response(ChatSettingsResponse(settings=get_state().chat_settings.read()))
 
 
 def _known_chat_or_not_found(chat_id: str) -> ChatId | Response:
@@ -1072,7 +1066,7 @@ def _get_fast_mode_endpoint(chat_id: str) -> Response:
     if isinstance(parsed, Response):
         return parsed
     state = get_state().agent_manager.get_fast_mode_state(parsed)
-    return json_response(FastModeStateResponse(state=state).model_dump(mode="json"))
+    return model_response(FastModeStateResponse(state=state))
 
 
 def _put_fast_mode_endpoint(chat_id: str) -> Response:
@@ -1080,15 +1074,9 @@ def _put_fast_mode_endpoint(chat_id: str) -> Response:
     parsed = _known_chat_or_not_found(chat_id)
     if isinstance(parsed, Response):
         return parsed
-    body = parse_json_object_body()
-    if isinstance(body, Response):
-        return body
-    try:
-        state = ChatFastModeState.model_validate(body)
-    except ValueError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+    state = parse_request_body(ChatFastModeState)
     get_state().agent_manager.set_fast_mode_state(parsed, state)
-    return json_response(FastModeStateResponse(state=state).model_dump(mode="json"))
+    return model_response(FastModeStateResponse(state=state))
 
 
 def _get_autocompact_endpoint(chat_id: str) -> Response:
@@ -1097,7 +1085,7 @@ def _get_autocompact_endpoint(chat_id: str) -> Response:
     if isinstance(parsed, Response):
         return parsed
     state = get_state().agent_manager.get_autocompact_state(parsed)
-    return json_response(AutocompactStateResponse(state=state).model_dump(mode="json"))
+    return model_response(AutocompactStateResponse(state=state))
 
 
 def _put_autocompact_endpoint(chat_id: str) -> Response:
@@ -1105,15 +1093,9 @@ def _put_autocompact_endpoint(chat_id: str) -> Response:
     parsed = _known_chat_or_not_found(chat_id)
     if isinstance(parsed, Response):
         return parsed
-    body = parse_json_object_body()
-    if isinstance(body, Response):
-        return body
-    try:
-        state = ChatAutocompactState.model_validate(body)
-    except ValueError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+    state = parse_request_body(ChatAutocompactState)
     get_state().agent_manager.set_autocompact_state(parsed, state)
-    return json_response(AutocompactStateResponse(state=state).model_dump(mode="json"))
+    return model_response(AutocompactStateResponse(state=state))
 
 
 def _put_settings_endpoint() -> Response:
@@ -1122,15 +1104,9 @@ def _put_settings_endpoint() -> Response:
     The body is the settings object; a field left out takes its default, and an out-of-range
     value answers 400.
     """
-    body = parse_json_object_body()
-    if isinstance(body, Response):
-        return body
-    try:
-        settings = ChatSettings.model_validate(body)
-    except ValueError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+    settings = parse_request_body(ChatSettings)
     get_state().chat_settings.write(settings)
-    return json_response(ChatSettingsResponse(settings=settings).model_dump(mode="json"))
+    return model_response(ChatSettingsResponse(settings=settings))
 
 
 def _upload_attachment() -> Response:
@@ -1143,27 +1119,23 @@ def _upload_attachment() -> Response:
     """
     file_storage = request.files.get("file")
     if file_storage is None or not file_storage.filename:
-        error = ErrorResponse(detail="No file provided in the 'file' field")
-        return json_response(error.model_dump(), status_code=400)
+        return error_response("No file provided in the 'file' field", 400)
 
     uploads_directory = get_uploads_directory()
     try:
         stored_path = store_uploaded_file(uploads_directory, file_storage.filename, file_storage)
     except AttachmentError as e:
-        error = ErrorResponse(detail=str(e))
-        return json_response(error.model_dump(), status_code=500)
+        return error_response(str(e), 500)
 
     size_bytes = stored_path.stat().st_size
-    response = AttachmentUploadResponse(path=str(stored_path), size=size_bytes)
-    return json_response(response.model_dump(), status_code=201)
+    return model_response(AttachmentUploadResponse(path=str(stored_path), size=size_bytes), 201)
 
 
 def _serve_attachment(relative_path: str) -> Response:
     """Serve a stored attachment for inline preview, confined to data/uploads/."""
     resolved_path = resolve_upload_path(get_uploads_directory(), relative_path)
     if resolved_path is None:
-        error = ErrorResponse(detail=f"Attachment '{relative_path}' not found")
-        return json_response(error.model_dump(), status_code=404)
+        return error_response(f"Attachment '{relative_path}' not found", 404)
     return send_file(resolved_path)
 
 
@@ -1174,7 +1146,7 @@ def _delete_attachment(relative_path: str) -> Response:
     no-op, so a double-remove or a stale id still reports success.
     """
     delete_upload(get_uploads_directory(), relative_path)
-    return json_response({"status": "ok"})
+    return model_response(OkResponse())
 
 
 def _interrupt_agent_endpoint(chat_id: str) -> Response:
@@ -1200,20 +1172,17 @@ def _interrupt_agent_endpoint(chat_id: str) -> Response:
         return converging
 
     if agent_info.labels.get("is_primary") == "true":
-        error = ErrorResponse(
-            detail=(
-                f"Refusing to interrupt agent '{agent_info.name}': it carries "
-                "the is_primary=true label (services agent for this workspace)"
-            )
+        return error_response(
+            f"Refusing to interrupt agent '{agent_info.name}': it carries "
+            "the is_primary=true label (services agent for this workspace)",
+            400,
         )
-        return json_response(error.model_dump(), status_code=400)
 
     agent_name = agent_info.name
 
     is_restarted, output = _restart_agent_process(agent_name)
     if not is_restarted:
-        error = ErrorResponse(detail=f"Failed to interrupt agent '{agent_name}': {output}")
-        return json_response(error.model_dump(), status_code=500)
+        return error_response(f"Failed to interrupt agent '{agent_name}': {output}", 500)
 
     # The restart abandons the session transcript mid-turn, so the
     # transcript-derived activity state would stay pinned at THINKING /
@@ -1223,7 +1192,7 @@ def _interrupt_agent_endpoint(chat_id: str) -> Response:
     get_state().agent_manager.reset_activity_state(agent_info.id)
     get_state().agent_manager.clear_compaction_after_interrupt(agent_info)
 
-    return json_response(InterruptAgentResponse(status="ok").model_dump())
+    return model_response(InterruptAgentResponse(status="ok"))
 
 
 def _restart_agent_process(agent_name: str) -> tuple[bool, str]:
@@ -1255,13 +1224,11 @@ def _refuse_queue_action_on_primary(agent_info: AgentInfo, action: str) -> Respo
     direct callers.
     """
     if agent_info.labels.get("is_primary") == "true":
-        error = ErrorResponse(
-            detail=(
-                f"Refusing to {action} agent '{agent_info.name}': it carries the "
-                "is_primary=true label (services agent for this workspace)"
-            )
+        return error_response(
+            f"Refusing to {action} agent '{agent_info.name}': it carries the "
+            "is_primary=true label (services agent for this workspace)",
+            400,
         )
-        return json_response(error.model_dump(), status_code=400)
     return None
 
 
@@ -1306,12 +1273,12 @@ def _flush_queue_endpoint(chat_id: str) -> Response:
     # nothing queued would resend nothing, so it is a clean no-op. The stop button, by contrast,
     # interrupts an empty-queue turn too, so the restart-drain itself never short-circuits.
     if not watcher.get_queued_block():
-        return json_response(SendMessageResponse(status="ok").model_dump())
+        return model_response(SendMessageResponse(status="ok"))
 
     try:
         block = restart_drain(agent_info, watcher, restart_process, settle_activity)
     except AgentRestartError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=500)
+        return error_response(str(e), 500)
 
     if block:
         agent_manager: AgentManager = get_state().agent_manager
@@ -1319,9 +1286,9 @@ def _flush_queue_endpoint(chat_id: str) -> Response:
         if resend_failure is not None:
             # The harness said why; passing that on rather than a generic sentence is the whole
             # point of carrying it this far.
-            return json_response({"detail": resend_failure.reason, "kind": resend_failure.kind}, status_code=500)
+            return model_response(SendFailureResponse(detail=resend_failure.reason, kind=resend_failure.kind), 500)
 
-    return json_response(SendMessageResponse(status="ok").model_dump())
+    return model_response(SendMessageResponse(status="ok"))
 
 
 def _shoulder_tap_atomic_endpoint(chat_id: str) -> Response:
@@ -1346,13 +1313,11 @@ def _shoulder_tap_atomic_endpoint(chat_id: str) -> Response:
     if converging is not None:
         return converging
     if not get_catalog(agent_info.harness).native_atomic_shoulder_tap_possible:
-        error = ErrorResponse(
-            detail=(
-                f"Agent '{agent_info.name}' runs the {agent_info.harness.value} harness, which does not "
-                "support an atomic shoulder tap"
-            )
+        return error_response(
+            f"Agent '{agent_info.name}' runs the {agent_info.harness.value} harness, which does not "
+            "support an atomic shoulder tap",
+            400,
         )
-        return json_response(error.model_dump(), status_code=400)
     refusal = _refuse_queue_action_on_primary(agent_info, "shoulder-tap the queue of")
     if refusal is not None:
         return refusal
@@ -1373,9 +1338,8 @@ def _shoulder_tap_atomic_endpoint(chat_id: str) -> Response:
         send_recovery=lambda text: agent_manager.send_message_to_agent(AgentId(agent_info.id), text) is None,
     )
     if outcome.error_detail is not None:
-        error = ErrorResponse(detail=outcome.error_detail)
-        return json_response(error.model_dump(), status_code=outcome.error_status_code)
-    return json_response(ShoulderTapAtomicResponse(status=outcome.status, block=outcome.block).model_dump())
+        return error_response(outcome.error_detail, outcome.error_status_code)
+    return model_response(ShoulderTapAtomicResponse(status=outcome.status, block=outcome.block))
 
 
 def _drain_to_composer_endpoint(chat_id: str) -> Response:
@@ -1407,18 +1371,17 @@ def _drain_to_composer_endpoint(chat_id: str) -> Response:
     try:
         block = get_state().drain_to_composer(agent_info, lambda: _restart_agent_process(agent_info.name))
     except AgentRestartError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=500)
+        return error_response(str(e), 500)
     except OSError as e:
         logger.opt(exception=e).error("Failed to record the interrupt for agent {}", agent_info.name)
-        error = ErrorResponse(detail=f"Failed to record the interrupt for agent '{agent_info.name}'")
-        return json_response(error.model_dump(), status_code=500)
+        return error_response(f"Failed to record the interrupt for agent '{agent_info.name}'", 500)
 
     composer_block, reports = split_background_task_reports(block)
     undelivered = [report for report in reports if not _resend_background_task_report(agent_info, report)]
     # A report the agent could not take goes to the composer rather than nowhere: it is the
     # only copy of that command's result.
-    return json_response(
-        DrainToComposerResponse(block="\n".join(part for part in (*undelivered, composer_block) if part)).model_dump()
+    return model_response(
+        DrainToComposerResponse(block="\n".join(part for part in (*undelivered, composer_block) if part))
     )
 
 
@@ -1470,13 +1433,13 @@ def _switch_chat_endpoint(chat_id: str) -> Response:
             model_pick=switch_request.model,
         )
     except ChatConvergingError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=409)
+        return error_response(str(e), 409)
     except HandoffError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+        return error_response(str(e), 400)
     record_client_message_activity(get_state().shell, ChatId(chat_id), switch_request, get_state().is_secondary)
     agent_manager.record_message_sent(ChatId(chat_id))
     response = SwitchChatResponse(status="converging", kind=kind, phase=phase, returned_block=returned_block)
-    return json_response(response.model_dump(mode="json"), status_code=202)
+    return model_response(response, 202)
 
 
 def _cancel_handoff_endpoint(chat_id: str) -> Response:
@@ -1491,11 +1454,10 @@ def _cancel_handoff_endpoint(chat_id: str) -> Response:
     try:
         returned_block = get_state().agent_manager.cancel_handoff(parsed)
     except ChatConvergingError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=409)
+        return error_response(str(e), 409)
     except HandoffError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
-    response = HandoffCancelResponse(status="cancelled", returned_block=returned_block)
-    return json_response(response.model_dump())
+        return error_response(str(e), 400)
+    return model_response(HandoffCancelResponse(status="cancelled", returned_block=returned_block))
 
 
 def _retry_handoff_endpoint(chat_id: str) -> Response:
@@ -1511,14 +1473,12 @@ def _retry_handoff_endpoint(chat_id: str) -> Response:
     try:
         phase = get_state().agent_manager.retry_handoff(parsed, retry_request.account_id)
     except HandoffError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
-    response = HandoffRetryResponse(status="converging", phase=phase)
-    return json_response(response.model_dump(mode="json"), status_code=202)
+        return error_response(str(e), 400)
+    return model_response(HandoffRetryResponse(status="converging", phase=phase), 202)
 
 
 def _chat_agent_not_found_response(chat_id: str, agent_id: str) -> Response:
-    error = ErrorResponse(detail=f"Chat '{chat_id}' has no agent '{agent_id}'")
-    return json_response(error.model_dump(), status_code=404)
+    return error_response(f"Chat '{chat_id}' has no agent '{agent_id}'", 404)
 
 
 def _find_chat_agent(chat_id: str, agent_id: str) -> ChatSegmentInfo | Response:
@@ -1593,13 +1553,9 @@ def _get_screen_capture(chat_id: str) -> Response:
         is_checked=False,
         timeout=5.0,
     )
-    success = result.returncode == 0
-    if not success:
-        return json_response(
-            {"screen": None, "error": f"tmux session not found: {session_name}"},
-            status_code=200,
-        )
-    return json_response({"screen": result.stdout})
+    if result.returncode != 0:
+        return model_response(ScreenCaptureResponse(screen=None, error=f"tmux session not found: {session_name}"))
+    return model_response(ScreenCaptureResponse(screen=result.stdout))
 
 
 def _created_chat_or_refusal(create: Callable[[], CreatedChat]) -> CreatedChat | Response:
@@ -1608,9 +1564,9 @@ def _created_chat_or_refusal(create: Callable[[], CreatedChat]) -> CreatedChat |
     try:
         return create()
     except AgentNameConflictError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=409)
+        return error_response(str(e), 409)
     except (AgentCreationError, OSError, ValueError) as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+        return error_response(str(e), 400)
 
 
 def _run_create_chat() -> CreatedChat | Response:
@@ -1632,9 +1588,8 @@ def _run_create_chat() -> CreatedChat | Response:
 
     A chat created with a ``project_id`` carries it in the agent's ``project``
     label, which records where it was started (mngr propagates the label to the
-    agent's own children). ``project_id`` rides beside the request model rather
-    than inside it for that reason: it is a label on the created agent, not part
-    of the chat's identity.
+    agent's own children); it is a label on the created agent, not part of the
+    chat's identity.
 
     With ``should_wait`` the answer comes once the create has finished: the chat's identity
     as before when it landed, a 500 carrying the create's own reason when it failed, and a
@@ -1644,23 +1599,14 @@ def _run_create_chat() -> CreatedChat | Response:
     chat exists, without polling.
     """
     agent_manager: AgentManager = get_state().agent_manager
-    body = parse_json_object_body()
-    if isinstance(body, Response):
-        return body
-    project_id = str(body.get("project_id") or "")
-    request_fields = {key: value for key, value in body.items() if key != "project_id"}
-
-    try:
-        create_request = CreateChatRequest.model_validate(request_fields)
-    except ValueError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+    create_request = parse_request_body(CreateChatRequest)
     created = _created_chat_or_refusal(
         lambda: agent_manager.create_chat(
             create_request.name,
             # A client asks for no templates: the manager adds `fast` itself, from the
             # workspace's fast-mode limit (``launch_role_templates``).
             extra_role_templates=(),
-            project_id=project_id,
+            project_id=create_request.project_id,
             account_id=create_request.account_id,
             chat_id=create_request.chat_id,
             message=create_request.message,
@@ -1677,10 +1623,10 @@ def _run_create_chat() -> CreatedChat | Response:
     outcome = agent_manager.wait_for_chat_creation(created.chat_id, CHAT_CREATION_WAIT_TIMEOUT_SECONDS)
     if outcome is None:
         detail = f"Chat {created.display_name!r} is still being created; its window will show how that ends"
-        return json_response(ErrorResponse(detail=detail).model_dump(), status_code=504)
+        return error_response(detail, 504)
     if not outcome.is_created:
         detail = outcome.error or f"Creating chat {created.display_name!r} failed"
-        return json_response(ErrorResponse(detail=detail).model_dump(), status_code=500)
+        return error_response(detail, 500)
     return created
 
 
@@ -1690,7 +1636,7 @@ def _create_chat() -> Response:
     if isinstance(created, Response):
         return created
     response = CreateChatResponse(chat_id=created.chat_id, name=created.name, display_name=created.display_name)
-    return json_response(response.model_dump(), status_code=201)
+    return model_response(response, 201)
 
 
 def _awaiting_chat_for_empty_list() -> Response:
@@ -1708,7 +1654,7 @@ def _awaiting_chat_for_empty_list() -> Response:
         name=canonical_agent_name(provisional.name),
         display_name=provisional.name,
     )
-    return json_response(response.model_dump())
+    return model_response(response)
 
 
 def _seed_chat() -> Response:
@@ -1724,21 +1670,15 @@ def _seed_chat() -> Response:
     agent_manager: AgentManager = get_state().agent_manager
     if not agent_manager.is_agent_list_known():
         return _agent_list_not_known_response()
-    body = parse_json_object_body()
-    if isinstance(body, Response):
-        return body
-    try:
-        seed_request = SeedChatRequest.model_validate(body)
-    except ValueError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+    seed_request = parse_request_body(SeedChatRequest)
     try:
         created = agent_manager.seed_chat(seed_request.title, seed_request.turns)
     except AgentNameConflictError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=409)
+        return error_response(str(e), 409)
     except AgentCreationError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+        return error_response(str(e), 400)
     response = CreateChatResponse(chat_id=created.chat_id, name=created.name, display_name=created.display_name)
-    return json_response(response.model_dump(), status_code=201)
+    return model_response(response, 201)
 
 
 # The intake (post-launch-paths plan sections 3.5 and 3.6): text entering a chat from outside a chat page.
@@ -1790,7 +1730,7 @@ def _resolve_intake_account(intake: IntakeRequest) -> str | Response | None:
         return resolve_binding(intake.account_id).id
     except (AccountError, BindingError) as e:
         if intake.account_id:
-            return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+            return error_response(str(e), 400)
         logger.debug("No account for a new chat's intake; the chat waits for its first send: {}", e)
         return None
 
@@ -1858,9 +1798,9 @@ def _intake_chat() -> Response:
     if resolved.needs_pick:
         # A choice is worth asking for only with something to deliver: with no text the root is shown as it is.
         if not intake.message:
-            return json_response(IntakeResponse(path=intake_path(None, None)).model_dump())
+            return model_response(IntakeResponse(path=intake_path(None, None)))
         token = state.pending_intakes.mint(intake, None, needs_pick=True)
-        return json_response(IntakeResponse(path=intake_path(None, token)).model_dump())
+        return model_response(IntakeResponse(path=intake_path(None, token)))
     if resolved.chat_id is None:
         return _intake_into_new_chat(state, intake)
     return _intake_into_listed_chat(state, resolved.chat_id, intake)
@@ -1880,10 +1820,10 @@ def _intake_into_new_chat(state: ChatAppState, intake: IntakeRequest) -> Respons
         if isinstance(created, Response):
             return created
         _consider_naming_chat(state, created.chat_id, intake.message)
-        return json_response(IntakeResponse(path=intake_path(created.chat_id, None)).model_dump())
+        return model_response(IntakeResponse(path=intake_path(created.chat_id, None)))
     minted = agent_manager.mint_awaiting_chat(account or "")
     token = state.pending_intakes.mint(intake, minted.chat_id, needs_pick=False)
-    return json_response(IntakeResponse(path=intake_path(minted.chat_id, token)).model_dump())
+    return model_response(IntakeResponse(path=intake_path(minted.chat_id, token)))
 
 
 def _intake_into_listed_chat(state: ChatAppState, chat_id: ChatId, intake: IntakeRequest) -> Response:
@@ -1891,19 +1831,18 @@ def _intake_into_listed_chat(state: ChatAppState, chat_id: ChatId, intake: Intak
     the chat's path alone (spec section 10); a draft, or a chat that is not yet an agent, is held for the root;
     else the text goes through the ordinary send path."""
     if not intake.message:
-        return json_response(IntakeResponse(path=intake_path(chat_id, None)).model_dump())
+        return model_response(IntakeResponse(path=intake_path(chat_id, None)))
     if intake.is_draft or _agent_chat_snapshot(state.agent_manager, chat_id) is None:
         token = state.pending_intakes.mint(intake, chat_id, needs_pick=False)
-        return json_response(IntakeResponse(path=intake_path(chat_id, token)).model_dump())
+        return model_response(IntakeResponse(path=intake_path(chat_id, token)))
     failure = _finish_intake_send(state, chat_id, intake)
     if failure is not None:
         return failure
-    return json_response(IntakeResponse(path=intake_path(chat_id, None)).model_dump())
+    return model_response(IntakeResponse(path=intake_path(chat_id, None)))
 
 
 def _pending_intake_not_found_response(token: str) -> Response:
-    error = ErrorResponse(detail=f"No pending intake '{token}': it was applied, dismissed, or expired")
-    return json_response(error.model_dump(), status_code=404)
+    return error_response(f"No pending intake '{token}': it was applied, dismissed, or expired", 404)
 
 
 def _get_pending_intake(token: str) -> Response:
@@ -1917,15 +1856,14 @@ def _get_pending_intake(token: str) -> Response:
         needs_pick=pending.needs_pick,
         chat_id=str(pending.chat_id) if pending.chat_id is not None else None,
     )
-    return json_response(view.model_dump())
+    return model_response(view)
 
 
 def _picked_chat_id(agent_manager: AgentManager, apply_request: IntakeApplyRequest) -> ChatId | Response:
     """The chat a pick names: one of the chats that are agents, else the 400 that says so."""
     picked = parse_chat_ref(apply_request.chat_id)
     if picked is None or _agent_chat_snapshot(agent_manager, picked) is None:
-        error = ErrorResponse(detail="A pick names one of the chats that can take a message")
-        return json_response(error.model_dump(), status_code=400)
+        return error_response("A pick names one of the chats that can take a message", 400)
     return picked
 
 
@@ -1967,7 +1905,7 @@ def _apply_pending_intake(token: str) -> Response:
     response = IntakeApplyResponse(
         path=intake_path(chat_id, None), chat_id=str(chat_id), composer_text=composer_text, first_message=first_message
     )
-    return json_response(response.model_dump())
+    return model_response(response)
 
 
 def _discard_pending_intake(token: str) -> Response:
@@ -2016,7 +1954,7 @@ def _list_agents_endpoint() -> Response:
                 background_tasks=busy.background_tasks,
             )
         )
-    return json_response(AgentListResponse(agents=items).model_dump(mode="json"))
+    return model_response(AgentListResponse(agents=items))
 
 
 def _list_chats_endpoint() -> Response:
@@ -2024,8 +1962,7 @@ def _list_chats_endpoint() -> Response:
     agent_manager: AgentManager = get_state().agent_manager
     if not agent_manager.is_agent_list_known():
         return _agent_list_not_known_response()
-    response = ChatListResponse(chats=tuple(agent_manager.get_chat_snapshots()))
-    return json_response(response.model_dump(mode="json"))
+    return model_response(ChatListResponse(chats=tuple(agent_manager.get_chat_snapshots())))
 
 
 def _refuse_primary_agent(agent_state_name: str, labels: dict[str, str], verb: str) -> Response | None:
@@ -2036,10 +1973,10 @@ def _refuse_primary_agent(agent_state_name: str, labels: dict[str, str], verb: s
     """
     if labels.get("is_primary") != "true":
         return None
-    error = ErrorResponse(
-        detail=f"Refusing to {verb} agent '{agent_state_name}': it carries the is_primary=true label (services agent for this workspace)"
+    return error_response(
+        f"Refusing to {verb} agent '{agent_state_name}': it carries the is_primary=true label (services agent for this workspace)",
+        400,
     )
-    return json_response(error.model_dump(), status_code=400)
 
 
 def _destroy_chat(chat_id: str) -> Response:
@@ -2054,8 +1991,8 @@ def _destroy_chat(chat_id: str) -> Response:
     try:
         agent_manager.destroy_chat(ChatId(chat_id))
     except AgentDestroyError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=500)
-    return json_response(DestroyAgentResponse(status="ok").model_dump())
+        return error_response(str(e), 500)
+    return model_response(DestroyAgentResponse(status="ok"))
 
 
 def _rename_chat(chat_id: str) -> Response:
@@ -2071,20 +2008,14 @@ def _rename_chat(chat_id: str) -> Response:
     refusal = _refuse_primary_agent(agent_info.name, agent_info.labels, "rename")
     if refusal is not None:
         return refusal
-    body = parse_json_object_body()
-    if isinstance(body, Response):
-        return body
-    try:
-        rename_request = RenameChatRequest.model_validate(body)
-    except ValueError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
+    rename_request = parse_request_body(RenameChatRequest)
     try:
         agent_manager.rename_chat(chat_id, rename_request.title)
     except (ChatConvergingError, AgentNameConflictError) as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=409)
+        return error_response(str(e), 409)
     except AgentRenameError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=400)
-    return json_response(RenameChatResponse(status="ok").model_dump())
+        return error_response(str(e), 400)
+    return model_response(RenameChatResponse(status="ok"))
 
 
 def _stop_chat(chat_id: str) -> Response:
@@ -2102,10 +2033,10 @@ def _stop_chat(chat_id: str) -> Response:
     try:
         agent_manager.stop_chat(ChatId(chat_id))
     except ChatConvergingError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=409)
+        return error_response(str(e), 409)
     except AgentStopError as e:
-        return json_response(ErrorResponse(detail=str(e)).model_dump(), status_code=500)
-    return json_response(StopAgentResponse(status="ok").model_dump())
+        return error_response(str(e), 500)
+    return model_response(StopAgentResponse(status="ok"))
 
 
 def _start_chat(chat_id: str) -> Response:
@@ -2123,12 +2054,11 @@ def _start_chat(chat_id: str) -> Response:
     try:
         start_agent(agent_info.name)
     except MngrError as e:
-        error = ErrorResponse(detail=f"Failed to start agent '{agent_info.name}': {e}")
-        return json_response(error.model_dump(), status_code=500)
+        return error_response(f"Failed to start agent '{agent_info.name}': {e}", 500)
     # The observe stream will not see the revival for minutes (no pid to watch while the
     # agent was stopped); reflect it now so the UI's liveness unblocks with the start.
     get_state().agent_manager.note_agent_alive(agent_info.id)
-    return json_response(StartAgentResponse(status="ok").model_dump())
+    return model_response(StartAgentResponse(status="ok"))
 
 
 def _presence_endpoint(chat_id: str) -> Response:
@@ -2143,7 +2073,7 @@ def _presence_endpoint(chat_id: str) -> Response:
     report = parse_request_body(PresenceReport)
     agent_manager: AgentManager = get_state().agent_manager
     agent_manager.record_presence(ChatId(chat_id), report)
-    return json_response({"status": "ok"})
+    return model_response(OkResponse())
 
 
 def _watchers_endpoint(chat_id: str) -> Response:
@@ -2154,7 +2084,7 @@ def _watchers_endpoint(chat_id: str) -> Response:
     if not AGENT_ID_PATTERN.fullmatch(chat_id):
         return _chat_not_found_response(chat_id)
     agent_manager: AgentManager = get_state().agent_manager
-    return json_response({"watched_by": agent_manager.chat_watchers(ChatId(chat_id))})
+    return model_response(ChatWatchersResponse(watched_by=tuple(agent_manager.chat_watchers(ChatId(chat_id)))))
 
 
 # The terminal app's registered name: the chat's terminal back face is served from its origin.
@@ -2234,7 +2164,7 @@ def _serve_file_or_document(path: str) -> Response:
     if file_response is not None:
         return file_response
     if "/" in path:
-        return json_response(ErrorResponse(detail=f"Nothing is served at '/{path}'").model_dump(), status_code=404)
+        return error_response(f"Nothing is served at '/{path}'", 404)
     return _chat_document(path)
 
 
@@ -2269,12 +2199,12 @@ def _health_endpoint() -> Response:
     """
     state = get_state()
     is_frontend_built = (state.static_directory / CHAT_DOCUMENT_FILENAME).exists()
-    return json_response(
-        {
-            "status": "ok",
-            "is_frontend_built": is_frontend_built,
-            "agent_events": state.agent_manager.get_agent_events_status().model_dump(mode="json"),
-        }
+    return model_response(
+        HealthResponse(
+            status="ok",
+            is_frontend_built=is_frontend_built,
+            agent_events=state.agent_manager.get_agent_events_status(),
+        )
     )
 
 
@@ -2283,10 +2213,10 @@ def _serve_static_file(basename: str) -> Response:
     config: Config = get_state().config
     file_path_string = config.static_file_basename_to_path.get(basename)
     if file_path_string is None:
-        return json_response({"detail": f"Static file '{basename}' not found"}, status_code=404)
+        return error_response(f"Static file '{basename}' not found", 404)
     file_path = Path(file_path_string)
     if not file_path.is_file():
-        return json_response({"detail": f"Static file not found on disk: {file_path}"}, status_code=404)
+        return error_response(f"Static file not found on disk: {file_path}", 404)
     return send_file(file_path)
 
 
@@ -2372,17 +2302,29 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
-# The routes that validate a JSON body with a pydantic model or answer one, the sibling modules' routes among
-# them, keyed by (method, OpenAPI path): the API document publishes these as their request and response schemas.
-# A route that builds its answer by hand (the events, the screen capture, the harness catalogs, the sign-in
-# callback relay) is listed without a schema rather than given a model it does not use. ``/api/chats/create``
-# carries its response only: its body holds ``project_id`` beside ``CreateChatRequest``, which forbids extra
-# keys, so the model alone would advertise a body that refuses a key the route takes. ``/api/focus-chat`` carries
-# its request only: its answer is the shell's, built by hand.
-_ROUTE_MODELS: Final[RouteModelsByRoute] = {
+# What every route of this module exchanges, keyed by (method, OpenAPI path): the API document publishes a
+# modelled route's models as its request and response schemas, and ``app_schema.routes`` checks each parse and
+# answer against them. A route that serves a page, a file, a stream or the socket, or whose JSON is the loosely
+# shaped harness payload the page consumes (the events, the harness catalogs), is listed with the reason instead.
+_LOOSE_EVENTS_REASON: Final[str] = (
+    "Loosely shaped harness events the chat page consumes; their shape is the harness's, not a model's"
+)
+_ROUTE_TABLE: Final[RouteTable] = {
+    ("GET", "/"): SchemalessRoute(reason="The chat root page"),
+    ("GET", "/favicon.ico"): SchemalessRoute(reason="The page's icon"),
+    ("GET", "/assets/{filename}"): SchemalessRoute(reason="The chat page's built bundle"),
+    ("GET", "/plugins/{basename}"): SchemalessRoute(reason="A configured JavaScript plugin or static file"),
+    ("GET", "/{path}"): SchemalessRoute(reason="An agent-authored file by its absolute path, or a chat's page"),
+    ("GET", "/api/ws"): SchemalessRoute(reason="The chat pages' WebSocket"),
+    ("GET", "/api/health"): RouteModels(response_model=HealthResponse),
+    ("GET", "/api/harnesses"): SchemalessRoute(
+        reason="The per-harness model catalogs, each dumped verbatim with the harness's declarations"
+    ),
     ("GET", "/api/agents"): RouteModels(response_model=AgentListResponse),
     ("GET", "/api/chats"): RouteModels(response_model=ChatListResponse),
-    ("POST", "/api/chats/create"): RouteModels(response_model=CreateChatResponse, success_status=201),
+    ("POST", "/api/chats/create"): RouteModels(
+        request_model=CreateChatRequest, response_model=CreateChatResponse, success_status=201
+    ),
     ("POST", "/api/chats/seed"): RouteModels(
         request_model=SeedChatRequest, response_model=CreateChatResponse, success_status=201
     ),
@@ -2392,39 +2334,46 @@ _ROUTE_MODELS: Final[RouteModelsByRoute] = {
     ("POST", "/api/chats/intakes/{token}/apply"): RouteModels(
         request_model=IntakeApplyRequest, response_model=IntakeApplyResponse
     ),
+    ("DELETE", "/api/chats/intakes/{token}"): RouteModels(success_status=204),
     ("POST", "/api/uploads"): RouteModels(response_model=AttachmentUploadResponse, success_status=201),
-    ("GET", "/api/accounts/{account_id}/model-options"): RouteModels(response_model=ModelOptionsResponse),
-    ("POST", "/api/accounts"): RouteModels(response_model=FlowStart),
-    ("GET", "/api/accounts/flow/{flow_id}"): RouteModels(response_model=FlowStatus),
-    ("POST", "/api/accounts/flow/{flow_id}"): RouteModels(response_model=FlowStatus),
-    ("GET", "/api/latchkey/scopes/{scope}"): RouteModels(response_model=LatchkeyScopeInfo),
-    ("POST", "/api/focus-chat"): RouteModels(request_model=focus_chat.FocusChatRequest),
+    ("GET", "/api/uploads/{relative_path}"): SchemalessRoute(reason="The stored attachment itself"),
+    ("DELETE", "/api/uploads/{relative_path}"): RouteModels(response_model=OkResponse),
+    ("GET", "/api/settings"): RouteModels(response_model=ChatSettingsResponse),
+    ("PUT", "/api/settings"): RouteModels(request_model=ChatSettings, response_model=ChatSettingsResponse),
     ("POST", "/api/chats/{chat_id}/destroy"): RouteModels(response_model=DestroyAgentResponse),
+    ("POST", "/api/chats/{chat_id}/rename"): RouteModels(
+        request_model=RenameChatRequest, response_model=RenameChatResponse
+    ),
     ("POST", "/api/chats/{chat_id}/start"): RouteModels(response_model=StartAgentResponse),
     ("POST", "/api/chats/{chat_id}/stop"): RouteModels(response_model=StopAgentResponse),
+    ("GET", "/api/chats/{chat_id}/events"): SchemalessRoute(reason=_LOOSE_EVENTS_REASON),
+    ("GET", "/api/chats/{chat_id}/events/{event_id}/detail"): SchemalessRoute(
+        reason="One event's deferred payloads (tool input, tool output, thinking), shaped by the harness"
+    ),
+    ("GET", "/api/chats/{chat_id}/stream"): SchemalessRoute(reason="A server-sent event stream of the chat's events"),
+    ("POST", "/api/chats/{chat_id}/message"): RouteModels(
+        request_model=SendMessageRequest,
+        response_model=SendMessageResponse,
+        alternate_responses=(AlternateResponse(status=202, model=HeldSendResponse),),
+    ),
+    ("POST", "/api/chats/{chat_id}/presence"): RouteModels(request_model=PresenceReport, response_model=OkResponse),
+    ("GET", "/api/chats/{chat_id}/watchers"): RouteModels(response_model=ChatWatchersResponse),
+    ("POST", "/api/chats/{chat_id}/model"): RouteModels(
+        request_model=SetModelChoiceRequest, response_model=SendMessageResponse
+    ),
     ("GET", "/api/chats/{chat_id}/model-options"): RouteModels(response_model=ModelOptionsResponse),
     ("GET", "/api/chats/{chat_id}/powered-by"): RouteModels(response_model=PoweredByResponse),
     ("POST", "/api/chats/{chat_id}/interrupt"): RouteModels(response_model=InterruptAgentResponse),
     ("POST", "/api/chats/{chat_id}/flush-queue"): RouteModels(response_model=SendMessageResponse),
     ("POST", "/api/chats/{chat_id}/shoulder-tap-atomic"): RouteModels(response_model=ShoulderTapAtomicResponse),
     ("POST", "/api/chats/{chat_id}/drain-to-composer"): RouteModels(response_model=DrainToComposerResponse),
+    ("GET", "/api/chats/{chat_id}/screen"): RouteModels(response_model=ScreenCaptureResponse),
     ("POST", "/api/chats/{chat_id}/handoff"): RouteModels(
         request_model=SwitchChatRequest, response_model=SwitchChatResponse, success_status=202
     ),
     ("POST", "/api/chats/{chat_id}/handoff/cancel"): RouteModels(response_model=HandoffCancelResponse),
     ("POST", "/api/chats/{chat_id}/handoff/retry"): RouteModels(
         request_model=HandoffRetryRequest, response_model=HandoffRetryResponse, success_status=202
-    ),
-    ("GET", "/api/settings"): RouteModels(response_model=ChatSettingsResponse),
-    ("PUT", "/api/settings"): RouteModels(request_model=ChatSettings, response_model=ChatSettingsResponse),
-    ("POST", "/api/chats/{chat_id}/message"): RouteModels(
-        request_model=SendMessageRequest, response_model=SendMessageResponse
-    ),
-    ("POST", "/api/chats/{chat_id}/model"): RouteModels(
-        request_model=SetModelChoiceRequest, response_model=SendMessageResponse
-    ),
-    ("POST", "/api/chats/{chat_id}/rename"): RouteModels(
-        request_model=RenameChatRequest, response_model=RenameChatResponse
     ),
     ("GET", "/api/chats/{chat_id}/fast-mode"): RouteModels(response_model=FastModeStateResponse),
     ("PUT", "/api/chats/{chat_id}/fast-mode"): RouteModels(
@@ -2434,6 +2383,21 @@ _ROUTE_MODELS: Final[RouteModelsByRoute] = {
     ("PUT", "/api/chats/{chat_id}/autocompact"): RouteModels(
         request_model=ChatAutocompactState, response_model=AutocompactStateResponse
     ),
+    ("GET", "/api/chats/{chat_id}/agents/{agent_id}/subagents/{subagent_session_id}/events"): SchemalessRoute(
+        reason=_LOOSE_EVENTS_REASON
+    ),
+    ("GET", "/api/chats/{chat_id}/agents/{agent_id}/subagents/{subagent_session_id}/stream"): SchemalessRoute(
+        reason="A server-sent event stream of one subagent session's events"
+    ),
+}
+# The whole app's table: this module's routes and the sibling modules' own.
+ROUTE_TABLE: Final[RouteTable] = {
+    **_ROUTE_TABLE,
+    **auth_endpoints.ROUTE_TABLE,
+    **accounts_endpoints.ROUTE_TABLE,
+    **latchkey_endpoints.ROUTE_TABLE,
+    **focus_chat.ROUTE_TABLE,
+    **secret_requests_endpoints.ROUTE_TABLE,
 }
 
 
@@ -2461,7 +2425,7 @@ def create_application(state: ChatAppState) -> Flask:
         DEFAULT_API_SCHEMA_PATH,
         title=APP_DISPLAY_NAME,
         description=APP_DESCRIPTION,
-        route_models=_ROUTE_MODELS,
+        route_table=ROUTE_TABLE,
     )
     sock.route("/api/ws")(_ws_endpoint)
     application.add_url_rule("/plugins/<basename>", view_func=_serve_static_file, methods=["GET"])
