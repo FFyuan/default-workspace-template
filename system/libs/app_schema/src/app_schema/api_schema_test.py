@@ -344,3 +344,38 @@ def test_the_assertion_refuses_a_modelled_view_that_reads_its_body_raw(
 
     with pytest.raises(AssertionError, match="without parse_request_body.*create_note"):
         assert_api_schema_describes_app(app.test_client(), notes_manifest_path)
+
+
+def test_several_models_under_one_status_are_published_as_a_choice() -> None:
+    app = Flask("choice", static_folder=None)
+
+    @app.post("/api/notes")
+    def create_note() -> Response:
+        """Create a note, or say it was queued."""
+        return Response("{}", mimetype="application/json")
+
+    document = build_openapi_document(
+        app,
+        title="Choice",
+        description="x",
+        version="1.0",
+        route_table={
+            ("POST", "/api/notes"): RouteModels(
+                response_model=NoteRecord,
+                alternate_responses=(
+                    AlternateResponse(status=200, model=NoteCreated),
+                    AlternateResponse(status=204),
+                ),
+            )
+        },
+        excluded_endpoints=frozenset(),
+    )
+    validate(document)
+    responses = document["paths"]["/api/notes"]["post"]["responses"]
+    assert responses["200"]["content"]["application/json"]["schema"] == {
+        "oneOf": [
+            {"$ref": "#/components/schemas/NoteRecord"},
+            {"$ref": "#/components/schemas/NoteCreated"},
+        ]
+    }
+    assert "content" not in responses["204"]

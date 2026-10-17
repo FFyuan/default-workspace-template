@@ -38,9 +38,13 @@ def _views_reading_their_body_raw(
         if view is None:
             continue
         openapi_path = flask_rule_to_openapi_path(rule.rule)
-        is_modelled = any(
-            isinstance(route_table.get((method, openapi_path)), RouteModels)
+        entries = [
+            route_table.get((method, openapi_path))
             for method in rule.methods or frozenset()
+        ]
+        is_modelled = any(
+            isinstance(entry, RouteModels) and not entry.is_body_parsed_by_view
+            for entry in entries
         )
         if not is_modelled:
             continue
@@ -62,7 +66,8 @@ def assert_api_schema_describes_app(client: FlaskClient, manifest_path: Path) ->
     carries a summary (the first paragraph of its view's docstring); every
     operation is in the app's route table, with its models or the reason it
     exchanges no JSON, and the table names no route the app lacks; and no
-    modelled route reads its body around ``parse_request_body``.
+    modelled route reads its body around ``parse_request_body`` unless its entry
+    says the view parses the body itself.
     """
     manifest = load_manifest(manifest_path)
     assert manifest.api_schema_path is not None, (

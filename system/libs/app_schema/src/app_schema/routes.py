@@ -61,7 +61,7 @@ def parse_request_body(model: type[_RequestModel]) -> _RequestModel:
     ``register_api_schema_route`` installed.
     """
     entry = _route_models_or_raise()
-    if entry is not None and entry.request_model is not model:
+    if entry is not None and not _is_parse_named(entry, model):
         method, path = _current_route_key()
         raise RouteModelsMismatchError(
             f"{method} {path} parses its body as {model.__name__}, but the route table names "
@@ -84,6 +84,10 @@ def _is_answer_named(entry: RouteModels, model: type[BaseModel], status: int) ->
         alternate.model is model and alternate.status == status
         for alternate in entry.alternate_responses
     )
+
+
+def _is_parse_named(entry: RouteModels, model: type[BaseModel]) -> bool:
+    return entry.request_model is model and not entry.is_body_parsed_by_view
 
 
 def model_response(model: BaseModel, status: int = 200) -> Response:
