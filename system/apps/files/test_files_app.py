@@ -216,8 +216,9 @@ def test_the_sidebar_lists_the_shortcuts_and_every_share_with_how_it_reaches_the
 
 
 def test_enter_on_a_focused_button_presses_it_rather_than_opening_the_selection(
-    open_files_page: OpenFilesPage,
+    open_files_page: OpenFilesPage, files_root: Path
 ) -> None:
+    (files_root / "home/user/workspace/data/uploads").mkdir(parents=True)
     page = open_files_page("/")
     _entry(page, "/projects/").click()
     page.locator('[data-sidebar-row="shortcut:uploads"]').focus()
@@ -226,7 +227,10 @@ def test_enter_on_a_focused_button_presses_it_rather_than_opening_the_selection(
     assert not page.url.endswith("/projects/")
 
 
-def test_enter_opens_an_entry_chosen_by_the_arrows_after_a_button_was_pressed(open_files_page: OpenFilesPage) -> None:
+def test_enter_opens_an_entry_chosen_by_the_arrows_after_a_button_was_pressed(
+    open_files_page: OpenFilesPage, files_root: Path
+) -> None:
+    (files_root / "home/user/workspace/data/uploads").mkdir(parents=True)
     page = open_files_page("/")
     expect(_entry(page, "/photos/")).to_be_visible()
     page.locator('[data-sidebar-row="shortcut:uploads"]').focus()
