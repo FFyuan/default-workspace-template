@@ -132,7 +132,9 @@ background agent, which is its own chat -- or the human).
   themselves were lost). On daemon startup the
   fleet is restored **eager-sequentially** (one browser at a time, no cold-boot
   memory spike) behind an **init gate**: state-changing commands return a 503
-  "initializing" until restore finishes, while `ls`/`state` stay open. A fresh
+  whose `detail` says the fleet is still restoring until restore finishes, while
+  `ls`/`state` stay open. Every refusal of every route is `{"detail": "<reason>"}`,
+  and `GET /api/schema` publishes the request and response shape of every route. A fresh
   workspace starts with an empty fleet; the first `new` (or the first browser
   window) creates the browser. `close <name>` retires a browser and forgets its
   profile, which only the fleet CLI does; a crashed browser is never restored as
