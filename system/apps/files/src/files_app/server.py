@@ -25,8 +25,16 @@ from flask import Response
 from flask import request
 from flask import stream_with_context
 
+from app_schema.api_schema import RouteModels
+from app_schema.api_schema import RouteTable
+from app_schema.api_schema import SchemalessRoute
 from app_schema.api_schema import register_api_schema_route
+from app_schema.routes import model_response
+from app_schema.routes import parse_request_body
 from files_app.connections import SYNCED_FOLDERS
+from files_app.connections import ConnectionRequest
+from files_app.connections import ConnectionRequested
+from files_app.connections import Connections
 from files_app.connections import list_connections
 from files_app.connections import list_on_device
 from files_app.gateway import Gateway
@@ -52,6 +60,27 @@ _HOP_BY_HOP: Final[frozenset[str]] = frozenset(
         "host",
     }
 )
+# What every route exchanges, which the API document publishes. The workspace's own files and a connected
+# computer's are served in dufs's shapes (pages, files, WebDAV, its JSON listings) and are typed with the file
+# browser that replaces dufs; the two connection routes exchange JSON.
+_DUFS_PROXY: Final[SchemalessRoute] = SchemalessRoute(reason="the workspace's own files, served by dufs")
+_REMOTE_PROXY: Final[SchemalessRoute] = SchemalessRoute(
+    reason="the files a connected computer shares, served in dufs's shapes"
+)
+_OPENAPI_METHODS: Final[tuple[str, ...]] = ("GET", "POST", "PUT", "DELETE", "PATCH")
+ROUTE_TABLE: RouteTable = {
+    ("GET", "/__files/api/connections"): RouteModels(response_model=Connections),
+    ("POST", "/__files/api/connections"): RouteModels(
+        request_model=ConnectionRequest, response_model=ConnectionRequested
+    ),
+    **{(method, path): _DUFS_PROXY for method in _OPENAPI_METHODS for path in ("/", "/{path}")},
+    **{
+        (method, path): _REMOTE_PROXY
+        for method in _OPENAPI_METHODS
+        for path in ("/__remote/{device}/", "/__remote/{device}/{path}")
+    },
+}
+
 _ALL_METHODS: Final[list[str]] = [
     "GET",
     "HEAD",
@@ -133,7 +162,9 @@ def create_app(
     client: httpx.Client | None = None,
 ) -> Flask:
     app = Flask(__name__, static_folder=None)
-    register_api_schema_route(app, f"{API_PREFIX}/schema", title=APP_DISPLAY_NAME, description=APP_DESCRIPTION)
+    register_api_schema_route(
+        app, f"{API_PREFIX}/schema", title=APP_DISPLAY_NAME, description=APP_DESCRIPTION, route_table=ROUTE_TABLE
+    )
     dufs = client or httpx.Client(base_url=dufs_url, timeout=httpx.Timeout(30.0, read=None))
     assets_prefix: list[str] = []
 
@@ -167,12 +198,12 @@ def create_app(
         workspace is not connected to Imbue Studio.
         """
         if gateway is None:
-            return _json({"devices": [], "shares": []})
+            return model_response(Connections(devices=(), shares=()))
         try:
             listed = list_connections(gateway, synced_root)
         except httpx.HTTPError as error:
             return _text(f"Couldn't read your shares: {error}", 502)
-        return _json(listed.model_dump())
+        return model_response(listed)
 
     @app.post(f"{API_PREFIX}/connections")
     def request_connection() -> Response:
@@ -184,12 +215,12 @@ def create_app(
         """
         if gateway is None:
             return no_gateway()
-        body = request.get_json(silent=True) or {}
-        device = str(body.get("device", ""))
-        path = str(body.get("path") or "~").strip() or "~"
-        access = "WRITE" if body.get("access") == "write" else "READ"
+        body = parse_request_body(ConnectionRequest)
+        device = body.device
+        path = body.path.strip() or "~"
+        access = "WRITE" if body.access == "write" else "READ"
         payload: dict[str, object] = {"path": path, "access": access}
-        if body.get("sync") is True:
+        if body.sync:
             payload["sync"] = {"conflict": "NEWER"}
         try:
             response = gateway.request(
@@ -207,7 +238,7 @@ def create_app(
             return _text(f"Couldn't ask Imbue Studio: {error}", 502)
         if response.status_code >= 400:
             return _text(response.text or "Imbue Studio refused the request.", response.status_code)
-        return _json({"requested": True})
+        return model_response(ConnectionRequested(requested=True))
 
     # Shared items, live
 

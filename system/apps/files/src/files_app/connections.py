@@ -15,6 +15,7 @@ from typing import Final
 from typing import Literal
 
 import httpx
+from pydantic import Field
 
 from files_app.gateway import Gateway
 from files_app.gateway import device_files_path
@@ -55,6 +56,21 @@ class Share(FrozenModel):
 class Connections(FrozenModel):
     devices: tuple[Device, ...]
     shares: tuple[Share, ...]
+
+
+class ConnectionRequest(FrozenModel):
+    """The body of ``POST /__files/api/connections``: the folder to ask a connected computer for."""
+
+    device: str = Field(default="", description="The computer to ask; empty for the one the gateway picks")
+    path: str = Field(default="~", description="The folder on it; its home folder when omitted or empty")
+    access: Literal["read", "write"] = Field(default="read", description="What the workspace may do with it")
+    sync: bool = Field(default=False, description="Whether to keep a synced copy of the folder here")
+
+
+class ConnectionRequested(FrozenModel):
+    """What asking for a folder answers: the request reached the computer, where the person approves it."""
+
+    requested: bool = Field(description="Always true")
 
 
 def shared_paths(permissions: object) -> dict[str, Access]:
