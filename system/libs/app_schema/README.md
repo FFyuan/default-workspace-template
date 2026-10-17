@@ -13,10 +13,11 @@ app's document from its apps table.
   serve the document at `path` on a `Flask` app or a `Blueprint` it registers.
   `title` and `description` are the manifest's `display_name` and
   `description`, so the document says what the launcher says. The document
-  is built from the running app's url map on each request: every rule but the
-  static route and the schema route itself is a path, each method an
-  operation with the view's docstring as its summary and description, each
-  path parameter a required string parameter. `route_models` maps
+  is built from the running app's url map on each request: every rule but
+  Flask's static routes (the app's and a blueprint's) and the schema route
+  itself is a path, each method an operation with the view's docstring as its
+  summary and description, each path parameter a required string parameter.
+  `route_models` maps
   `(method, path)` to `RouteModels(request_model=..., response_model=..., success_status=...)`
   for routes that validate with pydantic; those models are published as
   request and response schemas.

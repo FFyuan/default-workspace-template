@@ -212,7 +212,8 @@ def test_the_route_serves_the_document_without_describing_itself(
 def test_the_route_works_on_a_blueprint_and_sees_routes_registered_later(
     notes_manifest_path: Path,
 ) -> None:
-    blueprint = Blueprint("pages", __name__)
+    """A blueprint's own static route (``pages.static``) is Flask's, not the app's, so it is left out too."""
+    blueprint = Blueprint("pages", __name__, static_folder="static")
 
     @blueprint.get("/api/health")
     def health() -> Response:

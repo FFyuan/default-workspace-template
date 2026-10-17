@@ -4,10 +4,11 @@ A workspace app that has an HTTP API serves this document at the path its
 manifest names in ``api_schema_path`` (``/api/schema`` by convention), so an
 agent reaching the app, from inside the workspace or over the share, learns
 what the API offers without reading the app's code. The document is built from
-the Flask url map on every request: each rule except the static one and the
-schema route itself is a path, each method an operation whose summary is the
-first paragraph of the view's docstring (as one line) and whose description is
-the whole of it, and each path parameter a required string parameter. An app
+the Flask url map on every request: each rule except Flask's static routes (the
+app's and a blueprint's) and the schema route itself is a path, each method an
+operation whose summary is the first paragraph of the view's docstring (as one
+line) and whose description is the whole of it, and each path parameter a
+required string parameter. An app
 that validates bodies with pydantic can register those models per route, and
 they are published as request and response schemas, as the Imbue Studio API
 does for its own.
@@ -57,6 +58,11 @@ RouteModelsByRoute = Mapping[tuple[str, str], RouteModels]
 def flask_rule_to_openapi_path(flask_rule: str) -> str:
     """``/x/<conv:name>`` as the OpenAPI path ``/x/{name}``."""
     return _FLASK_PARAM_PATTERN.sub(r"{\1}", flask_rule)
+
+
+def is_static_endpoint(endpoint: str) -> bool:
+    """Whether ``endpoint`` is Flask's own static-file route: ``static`` on the app, ``<blueprint>.static`` on a blueprint."""
+    return endpoint.rsplit(".", 1)[-1] == "static"
 
 
 def _summary_and_description(
@@ -146,13 +152,13 @@ def build_openapi_document(
     excluded_endpoints: frozenset[str],
     # An OpenAPI document is deeply nested, loosely typed JSON, so the value type is Any rather than a TypedDict.
 ) -> dict[str, Any]:
-    """The OpenAPI document for every route of ``app`` except the static route and ``excluded_endpoints``."""
+    """The OpenAPI document for every route of ``app`` except Flask's static routes and ``excluded_endpoints``."""
     paths: dict[str, dict[str, object]] = {}
     referenced_models: list[type[BaseModel]] = []
     for rule in sorted(
         app.url_map.iter_rules(), key=lambda entry: (entry.rule, entry.endpoint)
     ):
-        if rule.endpoint == "static" or rule.endpoint in excluded_endpoints:
+        if is_static_endpoint(rule.endpoint) or rule.endpoint in excluded_endpoints:
             continue
         openapi_path = flask_rule_to_openapi_path(rule.rule)
         view_func = app.view_functions.get(rule.endpoint)
