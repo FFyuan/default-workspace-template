@@ -119,22 +119,14 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
   );
 }
 
-const SHARE_BADGE_ICONS: Record<ShareBadge, IconName> = { linked: "link", synced: "refresh" };
-
-/** A shared item drawn as the folder views draw it, with a small disc over its corner saying how it reaches the
+/** A shared item drawn as the folder views draw it, with their small disc over its corner saying how it reaches the
  *  workspace. */
 function sharedItemIcon(name: string, isFolder: boolean, badge: ShareBadge): m.Vnode {
-  return m("span.files-share-icon", { "data-share-badge": badge, class: "relative flex shrink-0" }, [
-    m.trust(fileIconSvg(name, isFolder, null, 18)),
-    m(
-      "span",
-      {
-        class:
-          "absolute -right-1 -bottom-0.5 flex size-[11px] items-center justify-center rounded-full bg-surface text-secondary",
-      },
-      m.trust(icon(SHARE_BADGE_ICONS[badge], { size: 7, strokeWidth: 2.6 })),
-    ),
-  ]);
+  return m(
+    "span.files-share-icon",
+    { "data-share-badge": badge, class: "flex shrink-0" },
+    m.trust(fileIconSvg(name, isFolder, badge, 18)),
+  );
 }
 
 function mark(kind: string, label: string, body: m.Children, extra: string): m.Vnode {
