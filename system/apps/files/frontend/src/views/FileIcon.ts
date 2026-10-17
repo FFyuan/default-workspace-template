@@ -73,12 +73,13 @@ const BADGE_GLYPHS: Record<IconBadge, string> = {
 };
 
 /** The disc an icon's badge sits in and the glyph in it, in whole pixels: the glyph centred with an even margin, so
- *  neither lands between pixels and blurs. 11px and 7px at list size, as the icon's own proportion from icon size up. */
+ *  neither lands between pixels and blurs. 12px and 8px at list size, where the link's two loops need the room; the
+ *  icon's own proportion from icon size up. */
 function badgeMetrics(size: number): { disc: number; glyph: number; right: number; bottom: number; line: number } {
+  if (size < 32) return { disc: 12, glyph: 8, right: -4, bottom: -2, line: 1 };
   const disc = Math.max(11, Math.round((size * 19) / 64));
   let glyph = Math.round(disc * 0.6);
   if ((disc - glyph) % 2 !== 0) glyph -= 1;
-  if (size < 32) return { disc, glyph, right: -4, bottom: -2, line: 1 };
   return {
     disc,
     glyph,
