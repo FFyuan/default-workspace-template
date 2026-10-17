@@ -8,10 +8,15 @@ the Flask url map on every request: each rule except Flask's static routes (the
 app's and a blueprint's) and the schema route itself is a path, each method an
 operation whose summary is the first paragraph of the view's docstring (as one
 line) and whose description is the whole of it, and each path parameter a
-required string parameter. An app
-that validates bodies with pydantic can register those models per route, and
-they are published as request and response schemas, as the Imbue Studio API
-does for its own.
+required string parameter.
+
+The app's route table says what each operation exchanges: a ``RouteModels``
+entry names the pydantic models a route validates its JSON body with and
+answers, which the document publishes as its request and response schemas, and
+a ``SchemalessRoute`` entry says why a route carries no JSON (a page, a file, a
+stream, a socket). The table is kept on the app, and ``app_schema.routes``
+checks every parse and every answer against it at request time, so the
+document cannot drift from what the routes do.
 """
 
 import inspect
@@ -20,12 +25,17 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Final
 
 from flask import Blueprint, Flask, Response, current_app, jsonify, request
+from flask.blueprints import BlueprintSetupState
 from imbue.imbue_common.frozen_model import FrozenModel
 from pydantic import BaseModel, Field
+
+from app_schema.errors import InvalidRequestBodyError
 
 OPENAPI_VERSION: Final[str] = "3.1.0"
 DEFAULT_API_SCHEMA_PATH: Final[str] = "/api/schema"
 API_SCHEMA_ENDPOINT: Final[str] = "api_schema"
+# Where the app keeps its route table: ``app.extensions[EXTENSION_KEY]``.
+EXTENSION_KEY: Final[str] = "app_schema"
 _IMPLICIT_METHODS: Final[frozenset[str]] = frozenset({"HEAD", "OPTIONS"})
 # The methods an OpenAPI path item may carry as operations; any other (WebDAV's PROPFIND, MKCOL, MOVE, COPY)
 # is listed under the path item's ``x-other-methods`` extension instead.
@@ -33,26 +43,57 @@ _OPENAPI_METHODS: Final[frozenset[str]] = frozenset(
     {"GET", "PUT", "POST", "DELETE", "PATCH", "TRACE"}
 )
 OTHER_METHODS_KEY: Final[str] = "x-other-methods"
+# Marks an operation the route table declares schemaless, with the reason.
+NO_SCHEMA_KEY: Final[str] = "x-no-schema"
+HTTP_BAD_REQUEST: Final[int] = 400
+HTTP_NO_CONTENT: Final[int] = 204
 _FLASK_PARAM_PATTERN: Final[re.Pattern[str]] = re.compile(r"<(?:[^:<>]+:)?([^<>]+)>")
 _PARAGRAPH_BREAK_PATTERN: Final[re.Pattern[str]] = re.compile(r"\n[ \t]*\n")
+
+
+class ErrorResponse(FrozenModel):
+    """What every route answers on a refusal or a failure: one line saying what went wrong."""
+
+    detail: str = Field(description="What went wrong, in words for the caller")
+
+
+class AlternateResponse(FrozenModel):
+    """A second success a route can answer with, under its own status."""
+
+    status: int = Field(description="The HTTP status of this answer")
+    model: type[BaseModel] = Field(description="The answer's model")
 
 
 class RouteModels(FrozenModel):
     """The pydantic models one route validates with, published as its request and response schemas."""
 
     request_model: type[BaseModel] | None = Field(
-        default=None, description="The JSON request body's model, if any"
+        default=None,
+        description="The JSON request body's model; None for a route that takes no body",
     )
     response_model: type[BaseModel] | None = Field(
-        default=None, description="The primary success response's model, if any"
+        default=None,
+        description="The primary success response's model; None for an answer with no body",
     )
     success_status: int = Field(
         default=200, description="The HTTP status of the primary success response"
     )
+    alternate_responses: tuple[AlternateResponse, ...] = Field(
+        default=(),
+        description="The other successes the route can answer, each under its own status",
+    )
+
+
+class SchemalessRoute(FrozenModel):
+    """An operation that exchanges no JSON by design (a page, a file, a stream, a socket), and why."""
+
+    reason: str = Field(
+        description="What the route serves instead of JSON, for the document's reader"
+    )
 
 
 # Keyed by (HTTP method, OpenAPI path), the path in ``{param}`` form.
-RouteModelsByRoute = Mapping[tuple[str, str], RouteModels]
+RouteTable = Mapping[tuple[str, str], RouteModels | SchemalessRoute]
 
 
 def flask_rule_to_openapi_path(flask_rule: str) -> str:
@@ -90,23 +131,45 @@ def _schema_reference(model: type[BaseModel]) -> dict[str, object]:
     return {"$ref": f"#/components/schemas/{model.__name__}"}
 
 
+def _json_content(model: type[BaseModel]) -> dict[str, object]:
+    return {"application/json": {"schema": _schema_reference(model)}}
+
+
+def _success_responses(models: RouteModels) -> dict[str, object]:
+    primary: dict[str, object] = {"description": "Success"}
+    if models.response_model is not None:
+        primary["content"] = _json_content(models.response_model)
+    responses: dict[str, object] = {str(models.success_status): primary}
+    for alternate in models.alternate_responses:
+        responses[str(alternate.status)] = {
+            "description": "Success",
+            "content": _json_content(alternate.model),
+        }
+    return responses
+
+
 def _build_operation(
     method: str,
     openapi_path: str,
     path_parameter_names: Sequence[str],
     view_func: Callable[..., object] | None,
-    models: RouteModels | None,
+    entry: RouteModels | SchemalessRoute | None,
 ) -> dict[str, object]:
     summary, description = _summary_and_description(view_func)
-    success_status = str(models.success_status) if models is not None else "200"
-    success: dict[str, object] = {"description": "Success"}
-    if models is not None and models.response_model is not None:
-        success["content"] = {
-            "application/json": {"schema": _schema_reference(models.response_model)}
-        }
+    responses: dict[str, object]
+    if isinstance(entry, RouteModels):
+        responses = _success_responses(entry)
+    elif isinstance(entry, SchemalessRoute):
+        responses = {"200": {"description": entry.reason}}
+    else:
+        responses = {"200": {"description": "Success"}}
+    responses["default"] = {
+        "description": "Error",
+        "content": _json_content(ErrorResponse),
+    }
     operation: dict[str, object] = {
         "operationId": _operation_id(method, openapi_path),
-        "responses": {success_status: success, "default": {"description": "Error"}},
+        "responses": responses,
     }
     if summary is not None:
         operation["summary"] = summary
@@ -117,19 +180,29 @@ def _build_operation(
             {"name": name, "in": "path", "required": True, "schema": {"type": "string"}}
             for name in path_parameter_names
         ]
-    if models is not None and models.request_model is not None:
+    if isinstance(entry, RouteModels) and entry.request_model is not None:
         operation["requestBody"] = {
             "required": True,
-            "content": {
-                "application/json": {"schema": _schema_reference(models.request_model)}
-            },
+            "content": _json_content(entry.request_model),
         }
+    if isinstance(entry, SchemalessRoute):
+        operation[NO_SCHEMA_KEY] = entry.reason
     return operation
 
 
 def _path_parameter_names(arguments: set[str], openapi_path: str) -> tuple[str, ...]:
     """The rule's arguments that appear in the path; one a rule fills from ``defaults`` is not a path parameter."""
     return tuple(name for name in sorted(arguments) if f"{{{name}}}" in openapi_path)
+
+
+def _models_of(entry: RouteModels) -> list[type[BaseModel]]:
+    models = [
+        model
+        for model in (entry.request_model, entry.response_model)
+        if model is not None
+    ]
+    models.extend(alternate.model for alternate in entry.alternate_responses)
+    return models
 
 
 def _component_schemas(models: Sequence[type[BaseModel]]) -> dict[str, object]:
@@ -148,13 +221,13 @@ def build_openapi_document(
     title: str,
     description: str,
     version: str,
-    route_models: RouteModelsByRoute,
+    route_table: RouteTable,
     excluded_endpoints: frozenset[str],
     # An OpenAPI document is deeply nested, loosely typed JSON, so the value type is Any rather than a TypedDict.
 ) -> dict[str, Any]:
     """The OpenAPI document for every route of ``app`` except Flask's static routes and ``excluded_endpoints``."""
     paths: dict[str, dict[str, object]] = {}
-    referenced_models: list[type[BaseModel]] = []
+    referenced_models: list[type[BaseModel]] = [ErrorResponse]
     for rule in sorted(
         app.url_map.iter_rules(), key=lambda entry: (entry.rule, entry.endpoint)
     ):
@@ -169,28 +242,40 @@ def build_openapi_document(
                 assert isinstance(other_methods, list)
                 other_methods.append(method)
                 continue
-            models = route_models.get((method, openapi_path))
+            entry = route_table.get((method, openapi_path))
             path_item[method.lower()] = _build_operation(
                 method,
                 openapi_path,
                 _path_parameter_names(rule.arguments, openapi_path),
                 view_func,
-                models,
+                entry,
             )
-            if models is not None:
-                referenced_models.extend(
-                    model
-                    for model in (models.request_model, models.response_model)
-                    if model is not None
-                )
-    document: dict[str, Any] = {
+            if isinstance(entry, RouteModels):
+                referenced_models.extend(_models_of(entry))
+    return {
         "openapi": OPENAPI_VERSION,
         "info": {"title": title, "version": version, "description": description},
         "paths": paths,
+        "components": {"schemas": _component_schemas(referenced_models)},
     }
-    if referenced_models:
-        document["components"] = {"schemas": _component_schemas(referenced_models)}
-    return document
+
+
+def _answer_invalid_body(error: InvalidRequestBodyError) -> Response:
+    response = jsonify(ErrorResponse(detail=str(error)).model_dump())
+    response.status_code = HTTP_BAD_REQUEST
+    return response
+
+
+def _install_route_table(target: Flask | Blueprint, route_table: RouteTable) -> None:
+    """Keep the table on the app (now, or when the blueprint is registered), where ``app_schema.routes`` finds it."""
+    if isinstance(target, Flask):
+        target.extensions[EXTENSION_KEY] = route_table
+        return
+
+    def install(state: BlueprintSetupState) -> None:
+        state.app.extensions[EXTENSION_KEY] = route_table
+
+    target.record_once(install)
 
 
 def register_api_schema_route(
@@ -198,17 +283,22 @@ def register_api_schema_route(
     path: str,
     title: str,
     description: str,
+    route_table: RouteTable,
     version: str = "1.0",
-    route_models: RouteModelsByRoute | None = None,
 ) -> None:
     """Serve the app's OpenAPI document at ``path`` on ``target`` (the app, or a blueprint it registers).
 
     ``title`` and ``description`` are the manifest's ``display_name`` and
     ``description``, so the document says the same thing the launcher does.
-    The document is built from the running app's url map on each request, so a
-    route registered after this call is still described.
+    ``route_table`` says what every route exchanges; it is kept on the app, so
+    a parse or an answer that disagrees with it fails at request time. A body
+    that is not the shape its route's model requires is answered as a 400
+    ``ErrorResponse``. The document is built from the running app's url map on
+    each request, so a route registered after this call is still described.
     """
-    models_by_route: RouteModelsByRoute = dict(route_models or {})
+    table: RouteTable = dict(route_table)
+    _install_route_table(target, table)
+    target.register_error_handler(InvalidRequestBodyError, _answer_invalid_body)
 
     def api_schema() -> Response:
         """The OpenAPI 3.1 document describing this app's HTTP API."""
@@ -219,7 +309,7 @@ def register_api_schema_route(
             title=title,
             description=description,
             version=version,
-            route_models=models_by_route,
+            route_table=table,
             excluded_endpoints=frozenset({request.endpoint}),
         )
         return jsonify(document)
