@@ -2400,11 +2400,11 @@ _ROUTE_MODELS: Final[RouteModelsByRoute] = {
     ("POST", "/api/chats/{chat_id}/shoulder-tap-atomic"): RouteModels(response_model=ShoulderTapAtomicResponse),
     ("POST", "/api/chats/{chat_id}/drain-to-composer"): RouteModels(response_model=DrainToComposerResponse),
     ("POST", "/api/chats/{chat_id}/handoff"): RouteModels(
-        request_model=SwitchChatRequest, response_model=SwitchChatResponse
+        request_model=SwitchChatRequest, response_model=SwitchChatResponse, success_status=202
     ),
     ("POST", "/api/chats/{chat_id}/handoff/cancel"): RouteModels(response_model=HandoffCancelResponse),
     ("POST", "/api/chats/{chat_id}/handoff/retry"): RouteModels(
-        request_model=HandoffRetryRequest, response_model=HandoffRetryResponse
+        request_model=HandoffRetryRequest, response_model=HandoffRetryResponse, success_status=202
     ),
     ("GET", "/api/settings"): RouteModels(response_model=ChatSettingsResponse),
     ("PUT", "/api/settings"): RouteModels(request_model=ChatSettings, response_model=ChatSettingsResponse),
