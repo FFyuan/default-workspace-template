@@ -7,6 +7,8 @@ this package (`src/files_app`). It starts dufs on loopback port 8301
 (`dufs --allow-all --bind 127.0.0.1 --port 8301 --assets system/apps/files/static /`),
 serves the Files server in front of it on the app's port 8300, and registers
 `app.toml`.
+If dufs exits, the program exits too, so supervisord restarts the pair rather
+than leave the server relaying to nothing.
 
 The server is [dufs](https://github.com/sigoden/dufs), a single static binary
 installed at image build by `system/scripts/install_dufs.sh` (version and

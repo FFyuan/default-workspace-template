@@ -1,5 +1,5 @@
 """Serving: the Files server on a background thread, the wait for dufs to come up, and the wait for supervisord's
-SIGTERM. The server and signal handling follow the Getting Started app's."""
+SIGTERM or for dufs to exit. The server and signal handling follow the Getting Started app's."""
 
 import signal
 import socket
@@ -20,6 +20,7 @@ from imbue.imbue_common.logging import log_span
 
 SERVER_SHUTDOWN_TIMEOUT_SECONDS: Final[float] = 5.0
 SIGNAL_EXIT_CODE_BASE: Final[int] = 128
+PROCESS_EXITED_STATUS: Final[int] = 1
 _STOP_SIGNALS: Final[tuple[signal.Signals, ...]] = (signal.SIGTERM, signal.SIGINT)
 _POLL_SECONDS: Final[float] = 0.1
 
@@ -75,8 +76,9 @@ def wait_for_port(host: str, port: int, timeout_seconds: float, process: subproc
     raise ServeError(f"dufs did not start serving on {host}:{port} within {timeout_seconds}s")
 
 
-def wait_for_shutdown_signal() -> int:
-    """Block until SIGTERM or SIGINT arrives, and return the exit status for it (128 plus the signal number)."""
+def wait_for_shutdown_signal(process: subprocess.Popen[bytes]) -> int:
+    """Block until SIGTERM or SIGINT arrives, and return the exit status for it (128 plus the signal number); or
+    until ``process`` exits, returning 1, so supervisord restarts the app rather than leave it serving without dufs."""
     received: list[int] = []
     stop = threading.Event()
 
@@ -86,5 +88,8 @@ def wait_for_shutdown_signal() -> int:
 
     for stop_signal in _STOP_SIGNALS:
         signal.signal(stop_signal, note)
-    stop.wait()
+    while not stop.wait(_POLL_SECONDS):
+        if process.poll() is not None:
+            logger.error("dufs exited with status {}; stopping Files so supervisord restarts it", process.returncode)
+            return PROCESS_EXITED_STATUS
     return SIGNAL_EXIT_CODE_BASE + received[0]

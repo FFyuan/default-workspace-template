@@ -1,5 +1,6 @@
 """Run Files: dufs on a loopback port of its own, the Files server in front of it on the app's port, the app
-registered, and both stopped together on supervisord's SIGTERM."""
+registered, and both stopped together on supervisord's SIGTERM, or when dufs exits, so supervisord restarts the
+pair."""
 
 import os
 import shutil
@@ -42,7 +43,7 @@ def run_files_app(
     static_directory: Path,
     root: str,
     is_registered: bool,
-    wait_for_shutdown: Callable[[], int],
+    wait_for_shutdown: Callable[[subprocess.Popen[bytes]], int],
 ) -> int:
     with log_span("Starting dufs on port {}", dufs_port):
         dufs_process = start_dufs(dufs, dufs_port, static_directory, root)
@@ -58,7 +59,7 @@ def run_files_app(
             if is_registered:
                 with log_span("Registering files at port {}", app_port):
                     register_app(MANIFEST_PATH, AppUrl(f"http://localhost:{app_port}"))
-            return wait_for_shutdown()
+            return wait_for_shutdown(dufs_process)
     finally:
         dufs_process.terminate()
         try:
