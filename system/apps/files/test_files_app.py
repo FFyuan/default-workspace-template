@@ -227,13 +227,10 @@ def test_enter_on_a_focused_button_presses_it_rather_than_opening_the_selection(
     assert not page.url.endswith("/projects/")
 
 
-def test_enter_opens_an_entry_chosen_by_the_arrows_after_a_button_was_pressed(
-    open_files_page: OpenFilesPage, files_root: Path
-) -> None:
-    (files_root / "home/user/workspace/data/uploads").mkdir(parents=True)
+def test_enter_opens_an_entry_chosen_by_the_arrows_after_a_button_was_pressed(open_files_page: OpenFilesPage) -> None:
     page = open_files_page("/")
     expect(_entry(page, "/photos/")).to_be_visible()
-    page.locator('[data-sidebar-row="shortcut:uploads"]').focus()
+    page.locator('[data-action="add"]').focus()
     page.keyboard.press("ArrowDown")
     expect(_entry(page, "/photos/")).to_have_attribute("aria-selected", "true")
     page.keyboard.press("Enter")
