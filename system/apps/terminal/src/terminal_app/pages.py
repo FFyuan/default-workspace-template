@@ -414,6 +414,7 @@ def build_pages_blueprint(
 
     @blueprint.get("/")
     def wrapper_page() -> ResponseReturnValue:
+        """The page framing one terminal (``?session=<name>``), or the bare page when no session is named."""
         raw_session = request.args.get(SESSION_QUERY_KEY, "")
         session = _session_name(raw_session) if raw_session != "" else None
         config = PageConfig(session=session, page=session_page(session) if session is not None else None)
@@ -423,19 +424,23 @@ def build_pages_blueprint(
 
     @blueprint.post(NEW_PATH)
     def new_terminal() -> ResponseReturnValue:
+        """Open a new terminal (its tmux session, in ``workdir`` when given) and answer the path of its page."""
         created = source.create_terminal(_workdir(_launch_body().get(WORKDIR_PARAM)))
         return jsonify({"path": session_page_path(created.name)})
 
     @blueprint.get(SESSION_API_PATH)
     def session_json(name: str) -> ResponseReturnValue:
+        """One terminal as its page frames it: its title and where on the pty origin it attaches."""
         return jsonify(session_page(_session_name(name)).model_dump(mode="json"))
 
     @blueprint.get(HEALTH_PATH)
     def health() -> ResponseReturnValue:
+        """Whether the app is up."""
         return jsonify({"status": "ok"})
 
     @blueprint.post(WINDOW_CLOSED_PATH)
     def window_closed() -> ResponseReturnValue:
+        """The shell says a terminal window closed; the terminals no window shows any more are swept now."""
         # The body says which window closed, which is proof a window showed its terminal; what is shown now
         # is still read from the shell.
         on_window_closed(closed_window_terminal(request.get_json(silent=True)))
@@ -443,6 +448,7 @@ def build_pages_blueprint(
 
     @blueprint.get(APP_CONTRACT_ROUTE)
     def app_contract() -> ResponseReturnValue:
+        """The app contract module: how the page talks to the shell framing it."""
         if not contract_path.is_file():
             return (
                 jsonify({"detail": f"the workspace shell's frontend is not built: {contract_path} is missing"}),

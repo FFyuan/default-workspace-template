@@ -424,6 +424,7 @@ def cancel_pending_url(browser_id: str) -> ResponseReturnValue:
 
 
 def health() -> Response:
+    """Whether the daemon is up, and whether it is still starting its browsers."""
     return jsonify({"status": "ok", "initializing": not _init_done.is_set()})
 
 
@@ -505,6 +506,7 @@ def create_browser() -> Response:
 
 
 def close_browser(browser_id: str) -> ResponseReturnValue:
+    """Close a browser for good: its Chromium exits, its profile is deleted, and its name is retired."""
     if (gate := _require_ready()) is not None:
         return gate
     # Validate the name before it reaches manager.close / forget_profile_dir, which build a
@@ -567,6 +569,7 @@ def start_browser(browser_id: str) -> ResponseReturnValue:
 
 
 def release_browser(browser_id: str) -> Response:
+    """Give up the calling agent's (``X-Mngr-Agent-Id``) control of a browser, so the next in line takes it."""
     if (gate := _require_ready()) is not None:
         return gate
     agent_id, _ = _agent_identity()

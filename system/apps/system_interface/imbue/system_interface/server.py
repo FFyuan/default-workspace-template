@@ -368,6 +368,7 @@ def _root_path() -> str:
 
 
 def _index() -> Response:
+    """The workspace's page: the desktop its windows render in, or a placeholder while the frontend is not built."""
     state = get_state()
     index_path = state.static_directory / "index.html"
     if index_path.exists():
@@ -433,6 +434,7 @@ def _frontend_not_built_response() -> Response:
 
 
 def _index_catch_all(path: str) -> Response:
+    """The workspace's page again, for every path the page routes on its own; an unknown API path is a 404."""
     # Every other path is a client-side route and renders the app shell -- except an
     # unknown API path, whose caller wants an answer it can parse, not a page.
     if path == API_PREFIX.strip("/") or path.startswith(API_PREFIX):
@@ -542,14 +544,17 @@ def _serve_shell_module(basename: str) -> Response:
 
 
 def _serve_app_contract() -> Response:
+    """The app contract module: how an app's page talks to the shell framing it."""
     return _serve_shell_module(SHELL_APP_CONTRACT_PATH.name)
 
 
 def _serve_context_menu() -> Response:
+    """The element context menu module: the right-click menu that hands an element on a page to a chat."""
     return _serve_shell_module(SHELL_CONTEXT_MENU_PATH.name)
 
 
 def _favicon() -> Response:
+    """The page's icon."""
     favicon_path = get_state().static_directory / "favicon.ico"
     if favicon_path.exists():
         return send_file(favicon_path, mimetype="image/x-icon")
@@ -557,6 +562,7 @@ def _favicon() -> Response:
 
 
 def _serve_asset(filename: str) -> Response:
+    """One file of the page's built bundle, by name."""
     assets_directory = get_state().static_directory / "assets"
     # A missing asset is a plain 404, as for the favicon above, rather than the
     # HTML error page ``send_from_directory`` would raise. Existence and safety
