@@ -1490,6 +1490,33 @@ describe("MessageInput on a chat whose account was signed out", () => {
     expect(findByTag(tree, "textarea")?.attrs?.disabled).toBe(true);
   });
 
+  it("offers choosing a provider instead of Retry and Force when a send is refused for a signed-out account", async () => {
+    mocks.signedOutAccountIds.clear();
+    mocks.sendMessage.mockRejectedValueOnce({
+      response: { kind: "account_signed_out" },
+      toString: () => "You signed out of the account this chat runs on. Choose a provider to continue it on.",
+    });
+    const component = MessageInput();
+
+    const after = await typeAndSend(component, "agent-signed-out", "are you still there?");
+
+    const text = renderedText(after);
+    expect(text).toContain("Couldn't send your message");
+    expect(text).toContain("You signed out of the account this chat runs on.");
+    expect(text).not.toContain("Retry");
+    expect(text).not.toContain("Force");
+    expect(text).not.toContain("open the agent's terminal");
+    (findButton(after, "Choose a provider")!.attrs!.onclick as () => void)();
+    const dismissed = component.view!({ attrs: { chatId: "agent-signed-out" } } as never);
+    expect(renderedText(dismissed)).not.toContain("Couldn't send your message");
+    expect(mocks.openProviderChooser).toHaveBeenCalledTimes(1);
+    const intent = mocks.openProviderChooser.mock.calls[0][0] as { onSignedIn: (accountId: string) => void };
+    intent.onSignedIn("account-chosen-5522");
+    expect(mocks.beginSwitchToAccountId).toHaveBeenCalledWith("agent-signed-out", "account-chosen-5522");
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("message-text:agent-signed-out")).toContain("are you still there?");
+  });
+
   it("leaves the account list alone when a send fails for any other reason", async () => {
     mocks.signedOutAccountIds.clear();
     mocks.sendMessage.mockRejectedValueOnce({
