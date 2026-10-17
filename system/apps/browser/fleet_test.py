@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import pytest
 from browser import fleet
 from workspace_layout.testing import LoopbackShell
@@ -225,6 +227,27 @@ def test_cmd_handoff_not_owner_still_tells_agent_to_stop(monkeypatch: pytest.Mon
     monkeypatch.setattr(fleet, "_open_viewer_window", lambda name, is_minimized: None)
     args = fleet._build_parser().parse_args(["handoff", "alex-smith"])
     assert fleet.cmd_handoff(args) == fleet._EXIT_PREEMPTED
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(lambda: fleet._action("alex-smith", "acquire", "acquire"), id="action"),
+        pytest.param(lambda: fleet.cmd_acquire(fleet._build_parser().parse_args(["acquire", "alex-smith"])), id="acquire"),
+        pytest.param(lambda: fleet.cmd_handoff(fleet._build_parser().parse_args(["handoff", "alex-smith"])), id="handoff"),
+    ],
+)
+def test_every_ownership_verb_reads_the_gates_refusal_as_try_again_and_an_unknown_browser_as_an_error(
+    monkeypatch: pytest.MonkeyPatch, command: Callable[[], int]
+) -> None:
+    # The daemon refuses before the verb runs with the shared {"detail"} shape and no status field: a 503 while the
+    # fleet restores its saved browsers is "try again shortly" (busy), a 404 is an error.
+    monkeypatch.setattr(fleet, "_open_viewer_window", lambda name, is_minimized: None)
+    monkeypatch.setattr(fleet, "_print_attach", lambda name: None)
+    monkeypatch.setattr(fleet, "_request", lambda *a, **k: (503, {"detail": "Browser fleet is still restoring"}))
+    assert command() == fleet._EXIT_BUSY
+    monkeypatch.setattr(fleet, "_request", lambda *a, **k: (404, {"detail": "no browser alex-smith"}))
+    assert command() == fleet._EXIT_ERROR
 
 
 def test_attach_url_waits_only_while_the_browser_is_starting(monkeypatch: pytest.MonkeyPatch) -> None:
