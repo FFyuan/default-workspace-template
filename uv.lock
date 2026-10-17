@@ -3753,7 +3753,9 @@ dependencies = [
     { name = "app-manifest" },
     { name = "app-schema" },
     { name = "flask" },
+    { name = "imbue-common" },
     { name = "oom-priority" },
+    { name = "pydantic" },
     { name = "werkzeug" },
 ]
 
@@ -3768,7 +3770,9 @@ requires-dist = [
     { name = "app-manifest", editable = "system/libs/app_manifest" },
     { name = "app-schema", editable = "system/libs/app_schema" },
     { name = "flask", specifier = ">=3.0" },
+    { name = "imbue-common", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fimbue_common&rev=c47db69b9362f0c82aa615ba01040410dfa07ca6" },
     { name = "oom-priority", editable = "system/services/oom_priority" },
+    { name = "pydantic", specifier = ">=2.0" },
     { name = "werkzeug", specifier = ">=3.0" },
 ]
 
