@@ -2236,6 +2236,7 @@ def _serve_file_or_document(path: str) -> Response:
 
 
 def _favicon() -> Response:
+    """The page's icon."""
     favicon_path = get_state().static_directory / "favicon.ico"
     if favicon_path.exists():
         return send_file(favicon_path, mimetype="image/x-icon")
@@ -2368,13 +2369,42 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
-# The routes that validate a JSON body with a pydantic model, and the reads paired with them, keyed by
-# (method, OpenAPI path): the API document publishes these as their request and response schemas.
-# ``/api/chats/create`` is not among them: its body carries ``project_id`` beside ``CreateChatRequest``,
-# which forbids extra keys, so the model alone would advertise a body that refuses a key the route takes.
+# The routes that validate a JSON body with a pydantic model or answer one, keyed by (method, OpenAPI path): the
+# API document publishes these as their request and response schemas. A route that builds its answer by hand
+# (the events, the screen capture, the harness catalogs) is listed without a schema rather than given a model it
+# does not use. ``/api/chats/create`` carries its response only: its body holds ``project_id`` beside
+# ``CreateChatRequest``, which forbids extra keys, so the model alone would advertise a body that refuses a key
+# the route takes.
 _ROUTE_MODELS: Final[RouteModelsByRoute] = {
+    ("GET", "/api/agents"): RouteModels(response_model=AgentListResponse),
+    ("GET", "/api/chats"): RouteModels(response_model=ChatListResponse),
+    ("POST", "/api/chats/create"): RouteModels(response_model=CreateChatResponse, success_status=201),
     ("POST", "/api/chats/seed"): RouteModels(
         request_model=SeedChatRequest, response_model=CreateChatResponse, success_status=201
+    ),
+    ("POST", "/api/chats/awaiting"): RouteModels(response_model=CreateChatResponse),
+    ("POST", "/api/chats/intake"): RouteModels(request_model=IntakeRequest, response_model=IntakeResponse),
+    ("GET", "/api/chats/intakes/{token}"): RouteModels(response_model=PendingIntakeView),
+    ("POST", "/api/chats/intakes/{token}/apply"): RouteModels(
+        request_model=IntakeApplyRequest, response_model=IntakeApplyResponse
+    ),
+    ("POST", "/api/uploads"): RouteModels(response_model=AttachmentUploadResponse, success_status=201),
+    ("GET", "/api/accounts/{account_id}/model-options"): RouteModels(response_model=ModelOptionsResponse),
+    ("POST", "/api/chats/{chat_id}/destroy"): RouteModels(response_model=DestroyAgentResponse),
+    ("POST", "/api/chats/{chat_id}/start"): RouteModels(response_model=StartAgentResponse),
+    ("POST", "/api/chats/{chat_id}/stop"): RouteModels(response_model=StopAgentResponse),
+    ("GET", "/api/chats/{chat_id}/model-options"): RouteModels(response_model=ModelOptionsResponse),
+    ("GET", "/api/chats/{chat_id}/powered-by"): RouteModels(response_model=PoweredByResponse),
+    ("POST", "/api/chats/{chat_id}/interrupt"): RouteModels(response_model=InterruptAgentResponse),
+    ("POST", "/api/chats/{chat_id}/flush-queue"): RouteModels(response_model=SendMessageResponse),
+    ("POST", "/api/chats/{chat_id}/shoulder-tap-atomic"): RouteModels(response_model=ShoulderTapAtomicResponse),
+    ("POST", "/api/chats/{chat_id}/drain-to-composer"): RouteModels(response_model=DrainToComposerResponse),
+    ("POST", "/api/chats/{chat_id}/handoff"): RouteModels(
+        request_model=SwitchChatRequest, response_model=SwitchChatResponse
+    ),
+    ("POST", "/api/chats/{chat_id}/handoff/cancel"): RouteModels(response_model=HandoffCancelResponse),
+    ("POST", "/api/chats/{chat_id}/handoff/retry"): RouteModels(
+        request_model=HandoffRetryRequest, response_model=HandoffRetryResponse
     ),
     ("GET", "/api/settings"): RouteModels(response_model=ChatSettingsResponse),
     ("PUT", "/api/settings"): RouteModels(request_model=ChatSettings, response_model=ChatSettingsResponse),
