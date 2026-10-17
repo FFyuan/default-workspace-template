@@ -15,8 +15,9 @@ app's document from its apps table.
   `description`, so the document says what the launcher says. The document
   is built from the running app's url map on each request: every rule but
   Flask's static routes (the app's and a blueprint's) and the schema route
-  itself is a path, each method an operation with the view's docstring as its
-  summary and description, each path parameter a required string parameter.
+  itself is a path, each method an operation whose summary is the first
+  paragraph of the view's docstring (as one line) and whose description is the
+  whole of it, each path parameter a required string parameter.
   `route_models` maps
   `(method, path)` to `RouteModels(request_model=..., response_model=..., success_status=...)`
   for routes that validate with pydantic; those models are published as
