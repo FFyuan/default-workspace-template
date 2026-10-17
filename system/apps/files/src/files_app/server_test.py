@@ -100,7 +100,22 @@ def test_shares_are_read_from_the_permissions_with_write_winning_over_read() -> 
             },
         ]
     }
-    assert shared_paths(rules) == {"/Users/kim/notes": "read", "/Users/kim/photo.png": "write"}
+    assert shared_paths(rules) == {(None, "/Users/kim/notes"): "read", (None, "/Users/kim/photo.png"): "write"}
+
+
+def test_a_grant_naming_its_device_is_read_with_the_device_apart_from_the_path() -> None:
+    rules = {
+        "rules": [
+            {
+                "latchkey-self": [
+                    "minds-file-server-read-host-mac:/Users/kim/notes",
+                    "minds-file-server-write-host-mac:/Users/kim/notes",
+                    "minds-file-server-read-/Users/kim/a:b",
+                ]
+            }
+        ]
+    }
+    assert shared_paths(rules) == {("host-mac", "/Users/kim/notes"): "write", (None, "/Users/kim/a:b"): "read"}
 
 
 def test_connections_say_how_each_share_reaches_the_workspace_and_when_a_copy_is_behind(tmp_path: Path) -> None:
@@ -125,7 +140,7 @@ def test_connections_say_how_each_share_reaches_the_workspace_and_when_a_copy_is
     (notes_copy / "todo.md").write_text("- a")
 
     listed = json_of(_app(computer, tmp_path).get("/__files/api/connections"))
-    assert listed["devices"] == [{"id": DEVICE, "name": "Kims-Mac.local"}]
+    assert listed["devices"] == [{"id": DEVICE, "name": "Kims-Mac.local", "has_device_paths": False}]
     shares = {share["path"]: share for share in listed["shares"]}
     assert shares["/Users/kim/Brand Fonts"]["sync_state"] == "behind"
     assert shares["/Users/kim/Brand Fonts"]["access"] == "read"
@@ -139,6 +154,44 @@ def test_connections_say_how_each_share_reaches_the_workspace_and_when_a_copy_is
     file_calls = [request for request in computer.requests if "/files/" in request.url.path]
     assert all(request.headers["X-Latchkey-Device"] == DEVICE for request in file_calls)
     assert all(DEVICE not in request.url.path for request in file_calls)
+
+
+def test_a_computer_granting_per_device_lists_each_share_once_and_is_reached_under_its_id(tmp_path: Path) -> None:
+    computer = FakeComputer(
+        permissions=[
+            # A grant from before per-device grants, and the twin the change gave it.
+            "minds-file-server-read-/Users/kim/notes",
+            f"minds-file-server-read-{DEVICE}:/Users/kim/notes",
+            # A grant made since, with no twin.
+            f"minds-file-server-read-{DEVICE}:/Users/kim/wallpapers/jpeg",
+            f"minds-file-server-write-{DEVICE}:/Users/kim/wallpapers/jpeg",
+        ],
+        folders={"/Users/kim/notes": [("todo.md", False, 4)], "/Users/kim/wallpapers/jpeg": [("01.jpg", False, 9)]},
+    )
+    listed = json_of(_app(computer, tmp_path).get("/__files/api/connections"))
+    assert listed["devices"] == [{"id": DEVICE, "name": "Kims-Mac.local", "has_device_paths": True}]
+    assert [(share["path"], share["access"], share["kind"], share["is_reachable"]) for share in listed["shares"]] == [
+        ("/Users/kim/notes", "read", "folder", True),
+        ("/Users/kim/wallpapers/jpeg", "write", "folder", True),
+    ]
+    file_calls = [request for request in computer.requests if "/files/" in request.url.path]
+    assert all(request.url.path.startswith(f"/minds-api-proxy/api/v1/files/{DEVICE}/") for request in file_calls)
+
+
+def test_a_share_on_a_computer_granting_per_device_opens_live_before_any_listing(tmp_path: Path) -> None:
+    computer = FakeComputer(
+        permissions=[f"minds-file-server-write-{DEVICE}:/Users/kim/wallpapers/jpeg"],
+        folders={"/Users/kim/wallpapers/jpeg": [("01.jpg", False, 9)]},
+    )
+    computer.files["/Users/kim/wallpapers/jpeg/01.jpg"] = b"\xff\xd8"
+    client = _app(computer, tmp_path)
+    listing = json_of(client.get(f"/__remote/{DEVICE}/Users/kim/wallpapers/jpeg/?json"))
+    assert [path["name"] for path in listing["paths"]] == ["01.jpg"]
+    assert client.get(f"/__remote/{DEVICE}/Users/kim/wallpapers/jpeg/01.jpg").data == b"\xff\xd8"
+    assert client.put(f"/__remote/{DEVICE}/Users/kim/wallpapers/jpeg/02.jpg", data=b"new").status_code == 201
+    assert computer.files["/Users/kim/wallpapers/jpeg/02.jpg"] == b"new"
+    # The device's grants are read once, for its first request, not again for each.
+    assert [request.url.path for request in computer.requests].count("/permissions/self") == 1
 
 
 def test_a_sleeping_computer_leaves_its_shares_listed_but_unreachable(tmp_path: Path) -> None:

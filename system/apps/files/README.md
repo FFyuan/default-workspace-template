@@ -26,8 +26,9 @@ for every other registered app.
   workspace from their computers, POST asks for more. Both go through the
   latchkey gateway (`gateway.py`), whose address and credentials every
   supervised program inherits. A share is a file-sharing permission the
-  workspace holds (`minds-file-server-read-<path>`, and `-write-` beside it when
-  changes are allowed); `connections.py` reads them per device, notes whether
+  workspace holds (`minds-file-server-read-<device id>:<path>`, and `-write-`
+  beside it when changes are allowed; a computer whose Imbue Studio predates
+  per-device grants names no device id); `connections.py` reads them per device, notes whether
   Imbue Studio keeps a synced copy at `~/synced_folders/<device id>/<path>`
   (two-way with write access, one-way with read), and, since the workspace
   learns nothing from the sync itself, compares the copy's names with the
@@ -41,9 +42,12 @@ for every other registered app.
   has no MOVE, and dufs would take a MOVE or COPY whose destination is under
   `/__remote/` for a folder on its own disk, so the proxy refuses one), nor is
   downloading a folder as a zip; a new folder or file made there is named in a
-  dialog before it is made, since it can't be renamed after. The file server's paths carry no device id (the permissions match
-  `/minds-api-proxy/api/v1/files/<path>`); the device goes in the
-  `X-Latchkey-Device` header.
+  dialog before it is made, since it can't be renamed after. A computer that
+  grants per device serves its files under its id
+  (`/minds-api-proxy/api/v1/files/<device id><path>`, which is what its grants
+  match); one that predates that serves them with no id
+  (`/minds-api-proxy/api/v1/files<path>`). Either way the device also goes in
+  the `X-Latchkey-Device` header, which routes the request to it.
 - Every answer's `Content-Disposition` is made ASCII-safe. dufs names a file in
   it as it is, and a name with a character outside Latin-1 (the narrow space
   macOS puts in screenshot names) makes the forwarder between the workspace and

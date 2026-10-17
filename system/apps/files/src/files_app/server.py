@@ -25,6 +25,8 @@ from flask import stream_with_context
 from loguru import logger
 
 from files_app.connections import SYNCED_FOLDERS
+from files_app.connections import device_permissions
+from files_app.connections import devices_with_device_paths
 from files_app.connections import list_connections
 from files_app.connections import list_on_device
 from files_app.gateway import Gateway
@@ -155,6 +157,8 @@ def create_app(
     app = Flask(__name__, static_folder=None)
     dufs = client or httpx.Client(base_url=dufs_url, timeout=httpx.Timeout(30.0, read=None))
     assets_prefix: list[str] = []
+    # Whether each device's file server is reached under its id, as the last listing of the shares found.
+    device_paths: dict[str, bool] = {}
 
     def dufs_assets_prefix() -> str:
         """The prefix dufs serves the bundle under, read once off one of its own pages."""
@@ -173,6 +177,12 @@ def create_app(
         response.headers["Cache-Control"] = "no-cache"
         return response
 
+    def has_device_paths(gateway: Gateway, device: str) -> bool:
+        """Read off the device's own grants when no listing has said yet (a share's page opened straight away)."""
+        if device not in device_paths:
+            device_paths[device] = device in devices_with_device_paths([device_permissions(gateway, device)])
+        return device_paths[device]
+
     def no_gateway() -> Response:
         return _text("This workspace isn't connected to Imbue Studio, so it can't reach your computers.", 503)
 
@@ -188,6 +198,7 @@ def create_app(
             # ValueError: an answer from the gateway that is not the JSON it should be.
             logger.warning("Couldn't read the shares through the gateway: {}", error)
             return _text(f"Couldn't read your shares: {error}", 502)
+        device_paths.update({device.id: device.has_device_paths for device in listed.devices})
         return _json(listed.model_dump())
 
     @app.post(f"{API_PREFIX}/connections")
@@ -221,8 +232,8 @@ def create_app(
 
     # Shared items, live
 
-    def remote_listing(device: str, path: str) -> Response:
-        entries = list_on_device(gateway, device, path, depth=1) if gateway else None
+    def remote_listing(gateway: Gateway, device: str, by_id: bool, path: str) -> Response:
+        entries = list_on_device(gateway, device, by_id, path, depth=1)
         if entries is None:
             return _text(_UNREACHABLE, 502)
         return _json(_index_data(f"{REMOTE_PREFIX}/{device}{path}", entries[1:]))
@@ -237,12 +248,17 @@ def create_app(
         # The gateway client drops dot segments, so `..` would climb out of the file server to the gateway's own API.
         if any(segment in (".", "..") for segment in device_path.split("/")):
             return _text("That path isn't a file or folder on your computer.", 400)
+        try:
+            by_id = has_device_paths(gateway, device)
+        except (httpx.HTTPError, ValueError) as error:
+            logger.debug("{} did not say how its files are reached: {}", device, error)
+            return _text(_UNREACHABLE, 502)
         query = request.args
         method = request.method
         if method == "GET" and "json" in query:
             if "q" in query:
                 return _json({"href": device_path, "kind": "Index", "paths": [], "dir_exists": True})
-            return remote_listing(device, device_path)
+            return remote_listing(gateway, device, by_id, device_path)
         if method == "GET" and "zip" in query:
             return _text("Downloading a folder from your computer isn't supported yet.", 501)
         if method == "MOVE":
@@ -251,7 +267,7 @@ def create_app(
             return _text(_NO_COPY_ON_COMPUTER, 501)
         if method in ("GET", "HEAD") and ("view" in query or "edit" in query or device_path.endswith("/")):
             # Depth 1, so a folder's page carries its listing, which the frontend shows without asking again.
-            described = list_on_device(gateway, device, device_path, depth=1)
+            described = list_on_device(gateway, device, by_id, device_path, depth=1)
             if described is None or len(described) == 0:
                 return _text(_UNREACHABLE, 502)
             entry = described[0]
@@ -275,7 +291,8 @@ def create_app(
             for key, value in request.headers.items()
             if key.lower() in ("range", "content-type", "content-length", "depth")
         }
-        upstream_request = gateway.build(method, device_files_path(device_path), device, forwarded, _request_body())
+        files_path = device_files_path(device_path, device if by_id else None)
+        upstream_request = gateway.build(method, files_path, device, forwarded, _request_body())
         try:
             upstream = gateway.send(upstream_request)
         except httpx.HTTPError as error:

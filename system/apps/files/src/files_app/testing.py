@@ -41,7 +41,8 @@ def propfind_body(folder: str, children: list[tuple[str, bool, int]]) -> bytes:
 
 class FakeComputer:
     """The user's computer as the gateway reaches it: the permissions it granted, the folders it holds, and every
-    request it was sent."""
+    request it was sent. It grants per device when a permission names it, and then serves its files under its id
+    alone; otherwise with no id alone, as the gateway refuses a path no grant matches."""
 
     def __init__(
         self,
@@ -71,7 +72,11 @@ class FakeComputer:
             return httpx.Response(404)
         if not self.is_awake:
             return httpx.Response(502, text="device unreachable")
-        on_computer = httpx.URL(path[len(prefix) :]).path
+        rest = path[len(prefix) :]
+        is_by_id = rest.startswith(f"/{DEVICE}/")
+        if is_by_id != any(f"-{DEVICE}:" in permission for permission in self.permissions):
+            return httpx.Response(403, text="request not permitted by the user")
+        on_computer = httpx.URL(rest[len(f"/{DEVICE}") :] if is_by_id else rest).path
         folder = on_computer.rstrip("/") or "/"
         if request.method == "PROPFIND":
             if folder in self.folders:
