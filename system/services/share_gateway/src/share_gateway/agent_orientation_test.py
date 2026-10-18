@@ -10,12 +10,15 @@ import pytest
 from share_gateway.agent_orientation import build_changes_feed
 from share_gateway.agent_orientation import build_skills_index
 from share_gateway.agent_orientation import cached_skills_index
+from share_gateway.agent_orientation import helper_source_url
 from share_gateway.agent_orientation import render_instruction_block
+from share_gateway.agent_orientation import template_source_ref
 from share_gateway.agent_orientation import render_primer
 from share_gateway.agent_orientation import summarize_connected_accounts
 from share_gateway.agent_orientation import template_ref
 from share_gateway.caddyfile import RegisteredApp
 from share_gateway.testing import commit_all
+from share_gateway.testing import git_output
 from share_gateway.testing import make_workspace_repo
 
 _APPS = [
@@ -39,6 +42,7 @@ Exec paragraph.
 """
 
 _INVITE_TEMPLATE = """Join "{{workspace_name}}" ({{scope}}) at {{auth_origin}} with {{code}} before {{expires_at}} as "{{name_placeholder}}".
+Install {{helper_source_url}} ({{helper_sha256}}).
 <!-- exec-only:start -->
 wsvisit run -- ls
 <!-- exec-only:end -->
@@ -143,7 +147,16 @@ def test_a_missing_reference_file_is_logged_and_a_stub_rendered(
     assert "The primer prose is missing from this workspace." in primer and "| build-app |" in primer
     expires = datetime(2026, 10, 15, 18, 15, tzinfo=timezone.utc)
     block = render_instruction_block(
-        repo, "https://auth-x.alpha.example.com", "C", expires, "workspace", "Lab", "", []
+        repo,
+        "https://auth-x.alpha.example.com",
+        "C",
+        expires,
+        "workspace",
+        "Lab",
+        "",
+        [],
+        helper_source_url="https://raw.example.com/v1/wsvisit.cjs",
+        helper_sha256="f" * 64,
     )
     assert "wsvisit join https://auth-x.alpha.example.com C" in block
     logged = capsys.readouterr().err
@@ -176,19 +189,55 @@ def test_render_instruction_block_substitutes_the_invite_and_cuts_exec_lines_for
     expires = datetime(2026, 10, 15, 18, 15, tzinfo=timezone.utc)
     apps = [{"name": "chat", "origin": "https://chat-ch111111.alpha.example.com"}]
     block = render_instruction_block(
-        repo, "https://auth-x.alpha.example.com", "7K3M-QX9A-2PFH", expires, "workspace", "Lab", "", apps
+        repo,
+        "https://auth-x.alpha.example.com",
+        "7K3M-QX9A-2PFH",
+        expires,
+        "workspace",
+        "Lab",
+        "",
+        apps,
+        helper_source_url="https://raw.example.com/v1/wsvisit.cjs",
+        helper_sha256="f" * 64,
     )
     assert (
         'Join "Lab" (the whole workspace) at https://auth-x.alpha.example.com with 7K3M-QX9A-2PFH before 18:15 UTC'
         in block
     )
+    assert f"Install https://raw.example.com/v1/wsvisit.cjs ({'f' * 64})." in block
     assert "<a short name for yourself>" in block and "wsvisit run -- ls" in block
     assert "exec-only" not in block
     assert "- chat: https://chat-ch111111.alpha.example.com" in block
     reduced = render_instruction_block(
-        repo, "https://auth-x.alpha.example.com", "C", expires, ["chat"], "Lab", "Ada", apps
+        repo,
+        "https://auth-x.alpha.example.com",
+        "C",
+        expires,
+        ["chat"],
+        "Lab",
+        "Ada",
+        apps,
+        helper_source_url="https://raw.example.com/v1/wsvisit.cjs",
+        helper_sha256="f" * 64,
     )
     assert "wsvisit run" not in reduced and 'as "Ada"' in reduced and "these apps: chat" in reduced
+
+
+def test_the_helper_source_is_the_template_repository_at_the_exact_tag_or_else_the_full_commit(tmp_path: Path) -> None:
+    repo = make_workspace_repo(tmp_path, _PRIMER_TEMPLATE, _INVITE_TEMPLATE)
+    commit = git_output(repo, "rev-parse", "HEAD")
+    assert template_source_ref(repo) == commit and len(commit) == 40
+    assert helper_source_url(repo) == (
+        "https://raw.githubusercontent.com/imbue-ai/default-workspace-template/"
+        f"{commit}/system/services/share_gateway/src/share_gateway/helper/wsvisit.cjs"
+    )
+    git_output(repo, "tag", "v9.9.9")
+    assert template_source_ref(repo) == "v9.9.9"
+    assert helper_source_url(repo).startswith("https://raw.githubusercontent.com/imbue-ai/default-workspace-template/v9.9.9/")
+    (repo / "later.txt").write_text("x\n")
+    commit_all(repo, "A commit after the tag")
+    assert len(template_source_ref(repo)) == 40
+    assert template_source_ref(tmp_path / "not-a-repo") == "main"
 
 
 def test_summarize_connected_accounts_without_a_gateway_says_so() -> None:

@@ -140,6 +140,17 @@ test("describeSkillChanges names new, removed, and changed skills", () => {
   assert.deepEqual(helper.describeSkillChanges({}, {}), []);
 });
 
+test("the helper says when it is not the one the workspace publishes, and stays quiet when it is or nothing was said", () => {
+  const own = "a".repeat(64);
+  const published = { sha256: "b".repeat(64), version: "v0.3.0", source_url: "https://example.com/wsvisit.cjs" };
+  const notice = helper.helperMismatchNotice(published, own);
+  assert.match(notice, /aaaaaaaaaaaa.*not the one the workspace publishes \(bbbbbbbbbbbb, template v0\.3\.0\)/);
+  assert.match(notice, /reinstall it from https:\/\/example\.com\/wsvisit\.cjs/);
+  assert.equal(helper.helperMismatchNotice({ ...published, sha256: own }, own), null);
+  assert.equal(helper.helperMismatchNotice(undefined, own), null);
+  assert.equal(helper.helperMismatchNotice({ version: "v0.3.0" }, own), null);
+});
+
 test("a joined workspace's state is refused unless its directory is private", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wsvisit-state-"));
   process.env.WSVISIT_STATE_DIR = root;

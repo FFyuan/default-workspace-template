@@ -18,7 +18,7 @@ You hold no account of the person's and no access to anything outside this works
 - Chat agents in this workspace share its main checkout, so make code changes on a branch in a worktree under `/home/user/worktrees/` (named `mngr/<your-name>-<task>`), and say what you did in your commit messages, which the changes feed shows to everyone who connects after you.
   Files under `data/` (documents, uploads, app data) are edited in place.
 - Keep your own process, memory, and context on your side.
-  Never create agents inside the workspace (`mngr create`, `launch-task`, `claude`, `codex`): the point of visiting from outside is to keep that load off the machine.
+  Do not create agents inside the workspace (`mngr create`, `launch-task`, `claude`, `codex`) unless instructed to: the point of visiting from outside is to keep that load off the machine.
   Run builds and tests inside only when the task needs them.
 <!-- exec-only:end -->
 - Everything you make is the person's: leave it where they will find it, named plainly, with no history rewritten on shared branches.

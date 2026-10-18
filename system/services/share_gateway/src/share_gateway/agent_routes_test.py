@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import datetime
 from datetime import timedelta
@@ -15,6 +16,8 @@ from share_gateway.agent_access import AgentAccessPaths
 from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_grants import load_agent_grants
+from share_gateway.agent_orientation import helper_source_url
+from share_gateway.agent_routes import HELPER_PATH
 from share_gateway.agent_routes import AgentAccessContext
 from share_gateway.agent_routes import JoinRateLimiter
 from share_gateway.agent_workspace import WorkspaceCoordinates
@@ -152,6 +155,12 @@ def test_join_answers_the_access_document_for_workspace_scope(tmp_path: Path) ->
     }
     assert [app["name"] for app in document["apps"]] == ["chat", "files"]
     assert document["primer_url"] == f"https://{_AUTH_HOST}/_agent/primer"
+    assert document["helper"] == {
+        "version": document["helper"]["version"],
+        "source_url": helper_source_url(harness.context.repo_root),
+        "sha256": hashlib.sha256(HELPER_PATH.read_bytes()).hexdigest(),
+    }
+    assert document["helper"]["source_url"].endswith("/system/services/share_gateway/src/share_gateway/helper/wsvisit.cjs")
     assert len(load_agent_grants(harness.context.paths.grants_path)) == 1
 
 
@@ -286,6 +295,7 @@ def test_helper_is_served_without_caching(tmp_path: Path) -> None:
     response = harness.client.get("/_agent/helper", headers={})
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "no-store" and response.headers["X-Helper-Version"]
+    assert response.headers["X-Helper-SHA256"] == hashlib.sha256(response.get_data()).hexdigest()
     assert response.get_data(as_text=True).startswith("#!/usr/bin/env node")
 
 
