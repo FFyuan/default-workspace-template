@@ -43,9 +43,19 @@ verbs today:
 | `minds-workspaces-recover` | health check, restart, machine resize | yes |
 
 Targeted verbs are granted per workspace, so ask for one workspace at a time.
-File the `type: "workspace"` request the way the `imbue-studio` skill shows
-(one request per tool call, nothing else in it, then end your turn and wait):
-`payload.permissions` lists verbs from the table, `payload.target_workspace_id`
+File a `type: "workspace"` request, one per tool call with nothing else in it
+and its output untouched, then end your turn and wait for the user's answer:
+
+```bash
+latchkey curl -XPOST http://latchkey-self.invalid/permission-requests \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id": "'"${MINDS_CHAT_ID:-$MNGR_AGENT_ID}"'", "type": "workspace",
+       "payload": {"permissions": ["minds-workspaces-ssh", "minds-workspaces-backups-export"],
+                   "target_workspace_id": "<TARGET_WORKSPACE_AGENT_ID>"},
+       "rationale": "I need SSH and backup-export access to <name> to bring its content into this workspace."}'
+```
+
+`payload.permissions` lists verbs from the table; `payload.target_workspace_id`
 names the workspace the targeted verbs act on (null for `read` and `create`, or
 to ask for a verb across every workspace). Request exactly the verbs the task
 needs, with a rationale that names the workspace and the goal; the user sees
