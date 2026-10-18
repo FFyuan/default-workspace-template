@@ -1,7 +1,7 @@
 ---
 name: minds-api
-description: "Use to act on OTHER Imbue Studio workspaces on the user's behalf -- list them, create a fresh one, SSH into one, read or export its backups, start/stop/destroy/recover it, or change its settings. The imbue-studio plugin skill teaches how to reach the API and read its schema; this skill adds what only applies from inside a workspace: the permission verbs, the SSH and backup-export flows, and the rules for creating a workspace from here. For bringing another workspace's content into this one, use the migrate-workspace skill, which drives these routes as part of a much larger flow."
-compatibility: Requires latchkey (the standard agent gateway) and curl; ssh/ssh-keygen for the SSH capability. The imbue-studio skill from the imbue-studio-skills plugin.
+description: "Use to act on OTHER Imbue Studio workspaces on the user's behalf -- list them, create a fresh one, SSH into one, read or export its backups, start/stop/destroy/recover it, or change its settings. The imbue-studio skill (vendored beside this one) teaches how to reach the API and read its schema; this skill adds what only applies from inside a workspace: the permission verbs, the SSH and backup-export flows, and the rules for creating a workspace from here. For bringing another workspace's content into this one, use the migrate-workspace skill, which drives these routes as part of a much larger flow."
+compatibility: Requires latchkey (the standard agent gateway) and curl; ssh/ssh-keygen for the SSH capability. The vendored imbue-studio skill in `.agents/skills/imbue-studio/`.
 metadata:
   author: imbue
 ---
