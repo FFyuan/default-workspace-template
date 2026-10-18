@@ -797,10 +797,18 @@ def _send_to_chat(
             )
         if outcome is SendOutcome.NOT_READY:
             return _SendRefused(
-                answer=ErrorResponse(detail=f"Agent '{agent_info.name}' is not ready to receive messages yet (its daemon is starting)."), status=503
+                answer=ErrorResponse(
+                    detail=f"Agent '{agent_info.name}' is not ready to receive messages yet (its daemon is starting)."
+                ),
+                status=503,
             )
         if outcome is SendOutcome.FAILED:
-            return _SendRefused(answer=ErrorResponse(detail=f"Failed to send message to agent '{agent_info.name}' (0 successful agents)"), status=500)
+            return _SendRefused(
+                answer=ErrorResponse(
+                    detail=f"Failed to send message to agent '{agent_info.name}' (0 successful agents)"
+                ),
+                status=500,
+            )
         is_compaction_requested = (
             _composer_compact_handling_of(agent_info, send_message_request.message)
             is ComposerCompactHandling.REQUESTED_FROM_MNGR
@@ -2323,6 +2331,8 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
+
+
 class HarnessCatalogEntry(HarnessCatalog):
     """One harness's catalog as ``GET /api/harnesses`` answers it: the catalog plus the spec's declarations."""
 
