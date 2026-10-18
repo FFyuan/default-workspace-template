@@ -46,7 +46,6 @@ OTHER_METHODS_KEY: Final[str] = "x-other-methods"
 # Marks an operation the route table declares schemaless, with the reason.
 NO_SCHEMA_KEY: Final[str] = "x-no-schema"
 HTTP_BAD_REQUEST: Final[int] = 400
-HTTP_NO_CONTENT: Final[int] = 204
 _FLASK_PARAM_PATTERN: Final[re.Pattern[str]] = re.compile(r"<(?:[^:<>]+:)?([^<>]+)>")
 _PARAGRAPH_BREAK_PATTERN: Final[re.Pattern[str]] = re.compile(r"\n[ \t]*\n")
 
