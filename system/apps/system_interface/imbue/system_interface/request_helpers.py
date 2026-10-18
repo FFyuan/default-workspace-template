@@ -1,4 +1,4 @@
-"""The request and response helpers the shell's routes share."""
+"""The error handler the shell's routes share: an unhandled exception as a 500 ``ErrorResponse``."""
 
 import traceback
 
