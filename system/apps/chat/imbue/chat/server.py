@@ -42,7 +42,6 @@ from flask import send_from_directory
 from flask.ctx import AppContext
 from loguru import logger as _loguru_logger
 from pydantic import Field
-from pydantic import RootModel
 from simple_websocket import ConnectionClosed
 from werkzeug.exceptions import NotFound
 from workspace_layout.errors import InvalidLayoutValueError
@@ -70,6 +69,8 @@ from imbue.chat.agent_discovery import start_agent
 from imbue.chat.agent_manager import AgentManager
 from imbue.chat.agent_manager import CHAT_CREATION_WAIT_TIMEOUT_SECONDS
 from imbue.chat.agent_manager import HandoffCapabilities
+from imbue.chat.api_models import HarnessCatalogEntry
+from imbue.chat.api_models import HarnessCatalogsResponse
 from imbue.chat.attachments import delete_upload
 from imbue.chat.attachments import get_uploads_directory
 from imbue.chat.attachments import resolve_upload_path
@@ -105,14 +106,12 @@ from imbue.chat.harnesses.claude import auth_endpoints
 from imbue.chat.harnesses.interrupt import restart_drain
 from imbue.chat.harnesses.lanes import HARNESS_LABEL
 from imbue.chat.harnesses.message_display import split_background_task_reports
-from imbue.chat.harnesses.model import HarnessCatalog
 from imbue.chat.harnesses.model import InvalidModelPickError
 from imbue.chat.harnesses.model import ModelIdentity
 from imbue.chat.harnesses.model import ModelOption
 from imbue.chat.harnesses.model import validate_model_pick
 from imbue.chat.harnesses.registry import ComposerCompactHandling
 from imbue.chat.harnesses.registry import HARNESS_SPECS
-from imbue.chat.harnesses.registry import HarnessPopup
 from imbue.chat.harnesses.registry import build_resolver
 from imbue.chat.harnesses.registry import get_catalog
 from imbue.chat.harnesses.registry import get_harness_spec
@@ -2331,19 +2330,6 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
-
-
-class HarnessCatalogEntry(HarnessCatalog):
-    """One harness's catalog as ``GET /api/harnesses`` answers it: the catalog plus the spec's declarations."""
-
-    popups: tuple[HarnessPopup, ...] = Field(description="The popups the harness declares for the chat page")
-    supports_compaction: bool = Field(description="Whether the harness can compact a conversation")
-    can_interrupt_compaction: bool = Field(description="Whether a compaction in flight can be interrupted")
-    label: str = Field(description="The harness's user-facing name")
-
-
-class HarnessCatalogsResponse(RootModel[dict[str, HarnessCatalogEntry]]):
-    """What ``GET /api/harnesses`` answers: every harness's catalog, keyed by the harness's id."""
 
 
 # The 409 every verb but destroy and message answers while the chat converges (spec 4.4).
