@@ -239,8 +239,6 @@ def test_cmd_handoff_not_owner_still_tells_agent_to_stop(monkeypatch: pytest.Mon
 def test_every_ownership_verb_reads_the_gates_refusal_as_try_again_and_an_unknown_browser_as_an_error(
     monkeypatch: pytest.MonkeyPatch, command: Callable[[], int]
 ) -> None:
-    # The daemon refuses before the verb runs with the shared {"detail"} shape and no status field: a 503 while the
-    # fleet restores its saved browsers is "try again shortly" (busy), a 404 is an error.
     monkeypatch.setattr(fleet, "_open_viewer_window", lambda name, is_minimized: None)
     monkeypatch.setattr(fleet, "_print_attach", lambda name: None)
     monkeypatch.setattr(fleet, "_request", lambda *a, **k: (503, {"detail": "Browser fleet is still restoring"}))
