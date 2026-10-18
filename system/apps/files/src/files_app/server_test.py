@@ -177,6 +177,18 @@ def test_asking_for_a_share_reaches_imbue_studio_as_a_file_sharing_request_from_
     assert asked.headers["X-Latchkey-Device"] == DEVICE
 
 
+def test_a_request_off_the_body_model_is_a_400_naming_the_problem_and_reaches_no_computer(tmp_path: Path) -> None:
+    computer = FakeComputer(permissions=[], folders={})
+    client = _app(computer, tmp_path)
+    not_an_object = client.post("/__files/api/connections", json=["~/Projects"])
+    assert not_an_object.status_code == 400
+    assert json_of(not_an_object) == {"detail": "the request body must be a JSON object"}
+    off_the_model = client.post("/__files/api/connections", json={"device": DEVICE, "access": "all"})
+    assert off_the_model.status_code == 400
+    assert "access" in json_of(off_the_model)["detail"]
+    assert not [request for request in computer.requests if request.url.path == "/permission-requests"]
+
+
 def test_with_no_gateway_there_are_no_shares_and_asking_explains_why(tmp_path: Path) -> None:
     client = _app(None, tmp_path)
     assert json_of(client.get("/__files/api/connections")) == {"devices": [], "shares": []}
