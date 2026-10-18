@@ -320,7 +320,7 @@ function Breadcrumb(): m.Component<{ app: FilesController }> {
                       : "text-secondary hover:bg-fill-hover hover:text-primary"
                 }`,
                 onclick: () => {
-                  if (crumb.path !== model.folder || model.search !== null) model.navigate(crumb.path);
+                  if (crumb.path !== model.folder) model.navigate(crumb.path);
                 },
               },
               crumb.label,
@@ -429,20 +429,12 @@ function FolderBody(): m.Component<{ app: FilesController }> {
     view({ attrs: { app } }) {
       const model = app.model;
       const mode = app.viewMode;
-      if (mode === "columns" && model.search === null) return m(ColumnView, { app });
+      if (mode === "columns") return m(ColumnView, { app });
       const state = model.folderState(model.folder);
-      const entries = model.shownEntries();
-      const search = model.search;
+      const entries = model.visibleEntries(model.folder);
       const stuck = stuckSyncOf(model.connections, model.folder);
       let empty: m.Children = null;
-      if (search !== null) {
-        if (search.status === "error") empty = message("Search failed", search.error ?? "");
-        else if (entries.length === 0)
-          empty =
-            search.status === "searching"
-              ? m("div", { class: "flex justify-center pt-16" }, m("div.spinner"))
-              : message("No results", `Nothing in this folder matches "${search.query}".`);
-      } else if (state === undefined || (state.status === "loading" && entries.length === 0)) {
+      if (state === undefined || (state.status === "loading" && entries.length === 0)) {
         empty = m("div", { class: "flex justify-center pt-16" }, m("div.spinner"));
       } else if (state.status === "error" && entries.length === 0) {
         empty = message("Couldn't open this folder", state.error ?? "", () => void model.load(model.folder));
@@ -458,18 +450,7 @@ function FolderBody(): m.Component<{ app: FilesController }> {
       }
       return m("div", { class: "min-h-full" }, [
         stuck !== null && entries.length > 0 ? stuckBanner(stuck) : null,
-        search === null
-          ? null
-          : m(
-              "div.files-search-header",
-              { class: "flex items-center gap-2 px-5 pt-3 pb-1 type-helper text-secondary" },
-              [
-                m("span", `Results in ${segmentsOf(search.folder).pop() ?? "Computer"}`),
-                search.status === "searching" && entries.length > 0 ? m("div.spinner.spinner--sm") : null,
-              ],
-            ),
-        // Results come from all through the folder, so they show as a list, which says where each one is.
-        empty ?? (mode === "icons" && search === null ? m(IconView, { app, entries }) : m(ListView, { app, entries })),
+        empty ?? (mode === "icons" ? m(IconView, { app, entries }) : m(ListView, { app, entries })),
       ]);
     },
   };
@@ -682,7 +663,7 @@ export function FilesApp(): m.Component<{ app: FilesController }> {
             "main.files-folder",
             {
               [FOLDER_SURFACE_ATTR]: model.folder,
-              class: `relative min-h-0 flex-1 ${app.viewMode === "columns" && model.search === null ? "overflow-hidden" : "overflow-y-auto"} ${
+              class: `relative min-h-0 flex-1 ${app.viewMode === "columns" ? "overflow-hidden" : "overflow-y-auto"} ${
                 fileDropOnFolder ? "bg-accent-light/50 outline-2 -outline-offset-4 outline-accent outline-dashed" : ""
               }`,
               onclick: () => {

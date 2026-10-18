@@ -4,7 +4,7 @@
  * typing a name jumps to the first entry it starts.
  */
 
-import type { Entry } from "../models/dufs";
+import type { Entry } from "../models/server";
 import { parentOf } from "../models/paths";
 import type { FilesController } from "./FilesController";
 
@@ -39,11 +39,11 @@ function arrowOrder(app: FilesController): { order: Entry[]; at: number } {
   const model = app.model;
   const last = model.selection[model.selection.length - 1];
   let order: Entry[];
-  if (app.viewMode === "columns" && model.search === null) {
+  if (app.viewMode === "columns") {
     const column = last === undefined ? model.folder : (parentOf(last) ?? model.folder);
     order = model.visibleEntries(column);
   } else {
-    order = model.shownEntries();
+    order = model.visibleEntries(model.folder);
   }
   return { order, at: last === undefined ? -1 : order.findIndex((entry) => entry.path === last) };
 }
@@ -54,8 +54,7 @@ function moveTo(app: FilesController, entry: Entry | undefined, extend: boolean,
   const focused = document.activeElement;
   if (focused instanceof HTMLElement && isPressable(focused)) focused.blur();
   app.revealSelection = true;
-  if (app.viewMode === "columns" && app.model.search === null)
-    app.model.selectInColumn(entry, extend ? "extend" : "only");
+  if (app.viewMode === "columns") app.model.selectInColumn(entry, extend ? "extend" : "only");
   else app.model.select(entry.path, extend ? "extend" : "only", order);
 }
 
@@ -152,12 +151,11 @@ export function handleKeydown(app: FilesController, event: KeyboardEvent): void 
     return;
   }
   if (event.key === "Escape") {
-    if (model.search !== null) model.setSearchQuery("");
-    else model.clearSelection();
+    model.clearSelection();
     return;
   }
 
-  const columns = app.viewMode === "columns" && model.search === null;
+  const columns = app.viewMode === "columns";
   const perRow = app.viewMode === "icons" ? tilesPerRow() : 1;
   switch (event.key) {
     case "ArrowDown":

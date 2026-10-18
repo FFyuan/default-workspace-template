@@ -6,7 +6,7 @@
 
 import m from "mithril";
 
-import { urlOf, type Entry } from "../models/dufs";
+import { urlOf, type Entry } from "../models/server";
 import { badgeOf, familyOf, hasImageThumbnail, type FileFamily } from "../models/fileKinds";
 
 // The folder is the Files app icon's own hand-drawn shape (system/apps/files/icon.svg), drawn on that icon's grid

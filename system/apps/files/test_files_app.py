@@ -1,4 +1,4 @@
-"""Files, driven in a real browser over a stand-in for dufs on a temporary folder (see conftest.py).
+"""Files, driven in a real browser over the Files server on a temporary folder (see conftest.py).
 
 Every change a test makes goes through the app's own controls and is read back off the disk.
 """

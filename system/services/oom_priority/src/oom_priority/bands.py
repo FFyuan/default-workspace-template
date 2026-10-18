@@ -269,8 +269,8 @@ SERVICE_BANDS: Final[dict[str, int]] = {
     # below SHARED_BROWSER, where those Chromium processes live: a coordinator
     # ranked above them would be picked first every time and free nothing.
     "browser": 70,
-    # The Files app: dufs, a tiny static file server, behind a small Flask
-    # server. It holds little memory and supervisord restarts it if shed.
+    # The Files app: a small Flask server over the workspace's files. It
+    # holds little memory and supervisord restarts it if shed.
     "files": 75,
     # The Getting Started page: one static page and a cached catalog. A shed costs
     # one reload of a window that shows nothing of the user's.

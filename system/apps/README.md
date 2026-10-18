@@ -34,9 +34,9 @@ Built-in apps:
   internal); the program that registers it is the `terminal-pty` entry point of
   `terminal/`.
 - `files/` - Files: a Finder-like browser of the container's filesystem, opened
-  at the workspace folder. Its `files-app` entry point runs dufs, which serves the
-  files with a frontend from that same npm workspace, and a small server in front
-  of it for the files shared from the user's computers.
+  at the workspace folder. Its `files-app` entry point runs a small server that
+  serves the files, and the files shared from the user's computers, with a
+  frontend from that same npm workspace.
 - `browser/` - The live browser: a fleet of Chromium browsers streamed to the
   UI by its daemon (`browser-service`).
 - `system_monitor/` - Memory & disk: one page showing how much memory and disk

@@ -9,7 +9,7 @@ import type { ShellConnection } from "@imbue/workspace-ui/src/app_contract";
 import type { ActionRow, MenuRow } from "@imbue/workspace-ui/src/components/menu";
 import type { IconName } from "@imbue/workspace-ui/src/components/icons";
 
-import { downloadUrlOf, pageUrlOf, urlOf, type Entry, type Listing } from "../models/dufs";
+import { downloadUrlOf, pageUrlOf, urlOf, type Entry, type Listing } from "../models/server";
 import { FilesModel, type HistoryMode } from "../models/FilesModel";
 import { isTextLike } from "../models/fileKinds";
 import { decodePathname, titleOf } from "../models/paths";

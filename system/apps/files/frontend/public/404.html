@@ -58,8 +58,8 @@
   <p>There is nothing at <code class="asked-path"></code>.</p>
   <p class="nearest hidden">The nearest folder above it is <a class="nearest-folder"></a>.</p>
   <script>
-    // Files' page for a path that does not exist. dufs serves this file as it is,
-    // with status 404, for every such path, so everything here is read from the address.
+    // Files' page for a path that does not exist. The Files server serves this file as it
+    // is, with status 404, for every such path, so everything here is read from the address.
     (async () => {
       const segments = location.pathname.split("/").filter((segment) => segment !== "");
       const decode = (text) => {
@@ -78,9 +78,7 @@
         .then(({ connectToShell }) => connectToShell({}).location(location.pathname + location.search, title))
         .catch((error) => console.warn("[files] the app contract did not load", error));
 
-      // Walk up to the first folder that exists. A folder's listing is asked for with a trailing
-      // slash, since dufs answers a missing one that way with a listing whose ``dir_exists`` is
-      // false rather than with this page.
+      // Walk up to the first folder that exists.
       for (let depth = segments.length - 1; depth >= 0; depth--) {
         const folder = depth === 0 ? "/" : `/${segments.slice(0, depth).join("/")}/`;
         let listing = null;
@@ -90,7 +88,7 @@
         } catch {
           listing = null;
         }
-        if (listing !== null && listing.kind === "Index" && listing.dir_exists === true) {
+        if (listing !== null && listing.kind === "folder") {
           const $link = document.querySelector(".nearest-folder");
           $link.href = folder;
           $link.textContent = decode(folder);

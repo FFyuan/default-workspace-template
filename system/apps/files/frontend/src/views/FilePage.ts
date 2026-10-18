@@ -14,7 +14,7 @@ import { Toasts } from "@imbue/workspace-ui/src/components/toasts";
 import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";
 
 import { isLiveShared } from "../models/connections";
-import * as dufs from "../models/dufs";
+import * as server from "../models/server";
 import { isTextLike, previewKindOf } from "../models/fileKinds";
 import { formatSize } from "../models/format";
 import { childPath, nameOf, parentOf } from "../models/paths";
@@ -26,7 +26,7 @@ import { iconButton } from "./iconButton";
 export interface FilePageOptions {
   path: string;
   page: "view" | "edit";
-  /** dufs's word that the file is small and decodes as text. */
+  /** The server's word that the file is small and reads as text. */
   isText: boolean;
 }
 
@@ -52,7 +52,7 @@ export class FilePageModel {
   }
 
   async load(): Promise<void> {
-    void fetch(dufs.urlOf(this.options.path), { method: "HEAD" })
+    void fetch(server.urlOf(this.options.path), { method: "HEAD" })
       .then((response) => {
         const length = response.headers.get("content-length");
         this.size = length === null ? null : Number(length);
@@ -61,7 +61,7 @@ export class FilePageModel {
       .catch(() => undefined);
     if (!this.showsText) return;
     try {
-      const text = await dufs.readText(this.options.path);
+      const text = await server.readText(this.options.path);
       this.text = { status: "ready", saved: text };
       this.draft = text;
     } catch (error) {
@@ -76,7 +76,7 @@ export class FilePageModel {
     this.isSaving = true;
     m.redraw();
     try {
-      await dufs.writeFile(this.options.path, content);
+      await server.writeFile(this.options.path, content);
       this.text = { status: "ready", saved: content };
       this.size = new Blob([content]).size;
     } catch (error) {
@@ -93,14 +93,14 @@ export class FilePageModel {
     if (name === null || parent === null) return;
     const target = childPath(parent, name, false);
     try {
-      if (await dufs.exists(target)) throw new Error(`"${name}" is already taken.`);
-      await dufs.movePath(path, target);
+      if (await server.exists(target)) throw new Error(`"${name}" is already taken.`);
+      await server.movePath(path, target);
     } catch (error) {
       this.toasts.show(error instanceof Error ? error.message : String(error));
       m.redraw();
       return;
     }
-    window.location.replace(dufs.pageUrlOf(target, this.options.page));
+    window.location.replace(server.pageUrlOf(target, this.options.page));
   }
 
   async copyPath(): Promise<void> {
@@ -113,10 +113,10 @@ export class FilePageModel {
 
   async delete(): Promise<void> {
     const path = this.options.path;
-    const entry: dufs.Entry = { name: nameOf(path), path, isFolder: false, isSymlink: false, size: 0, mtime: 0 };
+    const entry: server.Entry = { name: nameOf(path), path, isFolder: false, isSymlink: false, size: 0, mtime: 0 };
     if (!(await this.dialogs.confirmDelete([entry]))) return;
     try {
-      await dufs.deletePath(path);
+      await server.deletePath(path);
     } catch (error) {
       this.toasts.show(error instanceof Error ? error.message : String(error));
       m.redraw();
@@ -131,7 +131,7 @@ export class FilePageModel {
 function body(page: FilePageModel): m.Children {
   const { path, page: kind } = page.options;
   const name = nameOf(path);
-  const url = dufs.urlOf(path);
+  const url = server.urlOf(path);
   const preview = previewKindOf(name, page.options.isText);
   const centred = "flex h-full items-center justify-center overflow-auto bg-page p-6";
   if (page.isDeleted) {
@@ -187,7 +187,7 @@ function body(page: FilePageModel): m.Children {
 }
 
 function downloadFile(path: string): void {
-  startDownload(document, dufs.urlOf(path), nameOf(path));
+  startDownload(document, server.urlOf(path), nameOf(path));
 }
 
 export function FilePage(): m.Component<{ page: FilePageModel }> {
@@ -218,7 +218,7 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
       if (menu === null) return null;
       const { path, page: kind } = page.options;
       const name = nameOf(path);
-      // dufs calls any small file that decodes as text editable; Edit is offered only on one that reads as text.
+      // The server calls any small file that decodes as text editable; Edit is offered only on one named as text.
       const canEdit = page.showsText && page.text.status === "ready" && isTextLike(name);
       return m("div.files-file-page", { class: "flex h-screen min-h-0 flex-col bg-surface text-primary" }, [
         m("header.files-toolbar", { class: "flex shrink-0 items-center gap-2 px-3 py-1" }, [
@@ -233,7 +233,7 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
                 m(
                   "a",
                   {
-                    href: dufs.pageUrlOf(path, "view"),
+                    href: server.pageUrlOf(path, "view"),
                     class: buttonClass("ghost", { sm: true }),
                     "data-action": "done",
                   },
@@ -255,7 +255,7 @@ export function FilePage(): m.Component<{ page: FilePageModel }> {
               ? m(
                   "a.edit-file",
                   {
-                    href: dufs.pageUrlOf(path, "edit"),
+                    href: server.pageUrlOf(path, "edit"),
                     class: buttonClass("ghost", { icon: true, sm: true }),
                     "aria-label": "Edit",
                     "data-action": "edit",

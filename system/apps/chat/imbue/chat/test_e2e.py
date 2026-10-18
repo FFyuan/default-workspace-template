@@ -53,7 +53,6 @@ from imbue.mngr.utils.polling import wait_for
 from imbue.system_interface.app_context import DEFAULT_STATIC_DIRECTORY as SHELL_STATIC_DIRECTORY
 from imbue.system_interface.shell.desktops import DEFAULT_DESKTOP_NAME
 from imbue.system_interface.shell.desktops import slugify_desktop_name
-from imbue.system_interface.shell.testing import DUFS_BINARY
 from imbue.system_interface.shell.testing import files_registry_row
 from imbue.system_interface.shell.testing import message_handling_app
 from imbue.system_interface.shell.testing import registry_row_toml
@@ -1631,7 +1630,7 @@ def _question_and_reply_events(uuid_prefix: str, question: str, reply: str) -> l
 
 
 # A reply that links a file of the workspace and a service running in it (the workspace link routing plan), served
-# with the real Files (dufs over a folder of the test's own) and a stand-in for the app that opens URLs.
+# with the real Files (its server over a folder of the test's own) and a stand-in for the app that opens URLs.
 _LINKED_FILE_HREF = "/notes/plan%201.md"
 _LINKED_SERVICE_URL = "http://localhost:3000/preview"
 _OPEN_URL_HANDLER_PATH = "/api/open-url"
@@ -1667,7 +1666,6 @@ def _bring_the_chat_over(page: Page, server: RunningWorkspace, client_id: str, c
     )
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(120, func_only=False)
 def test_a_replys_file_link_opens_in_files_and_its_local_link_goes_to_the_app_that_opens_urls(
     tmp_path: Path, page: Page
@@ -1773,7 +1771,6 @@ _FOLDER_LINK_SESSION_EVENTS = _question_and_reply_events(
 )
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(120, func_only=False)
 def test_a_folder_link_raises_the_files_window_that_reached_the_folder_through_its_own_listing(
     tmp_path: Path, page: Page

@@ -9,7 +9,7 @@ import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { inputClass } from "@imbue/workspace-ui/src/components/Input";
 import { MODAL_MESSAGE_CLASS, Modal } from "@imbue/workspace-ui/src/components/Modal";
 
-import type { Entry } from "../models/dufs";
+import type { Entry } from "../models/server";
 import type { ConflictChoice } from "../models/FilesModel";
 import { invalidNameReason, stemLength } from "../models/paths";
 

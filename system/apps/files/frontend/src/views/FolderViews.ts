@@ -8,12 +8,12 @@ import m from "mithril";
 import { alertDotIcon, icon } from "@imbue/workspace-ui/src/components/icons";
 
 import { shareBadgeOf, shareRootAt, stuckSyncOf } from "../models/connections";
-import type { Entry } from "../models/dufs";
+import type { Entry } from "../models/server";
 import { formatModified, formatSize } from "../models/format";
 import { kindLabelOf } from "../models/fileKinds";
 import type { FolderState } from "../models/FilesModel";
 import type { SortKey } from "../models/preferences";
-import { isWithin, nameOf, parentOf } from "../models/paths";
+import { isWithin, parentOf } from "../models/paths";
 import { DROP_FOLDER_ATTR, EntryMenuButton, FOLDER_SURFACE_ATTR, RenameField, entryAttrs } from "./entries";
 import { FileIcon, type IconBadge } from "./FileIcon";
 import type { FilesController } from "./FilesController";
@@ -28,17 +28,6 @@ interface ViewAttrs {
 function shareBadgeFor(app: FilesController, entry: Entry): IconBadge | undefined {
   const share = shareRootAt(app.model.connections, entry.path);
   return share === undefined ? undefined : shareBadgeOf(share);
-}
-
-/** The entry's name as shown: a search result's own name, with the folder it is in said separately. */
-function displayName(app: FilesController, entry: Entry): string {
-  return app.model.search === null ? entry.name : nameOf(entry.path);
-}
-
-/** Where a search result lives, below the folder searched; empty for one directly in it. */
-function resultFolder(entry: Entry): string {
-  const slash = entry.name.lastIndexOf("/");
-  return slash === -1 ? "" : entry.name.slice(0, slash);
 }
 
 function stateClass(app: FilesController, entry: Entry): string {
@@ -92,7 +81,7 @@ export const IconView: m.Component<ViewAttrs> = {
                     class:
                       "line-clamp-2 w-full text-center text-(length:--font-size-row) leading-tight break-words text-primary",
                   },
-                  displayName(app, entry),
+                  entry.name,
                 ),
             app.isNarrow
               ? m("div", { class: "absolute top-0.5 right-0.5" }, m(EntryMenuButton, { app, entry }))
@@ -157,7 +146,6 @@ export const ListView: m.Component<ViewAttrs> = {
         { role: "listbox", class: "py-1" },
         entries.map((entry) => {
           const isRenaming = app.model.rename?.path === entry.path;
-          const where = resultFolder(entry);
           return m(
             "div.files-row",
             {
@@ -170,11 +158,11 @@ export const ListView: m.Component<ViewAttrs> = {
               m("div", { class: "min-w-0 flex-1" }, [
                 isRenaming
                   ? m(RenameField, { app, extraClass: "type-body" })
-                  : m("div.files-name", { class: "truncate type-body text-primary" }, displayName(app, entry)),
+                  : m("div.files-name", { class: "truncate type-body text-primary" }, entry.name),
                 m(
                   "div",
                   { class: "truncate type-helper text-faint" },
-                  [where, formatModified(entry.mtime, now), sizeText(entry)].filter((part) => part !== "").join(" · "),
+                  [formatModified(entry.mtime, now), sizeText(entry)].filter((part) => part !== "").join(" · "),
                 ),
               ]),
               m(EntryMenuButton, { app, entry }),
@@ -190,7 +178,6 @@ export const ListView: m.Component<ViewAttrs> = {
         { class: "pt-1" },
         entries.map((entry) => {
           const isRenaming = app.model.rename?.path === entry.path;
-          const where = resultFolder(entry);
           return m(
             "div.files-row",
             {
@@ -203,8 +190,7 @@ export const ListView: m.Component<ViewAttrs> = {
                 m(FileIcon, { entry, size: 18, shareBadge: shareBadgeFor(app, entry) }),
                 isRenaming
                   ? m(RenameField, { app, extraClass: "h-6" })
-                  : m("span.files-name", { class: "truncate text-primary" }, displayName(app, entry)),
-                where === "" || isRenaming ? null : m("span", { class: "truncate text-faint" }, where),
+                  : m("span.files-name", { class: "truncate text-primary" }, entry.name),
               ]),
               m("div", { class: "truncate text-secondary" }, formatModified(entry.mtime, now)),
               m(

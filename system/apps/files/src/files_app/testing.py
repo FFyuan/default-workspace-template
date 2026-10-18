@@ -1,7 +1,6 @@
-"""A gateway and a dufs that answer in memory, for the Files server's tests."""
+"""A gateway that answers in memory, for the Files server's tests."""
 
 import json
-from collections.abc import Callable
 from typing import Any
 from typing import Final
 
@@ -115,10 +114,6 @@ class FakeComputer:
         return Gateway(
             "http://gateway.test", "secret", None, httpx.Client(transport=httpx.MockTransport(self.streamed))
         )
-
-
-def mock_dufs(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.Client:
-    return httpx.Client(base_url="http://dufs.test", transport=httpx.MockTransport(handler))
 
 
 def json_of(response: TestResponse) -> dict[str, Any]:

@@ -4,7 +4,7 @@
  * from the computer, or read live from the computer with no copy here.
  */
 
-import { DufsError } from "./dufs";
+import { ServerError } from "./server";
 import { nameOf } from "./paths";
 
 export const CONNECTIONS_API = "/__files/api/connections";
@@ -127,9 +127,9 @@ export function stuckSyncOf(
   };
 }
 
-async function failureOf(response: Response, what: string): Promise<DufsError> {
+async function failureOf(response: Response, what: string): Promise<ServerError> {
   const detail = (await response.text().catch(() => "")).trim();
-  return new DufsError(detail === "" ? `${what} (${response.status})` : detail, response.status);
+  return new ServerError(detail === "" ? `${what} (${response.status})` : detail, response.status);
 }
 
 export async function fetchConnections(signal?: AbortSignal): Promise<Connections> {

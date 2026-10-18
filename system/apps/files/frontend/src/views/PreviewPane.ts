@@ -7,7 +7,7 @@ import m from "mithril";
 
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 
-import { readText, urlOf, type Entry } from "../models/dufs";
+import { readText, urlOf, type Entry } from "../models/server";
 import { formatModified, formatSize } from "../models/format";
 import { isTextLike, kindLabelOf, previewKindOf } from "../models/fileKinds";
 import { FileIcon } from "./FileIcon";
@@ -33,7 +33,7 @@ export function PreviewPane(): m.Component<{ app: FilesController; entry: Entry 
     if (!isTextLike(entry.name) || entry.size === 0) return;
     const controller = new AbortController();
     request = controller;
-    // dufs refuses a range that runs past the end of the file, so a small file is read whole.
+    // A small file is read whole, so no range runs past its end.
     readText(entry.path, controller.signal, entry.size > SNIPPET_BYTES ? SNIPPET_BYTES : undefined)
       .then((text) => {
         if (snippet?.key === key) snippet = { key, text };
