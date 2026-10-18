@@ -30,8 +30,8 @@ from share_gateway.agent_access import AgentAccessPaths
 from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_access import revoke
+from share_gateway.agent_orientation import HELPER_PATH
 from share_gateway.agent_routes import AgentAccessContext
-from share_gateway.agent_routes import HELPER_PATH
 from share_gateway.agent_workspace import WorkspaceCoordinates
 from share_gateway.caddyfile import RegisteredApp
 from share_gateway.testing import build_agent_test_app

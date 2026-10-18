@@ -3,7 +3,7 @@
 import subprocess
 from pathlib import Path
 
-from share_gateway.agent_routes import HELPER_PATH
+from share_gateway.agent_orientation import HELPER_PATH
 
 _HELPER_DIR = Path(__file__).parent / "helper"
 
