@@ -459,8 +459,6 @@ def _health_endpoint() -> Response:
 API_PREFIX: Final[str] = "api/"
 
 
-
-
 def _present_users_wire_json(users: Sequence[PresentUser]) -> list[dict[str, Any]]:
     return present_users_wire_json(users, get_state().profiles, utc_now())
 
