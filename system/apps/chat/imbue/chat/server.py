@@ -2302,10 +2302,7 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
-# What every route of this module exchanges, keyed by (method, OpenAPI path): the API document publishes a
-# modelled route's models as its request and response schemas, and ``app_schema.routes`` checks each parse and
-# answer against them. A route that serves a page, a file, a stream or the socket, or whose JSON is the loosely
-# shaped harness payload the page consumes (the events, the harness catalogs), is listed with the reason instead.
+# The events and the harness catalogs exchange JSON but are schemaless: their shape is the harness's, not a model's.
 _LOOSE_EVENTS_REASON: Final[str] = (
     "Loosely shaped harness events the chat page consumes; their shape is the harness's, not a model's"
 )
@@ -2390,7 +2387,6 @@ _ROUTE_TABLE: Final[RouteTable] = {
         reason="A server-sent event stream of one subagent session's events"
     ),
 }
-# The whole app's table: this module's routes and the sibling modules' own.
 ROUTE_TABLE: Final[RouteTable] = {
     **_ROUTE_TABLE,
     **auth_endpoints.ROUTE_TABLE,
