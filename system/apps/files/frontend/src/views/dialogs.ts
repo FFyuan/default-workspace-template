@@ -1,6 +1,7 @@
 /**
  * The questions the app stops to ask: whether to delete, what to do about names already taken by an upload, what
- * to call a file renamed from its own page, and what to call something new made where it can't be renamed in place. Each is a promise its caller awaits; one dialog shows at a time.
+ * to call a file renamed from its own page, and what to call something new made where it can't be renamed in place.
+ * Each is a promise its caller awaits; one dialog shows at a time.
  */
 
 import m from "mithril";

@@ -77,7 +77,7 @@ export function labelOf(share: Share): string {
 }
 
 /** A computer's name as people say it, without the ``.local`` macOS adds on the network. */
-export function shortDeviceName(deviceName: string): string {
+function shortDeviceName(deviceName: string): string {
   return deviceName.replace(/\.local$/, "");
 }
 
