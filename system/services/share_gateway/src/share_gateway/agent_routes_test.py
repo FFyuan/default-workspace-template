@@ -261,6 +261,7 @@ def test_me_requires_a_live_token_and_repeats_the_coordinates(tmp_path: Path) ->
     me = harness.client.get("/_agent/me", headers=bearer(document)).get_json()
     assert "token" not in me
     assert me["exec"] == document["exec"] and me["agent_id"] == document["agent_id"]
+    assert me["helper"] == document["helper"]
     assert harness.context.last_seen.read_all()[str(document["agent_id"])] == _NOW.isoformat()
 
 
