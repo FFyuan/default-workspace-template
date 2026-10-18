@@ -38,6 +38,11 @@ def _greeter(route_table: dict) -> Flask:
             return error_response("nobody to greet", 404)
         return model_response(Greeted(text=f"hello {body.name}"))
 
+    @app.get("/whoami")
+    def whoami() -> Response:
+        """Who greets."""
+        return model_response(Greeted(text="the greeter"))
+
     @app.get("/page")
     def page() -> Response:
         """A page that wrongly answers a model."""
@@ -59,6 +64,7 @@ _TABLE = {
         response_model=Greeted,
         alternate_responses=(AlternateResponse(status=202, model=Queued),),
     ),
+    ("GET", "/whoami"): RouteModels(response_model=Greeted),
     ("GET", "/page"): SchemalessRoute(reason="a page"),
 }
 
@@ -69,6 +75,9 @@ def test_a_route_parses_and_answers_the_models_its_table_names() -> None:
     assert client.post("/greet", json={"name": "Kim"}).get_json() == {
         "text": "hello Kim"
     }
+    # Flask serves a HEAD with the GET view, so it is the GET operation the table names.
+    headed = client.head("/whoami")
+    assert (headed.status_code, headed.data) == (200, b"")
     queued = client.post("/greet", json={"name": "later"})
     assert (queued.status_code, queued.get_json()) == (202, {"position": 3})
     refused = client.post("/greet", json={"name": "nobody"})

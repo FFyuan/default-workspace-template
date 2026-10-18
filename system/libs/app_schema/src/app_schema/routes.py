@@ -33,8 +33,14 @@ def registered_route_table() -> RouteTable | None:
 
 
 def _current_route_key() -> tuple[str, str]:
+    """The ``(method, path)`` the table keys the current request's route by.
+
+    A HEAD request runs the GET view (werkzeug adds HEAD to every rule that
+    allows GET), so it is looked up as the GET operation it is served by.
+    """
     assert request.url_rule is not None, "no route matched this request"
-    return request.method, flask_rule_to_openapi_path(request.url_rule.rule)
+    method = "GET" if request.method == "HEAD" else request.method
+    return method, flask_rule_to_openapi_path(request.url_rule.rule)
 
 
 def _route_models_or_raise() -> RouteModels | None:
