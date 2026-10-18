@@ -8,3 +8,7 @@ class InvalidRequestBodyError(AppSchemaError, ValueError):
 
 class RouteModelsMismatchError(AppSchemaError, RuntimeError):
     """A route parsed or answered a model its app's route table does not name for it: the document would lie."""
+
+
+class RouteTableConflictError(AppSchemaError, ValueError):
+    """Two route tables merged into one app's table name the same route."""

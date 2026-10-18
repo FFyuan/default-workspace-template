@@ -24,19 +24,28 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Final
 
-from flask import Blueprint, Flask, Response, current_app, jsonify, request
+from flask import Blueprint, Flask, Response, current_app, g, jsonify, request
 from flask.blueprints import BlueprintSetupState
+from flask.sansio.app import App
 from imbue.imbue_common.frozen_model import FrozenModel
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from app_schema.errors import InvalidRequestBodyError
+from app_schema.errors import (
+    InvalidRequestBodyError,
+    RouteModelsMismatchError,
+    RouteTableConflictError,
+)
 
 OPENAPI_VERSION: Final[str] = "3.1.0"
 DEFAULT_API_SCHEMA_PATH: Final[str] = "/api/schema"
 API_SCHEMA_ENDPOINT: Final[str] = "api_schema"
 # Where the app keeps its route table: ``app.extensions[EXTENSION_KEY]``.
 EXTENSION_KEY: Final[str] = "app_schema"
+# Set on ``flask.g`` by the helpers, so the answer check knows a modelled route went through them.
+PARSED_BODY_FLAG: Final[str] = "app_schema_parsed_body"
+ANSWERED_MODEL_FLAG: Final[str] = "app_schema_answered_model"
+_JSON_MIMETYPE: Final[str] = "application/json"
 _IMPLICIT_METHODS: Final[frozenset[str]] = frozenset({"HEAD", "OPTIONS"})
 # The methods an OpenAPI path item may carry as operations; any other (WebDAV's PROPFIND, MKCOL, MOVE, COPY)
 # is listed under the path item's ``x-other-methods`` extension instead.
@@ -112,6 +121,23 @@ RouteTable = Mapping[tuple[str, str], RouteModels | SchemalessRoute]
 def flask_rule_to_openapi_path(flask_rule: str) -> str:
     """``/x/<conv:name>`` as the OpenAPI path ``/x/{name}``."""
     return _FLASK_PARAM_PATTERN.sub(r"{\1}", flask_rule)
+
+
+def merge_route_tables(
+    *tables: RouteTable,
+) -> dict[tuple[str, str], RouteModels | SchemalessRoute]:
+    """One table from several modules' tables; a route two of them name is a conflict, never a silent overwrite."""
+    merged: dict[tuple[str, str], RouteModels | SchemalessRoute] = {}
+    for table in tables:
+        duplicates = sorted(
+            f"{method} {path}" for method, path in table if (method, path) in merged
+        )
+        if duplicates:
+            raise RouteTableConflictError(
+                "these routes are named by two tables: " + ", ".join(duplicates)
+            )
+        merged.update(table)
+    return merged
 
 
 def is_static_endpoint(endpoint: str) -> bool:
@@ -300,17 +326,65 @@ def _answer_invalid_body(error: InvalidRequestBodyError) -> Response:
     logger.warning("{} {} refused its body: {}", request.method, request.path, error)
     response = jsonify(ErrorResponse(detail=str(error)).model_dump())
     response.status_code = HTTP_BAD_REQUEST
+    setattr(g, ANSWERED_MODEL_FLAG, True)
     return response
 
 
+def current_route_key() -> tuple[str, str] | None:
+    """The ``(method, path)`` the table keys the current request's route by; None when no rule matched.
+
+    A HEAD request runs the GET view (werkzeug adds HEAD to every rule that
+    allows GET), so it is looked up as the GET operation it is served by.
+    """
+    if request.url_rule is None:
+        return None
+    method = "GET" if request.method == "HEAD" else request.method
+    return method, flask_rule_to_openapi_path(request.url_rule.rule)
+
+
+def _check_modelled_route_answered_through_the_helpers(response: Response) -> Response:
+    """A modelled route's JSON answer came from ``model_response``, and a success read its body through
+    ``parse_request_body``; anything else is a route the table cannot vouch for."""
+    table: RouteTable | None = current_app.extensions.get(EXTENSION_KEY)
+    key = current_route_key()
+    if table is None or key is None:
+        return response
+    entry = table.get(key)
+    if not isinstance(entry, RouteModels):
+        return response
+    method, path = key
+    if response.mimetype == _JSON_MIMETYPE and not g.get(ANSWERED_MODEL_FLAG, False):
+        raise RouteModelsMismatchError(
+            f"{method} {path} answered JSON without model_response"
+        )
+    is_success = 200 <= response.status_code < 300
+    if (
+        entry.request_model is not None
+        and not entry.is_body_parsed_by_view
+        and is_success
+        and not g.get(PARSED_BODY_FLAG, False)
+    ):
+        raise RouteModelsMismatchError(
+            f"{method} {path} succeeded without reading its body through parse_request_body"
+        )
+    return response
+
+
+def _install_on_app(app: App, route_table: RouteTable) -> None:
+    app.extensions[EXTENSION_KEY] = route_table
+    app.register_error_handler(InvalidRequestBodyError, _answer_invalid_body)
+    app.after_request(_check_modelled_route_answered_through_the_helpers)
+
+
 def _install_route_table(target: Flask | Blueprint, route_table: RouteTable) -> None:
-    """Keep the table on the app (now, or when the blueprint is registered), where ``app_schema.routes`` finds it."""
+    """Keep the table on the app (now, or when the blueprint is registered), where ``app_schema.routes`` finds it,
+    with the 400 for a bad body and the check on every answer installed app-wide beside it."""
     if isinstance(target, Flask):
-        target.extensions[EXTENSION_KEY] = route_table
+        _install_on_app(target, route_table)
         return
 
     def install(state: BlueprintSetupState) -> None:
-        state.app.extensions[EXTENSION_KEY] = route_table
+        _install_on_app(state.app, route_table)
 
     target.record_once(install)
 
@@ -328,14 +402,14 @@ def register_api_schema_route(
     ``title`` and ``description`` are the manifest's ``display_name`` and
     ``description``, so the document says the same thing the launcher does.
     ``route_table`` says what every route exchanges; it is kept on the app, so
-    a parse or an answer that disagrees with it fails at request time. A body
-    that is not the shape its route's model requires is answered as a 400
-    ``ErrorResponse``. The document is built from the running app's url map on
+    a parse or an answer that disagrees with it fails at request time, as does
+    a modelled route that answers JSON around ``model_response`` or succeeds
+    without reading its body through ``parse_request_body``. A body that is not
+    the shape its route's model requires is answered as a 400 ``ErrorResponse``. The document is built from the running app's url map on
     each request, so a route registered after this call is still described.
     """
     table: RouteTable = dict(route_table)
     _install_route_table(target, table)
-    target.register_error_handler(InvalidRequestBodyError, _answer_invalid_body)
 
     def api_schema() -> Response:
         """The OpenAPI 3.1 document describing this app's HTTP API."""

@@ -68,9 +68,16 @@ the one shape every route answers a refusal or a failure with.
   operation is in the table and the table names no route the app lacks; and
   no modelled route reads its body around `parse_request_body`.
 
+The app also checks every answer: a modelled route that answered JSON around
+`model_response`, or succeeded without reading its body through
+`parse_request_body`, fails that request with `RouteModelsMismatchError`.
+`merge_route_tables` joins the tables of an app's modules and refuses a route
+two of them name.
+
 Between them, a route cannot be added without saying what it does, a modelled
 route cannot parse or answer something the document does not show, and a
-route cannot quietly read its body as a raw dict.
+modelled route cannot quietly read its body or answer JSON by hand; only a
+schemaless route's reason rests on the author's word.
 
 The scaffolder (`build-app`) registers the route and a starting table in every
 new app and writes the two manifest keys;

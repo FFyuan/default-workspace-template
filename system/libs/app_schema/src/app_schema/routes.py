@@ -4,23 +4,27 @@
 the route and ``model_response`` answers the model the table names, so the
 OpenAPI document and the running routes cannot disagree: a route that parses
 or answers something the table does not say fails its first request with
-``RouteModelsMismatchError``, a programming error, not a 400. An
-``ErrorResponse`` is allowed on every route, since every operation's default
-response is one.
+``RouteModelsMismatchError``, a programming error, not a 400; so does a
+modelled route that answers JSON around ``model_response`` or succeeds without
+reading its body through ``parse_request_body``, which the check the app runs
+on every answer catches. An ``ErrorResponse`` is allowed on every route, since
+every operation's default response is one.
 """
 
 from typing import TypeVar
 
 from app_manifest.manifest import describe_validation_error
-from flask import Response, current_app, jsonify, request
+from flask import Response, current_app, g, jsonify, request
 from pydantic import BaseModel, ValidationError
 
 from app_schema.api_schema import (
+    ANSWERED_MODEL_FLAG,
     EXTENSION_KEY,
+    PARSED_BODY_FLAG,
     ErrorResponse,
     RouteModels,
     RouteTable,
-    flask_rule_to_openapi_path,
+    current_route_key,
 )
 from app_schema.errors import InvalidRequestBodyError, RouteModelsMismatchError
 
@@ -33,14 +37,9 @@ def registered_route_table() -> RouteTable | None:
 
 
 def _current_route_key() -> tuple[str, str]:
-    """The ``(method, path)`` the table keys the current request's route by.
-
-    A HEAD request runs the GET view (werkzeug adds HEAD to every rule that
-    allows GET), so it is looked up as the GET operation it is served by.
-    """
-    assert request.url_rule is not None, "no route matched this request"
-    method = "GET" if request.method == "HEAD" else request.method
-    return method, flask_rule_to_openapi_path(request.url_rule.rule)
+    key = current_route_key()
+    assert key is not None, "no route matched this request"
+    return key
 
 
 def _route_models_or_raise() -> RouteModels | None:
@@ -73,6 +72,7 @@ def parse_request_body(model: type[_RequestModel]) -> _RequestModel:
             f"{method} {path} parses its body as {model.__name__}, but the route table "
             + _parse_the_table_names(entry)
         )
+    setattr(g, PARSED_BODY_FLAG, True)
     # force=True: a script and curl alike may post without a JSON content type.
     body = request.get_json(force=True, silent=True)
     if not isinstance(body, dict):
@@ -107,9 +107,12 @@ def _parse_the_table_names(entry: RouteModels) -> str:
 def model_response(model: BaseModel, status: int = 200) -> Response:
     """``model`` as the JSON answer under ``status``; the route table must name that model and status for the route.
 
-    An ``ErrorResponse`` needs no entry: it is every operation's default response.
+    An ``ErrorResponse`` itself needs no entry: it is every operation's default
+    response. A model extending it is a richer failure and must be listed as one
+    of the route's answers like any other.
     """
-    if not isinstance(model, ErrorResponse):
+    # The one shape every route may answer; a richer failure extending it is listed as one of its route's answers.
+    if type(model) is not ErrorResponse:
         entry = _route_models_or_raise()
         if entry is not None and not _is_answer_named(entry, type(model), status):
             method, path = _current_route_key()
@@ -118,6 +121,7 @@ def model_response(model: BaseModel, status: int = 200) -> Response:
             )
     response = jsonify(model.model_dump(mode="json"))
     response.status_code = status
+    setattr(g, ANSWERED_MODEL_FLAG, True)
     return response
 
 

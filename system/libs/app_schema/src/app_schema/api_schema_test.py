@@ -15,8 +15,10 @@ from app_schema.api_schema import (
     SchemalessRoute,
     build_openapi_document,
     flask_rule_to_openapi_path,
+    merge_route_tables,
     register_api_schema_route,
 )
+from app_schema.errors import RouteTableConflictError
 from app_schema.testing import assert_api_schema_describes_app
 
 
@@ -388,3 +390,18 @@ def test_several_models_under_one_status_are_published_as_a_choice() -> None:
     assert (
         responses["200"]["description"] == responses["204"]["description"] == "Success"
     )
+
+
+def test_merging_route_tables_refuses_a_route_two_of_them_name() -> None:
+    first = {
+        ("GET", "/a"): SchemalessRoute(reason="a"),
+        ("GET", "/b"): SchemalessRoute(reason="b"),
+    }
+    second = {("GET", "/c"): SchemalessRoute(reason="c")}
+    assert set(merge_route_tables(first, second)) == {
+        ("GET", "/a"),
+        ("GET", "/b"),
+        ("GET", "/c"),
+    }
+    with pytest.raises(RouteTableConflictError, match="GET /b"):
+        merge_route_tables(first, {("GET", "/b"): SchemalessRoute(reason="again")})

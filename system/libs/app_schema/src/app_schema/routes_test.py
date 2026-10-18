@@ -1,9 +1,10 @@
 import pytest
-from flask import Flask, Response, request
+from flask import Blueprint, Flask, Response, jsonify, request
 from pydantic import BaseModel
 
 from app_schema.api_schema import (
     AlternateResponse,
+    ErrorResponse,
     RouteModels,
     SchemalessRoute,
     register_api_schema_route,
@@ -196,3 +197,113 @@ def test_a_view_that_parses_its_own_body_is_documented_but_not_checked() -> None
     ]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/Greeting"
     }
+
+
+class RicherFailure(ErrorResponse):
+    kind: str
+
+
+def _handmade(route_table: dict) -> Flask:
+    app = Flask("handmade", static_folder=None)
+    app.config["PROPAGATE_EXCEPTIONS"] = True
+
+    @app.post("/greet")
+    def greet() -> Response:
+        """Greet, answering JSON by hand."""
+        return jsonify({"text": "hello"})
+
+    @app.post("/skip")
+    def skip() -> Response:
+        """Succeed without reading the body."""
+        return model_response(Greeted(text="unread"))
+
+    @app.get("/richer")
+    def richer() -> Response:
+        """Refuse with a failure richer than the error shape."""
+        return model_response(RicherFailure(detail="no", kind="busy"), 409)
+
+    register_api_schema_route(
+        app, "/api/schema", title="Handmade", description="x", route_table=route_table
+    )
+    return app
+
+
+_HANDMADE_TABLE = {
+    ("POST", "/greet"): RouteModels(response_model=Greeted),
+    ("POST", "/skip"): RouteModels(request_model=Greeting, response_model=Greeted),
+    ("GET", "/richer"): RouteModels(response_model=Greeted),
+}
+
+
+def test_a_modelled_route_that_answers_json_by_hand_fails_the_request() -> None:
+    client = _handmade(_HANDMADE_TABLE).test_client()
+
+    with pytest.raises(
+        RouteModelsMismatchError, match="answered JSON without model_response"
+    ):
+        client.post("/greet", json={})
+
+
+def test_a_modelled_route_that_succeeds_without_reading_its_body_fails_the_request() -> (
+    None
+):
+    client = _handmade(_HANDMADE_TABLE).test_client()
+
+    with pytest.raises(
+        RouteModelsMismatchError,
+        match="without reading its body through parse_request_body",
+    ):
+        client.post("/skip", json={"name": "Kim"})
+
+
+def test_a_failure_richer_than_the_error_shape_must_be_listed() -> None:
+    client = _handmade(_HANDMADE_TABLE).test_client()
+
+    with pytest.raises(
+        RouteModelsMismatchError, match="answers RicherFailure under 409"
+    ):
+        client.get("/richer")
+
+    listed = {
+        **_HANDMADE_TABLE,
+        ("GET", "/richer"): RouteModels(
+            response_model=Greeted,
+            alternate_responses=(AlternateResponse(status=409, model=RicherFailure),),
+        ),
+    }
+    refused = _handmade(listed).test_client().get("/richer")
+    assert (refused.status_code, refused.get_json()) == (
+        409,
+        {"detail": "no", "kind": "busy"},
+    )
+
+
+def test_a_table_registered_on_a_blueprint_guards_a_view_on_the_app_too() -> None:
+    blueprint = Blueprint("pages", __name__)
+    register_api_schema_route(
+        blueprint,
+        "/api/schema",
+        title="Split",
+        description="x",
+        route_table={
+            ("POST", "/greet"): RouteModels(
+                request_model=Greeting, response_model=Greeted
+            ),
+        },
+    )
+    app = Flask("split", static_folder=None)
+    app.config["PROPAGATE_EXCEPTIONS"] = True
+    app.register_blueprint(blueprint)
+
+    @app.post("/greet")
+    def greet() -> Response:
+        """Greet from the app itself."""
+        return model_response(Greeted(text=parse_request_body(Greeting).name))
+
+    client = app.test_client()
+    assert client.post("/greet", json={"name": "Kim"}).get_json() == {"text": "Kim"}
+    refused = client.post("/greet", json={"title": "x"})
+    assert (refused.status_code, refused.get_json()) == (
+        400,
+        {"detail": "field 'name': Field required"},
+    )
