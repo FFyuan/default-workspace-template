@@ -301,13 +301,13 @@ def register_agent_routes(
     @app.get("/_agent/helper")
     def helper() -> Response:
         try:
-            text = HELPER_PATH.read_bytes()
+            source = HELPER_PATH.read_bytes()
         except OSError:
             return _error("the helper is not available on this workspace", 404)
-        response = Response(text, mimetype="application/javascript")
+        response = Response(source, mimetype="application/javascript")
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Helper-Version"] = template_ref(context.repo_root)
-        response.headers["X-Helper-SHA256"] = hashlib.sha256(text).hexdigest()
+        response.headers["X-Helper-SHA256"] = hashlib.sha256(source).hexdigest()
         return response
 
     @app.post("/_agent/join")
