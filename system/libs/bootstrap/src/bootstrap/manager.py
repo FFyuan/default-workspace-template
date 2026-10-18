@@ -22,7 +22,7 @@ import subprocess
 import time
 import urllib.request
 import uuid
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -907,7 +907,7 @@ def _emit_bootstrap_event(
 
 
 @contextmanager
-def _bootstrap_step(step: str, label: str) -> Iterator[None]:
+def _bootstrap_step(step: str, label: str) -> Generator[None, None, None]:
     """Announce a boot step starting and, once the block exits normally, completing with its duration."""
     _emit_bootstrap_event(BOOTSTRAP_STEP_STARTED_EVENT, step, label, None)
     started_at = time.monotonic()
