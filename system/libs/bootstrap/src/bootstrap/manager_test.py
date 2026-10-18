@@ -840,6 +840,11 @@ def test_a_partial_restore_at_boot_is_an_error_that_still_wakes_the_dri_agent(
     assert any("could not put the pre-apply state back" in line for line in errors)
 
 
+def _agent_state_dir(tmp_path: Path) -> Path:
+    """Where a boot prepared by ``_prepare_boot`` records its step events."""
+    return tmp_path / "agent-state"
+
+
 def _prepare_boot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _StubSubprocess:
     """A ``main()`` run that touches nothing real: an ephemeral cwd holding an apply
     marker for agent-omega, a subprocess stub that models the rollback clearing it, and
@@ -847,9 +852,12 @@ def _prepare_boot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _StubSubpr
     since each test watches it differently."""
     # chdir into tmp_path so the marker and signal files land somewhere
     # ephemeral; MNGR_AGENT_WORK_DIR is unset so the git-identity and
-    # main-branch steps short-circuit.
+    # main-branch steps short-circuit; MNGR_AGENT_STATE_DIR points into tmp_path
+    # so the boot's step events never land in the state dir of the agent
+    # running this suite.
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MNGR_AGENT_WORK_DIR", raising=False)
+    monkeypatch.setenv("MNGR_AGENT_STATE_DIR", str(_agent_state_dir(tmp_path)))
     _write_apply_marker("agent-omega")
     stub = _StubSubprocess()
     stub.on_command = _clear_marker_on_recover
@@ -892,12 +900,10 @@ def test_main_announces_each_boot_step_to_the_agent_events_in_order(
     # boot runs them, and the hand-off to supervisord is the last event.
     _prepare_boot(monkeypatch, tmp_path)
     monkeypatch.setattr("bootstrap.manager._exec_supervisord", lambda: None)
-    state_dir = tmp_path / "agent-state"
-    monkeypatch.setenv("MNGR_AGENT_STATE_DIR", str(state_dir))
 
     main()
 
-    lines = (state_dir / BOOTSTRAP_EVENTS_RELATIVE_PATH).read_text().splitlines()
+    lines = (_agent_state_dir(tmp_path) / BOOTSTRAP_EVENTS_RELATIVE_PATH).read_text().splitlines()
     events = [json.loads(line) for line in lines]
     assert all(event["source"] == "bootstrap" for event in events)
     assert all(
