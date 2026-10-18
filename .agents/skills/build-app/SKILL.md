@@ -426,7 +426,8 @@ automatically; what each route owes it is:
 - An entry in `ROUTE_TABLE`, keyed by `(method, path)` with path parameters
   in `{name}` form. A route that reads or answers JSON gets
   `RouteModels(request_model=..., response_model=..., success_status=...)`
-  (plus `alternate_responses` for a second success under another status),
+  (plus `alternate_responses` for a second success under another status, or a
+  failure whose answer is a model richer than the error shape),
   and the view reads its body only through
   `app_schema.routes.parse_request_body(Model)` and answers only through
   `app_schema.routes.model_response(model, status)`; a refusal or a failure is
