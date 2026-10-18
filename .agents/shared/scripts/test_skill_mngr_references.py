@@ -35,9 +35,9 @@ _SKILL_MD_ROOTS = (_REPO_ROOT / ".agents" / "skills", _REPO_ROOT / ".agents" / "
 # register_cli_commands pluggy hook and are not part of the base CLI that the
 # test venv installs, so we cannot resolve them against ``cli`` -- but they are
 # still valid things for a skill to reference. Keep this list to commands
-# actually mentioned in skill prose (the vendored imbue-studio skill names the
-# last two; the mngr repository's own drift test holds that skill to its live
-# CLI, plugins included).
+# actually mentioned in skill prose. The vendored imbue-studio skill's commands
+# are held to the live CLI, plugins included, by the mngr repository's own
+# drift test.
 _KNOWN_PLUGIN_SUBCOMMANDS = frozenset({"file", "wait", "imbue_cloud", "latchkey"})
 
 _INLINE_CODE = re.compile(r"`([^`\n]+)`")
