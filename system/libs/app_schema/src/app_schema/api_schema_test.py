@@ -365,6 +365,7 @@ def test_several_models_under_one_status_are_published_as_a_choice() -> None:
                 alternate_responses=(
                     AlternateResponse(status=200, model=NoteCreated),
                     AlternateResponse(status=204),
+                    AlternateResponse(status=502, model=NoteRecord),
                 ),
             )
         },
@@ -379,3 +380,11 @@ def test_several_models_under_one_status_are_published_as_a_choice() -> None:
         ]
     }
     assert "content" not in responses["204"]
+    # A failure status that answers a model is listed with its schema, and not called a success.
+    assert responses["502"]["description"] == "Failure"
+    assert responses["502"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/NoteRecord"
+    }
+    assert (
+        responses["200"]["description"] == responses["204"]["description"] == "Success"
+    )

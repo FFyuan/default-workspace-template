@@ -20,8 +20,10 @@ for every operation:
   for a route that exchanges JSON: the pydantic model it validates its body
   with (None for a route that takes no body), the model it answers (None for
   an answer with no body, such as a 204), the status of that answer, and any
-  other success it can answer under another status. These are published as
-  the operation's request and response schemas. A view that must read its
+  other answer it can give under another status (a second success, or a
+  failure whose answer is a model richer than `ErrorResponse`, which the
+  document describes as a failure). These are published as the operation's
+  request and response schemas. A view that must read its
   body itself (a parser whose refusals are its own contract, or a byte-capped
   read of the stream) adds `is_body_parsed_by_view=True`: the request model
   then documents the body's shape without parsing it, `parse_request_body`

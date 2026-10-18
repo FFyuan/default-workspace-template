@@ -58,7 +58,12 @@ class ErrorResponse(FrozenModel):
 
 
 class AlternateResponse(FrozenModel):
-    """A second success a route can answer with: another model, another status, or both."""
+    """Another answer a route can give: another model, another status, or both.
+
+    Usually a second success; a failure status whose answer is a model richer
+    than ``ErrorResponse`` (a relay's 502 listing each delivery) is listed the
+    same way, and the document describes it as a failure.
+    """
 
     status: int = Field(description="The HTTP status of this answer")
     model: type[BaseModel] | None = Field(
@@ -82,8 +87,8 @@ class RouteModels(FrozenModel):
     )
     alternate_responses: tuple[AlternateResponse, ...] = Field(
         default=(),
-        description="The other successes the route can answer; several models under one status are published "
-        "as a choice between them",
+        description="The other answers the route can give (a second success, or a failure whose answer is a "
+        "model richer than ErrorResponse); several models under one status are published as a choice between them",
     )
     is_body_parsed_by_view: bool = Field(
         default=False,
@@ -143,8 +148,13 @@ def _json_content(model: type[BaseModel]) -> dict[str, object]:
     return {"application/json": {"schema": _schema_reference(model)}}
 
 
+def _is_success_status(status: int) -> bool:
+    return 200 <= status < 300
+
+
 def _success_responses(models: RouteModels) -> dict[str, object]:
-    """One response per success status; a status several models answer offers the choice between them."""
+    """One response per listed status (described as a success or a failure by its class); a status several models
+    answer offers the choice between them."""
     models_by_status: dict[int, list[type[BaseModel]]] = {models.success_status: []}
     if models.response_model is not None:
         models_by_status[models.success_status].append(models.response_model)
@@ -154,7 +164,9 @@ def _success_responses(models: RouteModels) -> dict[str, object]:
             answers.append(alternate.model)
     responses: dict[str, object] = {}
     for status, answers in models_by_status.items():
-        response: dict[str, object] = {"description": "Success"}
+        response: dict[str, object] = {
+            "description": "Success" if _is_success_status(status) else "Failure"
+        }
         if len(answers) == 1:
             response["content"] = _json_content(answers[0])
         elif answers:
