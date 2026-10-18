@@ -232,7 +232,6 @@ def test_cmd_handoff_not_owner_still_tells_agent_to_stop(monkeypatch: pytest.Mon
 @pytest.mark.parametrize(
     "command",
     [
-        pytest.param(lambda: fleet._action("alex-smith", "acquire", "acquire"), id="action"),
         pytest.param(lambda: fleet.cmd_acquire(fleet._build_parser().parse_args(["acquire", "alex-smith"])), id="acquire"),
         pytest.param(lambda: fleet.cmd_handoff(fleet._build_parser().parse_args(["handoff", "alex-smith"])), id="handoff"),
     ],

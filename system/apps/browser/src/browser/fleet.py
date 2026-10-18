@@ -484,18 +484,6 @@ def _refusal_exit_code(status: int, payload: dict[str, Any], browser_name: str) 
     return None
 
 
-def _action(browser_name: str, verb: str, kind: str, body: dict[str, Any] | None = None) -> int:
-    status, payload = _request("POST", f"/browsers/{browser_name}/{verb}", body or {})
-    refused = _refusal_exit_code(status, payload, browser_name)
-    if refused is not None:
-        return refused
-    # The first command for a browser (and the first after a human hands it back)
-    # opens its viewer as a window on your desktop, so the human can watch.
-    if payload.get("newly_acquired"):
-        _open_viewer_window(browser_name, is_minimized=True)
-    return _render_action(payload, browser_name, kind)
-
-
 def cmd_acquire(args: argparse.Namespace) -> int:
     status, payload = _request("POST", f"/browsers/{args.name}/acquire", {"reclaim": args.reclaim})
     refused = _refusal_exit_code(status, payload, args.name)
