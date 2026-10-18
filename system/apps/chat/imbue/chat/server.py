@@ -1765,7 +1765,7 @@ def _resolve_intake_account(intake: IntakeRequest) -> str | Response | None:
 
 def _deliver_intake_send(state: ChatAppState, chat_id: ChatId, intake: IntakeRequest) -> _SendRefused | None:
     """Send an intake's text to a chat that is an agent through the ordinary send path; None when it landed (or was
-    held for a converging chat), else the message route's own failure response."""
+    held for a converging chat), else the refusal: what the message route would answer, and under which status."""
     message_id = uuid4().hex
     send_message_request = SendMessageRequest(
         message=intake.message, message_id=message_id, client_id=intake.client_id, desktop_id=intake.desktop_id
