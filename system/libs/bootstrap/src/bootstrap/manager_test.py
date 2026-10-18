@@ -16,6 +16,10 @@ from mngr_cli_contract.contract import assert_mngr_argv_valid
 from bootstrap.manager import (
     _DRI_WAKE_TIMEOUT_SECONDS,
     _UPDATE_RECOVER_TIMEOUT_SECONDS,
+    BOOTSTRAP_COMPLETED_EVENT,
+    BOOTSTRAP_EVENTS_RELATIVE_PATH,
+    BOOTSTRAP_STEP_COMPLETED_EVENT,
+    BOOTSTRAP_STEP_STARTED_EVENT,
     UPDATE_APPLY_MARKER,
     UPDATE_APPLY_SCRIPT,
     UPDATE_RECOVER_CRON_NAME,
@@ -878,6 +882,69 @@ def test_main_rolls_back_before_the_venv_sync_and_wakes_the_agent_after_it(
     sync_index = stub.calls.index(["uv", "sync", "--all-packages", "--frozen"])
     wake_index = stub.calls.index(["mngr", "start", "agent-omega"])
     assert recover_index < sync_index < wake_index
+
+
+def test_main_announces_each_boot_step_to_the_agent_events_in_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The desktop that created the workspace tails these events to show the boot's
+    # progress, so every step reports a start and a completion, in the order the
+    # boot runs them, and the hand-off to supervisord is the last event.
+    _prepare_boot(monkeypatch, tmp_path)
+    monkeypatch.setattr("bootstrap.manager._exec_supervisord", lambda: None)
+    state_dir = tmp_path / "agent-state"
+    monkeypatch.setenv("MNGR_AGENT_STATE_DIR", str(state_dir))
+
+    main()
+
+    lines = (state_dir / BOOTSTRAP_EVENTS_RELATIVE_PATH).read_text().splitlines()
+    events = [json.loads(line) for line in lines]
+    assert all(event["source"] == "bootstrap" for event in events)
+    assert len({event["event_id"] for event in events}) == len(events)
+    started = [
+        event["step"]
+        for event in events
+        if event["type"] == BOOTSTRAP_STEP_STARTED_EVENT
+    ]
+    completed = [
+        event["step"]
+        for event in events
+        if event["type"] == BOOTSTRAP_STEP_COMPLETED_EVENT
+    ]
+    assert started == [
+        "migrate_claude_state",
+        "configure_git",
+        "recover_update",
+        "initialize_main_branch",
+        "sync_venv",
+        "set_timezone",
+        "converge_environment",
+        "install_cron",
+    ]
+    assert completed == started
+    assert all(
+        "duration_seconds" in event
+        for event in events
+        if event["type"] == BOOTSTRAP_STEP_COMPLETED_EVENT
+    )
+    assert events[-1]["type"] == BOOTSTRAP_COMPLETED_EVENT
+    assert [event["type"] for event in events[:2]] == [
+        BOOTSTRAP_STEP_STARTED_EVENT,
+        BOOTSTRAP_STEP_COMPLETED_EVENT,
+    ]
+
+
+def test_main_boots_without_an_agent_state_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A bare dev run has no agent state dir: the boot runs exactly as before and records nothing.
+    _prepare_boot(monkeypatch, tmp_path)
+    monkeypatch.setattr("bootstrap.manager._exec_supervisord", lambda: None)
+    monkeypatch.delenv("MNGR_AGENT_STATE_DIR", raising=False)
+
+    main()
+
+    assert not list(tmp_path.rglob("events.jsonl"))
 
 
 def test_recover_names_nobody_when_the_marker_recorded_no_agent(
