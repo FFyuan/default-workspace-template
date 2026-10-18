@@ -90,7 +90,6 @@ def resolve_wallpaper_file(wallpaper: Wallpaper, directories: WallpaperDirectori
     return None
 
 
-@pure
 class WallpapersListing(FrozenModel):
     """What ``GET /api/wallpapers`` answers: every wallpaper a desktop can wear."""
 
