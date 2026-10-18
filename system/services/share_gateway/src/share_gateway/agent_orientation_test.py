@@ -12,10 +12,10 @@ from share_gateway.agent_orientation import build_skills_index
 from share_gateway.agent_orientation import cached_skills_index
 from share_gateway.agent_orientation import helper_source_url
 from share_gateway.agent_orientation import render_instruction_block
-from share_gateway.agent_orientation import template_source_ref
 from share_gateway.agent_orientation import render_primer
 from share_gateway.agent_orientation import summarize_connected_accounts
 from share_gateway.agent_orientation import template_ref
+from share_gateway.agent_orientation import template_source_ref
 from share_gateway.caddyfile import RegisteredApp
 from share_gateway.testing import commit_all
 from share_gateway.testing import git_output

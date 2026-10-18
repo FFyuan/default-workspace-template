@@ -16,8 +16,9 @@ from share_gateway.agent_access import AgentAccessPaths
 from share_gateway.agent_access import LastSeenStore
 from share_gateway.agent_access import mint_invite
 from share_gateway.agent_grants import load_agent_grants
+from share_gateway.agent_orientation import HELPER_PATH
 from share_gateway.agent_orientation import helper_source_url
-from share_gateway.agent_routes import HELPER_PATH
+from share_gateway.agent_orientation import template_ref
 from share_gateway.agent_routes import AgentAccessContext
 from share_gateway.agent_routes import JoinRateLimiter
 from share_gateway.agent_workspace import WorkspaceCoordinates
@@ -156,7 +157,7 @@ def test_join_answers_the_access_document_for_workspace_scope(tmp_path: Path) ->
     assert [app["name"] for app in document["apps"]] == ["chat", "files"]
     assert document["primer_url"] == f"https://{_AUTH_HOST}/_agent/primer"
     assert document["helper"] == {
-        "version": document["helper"]["version"],
+        "version": template_ref(harness.context.repo_root),
         "source_url": helper_source_url(harness.context.repo_root),
         "sha256": hashlib.sha256(HELPER_PATH.read_bytes()).hexdigest(),
     }
@@ -260,6 +261,7 @@ def test_me_requires_a_live_token_and_repeats_the_coordinates(tmp_path: Path) ->
     me = harness.client.get("/_agent/me", headers=bearer(document)).get_json()
     assert "token" not in me
     assert me["exec"] == document["exec"] and me["agent_id"] == document["agent_id"]
+    assert me["helper"] == document["helper"]
     assert harness.context.last_seen.read_all()[str(document["agent_id"])] == _NOW.isoformat()
 
 
