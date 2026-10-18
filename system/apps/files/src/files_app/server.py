@@ -70,7 +70,11 @@ _FILE_VERBS: Final[dict[str, str]] = {
 ROUTE_TABLE: RouteTable = {
     ("GET", f"{API_PREFIX}/connections"): RouteModels(response_model=Connections),
     ("GET", f"{ASSETS_PREFIX}/{{name}}"): SchemalessRoute(reason="a file of the frontend's build"),
-    **{(method, path): SchemalessRoute(reason=reason) for path in _WORKSPACE_PATHS for method, reason in _FILE_VERBS.items()},
+    **{
+        (method, path): SchemalessRoute(reason=reason)
+        for path in _WORKSPACE_PATHS
+        for method, reason in _FILE_VERBS.items()
+    },
     **{
         (method, path): SchemalessRoute(reason=f"{reason}, read live from the computer the path is on")
         for path in _REMOTE_PATHS
