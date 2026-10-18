@@ -328,7 +328,7 @@ def relay_embedder_message() -> ResponseReturnValue:
     views = tuple(message_delivery_view(delivery) for delivery in deliveries)
     undelivered = [delivery for delivery in deliveries if not delivery.is_delivered]
     if not undelivered:
-        return model_response(EmbedderMessageRelayResponse(type=str(relayed.type), deliveries=views))
+        return model_response(EmbedderMessageRelayResponse(type=str(relayed.type), deliveries=views, detail=None))
     detail = "; ".join(f"{delivery.app} did not take it: {delivery.detail}" for delivery in undelivered)
     return model_response(
         EmbedderMessageRelayResponse(type=str(relayed.type), deliveries=views, detail=detail), HTTP_BAD_GATEWAY

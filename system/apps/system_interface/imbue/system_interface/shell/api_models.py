@@ -72,11 +72,11 @@ class MessageDeliveryView(FrozenModel):
         "not be reached or the page not built or shown"
     )
     detail: str = Field(description="Empty when delivered; otherwise why the app did not take the message")
-    shown: ShowOutcome | None = Field(default=None, description="For a page shown: which way the show went")
+    shown: ShowOutcome | None = Field(description="For a page shown: which way the show went; null otherwise")
     has_no_desktop_window: bool | None = Field(
-        default=None, description="For a page shown: whether the client's only open windows are pop-outs"
+        description="For a page shown: whether the client's only open windows are pop-outs; null otherwise"
     )
-    window_id: str | None = Field(default=None, description="For a page shown: the window showing it")
+    window_id: str | None = Field(description="For a page shown: the window showing it; null otherwise")
 
 
 class EmbedderMessageRelayResponse(FrozenModel):
@@ -84,7 +84,9 @@ class EmbedderMessageRelayResponse(FrozenModel):
 
     type: str = Field(description="The message type relayed")
     deliveries: tuple[MessageDeliveryView, ...] = Field(description="One per app registered for the type")
-    detail: str | None = Field(default=None, description="Under 502: which apps did not take the message, and why")
+    detail: str | None = Field(
+        description="Under 502: which apps did not take the message, and why; null when every app took it"
+    )
 
 
 class PendingUpdateResponse(FrozenModel):
