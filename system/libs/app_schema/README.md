@@ -21,7 +21,11 @@ for every operation:
   with (None for a route that takes no body), the model it answers (None for
   an answer with no body, such as a 204), the status of that answer, and any
   other success it can answer under another status. These are published as
-  the operation's request and response schemas.
+  the operation's request and response schemas. A view that must read its
+  body itself (a parser whose refusals are its own contract, or a byte-capped
+  read of the stream) adds `is_body_parsed_by_view=True`: the request model
+  then documents the body's shape without parsing it, `parse_request_body`
+  refuses on that route, and the assertion does not require the helper there.
 - `SchemalessRoute(reason=...)` for a route that exchanges no JSON by design:
   a page, a file, a stream, a socket. The reason goes into the
   document as the operation's `x-no-schema`.
