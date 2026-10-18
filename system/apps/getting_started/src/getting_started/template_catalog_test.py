@@ -81,7 +81,7 @@ def test_thumbnails_resolve_against_the_catalog_url() -> None:
     assert resolve_thumbnail_url(_CATALOG_URL, "") == ""
 
 
-def test_wire_json_carries_resolved_thumbnail_urls_and_the_shelves() -> None:
+def test_the_catalog_wire_carries_resolved_thumbnail_urls_and_the_shelves() -> None:
     catalog = parse_template_catalog(
         catalog_document(
             catalog_template_document("inbox"),
