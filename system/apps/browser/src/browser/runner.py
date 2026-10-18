@@ -236,8 +236,8 @@ application.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 sock = Sock(application)
 
 # Init gate: cleared at import, set when startup restore finishes (always, even on
-# failure -- see _startup). State-changing routes return 503 "initializing" until
-# then; read-only routes (state/ls/health) stay open so the user can watch the
+# failure -- see _startup). State-changing routes answer a 503 whose detail says the
+# fleet is still restoring until then; read-only routes (state/ls/health) stay open so the user can watch the
 # fleet come back. A threading.Event (not asyncio.Event) because it is read on
 # Flask threads and set from the loop's _startup finally -- both thread-safe.
 _init_done = threading.Event()
@@ -624,8 +624,8 @@ def _direct_target(
 ) -> "tuple[LiveBrowser, str, str | None] | Response":
     """Resolve (browser, agent_id, agent_name) for an ownership command, or an error Response.
 
-    ``gated`` (default True) blocks the command with 503 "initializing" while the fleet is
-    still restoring. Note this is the ONLY place agent identity is read: it comes from the
+    ``gated`` (default True) blocks the command with the 503 that says the fleet is still
+    restoring. Note this is the ONLY place agent identity is read: it comes from the
     ``X-Mngr-Agent-Id`` header the fleet CLI sets. A raw CDP client sends no such header,
     which is exactly why the proxy authenticates with a capability token instead.
     """
