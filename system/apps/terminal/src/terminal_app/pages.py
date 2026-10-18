@@ -24,6 +24,7 @@ from app_schema.api_schema import (
     RouteModels,
     RouteTable,
     SchemalessRoute,
+    flask_rule_to_openapi_path,
     register_api_schema_route,
 )
 from app_schema.routes import error_response, model_response, parse_request_body
