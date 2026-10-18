@@ -9,17 +9,14 @@ import type { ShellConnection } from "@imbue/workspace-ui/src/app_contract";
 import type { ActionRow, MenuRow } from "@imbue/workspace-ui/src/components/menu";
 import type { IconName } from "@imbue/workspace-ui/src/components/icons";
 
-import { downloadUrlOf, pageUrlOf, urlOf, type Entry, type Listing } from "../models/dufs";
+import { downloadUrlOf, pageUrlOf, urlOf, type Entry, type Listing } from "../models/server";
 import { FilesModel, type HistoryMode } from "../models/FilesModel";
 import { isTextLike } from "../models/fileKinds";
-import { decodePathname, nameOf, titleOf } from "../models/paths";
+import { decodePathname, titleOf } from "../models/paths";
 import { sourcesFromFileList } from "../models/uploads";
-import { requestConnection, type DroppedItem, type PendingConnection } from "../models/connections";
+import { isLiveShared } from "../models/connections";
 import { Dialogs } from "./dialogs";
-
-/** After asking to connect something, how often and how long the list is read again for the approval. */
-const CONNECTION_POLL_MS = 3000;
-const CONNECTION_POLLS = 40;
+import { startDownload } from "./download";
 
 /** Below this width the window lays itself out for a phone: one tap opens, and there is no column view. */
 export const NARROW_QUERY = "(max-width: 700px)";
@@ -83,11 +80,13 @@ export class FilesController {
         openFile: (path) => this.openPage(path, "view"),
         confirmDelete: (entries) => this.dialogs.confirmDelete(entries),
         confirmReplace: (names) => this.dialogs.confirmReplace(names),
+        askNewName: (suggested, isFolder) => this.dialogs.askNewName(suggested, isFolder),
       },
       folder,
       initial,
     );
-    win.history.replaceState({ index: 0 }, "", win.location.pathname);
+    // The folder's own address, slash and all: a page reached at `/a/b?view` would otherwise come back as `/a/b`.
+    win.history.replaceState({ index: 0 }, "", urlOf(folder));
     win.addEventListener("popstate", (event) => {
       const index = typeof event.state?.index === "number" ? (event.state.index as number) : 0;
       this.model.restore(decodePathname(win.location.pathname), index);
@@ -132,12 +131,8 @@ export class FilesController {
 
   download(entries: readonly Entry[]): void {
     for (const entry of entries) {
-      const anchor = this.win.document.createElement("a");
-      anchor.href = downloadUrlOf(entry.path, entry.isFolder);
-      anchor.download = entry.isFolder ? `${entry.name}.zip` : entry.name;
-      this.win.document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+      const filename = entry.isFolder ? `${entry.name}.zip` : entry.name;
+      startDownload(this.win.document, downloadUrlOf(entry.path, entry.isFolder), filename);
     }
   }
 
@@ -147,47 +142,6 @@ export class FilesController {
     } catch {
       this.model.toasts.show("Couldn't copy to the clipboard.");
     }
-  }
-
-  /** Ask the user what to connect, then ask their computer: Imbue Studio shows its sharing dialog there. The list
-   *  is read again for a while after, so an approval shows up without a reload. */
-  /** Connections asked for and not yet approved, each shown as a waiting row in the sidebar. */
-  pending: PendingConnection[] = [];
-  /** Whether something from the user's computer is being dragged over the Connected section. */
-  isConnectDropping = false;
-
-  /** Ask a computer to share something, from the connect entry or an item dropped on Connected. */
-  async connectLocal(dropped: DroppedItem | null = null): Promise<void> {
-    const ask = await this.dialogs.askConnection(this.model.connections?.devices ?? [], dropped);
-    if (ask === null) return;
-    try {
-      await requestConnection(ask);
-    } catch (error) {
-      this.model.toasts.show(error instanceof Error ? error.message : String(error));
-      return;
-    }
-    const name = nameOf(ask.path) || ask.path;
-    const waiting: PendingConnection = { key: `${Date.now()}:${ask.path}`, name, isFolder: dropped?.isFolder ?? true };
-    this.pending = [...this.pending, waiting];
-    this.model.toasts.show("Approve it in Imbue Studio on your computer.");
-    void this.watchForApproval(waiting);
-  }
-
-  /** Look for the new share for a while, then drop the waiting row whether or not it came. */
-  private async watchForApproval(waiting: PendingConnection): Promise<void> {
-    const before = this.model.connections?.shares.length ?? 0;
-    for (let attempt = 0; attempt < CONNECTION_POLLS; attempt += 1) {
-      await new Promise((resolve) => this.win.setTimeout(resolve, CONNECTION_POLL_MS));
-      await this.model.loadConnections();
-      if ((this.model.connections?.shares.length ?? 0) !== before) break;
-    }
-    this.pending = this.pending.filter((item) => item !== waiting);
-    m.redraw();
-  }
-
-  /** Each item dropped on Connected, asked about one after another. */
-  async connectDropped(items: readonly DroppedItem[]): Promise<void> {
-    for (const item of items) await this.connectLocal(item);
   }
 
   /** Let the user pick files (or a whole folder) to upload into `folder`. */
@@ -212,7 +166,7 @@ export class FilesController {
       opening.push({
         key: "open",
         label: "Open",
-        icon: single.isFolder ? "folder" : "file",
+        icon: single.isFolder ? "folder" : "page",
         run: () => model.open(single),
       });
       if (single.isFolder && this.connection.isFramed && !this.isNarrow) {
@@ -227,15 +181,16 @@ export class FilesController {
         opening.push({ key: "edit", label: "Edit", icon: "edit", run: () => this.openPage(single.path, "edit") });
       }
     }
-    const handling: FilesAction[] = [
-      {
+    const handling: FilesAction[] = [];
+    if (!entries.some((entry) => entry.isFolder && isLiveShared(entry.path))) {
+      handling.push({
         key: "download",
         label: single?.isFolder === true ? "Download as ZIP" : "Download",
         icon: "download",
         run: () => this.download(entries),
-      },
-    ];
-    if (single !== null) {
+      });
+    }
+    if (single !== null && !isLiveShared(single.path)) {
       handling.push({ key: "rename", label: "Rename", icon: "edit", run: () => model.startRename(single.path) });
     }
     handling.push({

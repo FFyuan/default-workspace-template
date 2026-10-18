@@ -82,7 +82,7 @@ const STROKE_PATHS = {
   edit: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
   "folder-plus":
     '<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
-  // The Files app's chrome: its view switcher, history arrows, shortcuts, and the verbs of its menus. All lucide.
+  // The Files app's chrome: its view switcher, its sidebar's shortcuts and shares, and the verbs of its menus. All lucide.
   "layout-grid":
     '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
   list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
@@ -90,14 +90,15 @@ const STROKE_PATHS = {
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   upload:
     '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
-  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   // A laptop struck through: a computer that is not answering.
   "laptop-off": '<rect x="4" y="5" width="16" height="10.5" rx="1.5"/><path d="M2 19h20"/><path d="m2 2 20 20"/>',
   "panel-left": '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   ellipsis: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  // Folder and page in the Files app icon's hand: no edge quite straight (system/apps/files/icon.svg).
   folder:
-    '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+    '<path d="M5.34 3.72C7.32 3.67 8.61 3.72 9.46 3.81C10.45 3.91 10.97 4.43 11.54 5.28C12.11 6.13 12.44 6.56 13.34 6.61C15.22 6.7 17.72 6.51 19.66 6.61C21.27 6.7 22.09 7.93 21.99 9.49C21.85 12.04 21.47 15.26 21.04 17.77C20.76 19.38 19.77 20.18 17.97 20.23C13.81 20.32 8.37 20.32 4.72 20.18C2.97 20.09 2.23 19.52 2.11 17.77C1.79 13.39 2.26 9.21 2.5 6.56C2.64 4.71 3.54 3.77 5.34 3.72Z"/>',
+  page: '<path d="M6.46 2.1C8.94 1.94 11.5 1.97 13.76 2.05C14.3 2.06 14.66 2.23 15.04 2.6L18.66 6.28C19 6.64 19.15 7.01 19.15 7.55C19.22 11.28 18.84 16.28 18.14 20.32C18.05 21.5 17.4 21.97 16.32 22.03C13.22 22.13 9.26 21.77 6.6 21.61C5.52 21.52 4.94 20.98 4.85 19.94C4.67 16.32 4.69 9.8 4.89 3.77C4.93 2.64 5.43 2.15 6.46 2.1Z"/><path d="M13.85 2.12C14.07 3.61 14.03 4.91 14.12 5.93C14.2 6.73 14.59 7.1 15.4 7.16C16.61 7.23 17.92 7.18 19.09 7.23"/>',
   house:
     '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   inbox:
@@ -131,26 +132,6 @@ export function icon(name: IconName, opts: IconOptions = {}): string {
     `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" ${paint} ` +
     `stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
     `${STROKE_PATHS[name]}</svg>`
-  );
-}
-
-let badgeMaskCount = 0;
-
-/** `name` with `badge` small at its bottom-right corner, hanging past it, in the same colour and weight, the icon
- *  cut away in a circle around it so the two never touch. */
-export function badgedIcon(name: IconName, badge: IconName, opts: IconOptions = {}): string {
-  const dims = opts.size === undefined ? "" : ` width="${opts.size}" height="${opts.size}"`;
-  const cls = opts.className ? ` class="${opts.className}"` : "";
-  const mask = `icon-badge-${(badgeMaskCount += 1)}`;
-  return (
-    `<svg xmlns="${XMLNS}"${cls}${dims} viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
-    `stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" overflow="visible" aria-hidden="true">` +
-    // The badge is 9/16 of the icon and hangs a little past its bottom-right corner. The icon is cut away in a
-    // square there whose edges fall on whole pixels at 16px (9px in, 8px down), clipped rather than masked,
-    // so the lines it crosses end sharp; a round cut, or a mask, leaves their ends blurred.
-    `<clipPath id="${mask}"><path clip-rule="evenodd" d="M-4-4h36v36h-36zM13.5 12h24v24h-24z"/></clipPath>` +
-    `<g clip-path="url(#${mask})">${STROKE_PATHS[name]}</g>` +
-    `<g transform="translate(15 13.5) scale(0.5625)" stroke-width="2.6">${STROKE_PATHS[badge]}</g></svg>`
   );
 }
 

@@ -4187,17 +4187,17 @@ def test_provisioner_inputs_are_read_off_the_entry_point(tmp_path: Path) -> None
         'bash "$sources_dir/write_apt_sources.sh"\n'
         "# Keep the pins in sync with seed_home_skeleton.sh.\n"
         'bash /tmp/install_claude.sh "${CLAUDE_CODE_VERSION}"\n'
-        'if [ -f "$setup_dir/install_dufs.sh" ]; then\n'
-        '    bash "$setup_dir/install_dufs.sh"\n'
+        'if [ -f "$setup_dir/install_earlyoom.sh" ]; then\n'
+        '    bash "$setup_dir/install_earlyoom.sh"\n'
         "else\n"
-        '    bash "$setup_dir/default-workspace-template-install-dufs"\n'
+        '    bash "$setup_dir/default-workspace-template-install-earlyoom"\n'
         "fi\n"
     )
     for name in (
         "_provision_guard.sh",
         "write_apt_sources.sh",
         "seed_home_skeleton.sh",
-        "install_dufs.sh",
+        "install_earlyoom.sh",
     ):
         (scripts / name).write_text("")
 
@@ -4208,7 +4208,7 @@ def test_provisioner_inputs_are_read_off_the_entry_point(tmp_path: Path) -> None
         "system/scripts/_provision_guard.sh",
         "system/scripts/write_apt_sources.sh",
         # Run, inside a branch.
-        "system/scripts/install_dufs.sh",
+        "system/scripts/install_earlyoom.sh",
         # Not: mentioned only in a comment (seed_home_skeleton.sh), a /tmp
         # download (install_claude.sh), an image-baked name without a sibling.
     }

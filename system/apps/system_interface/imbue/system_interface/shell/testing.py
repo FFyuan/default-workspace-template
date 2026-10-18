@@ -1,9 +1,11 @@
 """Test helpers for the shell subpackage: registry rows and files, an inventory over them, and desktop records."""
 
 import json
+import os
 import queue
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable
 from collections.abc import Generator
 from collections.abc import Mapping
@@ -514,35 +516,33 @@ def read_stub_update_self_calls(repo_root: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line]
 
 
-# Files (``system/apps/files``): dufs, a binary the workspace image installs, serving the Files frontend's build. Tests
-# that run the real Files skip where dufs is not installed.
+# Files (``system/apps/files``): its server, serving the Files frontend's build.
 FILES_APP_DIRECTORY: Final[Path] = Path(__file__).resolve().parents[4] / "files"
-DUFS_BINARY: Final[str | None] = shutil.which("dufs")
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[6]
-# The workspace's own path, where Files' "not found" page imports the shell's app contract module from: dufs serves
+# The workspace's own path, where Files' "not found" page imports the shell's app contract module from: Files serves
 # the filesystem root, so the module's path there is its URL.
 _WORKSPACE_ROOT: Final[PurePosixPath] = PurePosixPath("/home/user/workspace")
 
 
 @contextmanager
 def running_files(root: Path) -> Generator[str, None, None]:
-    """Run dufs over ``root`` as Files runs it over ``/``, with the Files frontend's build as its assets and the shell's
-    built app contract module at its workspace path under ``root``; yields its loopback URL."""
-    assert DUFS_BINARY is not None, "dufs is not installed"
+    """Run Files over ``root`` as it runs over ``/``, unregistered and with no gateway, with the shell's built app
+    contract module at its workspace path under ``root``; yields its loopback URL."""
     served_contract = root / _WORKSPACE_ROOT.relative_to("/") / SHELL_APP_CONTRACT_PATH
     served_contract.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(_REPO_ROOT / SHELL_APP_CONTRACT_PATH, served_contract)
     port = find_free_port()
     url = f"http://127.0.0.1:{port}"
-    command = [DUFS_BINARY, "--allow-all", "--bind", "127.0.0.1", "--port", str(port)]
-    command += ["--assets", str(FILES_APP_DIRECTORY / "static"), str(root)]
-    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    command = [sys.executable, "-m", "files_app.main", "--port", str(port), "--no-register"]
+    command += ["--static-dir", str(FILES_APP_DIRECTORY / "static"), "--root", str(root)]
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("LATCHKEY_")}
+    process = subprocess.Popen(command, env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         wait_for(
             lambda: is_server_answering(url),
             timeout=10.0,
             poll_interval=0.1,
-            error_message=f"dufs did not come up at {url}",
+            error_message=f"Files did not come up at {url}",
         )
         yield url
     finally:
@@ -550,7 +550,7 @@ def running_files(root: Path) -> Generator[str, None, None]:
         try:
             process.wait(timeout=5.0)
         except subprocess.TimeoutExpired:
-            logger.warning("dufs at {} did not stop on SIGTERM; killing it", url)
+            logger.warning("Files at {} did not stop on SIGTERM; killing it", url)
             process.kill()
             process.wait(timeout=5.0)
 

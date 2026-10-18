@@ -1,14 +1,14 @@
 /**
  * Everything a Files window knows: the folder on show and the listings it has fetched, what is selected, how
- * entries are laid out and ordered, the search under way, the rename being typed, and the history of folders
- * visited. Views read it and call its verbs; it talks to the server through `dufs` and to its surroundings (the
- * address bar, the shell, the dialogs) through a `FilesHost`.
+ * entries are laid out and ordered, the rename being typed, and the history of folders visited. Views read it and
+ * call its verbs; it talks to the server through `server` and to its surroundings (the address bar, the shell, the
+ * dialogs) through a `FilesHost`.
  */
 
 import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";
 
-import * as dufs from "./dufs";
-import type { Entry, Listing } from "./dufs";
+import * as server from "./server";
+import type { Entry, Listing } from "./server";
 import { kindLabelOf } from "./fileKinds";
 import {
   ROOT,
@@ -31,7 +31,7 @@ import {
   type ViewMode,
 } from "./preferences";
 import { UploadQueue, type UploadSource } from "./uploads";
-import { fetchConnections, targetOf, type Connections } from "./connections";
+import { fetchConnections, isLiveShared, targetOf, type Connections } from "./connections";
 
 export const WORKSPACE = "/home/user/workspace/";
 
@@ -52,14 +52,6 @@ export interface FolderState {
   /** False for a folder that is not there. */
   exists: boolean;
   entries: Entry[];
-  error: string | null;
-}
-
-export interface SearchState {
-  folder: string;
-  query: string;
-  status: "searching" | "ready" | "error";
-  results: Entry[];
   error: string | null;
 }
 
@@ -86,14 +78,16 @@ export interface FilesHost {
   openFile(path: string): void;
   confirmDelete(entries: readonly Entry[]): Promise<boolean>;
   confirmReplace(names: readonly string[]): Promise<ConflictChoice>;
+  /** Ask what to call a new folder or file, `suggested` filled in; null when the user backs out. */
+  askNewName(suggested: string, isFolder: boolean): Promise<string | null>;
 }
 
 /** How a click changes the selection: to just this, this added or taken away, or the run from the last click. */
 export type SelectHow = "only" | "toggle" | "extend";
 
-const SEARCH_DELAY_MS = 250;
 const TOAST_MS = 6000;
 const REFRESH_DELAY_MS = 300;
+const LIVE_MOVE_REFUSAL = "Moving isn't supported on files shared from your computer.";
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
@@ -134,7 +128,6 @@ export class FilesModel {
   /** Where a shift-click's run starts. */
   anchor: string | null = null;
   preferences: Preferences;
-  search: SearchState | null = null;
   rename: RenameState | null = null;
   /** The notes a failed operation leaves at the foot of the window. */
   readonly toasts = new ToastQueue(() => this.host.redraw(), TOAST_MS);
@@ -154,8 +147,6 @@ export class FilesModel {
 
   private readonly loads = new Map<string, AbortController>();
   private readonly refreshTimers = new Map<string, number>();
-  private searchTimer: number | null = null;
-  private searchRequest: AbortController | null = null;
 
   constructor(
     private readonly host: FilesHost,
@@ -193,15 +184,7 @@ export class FilesModel {
 
   /** A folder's entries as shown: system files filtered unless asked for, in the chosen order. */
   visibleEntries(folder: string): Entry[] {
-    return this.arrange(this.folders.get(folder)?.entries ?? []);
-  }
-
-  /** What the main view lays out: the search's results while searching, otherwise the folder's entries. */
-  shownEntries(): Entry[] {
-    return this.search === null ? this.visibleEntries(this.folder) : this.arrange(this.search.results);
-  }
-
-  arrange(entries: readonly Entry[]): Entry[] {
+    const entries = this.folders.get(folder)?.entries ?? [];
     const shown = this.preferences.showHidden ? [...entries] : entries.filter((entry) => !isHiddenName(entry.name));
     return shown.sort((a, b) => compareEntries(a, b, this.preferences.sort));
   }
@@ -235,8 +218,6 @@ export class FilesModel {
   }
 
   entryFor(path: string): Entry | undefined {
-    const found = this.search?.results.find((entry) => entry.path === path);
-    if (found !== undefined) return found;
     const parent = parentOf(path);
     if (parent === null) return undefined;
     return this.folders.get(parent)?.entries.find((entry) => entry.path === path);
@@ -270,7 +251,6 @@ export class FilesModel {
     this.selection = options.select ?? [];
     this.anchor = this.selection[0] ?? null;
     this.rename = null;
-    this.clearSearch();
     if (mode === "push") {
       this.historyIndex += 1;
       this.historyLength = this.historyIndex + 1;
@@ -283,14 +263,14 @@ export class FilesModel {
 
   /** The browser moved through its history (back, forward) to `folder`. */
   restore(folder: string, index: number): void {
-    this.settleColumnRoot(folder, false);
-    this.folder = folder;
+    const target = isFolderPath(folder) ? folder : `${folder}/`;
+    this.settleColumnRoot(target, false);
+    this.folder = target;
     this.historyIndex = index;
     this.selection = [];
     this.anchor = null;
     this.rename = null;
-    this.clearSearch();
-    void this.load(folder);
+    void this.load(target);
     this.loadColumns();
     this.host.redraw();
   }
@@ -350,7 +330,7 @@ export class FilesModel {
   }
 
   selectAll(): void {
-    this.selection = this.shownEntries().map((entry) => entry.path);
+    this.selection = this.visibleEntries(this.folder).map((entry) => entry.path);
     this.host.redraw();
   }
 
@@ -400,56 +380,10 @@ export class FilesModel {
     this.host.redraw();
   }
 
-  // Searching
-
-  setSearchQuery(query: string): void {
-    if (this.searchTimer !== null) window.clearTimeout(this.searchTimer);
-    this.searchRequest?.abort();
-    if (query.trim() === "") {
-      this.clearSearch();
-      this.host.redraw();
-      return;
-    }
-    this.search = {
-      folder: this.search?.folder ?? this.folder,
-      query,
-      status: "searching",
-      results: this.search?.results ?? [],
-      error: null,
-    };
-    this.selection = [];
-    this.searchTimer = window.setTimeout(() => void this.runSearch(), SEARCH_DELAY_MS);
-    this.host.redraw();
-  }
-
-  clearSearch(): void {
-    if (this.searchTimer !== null) window.clearTimeout(this.searchTimer);
-    this.searchTimer = null;
-    this.searchRequest?.abort();
-    this.searchRequest = null;
-    this.search = null;
-  }
-
-  private async runSearch(): Promise<void> {
-    const search = this.search;
-    if (search === null) return;
-    const request = new AbortController();
-    this.searchRequest = request;
-    try {
-      const results = await dufs.searchFolder(search.folder, search.query.trim(), request.signal);
-      if (this.search !== search) return;
-      this.search = { ...search, status: "ready", results, error: null };
-    } catch (error) {
-      if (isAbort(error) || this.search !== search) return;
-      this.search = { ...search, status: "error", error: messageOf(error) };
-    }
-    this.host.redraw();
-  }
-
   // Changing things
 
   startRename(path: string): void {
-    if (this.entryFor(path) === undefined) return;
+    if (this.entryFor(path) === undefined || isLiveShared(path)) return;
     this.selection = [path];
     this.anchor = path;
     this.rename = { path, draft: nameOf(path), error: null, isSaving: false };
@@ -487,8 +421,8 @@ export class FilesModel {
     this.rename = { ...rename, isSaving: true };
     this.host.redraw();
     try {
-      if (await dufs.exists(target)) throw new Error(`"${name}" is already taken.`);
-      await dufs.movePath(rename.path, target);
+      if (await server.exists(target)) throw new Error(`"${name}" is already taken.`);
+      await server.movePath(rename.path, target);
     } catch (error) {
       this.rename = { ...rename, isSaving: false, error: messageOf(error) };
       this.host.redraw();
@@ -497,7 +431,6 @@ export class FilesModel {
     this.rename = null;
     this.selection = [target];
     this.anchor = target;
-    if (this.search !== null) void this.runSearch();
     if (isWithin(this.folder, rename.path)) {
       // The folder on show, or one above it in the columns, was renamed: follow it.
       this.navigate(`${target}${this.folder.slice(rename.path.length)}`, { select: [target], history: "replace" });
@@ -509,20 +442,20 @@ export class FilesModel {
     const entries = paths.map((path) => this.entryFor(path)).filter((entry): entry is Entry => entry !== undefined);
     if (entries.length === 0 || !(await this.host.confirmDelete(entries))) return;
     const failures: string[] = [];
+    const deleted = new Set<string>();
     for (const entry of entries) {
       try {
-        await dufs.deletePath(entry.path);
+        await server.deletePath(entry.path);
+        deleted.add(entry.path);
       } catch (error) {
         failures.push(messageOf(error));
       }
     }
-    const deleted = new Set(entries.map((entry) => entry.path));
     this.selection = this.selection.filter((path) => !deleted.has(path));
-    const enclosing = entries.find((entry) => isWithin(this.folder, entry.path));
+    const enclosing = [...deleted].find((path) => isWithin(this.folder, path));
     if (enclosing !== undefined) {
-      this.navigate(parentOf(enclosing.path) ?? ROOT, { history: "replace" });
+      this.navigate(parentOf(enclosing) ?? ROOT, { history: "replace" });
     }
-    if (this.search !== null) void this.runSearch();
     await Promise.all([...new Set(entries.map((entry) => parentOf(entry.path) ?? ROOT))].map((f) => this.load(f)));
     if (failures.length > 0) this.toasts.show(failures.join("\n"));
   }
@@ -537,41 +470,58 @@ export class FilesModel {
     await this.createAndName("untitled.txt", false);
   }
 
+  /** Make the entry and name it in place; in a computer's live share, where nothing can be renamed, the name is asked
+   *  for first. */
   private async createAndName(baseName: string, isFolder: boolean): Promise<void> {
-    this.clearSearch();
     const folder = this.folder;
-    const name = uniqueName(baseName, (candidate) => this.isNameTaken(folder, candidate));
+    const suggested = uniqueName(baseName, (candidate) => this.isNameTaken(folder, candidate));
+    const isLive = isLiveShared(folder);
+    const name = isLive ? await this.host.askNewName(suggested, isFolder) : suggested;
+    if (name === null) return;
     const path = childPath(folder, name, isFolder);
     try {
-      if (isFolder) await dufs.createFolder(path);
-      else await dufs.writeFile(path, "");
+      if (this.isNameTaken(folder, name) || (isLive && (await server.exists(path)))) {
+        throw new Error(`"${name}" is already taken.`);
+      }
+      if (isFolder) await server.createFolder(path);
+      else await server.writeFile(path, "");
     } catch (error) {
       this.toasts.show(messageOf(error));
       return;
     }
     await this.load(folder);
-    this.startRename(path);
+    if (isLive) {
+      this.selection = [path];
+      this.anchor = path;
+      this.host.redraw();
+    } else {
+      this.startRename(path);
+    }
   }
 
-  /** Move entries into a folder, as a drag onto it asks. One that would land on a name already there stays put. */
+  /** Move entries into a folder, as a drag onto it asks. One that would land on a name already there stays put, and
+   *  nothing moves to or from a computer's live share, whose file server cannot move. */
   async moveInto(paths: readonly string[], folder: string): Promise<void> {
     const moving = paths.filter((path) => parentOf(path) !== folder && !isWithin(folder, path));
     if (moving.length === 0) return;
     const failures: string[] = [];
+    const moved = new Set<string>();
     for (const path of moving) {
       const target = childPath(folder, nameOf(path), isFolderPath(path));
       try {
-        if (await dufs.exists(target))
+        if (isLiveShared(path) || isLiveShared(folder)) throw new Error(LIVE_MOVE_REFUSAL);
+        if (await server.exists(target))
           throw new Error(`${nameOf(folder)} already has an item named "${nameOf(path)}".`);
-        await dufs.movePath(path, target);
+        await server.movePath(path, target);
+        moved.add(path);
       } catch (error) {
         failures.push(messageOf(error));
       }
     }
-    this.selection = this.selection.filter((path) => !moving.includes(path));
+    this.selection = this.selection.filter((path) => !moved.has(path));
     const touched = new Set([folder, ...moving.map((path) => parentOf(path) ?? ROOT)]);
     await Promise.all([...touched].filter((f) => this.folders.has(f)).map((f) => this.load(f)));
-    if (failures.length > 0) this.toasts.show(failures.join("\n"));
+    if (failures.length > 0) this.toasts.show([...new Set(failures)].join("\n"));
   }
 
   /** Send files into a folder, asking first about names that are already taken there. */
@@ -622,7 +572,7 @@ export class FilesModel {
       this.folders.set(folder, { status: "loading", exists: true, entries: [], error: null });
     }
     try {
-      const listing = await dufs.listFolder(folder, request.signal);
+      const listing = await server.listFolder(folder, request.signal);
       this.folders.set(folder, { status: "ready", exists: listing.exists, entries: listing.entries, error: null });
     } catch (error) {
       if (isAbort(error)) return;
@@ -663,7 +613,7 @@ export class FilesModel {
     const found = await Promise.all(
       SHORTCUTS.map(async (shortcut) => {
         try {
-          return (await dufs.listFolder(shortcut.path)).exists;
+          return (await server.listFolder(shortcut.path)).exists;
         } catch {
           return false;
         }

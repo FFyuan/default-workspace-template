@@ -10,7 +10,7 @@ describe("file kinds", () => {
     expect(kindLabelOf("Makefile", false)).toBe("Document");
   });
 
-  it("previews what the browser can draw, text when dufs says it is text, else nothing", () => {
+  it("previews what the browser can draw, text when the server says it is text, else nothing", () => {
     expect(previewKindOf("a.png", false)).toBe("image");
     expect(previewKindOf("a.svg", true)).toBe("image");
     expect(previewKindOf("a.mp4", false)).toBe("video");

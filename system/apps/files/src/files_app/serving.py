@@ -1,9 +1,8 @@
-"""Serving: the Files server on a background thread, the wait for dufs to come up, and the wait for supervisord's
-SIGTERM. The server and signal handling follow the Getting Started app's."""
+"""Serving: the Files server on a background thread, and the wait for supervisord's SIGTERM. The server and signal
+handling follow the Getting Started app's."""
 
 import signal
 import socket
-import subprocess
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -21,7 +20,6 @@ from imbue.imbue_common.logging import log_span
 SERVER_SHUTDOWN_TIMEOUT_SECONDS: Final[float] = 5.0
 SIGNAL_EXIT_CODE_BASE: Final[int] = 128
 _STOP_SIGNALS: Final[tuple[signal.Signals, ...]] = (signal.SIGTERM, signal.SIGINT)
-_POLL_SECONDS: Final[float] = 0.1
 
 
 class ServeError(Exception):
@@ -57,22 +55,6 @@ def serve_in_background(host: str, port: int, app: Flask) -> Generator[BaseWSGIS
         server_thread.join(timeout=SERVER_SHUTDOWN_TIMEOUT_SECONDS)
         if server_thread.is_alive():
             logger.warning("Stopped the Files server but its thread is still running")
-
-
-def wait_for_port(host: str, port: int, timeout_seconds: float, process: subprocess.Popen[bytes]) -> None:
-    """Return once something accepts connections at ``host:port``; raise if ``process`` exits or time runs out."""
-    pause = threading.Event()
-    waited = 0.0
-    while waited < timeout_seconds:
-        if process.poll() is not None:
-            raise ServeError(f"dufs exited with status {process.returncode} before it was serving")
-        try:
-            with socket.create_connection((host, port), timeout=_POLL_SECONDS):
-                return
-        except OSError:
-            pause.wait(_POLL_SECONDS)
-            waited += _POLL_SECONDS
-    raise ServeError(f"dufs did not start serving on {host}:{port} within {timeout_seconds}s")
 
 
 def wait_for_shutdown_signal() -> int:

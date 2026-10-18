@@ -43,9 +43,8 @@ describe("paths", () => {
     expect(stemLength("folder")).toBe("folder".length);
   });
 
-  it("hides dotted names, and search results with a dotted segment", () => {
+  it("hides dotted names", () => {
     expect(isHiddenName(".git")).toBe(true);
-    expect(isHiddenName("src/.cache/x")).toBe(true);
     expect(isHiddenName("notes.txt")).toBe(false);
   });
 

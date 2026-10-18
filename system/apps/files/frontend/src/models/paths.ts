@@ -1,7 +1,7 @@
 /**
  * Paths as the Files app handles them: absolute, decoded, with a folder's path ending in `/` (`/home/user/`) and a
- * file's not (`/home/user/notes.md`). dufs serves the filesystem root, so a path is also the URL path of its page,
- * once encoded.
+ * file's not (`/home/user/notes.md`). The Files server serves the filesystem root, so a path is also the URL path of
+ * its page, once encoded.
  */
 
 export const ROOT = "/";
@@ -61,10 +61,9 @@ export function stemLength(name: string): number {
   return extension === "" ? name.length : name.length - extension.length - 1;
 }
 
-/** Whether a name is one the app hides unless asked: a dotted "system file". A search result's name is a path
- *  below the folder searched, hidden when any of its segments is. */
+/** Whether a name is one the app hides unless asked: a dotted "system file". */
 export function isHiddenName(name: string): boolean {
-  return name.split("/").some((segment) => segment.startsWith("."));
+  return name.startsWith(".");
 }
 
 /** Why a name cannot be given to an entry, or null when it can. */

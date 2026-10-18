@@ -1,6 +1,6 @@
 /** Record factories for the Files tests. Each takes overrides, so a test spells only what it is about. */
 
-import type { Entry } from "../models/dufs";
+import type { Entry } from "../models/server";
 import { childPath } from "../models/paths";
 
 export function fileEntry(folder: string, name: string, overrides: Partial<Entry> = {}): Entry {

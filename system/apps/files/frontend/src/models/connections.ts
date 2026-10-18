@@ -4,7 +4,7 @@
  * from the computer, or read live from the computer with no copy here.
  */
 
-import { DufsError } from "./dufs";
+import { ServerError } from "./server";
 import { nameOf } from "./paths";
 
 export const CONNECTIONS_API = "/__files/api/connections";
@@ -54,8 +54,10 @@ export function shareRootAt(connections: Connections | null, path: string): Shar
   return connections?.shares.find((share) => targetOf(share) === path);
 }
 
+/** The name of the computer a share is on, as people say it. */
 export function deviceNameOf(connections: Connections, device: string): string {
-  return connections.devices.find((candidate) => candidate.id === device)?.name ?? "your computer";
+  const name = connections.devices.find((candidate) => candidate.id === device)?.name;
+  return name === undefined ? "your computer" : shortDeviceName(name);
 }
 
 /** Where opening a share goes: its synced copy, or the live view of it on its computer. */
@@ -65,19 +67,23 @@ export function targetOf(share: Share): string {
   return share.kind === "file" ? live : `${live.replace(/\/+$/, "")}/`;
 }
 
+/** Whether `path` is read live from a computer, whose file server can neither rename nor zip a folder. */
+export function isLiveShared(path: string): boolean {
+  return path.startsWith(REMOTE_PREFIX);
+}
+
 export function labelOf(share: Share): string {
   return nameOf(share.path) || share.path;
 }
 
 /** A computer's name as people say it, without the ``.local`` macOS adds on the network. */
-export function shortDeviceName(deviceName: string): string {
+function shortDeviceName(deviceName: string): string {
   return deviceName.replace(/\.local$/, "");
 }
 
 /** The hover text of a share: where it lives and how it reaches the workspace, whether it is read-only, and how it
  *  stands, never its own name. */
-export function describeShare(share: Share, deviceName: string): string {
-  const device = shortDeviceName(deviceName);
+export function describeShare(share: Share, device: string): string {
   const where = {
     "two-way": `Synced with ${device}.`,
     "one-way": `Synced from ${device}.`,
@@ -106,53 +112,28 @@ export function shareAt(connections: Connections | null, folder: string): Share 
     .sort((a, b) => targetOf(b).length - targetOf(a).length)[0];
 }
 
-/** What to tell someone looking inside a copy that has fallen behind its computer, or null when it has not. */
-export function stuckSyncOf(share: Share | undefined, deviceName: string): { title: string; detail: string } | null {
-  if (share === undefined || share.sync_state !== "behind") return null;
+/** What to tell someone looking inside `folder` when it is in a copy that has fallen behind its computer, or null
+ *  when it is not. */
+export function stuckSyncOf(
+  connections: Connections | null,
+  folder: string,
+): { title: string; detail: string } | null {
+  const share = shareAt(connections, folder);
+  if (connections === null || share === undefined || share.sync_state !== "behind") return null;
   return {
-    title: `Not synced yet from ${deviceName}`,
+    title: `Not synced yet from ${deviceNameOf(connections, share.device)}`,
     detail:
-      "Your computer has files here that haven't arrived. The sync may be stuck: check it in Imbue Studio on your computer, or connect this folder again.",
+      "Your computer has files here that haven't arrived. The sync may be stuck: check it in Imbue Studio on your computer.",
   };
 }
 
-async function failureOf(response: Response, what: string): Promise<DufsError> {
+async function failureOf(response: Response, what: string): Promise<ServerError> {
   const detail = (await response.text().catch(() => "")).trim();
-  return new DufsError(detail === "" ? `${what} (${response.status})` : detail, response.status);
+  return new ServerError(detail === "" ? `${what} (${response.status})` : detail, response.status);
 }
 
 export async function fetchConnections(signal?: AbortSignal): Promise<Connections> {
   const response = await fetch(CONNECTIONS_API, { signal });
   if (!response.ok) throw await failureOf(response, "Couldn't read your connections");
   return (await response.json()) as Connections;
-}
-
-/** Something dragged in from the user's computer to connect: all a browser tells of it is its name and kind. */
-export interface DroppedItem {
-  name: string;
-  isFolder: boolean;
-}
-
-/** A connection asked for and not yet approved: shown as a waiting row until its share appears. */
-export interface PendingConnection {
-  key: string;
-  name: string;
-  isFolder: boolean;
-}
-
-export interface ConnectionRequest {
-  device: string;
-  path: string;
-  access: "read" | "write";
-  sync: boolean;
-}
-
-/** Ask to share something more: Imbue Studio shows its sharing dialog on the computer, where the user decides. */
-export async function requestConnection(ask: ConnectionRequest): Promise<void> {
-  const response = await fetch(CONNECTIONS_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(ask),
-  });
-  if (!response.ok) throw await failureOf(response, "Couldn't ask your computer");
 }

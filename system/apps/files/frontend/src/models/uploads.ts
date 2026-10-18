@@ -3,7 +3,7 @@
  * they land in, and the queue that sends them a few at a time with progress.
  */
 
-import { uploadFile, type Upload } from "./dufs";
+import { uploadFile, type Upload } from "./server";
 
 /** A file to send and where it goes below the target folder: `a.png`, or `photos/2024/a.png` from a folder. */
 export interface UploadSource {

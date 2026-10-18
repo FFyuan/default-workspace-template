@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import * as dufs from "./dufs";
+import * as server from "./server";
 import { FINISHED_LINGER_MS, UploadQueue } from "./uploads";
 
-vi.mock("./dufs", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./dufs")>()),
+vi.mock("./server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./server")>()),
   uploadFile: vi.fn(),
 }));
 
@@ -14,7 +14,7 @@ let settles: { resolve: () => void; reject: (error: Error) => void }[] = [];
 beforeEach(() => {
   vi.useFakeTimers();
   settles = [];
-  vi.mocked(dufs.uploadFile).mockImplementation(() => {
+  vi.mocked(server.uploadFile).mockImplementation(() => {
     let resolve!: () => void;
     let reject!: (error: Error) => void;
     const done = new Promise<void>((res, rej) => {

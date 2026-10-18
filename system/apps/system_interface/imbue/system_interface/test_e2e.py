@@ -48,7 +48,6 @@ from imbue.mngr.utils.polling import wait_for
 from imbue.system_interface.config import Config
 from imbue.system_interface.server import create_application
 from imbue.system_interface.shell.identity import RequestIdentity
-from imbue.system_interface.shell.testing import DUFS_BINARY
 from imbue.system_interface.shell.testing import files_registry_row
 from imbue.system_interface.shell.testing import identity_headers
 from imbue.system_interface.shell.testing import message_handling_app
@@ -1827,10 +1826,8 @@ def test_an_independent_pinned_window_keeps_a_path_per_client_and_an_agent_navig
             frame.evaluate("() => window.__navigateTo('/?doc=1')")
             other_frame.evaluate("() => window.__navigateTo('/?doc=2')")
             wait_for(
-                lambda: (
-                    _own_window_path(server.base_url, client_id, pinned["id"]) == "/?doc=1"
-                    and _own_window_path(server.base_url, other_client_id, pinned["id"]) == "/?doc=2"
-                ),
+                lambda: _own_window_path(server.base_url, client_id, pinned["id"]) == "/?doc=1"
+                and _own_window_path(server.base_url, other_client_id, pinned["id"]) == "/?doc=2",
                 timeout=15.0,
                 poll_interval=0.1,
                 error_message="the two clients' own paths never reached their window path files",
@@ -2027,10 +2024,8 @@ def test_the_avatar_wears_the_mood_of_the_agents_file_and_the_chooser_changes_ev
             )
             assert _get_json(f"{server.base_url}/api/avatars")["selected"] == "jelly-cat"
             wait_for(
-                lambda: (
-                    _avatar_image_source(entry).endswith("/api/avatars/jelly-cat/image.svg?mood=idle")
-                    and _avatar_image_source(other_entry).endswith("/api/avatars/jelly-cat/image.svg?mood=idle")
-                ),
+                lambda: _avatar_image_source(entry).endswith("/api/avatars/jelly-cat/image.svg?mood=idle")
+                and _avatar_image_source(other_entry).endswith("/api/avatars/jelly-cat/image.svg?mood=idle"),
                 timeout=10.0,
                 poll_interval=0.1,
                 error_message="the windows never drew the chosen design",
@@ -2737,14 +2732,9 @@ def test_an_apps_script_popups_open_where_its_links_would(tmp_path: Path, page: 
     assert page.context.pages == [page]
 
 
-# Files (``system/apps/files``): dufs over a folder of the test's own, with the Files frontend's build, registered as
-# the ``files`` app. The workspace image installs dufs; elsewhere these tests skip.
+# Files (``system/apps/files``): its server over a folder of the test's own, with the Files frontend's build,
+# registered as the ``files`` app.
 _FILES_APP_NAME = "files"
-# dufs answers a client it takes for a script (curl and the like) with a bare "Not Found" instead of the assets'
-# ``404.html``, so a direct request says it is a browser.
-_BROWSER_USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
-)
 
 
 @contextlib.contextmanager
@@ -2783,7 +2773,6 @@ def _wait_for_window_at(base_url: str, window_id: str, path: str) -> dict[str, A
     return _window_record(base_url, window_id)
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(120, func_only=False)
 def test_files_opens_files_in_workspace_windows_and_raises_one_already_on_the_page(tmp_path: Path, page: Page) -> None:
     """In a Files window, a folder opens in place; a double-clicked file opens its view page in a new Files window,
@@ -2847,7 +2836,6 @@ def test_files_opens_files_in_workspace_windows_and_raises_one_already_on_the_pa
         assert page.context.pages == [page], "a Files window opened a browser window of its own"
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(90, func_only=False)
 def test_files_answers_a_missing_path_with_its_own_page_naming_it_and_the_nearest_folder(
     tmp_path: Path, page: Page
@@ -2858,7 +2846,8 @@ def test_files_answers_a_missing_path_with_its_own_page_naming_it_and_the_neares
     (root / "notes").mkdir(parents=True)
     missing = "/notes/gone/missing.txt"
     with _running_e2e_server_with_files(tmp_path, root) as (server, files_url):
-        request = urllib.request.Request(f"{files_url}{missing}?view", headers={"User-Agent": _BROWSER_USER_AGENT})
+        # Files answers its own page to a request that asks for a page, as a browser's does.
+        request = urllib.request.Request(f"{files_url}{missing}?view", headers={"Accept": "text/html"})
         with pytest.raises(urllib.error.HTTPError) as answered:
             urllib.request.urlopen(request, timeout=5)
         assert answered.value.code == 404
