@@ -27,6 +27,7 @@ from typing import Any, Final
 from flask import Blueprint, Flask, Response, current_app, jsonify, request
 from flask.blueprints import BlueprintSetupState
 from imbue.imbue_common.frozen_model import FrozenModel
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from app_schema.errors import InvalidRequestBodyError
@@ -283,6 +284,8 @@ def build_openapi_document(
 
 
 def _answer_invalid_body(error: InvalidRequestBodyError) -> Response:
+    # The access line alone would not say what the caller sent wrong.
+    logger.warning("{} {} refused its body: {}", request.method, request.path, error)
     response = jsonify(ErrorResponse(detail=str(error)).model_dump())
     response.status_code = HTTP_BAD_REQUEST
     return response
