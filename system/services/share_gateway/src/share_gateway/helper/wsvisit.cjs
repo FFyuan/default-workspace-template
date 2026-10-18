@@ -4,11 +4,12 @@
 // Published in the template repository at the exact version the workspace runs
 // (the invite names that address and the file's hash) and served by the
 // workspace itself at GET <auth origin>/_agent/helper as a fallback; the join
-// answer carries the hash too, and this file warns when its own differs. One file, Node 18 or
-// newer, no dependencies: `crypto` signs with the agent's Ed25519 key per the
-// owner-exec profile (RFC 9421 + RFC 9530, see spec/profile.md in
-// imbue-ai/owner-exec), global `fetch` talks to the share, `fs` keeps the key
-// and the join answer under ~/.config/imbue-workspace/<workspace domain>/.
+// answer carries the hash too, and this file warns when its own differs. One
+// file, Node 18 or newer, no dependencies: `crypto` signs with the agent's
+// Ed25519 key per the owner-exec profile (RFC 9421 + RFC 9530, see
+// spec/profile.md in imbue-ai/owner-exec), global `fetch` talks to the share,
+// `fs` keeps the key and the join answer under
+// ~/.config/imbue-workspace/<workspace domain>/.
 //
 //   wsvisit join <auth-origin> <code> [--name <name>]
 //   wsvisit run [--cwd <dir>] [--timeout <seconds>] -- <argv...>
