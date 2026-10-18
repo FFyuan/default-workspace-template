@@ -414,8 +414,8 @@ def open_url() -> Response:
     machine or a bad client is 400, a fleet with no room 409, Chromium not installed (or the fleet still restoring)
     503, and a window the shell would not show 502.
     """
-    if not _init_done.is_set():
-        return error_response("The browser is still restoring its saved browsers; try again in a moment.", 503)
+    if (gate := _require_ready()) is not None:
+        return gate
     body = parse_request_body(OpenUrlRequest)
     try:
         url = LocalHttpUrl(body.url)
