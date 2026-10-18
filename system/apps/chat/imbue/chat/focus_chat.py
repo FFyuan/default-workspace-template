@@ -20,11 +20,11 @@ from flask import Response
 from loguru import logger
 from pydantic import ConfigDict
 from pydantic import Field
-from workspace_layout.answers import ShowOutcome
 from workspace_layout.errors import InvalidLayoutValueError
 from workspace_layout.errors import ShellOpError
 from workspace_layout.ops import ShowArgs
 from workspace_layout.primitives import ClientId
+from workspace_layout.primitives import ShowOutcome
 from workspace_layout.primitives import WindowPath
 
 from imbue.chat.auto_open import CHAT_ROOT_PAGE
