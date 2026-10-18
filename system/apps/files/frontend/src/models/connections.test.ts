@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type Connections, type Share, describeShare, deviceNameOf, isLiveShared, fetchConnections } from "./connections";
+import {
+  type Connections,
+  type Share,
+  describeShare,
+  deviceNameOf,
+  isLiveShared,
+  fetchConnections,
+} from "./connections";
 
 const MAC = "Kims-Mac";
 
