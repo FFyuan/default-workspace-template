@@ -180,7 +180,11 @@ def test_asking_for_a_share_reaches_imbue_studio_as_a_file_sharing_request_from_
 def test_with_no_gateway_there_are_no_shares_and_asking_explains_why(tmp_path: Path) -> None:
     client = _app(None, tmp_path)
     assert json_of(client.get("/__files/api/connections")) == {"devices": [], "shares": []}
-    assert client.post("/__files/api/connections", json={}).status_code == 503
+    refused = client.post("/__files/api/connections", json={})
+    assert refused.status_code == 503
+    assert json_of(refused) == {
+        "detail": "This workspace isn't connected to Imbue Studio, so it can't reach your computers."
+    }
 
 
 def test_a_real_listing_from_the_computer_reads_names_kinds_and_sizes() -> None:

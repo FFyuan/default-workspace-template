@@ -116,8 +116,16 @@ export function stuckSyncOf(share: Share | undefined, deviceName: string): { tit
   };
 }
 
+/** The server refuses with `{"detail": ...}` (app_schema's ErrorResponse); anything else is read as text. */
+async function refusalOf(response: Response): Promise<string> {
+  const isJson = (response.headers.get("Content-Type") ?? "").includes("application/json");
+  if (!isJson) return response.text().catch(() => "");
+  const body = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+  return typeof body?.detail === "string" ? body.detail : "";
+}
+
 async function failureOf(response: Response, what: string): Promise<DufsError> {
-  const detail = (await response.text().catch(() => "")).trim();
+  const detail = (await refusalOf(response)).trim();
   return new DufsError(detail === "" ? `${what} (${response.status})` : detail, response.status);
 }
 

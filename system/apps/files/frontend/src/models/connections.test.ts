@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { type Share, describeShare } from "./connections";
+import { type Share, describeShare, requestConnection } from "./connections";
 
 const MAC = "Kims-Mac.local";
 
@@ -34,5 +34,30 @@ describe("describeShare", () => {
       "On Kims-Mac. Read-only. Not answering right now.",
     );
     expect(describeShare(share({}), MAC)).not.toContain("notes");
+  });
+});
+
+describe("requestConnection", () => {
+  it("quotes the server's refusal, from its {detail} body or its text", async () => {
+    const refusals = [
+      new Response(JSON.stringify({ detail: "Imbue Studio refused the request." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }),
+      new Response("Not Found", { status: 404, headers: { "Content-Type": "text/plain" } }),
+      new Response("", { status: 502 }),
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => refusals.shift()),
+    );
+    try {
+      const ask = { device: "host-mac", path: "~", access: "read" as const, sync: false };
+      await expect(requestConnection(ask)).rejects.toThrow("Imbue Studio refused the request.");
+      await expect(requestConnection(ask)).rejects.toThrow("Not Found");
+      await expect(requestConnection(ask)).rejects.toThrow("Couldn't ask your computer (502)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

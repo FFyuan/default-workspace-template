@@ -29,6 +29,7 @@ from app_schema.api_schema import RouteModels
 from app_schema.api_schema import RouteTable
 from app_schema.api_schema import SchemalessRoute
 from app_schema.api_schema import register_api_schema_route
+from app_schema.routes import error_response
 from app_schema.routes import model_response
 from app_schema.routes import parse_request_body
 from files_app.connections import SYNCED_FOLDERS
@@ -102,6 +103,7 @@ _EDITABLE_LIMIT: Final[int] = 4 * 1024 * 1024
 _TEXT_TYPES: Final[re.Pattern[str]] = re.compile(r"^(text/|application/(json|xml|javascript|x-sh|toml|yaml))")
 _ASSETS_PREFIX: Final[re.Pattern[str]] = re.compile(r'src="(/__dufs_v[^"/]+__/)')
 _UNREACHABLE: Final[str] = "Your computer isn't answering. It may be asleep, or Imbue Studio may be closed."
+_NO_GATEWAY: Final[str] = "This workspace isn't connected to Imbue Studio, so it can't reach your computers."
 
 
 def safe_content_disposition(value: str) -> str:
@@ -185,9 +187,6 @@ def create_app(
         response.headers["Cache-Control"] = "no-cache"
         return response
 
-    def no_gateway() -> Response:
-        return _text("This workspace isn't connected to Imbue Studio, so it can't reach your computers.", 503)
-
     # Connections
 
     @app.get(f"{API_PREFIX}/connections")
@@ -202,7 +201,7 @@ def create_app(
         try:
             listed = list_connections(gateway, synced_root)
         except httpx.HTTPError as error:
-            return _text(f"Couldn't read your shares: {error}", 502)
+            return error_response(f"Couldn't read your shares: {error}", 502)
         return model_response(listed)
 
     @app.post(f"{API_PREFIX}/connections")
@@ -214,7 +213,7 @@ def create_app(
         here; the person approves the request on that computer.
         """
         if gateway is None:
-            return no_gateway()
+            return error_response(_NO_GATEWAY, 503)
         body = parse_request_body(ConnectionRequest)
         device = body.device
         path = body.path.strip() or "~"
@@ -235,9 +234,9 @@ def create_app(
                 },
             )
         except httpx.HTTPError as error:
-            return _text(f"Couldn't ask Imbue Studio: {error}", 502)
+            return error_response(f"Couldn't ask Imbue Studio: {error}", 502)
         if response.status_code >= 400:
-            return _text(response.text or "Imbue Studio refused the request.", response.status_code)
+            return error_response(response.text or "Imbue Studio refused the request.", response.status_code)
         return model_response(ConnectionRequested(requested=True))
 
     # Shared items, live
@@ -280,7 +279,7 @@ def create_app(
         are not supported on a computer's files.
         """
         if gateway is None:
-            return no_gateway()
+            return _text(_NO_GATEWAY, 503)
         raw_path = urllib.parse.unquote(urllib.parse.urlsplit(request.environ.get("REQUEST_URI", request.path)).path)
         device_path = "/" + raw_path[len(f"{REMOTE_PREFIX}/{device}/") :]
         query = request.args
