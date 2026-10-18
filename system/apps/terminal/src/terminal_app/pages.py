@@ -357,7 +357,7 @@ class HealthResponse(FrozenModel):
 ROUTE_TABLE: RouteTable = {
     ("GET", "/"): SchemalessRoute(reason="the page framing one terminal"),
     ("POST", NEW_PATH): RouteModels(request_model=NewTerminalRequest, response_model=NewTerminalResponse),
-    ("GET", "/api/sessions/{name}"): RouteModels(response_model=SessionPage),
+    ("GET", flask_rule_to_openapi_path(SESSION_API_PATH)): RouteModels(response_model=SessionPage),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
     ("POST", WINDOW_CLOSED_PATH): RouteModels(request_model=WindowClosedHint, success_status=HTTP_NO_CONTENT),
     ("GET", APP_CONTRACT_ROUTE): SchemalessRoute(reason="the app contract module, a JavaScript file"),
