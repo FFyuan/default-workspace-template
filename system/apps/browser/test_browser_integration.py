@@ -833,7 +833,9 @@ def test_every_paste_lands_and_leaves_no_key_held_real_chromium() -> None:
                     return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=30)
 
                 def paste(text: str) -> int:
-                    with runner.application.test_request_context():
+                    # The paste view answers through the route table, which is keyed by the matched route.
+                    paste_path = f"/browsers/{browser.browser_id}/clipboard/paste"
+                    with runner.application.test_request_context(paste_path, method="POST"):
                         returned = mediastream.clipboard_paste(
                             browser.browser_id, browser, text.encode(), "text/plain", run_on_loop
                         )
