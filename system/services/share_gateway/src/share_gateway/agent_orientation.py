@@ -28,6 +28,9 @@ from share_gateway.log import log
 SKILLS_DIR = Path(".agents/skills")
 PRIMER_TEMPLATE_PATH = Path(".agents/shared/references/visiting-agents.md")
 INVITE_TEMPLATE_PATH = Path(".agents/shared/references/visiting-agents-invite.md")
+HELPER_REPO_PATH = Path("system/services/share_gateway/src/share_gateway/helper/wsvisit.cjs")
+HELPER_PATH = Path(__file__).parent / "helper" / HELPER_REPO_PATH.name
+HELPER_SOURCE_BASE_URL = "https://raw.githubusercontent.com/imbue-ai/default-workspace-template"
 SKILLS_INDEX_CACHE_PATH = AGENT_ACCESS_STATE_DIR / "skills_index.json"
 DEFAULT_CHANGES_WINDOW = timedelta(days=7)
 _GIT_TIMEOUT_SECONDS = 30
@@ -201,6 +204,33 @@ def template_ref(repo_root: Path) -> str:
     """The template ref this workspace runs: the nearest tag when there is one, else the short commit."""
     described = _run_git(repo_root, ["describe", "--tags", "--always"]).strip()
     return described or "unknown"
+
+
+def template_source_ref(repo_root: Path) -> str:
+    """A ref the template repository serves this workspace's files at: the tag when the commit is tagged, else the
+    full commit. ``main`` when git cannot say, which is logged, since the helper fetched then is not pinned."""
+    tags = _run_git(repo_root, ["tag", "--points-at", "HEAD", "--sort=-v:refname"]).split()
+    if tags:
+        return tags[0]
+    commit = _run_git(repo_root, ["rev-parse", "HEAD"]).strip()
+    if commit:
+        return commit
+    log(f"Could not resolve the template commit of {repo_root}; the helper's source points at main")
+    return "main"
+
+
+def helper_source_url(repo_root: Path) -> str:
+    """Where the helper this workspace runs is published: the template repository at the workspace's exact ref."""
+    return f"{HELPER_SOURCE_BASE_URL}/{template_source_ref(repo_root)}/{HELPER_REPO_PATH.as_posix()}"
+
+
+def file_sha256(path: Path) -> str:
+    """The hex SHA-256 of a file, or '' when it cannot be read."""
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        log(f"Could not hash {path}: {exc}")
+        return ""
 
 
 class LatchkeySummaryCache:
@@ -423,6 +453,8 @@ def render_instruction_block(
     workspace_display_name: str,
     name_hint: str,
     app_origins: Sequence[dict[str, str]],
+    helper_source_url: str,
+    helper_sha256: str,
 ) -> str:
     """The block an inviter copies: the reference text with the invite's values, cut to the scope."""
     try:
@@ -431,7 +463,8 @@ def render_instruction_block(
         log(f"Could not read the instruction block at {repo_root / INVITE_TEMPLATE_PATH}; rendering a stub: {exc}")
         template = (
             'You have been invited to the Imbue Studio workspace "{{workspace_name}}".\n'
-            "Install the helper from {{auth_origin}}/_agent/helper and run: wsvisit join {{auth_origin}} {{code}}\n"
+            "Install the helper from {{helper_source_url}} (SHA-256 {{helper_sha256}}; the workspace also serves it "
+            "at {{auth_origin}}/_agent/helper) and run: wsvisit join {{auth_origin}} {{code}}\n"
         )
     is_workspace_scope = scope == WORKSPACE_SCOPE
     template = _cut_to_scope(template, is_workspace_scope)
@@ -448,6 +481,8 @@ def render_instruction_block(
             "name_placeholder": name_hint or "<a short name for yourself>",
             "scope": "the whole workspace" if is_workspace_scope else "these apps: " + ", ".join(scope),
             "apps": apps_lines,
+            "helper_source_url": helper_source_url,
+            "helper_sha256": helper_sha256,
         },
     )
 

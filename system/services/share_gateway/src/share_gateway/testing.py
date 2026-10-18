@@ -64,6 +64,13 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=repo, env=_git_environ(repo), check=True, stdout=subprocess.DEVNULL)
 
 
+def git_output(repo: Path, *args: str) -> str:
+    """git's stdout in ``repo``, stripped."""
+    return subprocess.run(
+        ["git", *args], cwd=repo, env=_git_environ(repo), check=True, stdout=subprocess.PIPE, text=True
+    ).stdout.strip()
+
+
 def make_workspace_repo(root: Path, primer_template: str, invite_template: str) -> Path:
     """A small committed workspace checkout: two skills and the two visiting-agent reference files."""
     repo = root / "workspace"
