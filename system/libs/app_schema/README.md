@@ -23,7 +23,7 @@ for every operation:
   other success it can answer under another status. These are published as
   the operation's request and response schemas.
 - `SchemalessRoute(reason=...)` for a route that exchanges no JSON by design:
-  a page, a file, a stream, a socket, a probe. The reason goes into the
+  a page, a file, a stream, a socket. The reason goes into the
   document as the operation's `x-no-schema`.
 
 Every operation's `default` response is `ErrorResponse` (`{"detail": ...}`),
