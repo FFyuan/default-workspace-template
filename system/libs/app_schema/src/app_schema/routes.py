@@ -64,8 +64,8 @@ def parse_request_body(model: type[_RequestModel]) -> _RequestModel:
     if entry is not None and not _is_parse_named(entry, model):
         method, path = _current_route_key()
         raise RouteModelsMismatchError(
-            f"{method} {path} parses its body as {model.__name__}, but the route table names "
-            f"{entry.request_model.__name__ if entry.request_model is not None else 'no request model'}"
+            f"{method} {path} parses its body as {model.__name__}, but the route table "
+            + _parse_the_table_names(entry)
         )
     # force=True: a script and curl alike may post without a JSON content type.
     body = request.get_json(force=True, silent=True)
@@ -88,6 +88,14 @@ def _is_answer_named(entry: RouteModels, model: type[BaseModel], status: int) ->
 
 def _is_parse_named(entry: RouteModels, model: type[BaseModel]) -> bool:
     return entry.request_model is model and not entry.is_body_parsed_by_view
+
+
+def _parse_the_table_names(entry: RouteModels) -> str:
+    if entry.is_body_parsed_by_view:
+        return "says the view parses its body itself"
+    if entry.request_model is None:
+        return "names no request model"
+    return f"names {entry.request_model.__name__}"
 
 
 def model_response(model: BaseModel, status: int = 200) -> Response:

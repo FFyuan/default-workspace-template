@@ -109,6 +109,24 @@ def test_a_parse_the_table_does_not_name_fails_the_request() -> None:
         client.post("/greet", json={"name": "Kim"})
 
 
+def test_a_parse_under_an_entry_whose_view_parses_its_own_body_fails_the_request() -> (
+    None
+):
+    table = {
+        **_TABLE,
+        ("POST", "/greet"): RouteModels(
+            request_model=Greeting, response_model=Greeted, is_body_parsed_by_view=True
+        ),
+    }
+    client = _greeter(table).test_client()
+
+    with pytest.raises(
+        RouteModelsMismatchError,
+        match="parses its body as Greeting, but the route table says the view parses its body itself",
+    ):
+        client.post("/greet", json={"name": "Kim"})
+
+
 def test_an_answer_the_table_does_not_name_fails_the_request() -> None:
     table = {
         **_TABLE,
