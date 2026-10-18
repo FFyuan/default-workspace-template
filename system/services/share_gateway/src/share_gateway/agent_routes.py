@@ -11,6 +11,7 @@ unauthenticated entry, rate limited per client address.
 import json
 import os
 import threading
+import hashlib
 import time
 from collections import deque
 from collections.abc import Callable
@@ -42,10 +43,13 @@ from share_gateway.agent_grants import find_grant_by_token
 from share_gateway.agent_grants import is_agent_id
 from share_gateway.agent_grants import load_active_agent_grants
 from share_gateway.agent_grants import validate_scope
+from share_gateway.agent_orientation import HELPER_PATH
 from share_gateway.agent_orientation import LatchkeySummaryCache
 from share_gateway.agent_orientation import build_changes_feed
 from share_gateway.agent_orientation import cached_skills_index
 from share_gateway.agent_orientation import default_changes_since
+from share_gateway.agent_orientation import file_sha256
+from share_gateway.agent_orientation import helper_source_url
 from share_gateway.agent_orientation import parse_since
 from share_gateway.agent_orientation import render_instruction_block
 from share_gateway.agent_orientation import render_primer
@@ -64,8 +68,6 @@ from share_gateway.log import log
 from share_gateway.server import forwarded_client_ip
 from share_gateway.session_cookie import verify_session_from_cookies
 
-HELPER_FILENAME = "wsvisit.cjs"
-HELPER_PATH = Path(__file__).parent / "helper" / HELPER_FILENAME
 _JOIN_ATTEMPTS_PER_MINUTE = 10
 _JOIN_WINDOW_SECONDS = 60.0
 _MAX_TRACKED_ADDRESSES = 1024
@@ -275,6 +277,7 @@ def register_agent_routes(
                 None if grant.is_workspace_scope else grant.app_names,
             ),
             "primer_url": f"{auth_origin}/_agent/primer",
+            "helper": _helper_document(),
         }
         if token is not None:
             document["token"] = token
@@ -286,15 +289,25 @@ def register_agent_routes(
             }
         return document
 
+    def _helper_document() -> dict[str, str]:
+        """The helper this workspace runs: its version, where the template repository publishes it, and its hash,
+        so an agent can check the copy it installed is the one the workspace expects."""
+        return {
+            "version": template_ref(context.repo_root),
+            "source_url": helper_source_url(context.repo_root),
+            "sha256": file_sha256(HELPER_PATH),
+        }
+
     @app.get("/_agent/helper")
     def helper() -> Response:
         try:
-            text = HELPER_PATH.read_text()
+            text = HELPER_PATH.read_bytes()
         except OSError:
             return _error("the helper is not available on this workspace", 404)
         response = Response(text, mimetype="application/javascript")
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Helper-Version"] = template_ref(context.repo_root)
+        response.headers["X-Helper-SHA256"] = hashlib.sha256(text).hexdigest()
         return response
 
     @app.post("/_agent/join")
@@ -434,6 +447,8 @@ def register_agent_routes(
             workspace_display_name=context.coordinates.display_name,
             name_hint=minted.invite.name_hint,
             app_origins=app_origins_for(apps, workspace_domain, None if scope == "workspace" else list(scope)),
+            helper_source_url=helper_source_url(context.repo_root),
+            helper_sha256=file_sha256(HELPER_PATH),
         )
         return _json(
             {

@@ -51,10 +51,13 @@ from share_gateway.agent_grants import AgentScopeError
 from share_gateway.agent_grants import WORKSPACE_SCOPE
 from share_gateway.agent_grants import utc_now
 from share_gateway.agent_grants import validate_scope
+from share_gateway.agent_orientation import HELPER_PATH
 from share_gateway.agent_orientation import SKILLS_INDEX_CACHE_PATH
 from share_gateway.agent_orientation import build_changes_feed
 from share_gateway.agent_orientation import cached_skills_index
 from share_gateway.agent_orientation import default_changes_since
+from share_gateway.agent_orientation import file_sha256
+from share_gateway.agent_orientation import helper_source_url
 from share_gateway.agent_orientation import parse_since
 from share_gateway.agent_orientation import render_instruction_block
 from share_gateway.agent_orientation import render_primer
@@ -141,6 +144,8 @@ def _command_invite(args: argparse.Namespace) -> int:
         workspace_display_name=coordinates.display_name,
         name_hint=minted.invite.name_hint,
         app_origins=app_origins_for(apps, workspace_domain, None if scope == WORKSPACE_SCOPE else list(scope)),
+        helper_source_url=helper_source_url(Path.cwd()),
+        helper_sha256=file_sha256(HELPER_PATH),
     )
     payload: dict[str, object] = {
         "code": minted.code,

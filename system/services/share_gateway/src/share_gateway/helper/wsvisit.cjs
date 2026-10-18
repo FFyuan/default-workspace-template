@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // wsvisit: a visiting agent's helper for one Imbue Studio workspace.
 //
-// Served by the workspace itself (GET <auth origin>/_agent/helper), so the copy
-// an agent installs always matches the workspace it joins. One file, Node 18 or
+// Published in the template repository at the exact version the workspace runs
+// (the invite names that address and the file's hash) and served by the
+// workspace itself at GET <auth origin>/_agent/helper as a fallback; the join
+// answer carries the hash too, and this file warns when its own differs. One file, Node 18 or
 // newer, no dependencies: `crypto` signs with the agent's Ed25519 key per the
 // owner-exec profile (RFC 9421 + RFC 9530, see spec/profile.md in
 // imbue-ai/owner-exec), global `fetch` talks to the share, `fs` keeps the key
@@ -408,8 +410,15 @@ async function withRecovery(config, action) {
       }
       throw error;
     }
-    Object.assign(config, { exec: me.exec, apps: me.apps, scope: me.scope, workspace: { ...config.workspace, ...me.workspace } });
+    Object.assign(config, {
+      exec: me.exec,
+      apps: me.apps,
+      scope: me.scope,
+      helper: me.helper,
+      workspace: { ...config.workspace, ...me.workspace },
+    });
     saveConfig(config);
+    warnIfHelperDiffers(me.helper);
     if (!error.isRetryable) {
       process.stderr.write("wsvisit: refreshed the workspace's addresses; the next command will use them\n");
       throw error;
@@ -417,6 +426,28 @@ async function withRecovery(config, action) {
     process.stderr.write("wsvisit: refreshed the workspace's addresses and retrying\n");
     return await action(config);
   }
+}
+
+// The helper the workspace publishes
+
+function ownHelperSha256() {
+  return crypto.createHash("sha256").update(fs.readFileSync(__filename)).digest("hex");
+}
+
+// A line for stderr when this file is not the helper the workspace publishes
+// (another template version, or a copy altered in transit), or null when it
+// is or the workspace did not say.
+function helperMismatchNotice(helperInfo, ownSha256) {
+  if (!helperInfo || typeof helperInfo.sha256 !== "string" || !helperInfo.sha256) return null;
+  if (helperInfo.sha256 === ownSha256) return null;
+  const published = `${helperInfo.sha256.slice(0, 12)}, template ${helperInfo.version || "unknown"}`;
+  const where = helperInfo.source_url ? ` reinstall it from ${helperInfo.source_url}` : " reinstall it";
+  return `wsvisit: this copy of the helper (${ownSha256.slice(0, 12)}) is not the one the workspace publishes (${published});${where}`;
+}
+
+function warnIfHelperDiffers(helperInfo) {
+  const notice = helperMismatchNotice(helperInfo, ownHelperSha256());
+  if (notice) process.stderr.write(notice + "\n");
 }
 
 // Orientation
@@ -525,6 +556,7 @@ async function commandJoin(positional, options) {
     joined_at: new Date().toISOString(),
   };
   saveConfig(config);
+  warnIfHelperDiffers(answer.helper);
   await refreshSkills(config, true);
   process.stderr.write(`wsvisit: joined ${config.workspace.display_name || domain} as ${config.name} (${config.agent_id})\n`);
   process.stdout.write(await gatewayJson(config, "GET", "/_agent/primer"));
@@ -772,6 +804,7 @@ module.exports = {
   fetchWithTimeout,
   fingerprintOfPublicKeyLine,
   generateKeypair,
+  helperMismatchNotice,
   inviteGrantLifetimeDays,
   loadConfig,
   parseArgs,
