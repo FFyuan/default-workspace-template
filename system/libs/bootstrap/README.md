@@ -26,6 +26,20 @@ service.
    via `exec` keeps the bootstrap tmux window alive as supervisord and lets the
    supervised services inherit this shell's already-sourced agent environment.
 
+### Progress events
+
+When `MNGR_AGENT_STATE_DIR` is set (always, inside an agent), the boot announces
+each step it runs by appending one JSON line under the standard event envelope to
+`$MNGR_AGENT_STATE_DIR/events/bootstrap/events.jsonl`: a `bootstrap_step_started`
+and a `bootstrap_step_completed` (carrying `duration_seconds`) per step, each with
+the step's stable `step` id and a human `label`, then a final `bootstrap_completed`
+as supervisord is exec'd. The Imbue Studio desktop tails these
+(`mngr event <agent> bootstrap --follow`) to move its create progress bar through
+the boot, so the step ids are a contract: reword a label freely, but keep a step's
+id once shipped. A step that raises is never reported completed. Writing the events
+is best effort and never fails the boot; without `MNGR_AGENT_STATE_DIR` (a bare dev
+run) nothing is written.
+
 ## Services (supervisord)
 
 Services are defined as `[program:*]` sections, one program per file under
