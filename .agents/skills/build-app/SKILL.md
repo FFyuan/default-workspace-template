@@ -438,8 +438,11 @@ automatically; what each route owes it is:
 
 Never read the body with `request.get_json` or answer JSON with `jsonify` of a
 dict: the helpers check every parse and answer against the table at request
-time, so a route that disagrees with the document fails its first request
-instead of shipping a document that lies. The scaffolded test
+time, and the app checks every answer, so a route that disagrees with the
+document, answers JSON by hand, or succeeds without reading its body through
+the helper fails its first request instead of shipping a document that lies.
+A failure richer than `{"detail"}` (a model extending `ErrorResponse`) is
+listed among the route's answers like any other. The scaffolded test
 `assert_api_schema_describes_app` keeps the rest honest: it fails when the
 manifest's `description` and the document disagree, when a route is missing,
 when a view has no docstring, when a route is not in the table (or the table

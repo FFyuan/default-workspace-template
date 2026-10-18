@@ -95,6 +95,7 @@ from browser.api_models import (
     BrowserStopped,
     BrowserSummary,
     ClientTelemetryBatch,
+    ClipboardPasted,
     CreateBrowserRequest,
     FleetListing,
     HandoffAnswer,
@@ -213,9 +214,7 @@ ROUTE_TABLE: RouteTable = {
     ("POST", "/browsers/{browser_id}/telemetry/client"): RouteModels(
         request_model=ClientTelemetryBatch, response_model=TelemetryAccepted, is_body_parsed_by_view=True
     ),
-    ("POST", "/browsers/{browser_id}/clipboard/paste"): SchemalessRoute(
-        reason="the body is the raw clipboard bytes under the request's content type"
-    ),
+    ("POST", "/browsers/{browser_id}/clipboard/paste"): RouteModels(response_model=ClipboardPasted),
     ("GET", "/browsers/{browser_id}/clipboard/out"): SchemalessRoute(
         reason="the bytes of the browser's last copy, under their own content type"
     ),

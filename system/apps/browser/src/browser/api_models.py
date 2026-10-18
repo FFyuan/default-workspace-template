@@ -288,3 +288,9 @@ class TelemetryAccepted(FrozenModel):
     """The viewer's records were taken in."""
 
     ok: bool = Field(description="Always true")
+
+
+class ClipboardPasted(FrozenModel):
+    """The viewer's clipboard bytes landed in the browser."""
+
+    ok: bool = Field(description="Always true")

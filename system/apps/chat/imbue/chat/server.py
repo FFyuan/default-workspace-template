@@ -24,9 +24,11 @@ from app_manifest.registry import read_origin_label
 from app_manifest.registry_location import registry_path
 from app_schema.api_schema import AlternateResponse
 from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import ErrorResponse
 from app_schema.api_schema import RouteModels
 from app_schema.api_schema import RouteTable
 from app_schema.api_schema import SchemalessRoute
+from app_schema.api_schema import merge_route_tables
 from app_schema.api_schema import register_api_schema_route
 from app_schema.routes import error_response
 from app_schema.routes import model_response
@@ -40,6 +42,7 @@ from flask import send_from_directory
 from flask.ctx import AppContext
 from loguru import logger as _loguru_logger
 from pydantic import Field
+from pydantic import RootModel
 from simple_websocket import ConnectionClosed
 from werkzeug.exceptions import NotFound
 from workspace_layout.errors import InvalidLayoutValueError
@@ -102,12 +105,14 @@ from imbue.chat.harnesses.claude import auth_endpoints
 from imbue.chat.harnesses.interrupt import restart_drain
 from imbue.chat.harnesses.lanes import HARNESS_LABEL
 from imbue.chat.harnesses.message_display import split_background_task_reports
+from imbue.chat.harnesses.model import HarnessCatalog
 from imbue.chat.harnesses.model import InvalidModelPickError
 from imbue.chat.harnesses.model import ModelIdentity
 from imbue.chat.harnesses.model import ModelOption
 from imbue.chat.harnesses.model import validate_model_pick
 from imbue.chat.harnesses.registry import ComposerCompactHandling
 from imbue.chat.harnesses.registry import HARNESS_SPECS
+from imbue.chat.harnesses.registry import HarnessPopup
 from imbue.chat.harnesses.registry import build_resolver
 from imbue.chat.harnesses.registry import get_catalog
 from imbue.chat.harnesses.registry import get_harness_spec
@@ -225,8 +230,12 @@ def _find_active_agent(chat_id: str) -> AgentInfo | None:
     return agent_manager.get_active_agent_info(parsed)
 
 
+def _chat_not_found_error(chat_id: str) -> ErrorResponse:
+    return ErrorResponse(detail=f"Chat '{chat_id}' not found")
+
+
 def _chat_not_found_response(chat_id: str) -> Response:
-    return error_response(f"Chat '{chat_id}' not found", 404)
+    return model_response(_chat_not_found_error(chat_id), 404)
 
 
 def _agent_list_not_known_response() -> Response:
@@ -680,8 +689,8 @@ class _ServerSecretRequestBridge(SecretRequestChatBridge):
             # account it runs on.
             is_refused_on_signed_out_account=False,
         )
-        if isinstance(accepted, Response):
-            raise NoticeDeliveryError(accepted.get_json()["detail"])
+        if isinstance(accepted, _SendRefused):
+            raise NoticeDeliveryError(accepted.answer.detail)
 
 
 def _build_handoff_capabilities(state: ChatAppState) -> HandoffCapabilities:
@@ -693,6 +702,13 @@ def _build_handoff_capabilities(state: ChatAppState) -> HandoffCapabilities:
         ),
         deliver=lambda agent_info, text, message_id: _deliver_message(state, agent_info, text, message_id),
     )
+
+
+class _SendRefused(FrozenModel):
+    """A send the chat could not take: the answer the route gives for it, and under which status."""
+
+    answer: ErrorResponse = Field(description="The refusal, a send failure with its kind where the harness said why")
+    status: int = Field(description="The HTTP status the route answers it under")
 
 
 class _SendAccepted(FrozenModel):
@@ -739,10 +755,10 @@ def _send_to_chat(
     # A chat whose account was signed out takes no more of the user's messages until it moves to
     # another provider: its agent still holds the credential it loaded, and would keep using it.
     is_refused_on_signed_out_account: bool,
-) -> _SendAccepted | Response:
+) -> _SendAccepted | _SendRefused:
     """The ordinary send path, shared by the message route, the intake, and the secret-request notice: hold the send
     while the chat converges, else deliver it to the active agent; either way record the client's activity and the
-    chat's last message. A send that could not be taken answers the route's own failure response."""
+    chat's last message. A send that could not be taken is the refusal the caller answers or logs."""
     agent_manager: AgentManager = state.agent_manager
     # While the chat converges on a new agent every send is held for it (spec 5.7): accepted,
     # persisted on the record, and delivered in order once the successor runs.
@@ -756,16 +772,18 @@ def _send_to_chat(
         # is archived by then and must receive nothing.
         agent_info = _find_active_agent(str(chat_id))
         if agent_info is None:
-            return _chat_not_found_response(str(chat_id))
+            return _SendRefused(answer=_chat_not_found_error(str(chat_id)), status=404)
         if is_refused_on_signed_out_account and _is_account_signed_out(agent_info):
             detail = "You signed out of the account this chat runs on. Choose a provider to continue it on."
-            return model_response(SendFailureResponse(detail=detail, kind=ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND), 409)
+            return _SendRefused(
+                answer=SendFailureResponse(detail=detail, kind=ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND), status=409
+            )
         try:
             outcome = _deliver_message(state, agent_info, send_message_request.message, message_id)
         except AgentNotFoundError as e:
             # Destroyed while the send was in flight: the chat is gone, not refusing.
             logger.info("Agent {} was destroyed while a message to it was in flight: {}", agent_info.name, e)
-            return _chat_not_found_response(str(chat_id))
+            return _SendRefused(answer=_chat_not_found_error(str(chat_id)), status=404)
         except SendFailedError as send_failure:
             # The harness said why it refused, in words written for the person who has to fix it
             # ("the agent is in shell mode with an unsubmitted command"). Pass that through rather
@@ -774,13 +792,15 @@ def _send_to_chat(
             # can clear a blocked input and cannot help when there is nothing left to talk to.
             # A /compact the chat declines is its own refusal, not a failure.
             status_code = 409 if send_failure.kind in _DECLINED_SEND_FAILURE_KINDS else 500
-            return model_response(SendFailureResponse(detail=send_failure.detail, kind=send_failure.kind), status_code)
+            return _SendRefused(
+                answer=SendFailureResponse(detail=send_failure.detail, kind=send_failure.kind), status=status_code
+            )
         if outcome is SendOutcome.NOT_READY:
-            return error_response(
-                f"Agent '{agent_info.name}' is not ready to receive messages yet (its daemon is starting).", 503
+            return _SendRefused(
+                answer=ErrorResponse(detail=f"Agent '{agent_info.name}' is not ready to receive messages yet (its daemon is starting)."), status=503
             )
         if outcome is SendOutcome.FAILED:
-            return error_response(f"Failed to send message to agent '{agent_info.name}' (0 successful agents)", 500)
+            return _SendRefused(answer=ErrorResponse(detail=f"Failed to send message to agent '{agent_info.name}' (0 successful agents)"), status=500)
         is_compaction_requested = (
             _composer_compact_handling_of(agent_info, send_message_request.message)
             is ComposerCompactHandling.REQUESTED_FROM_MNGR
@@ -825,9 +845,9 @@ def _deliver_unreported_runner_ends_notice(
             # The commands were the agent's own, so it hears of them whatever account it runs on.
             is_refused_on_signed_out_account=False,
         )
-    if isinstance(accepted, Response):
+    if isinstance(accepted, _SendRefused):
         logger.warning(
-            "Could not tell chat {} of its unreported background commands: {}", chat_id, accepted.get_json()
+            "Could not tell chat {} of its unreported background commands: {}", chat_id, accepted.answer.detail
         )
 
 
@@ -852,8 +872,8 @@ def _send_message_endpoint(chat_id: str) -> Response:
     accepted = _send_to_chat(
         state, ChatId(chat_id), send_message_request, message_id, is_refused_on_signed_out_account=True
     )
-    if isinstance(accepted, Response):
-        return accepted
+    if isinstance(accepted, _SendRefused):
+        return model_response(accepted.answer, accepted.status)
     # A 202 tells the page to keep its "Sending" placeholder and the script that nothing needs
     # backing off.
     if accepted.held_phase is not None:
@@ -919,7 +939,7 @@ def _get_harnesses_endpoint() -> Response:
     removed) still needs its catalog for the model bar to resolve, so narrowing this to
     the signed-in harnesses would strand that agent's chip on an unrecognized model.
     """
-    catalogs: dict[str, Any] = {}
+    catalogs: dict[str, HarnessCatalogEntry] = {}
     for harness in HARNESS_SPECS:
         # A parsed catalog (pi) reads data files; a bad/absent one must be
         # skipped, not 500 the endpoint for every other harness.
@@ -938,8 +958,8 @@ def _get_harnesses_endpoint() -> Response:
         # The harness's user-facing name, from the same table the account labels and the
         # handoff prompt use, so the page names a harness the way the backend does.
         catalog["label"] = HARNESS_LABEL[harness]
-        catalogs[harness.value] = catalog
-    return json_response(catalogs)
+        catalogs[harness.value] = HarnessCatalogEntry.model_validate(catalog)
+    return model_response(HarnessCatalogsResponse(root=catalogs))
 
 
 def _agent_switch_options(agent_manager: "AgentManager", agent_info: AgentInfo) -> tuple[ModelOption, ...]:
@@ -1735,7 +1755,7 @@ def _resolve_intake_account(intake: IntakeRequest) -> str | Response | None:
         return None
 
 
-def _deliver_intake_send(state: ChatAppState, chat_id: ChatId, intake: IntakeRequest) -> Response | None:
+def _deliver_intake_send(state: ChatAppState, chat_id: ChatId, intake: IntakeRequest) -> _SendRefused | None:
     """Send an intake's text to a chat that is an agent through the ordinary send path; None when it landed (or was
     held for a converging chat), else the message route's own failure response."""
     message_id = uuid4().hex
@@ -1744,7 +1764,7 @@ def _deliver_intake_send(state: ChatAppState, chat_id: ChatId, intake: IntakeReq
     )
     _consider_naming_chat(state, chat_id, intake.message)
     accepted = _send_to_chat(state, chat_id, send_message_request, message_id, is_refused_on_signed_out_account=True)
-    return accepted if isinstance(accepted, Response) else None
+    return accepted if isinstance(accepted, _SendRefused) else None
 
 
 def _log_undelivered_intake_send(
@@ -1758,8 +1778,8 @@ def _log_undelivered_intake_send(
         logger.warning(
             "An intake's send to chat {} was not delivered ({}): {}",
             chat_id,
-            failure.status_code,
-            failure.get_data(as_text=True),
+            failure.status,
+            failure.answer.detail,
         )
 
 
@@ -1775,7 +1795,8 @@ def _deliver_intake_send_in_background(state: ChatAppState, chat_id: ChatId, int
 def _finish_intake_send(state: ChatAppState, chat_id: ChatId, intake: IntakeRequest) -> Response | None:
     """Deliver an intake's send to a chat that is an agent, awaited or not; None when nothing failed here."""
     if intake.is_delivery_awaited:
-        return _deliver_intake_send(state, chat_id, intake)
+        refused = _deliver_intake_send(state, chat_id, intake)
+        return model_response(refused.answer, refused.status) if refused is not None else None
     _deliver_intake_send_in_background(state, chat_id, intake)
     return None
 
@@ -2302,7 +2323,28 @@ APP_DISPLAY_NAME: Final[str] = "Chat"
 APP_DESCRIPTION: Final[str] = (
     "The chats with the workspace's agents: one page per chat, where messages are sent and an agent's work is followed."
 )
-# The events and the harness catalogs exchange JSON but are schemaless: their shape is the harness's, not a model's.
+class HarnessCatalogEntry(HarnessCatalog):
+    """One harness's catalog as ``GET /api/harnesses`` answers it: the catalog plus the spec's declarations."""
+
+    popups: tuple[HarnessPopup, ...] = Field(description="The popups the harness declares for the chat page")
+    supports_compaction: bool = Field(description="Whether the harness can compact a conversation")
+    can_interrupt_compaction: bool = Field(description="Whether a compaction in flight can be interrupted")
+    label: str = Field(description="The harness's user-facing name")
+
+
+class HarnessCatalogsResponse(RootModel[dict[str, HarnessCatalogEntry]]):
+    """What ``GET /api/harnesses`` answers: every harness's catalog, keyed by the harness's id."""
+
+
+# The 409 every verb but destroy and message answers while the chat converges (spec 4.4).
+_CONVERGING: Final[AlternateResponse] = AlternateResponse(status=409, model=ConvergingResponse)
+# What the send path refuses with, on every route that sends: a declined send (409) or a failed one (500).
+_SEND_FAILURES: Final[tuple[AlternateResponse, ...]] = (
+    AlternateResponse(status=409, model=SendFailureResponse),
+    AlternateResponse(status=500, model=SendFailureResponse),
+)
+
+# The events exchange JSON but are schemaless: their shape is the harness's, not a model's.
 _LOOSE_EVENTS_REASON: Final[str] = (
     "Loosely shaped harness events the chat page consumes; their shape is the harness's, not a model's"
 )
@@ -2314,9 +2356,7 @@ _ROUTE_TABLE: Final[RouteTable] = {
     ("GET", "/{path}"): SchemalessRoute(reason="An agent-authored file by its absolute path, or a chat's page"),
     ("GET", "/api/ws"): SchemalessRoute(reason="The chat pages' WebSocket"),
     ("GET", "/api/health"): RouteModels(response_model=HealthResponse),
-    ("GET", "/api/harnesses"): SchemalessRoute(
-        reason="The per-harness model catalogs, each dumped verbatim with the harness's declarations"
-    ),
+    ("GET", "/api/harnesses"): RouteModels(response_model=HarnessCatalogsResponse),
     ("GET", "/api/agents"): RouteModels(response_model=AgentListResponse),
     ("GET", "/api/chats"): RouteModels(response_model=ChatListResponse),
     ("POST", "/api/chats/create"): RouteModels(
@@ -2326,10 +2366,12 @@ _ROUTE_TABLE: Final[RouteTable] = {
         request_model=SeedChatRequest, response_model=CreateChatResponse, success_status=201
     ),
     ("POST", "/api/chats/awaiting"): RouteModels(response_model=CreateChatResponse),
-    ("POST", "/api/chats/intake"): RouteModels(request_model=IntakeRequest, response_model=IntakeResponse),
+    ("POST", "/api/chats/intake"): RouteModels(
+        request_model=IntakeRequest, response_model=IntakeResponse, alternate_responses=_SEND_FAILURES
+    ),
     ("GET", "/api/chats/intakes/{token}"): RouteModels(response_model=PendingIntakeView),
     ("POST", "/api/chats/intakes/{token}/apply"): RouteModels(
-        request_model=IntakeApplyRequest, response_model=IntakeApplyResponse
+        request_model=IntakeApplyRequest, response_model=IntakeApplyResponse, alternate_responses=_SEND_FAILURES
     ),
     ("DELETE", "/api/chats/intakes/{token}"): RouteModels(success_status=204),
     ("POST", "/api/uploads"): RouteModels(response_model=AttachmentUploadResponse, success_status=201),
@@ -2341,8 +2383,12 @@ _ROUTE_TABLE: Final[RouteTable] = {
     ("POST", "/api/chats/{chat_id}/rename"): RouteModels(
         request_model=RenameChatRequest, response_model=RenameChatResponse
     ),
-    ("POST", "/api/chats/{chat_id}/start"): RouteModels(response_model=StartAgentResponse),
-    ("POST", "/api/chats/{chat_id}/stop"): RouteModels(response_model=StopAgentResponse),
+    ("POST", "/api/chats/{chat_id}/start"): RouteModels(
+        response_model=StartAgentResponse, alternate_responses=(_CONVERGING,)
+    ),
+    ("POST", "/api/chats/{chat_id}/stop"): RouteModels(
+        response_model=StopAgentResponse, alternate_responses=(_CONVERGING,)
+    ),
     ("GET", "/api/chats/{chat_id}/events"): SchemalessRoute(reason=_LOOSE_EVENTS_REASON),
     ("GET", "/api/chats/{chat_id}/events/{event_id}/detail"): SchemalessRoute(
         reason="One event's deferred payloads (tool input, tool output, thinking), shaped by the harness"
@@ -2351,22 +2397,34 @@ _ROUTE_TABLE: Final[RouteTable] = {
     ("POST", "/api/chats/{chat_id}/message"): RouteModels(
         request_model=SendMessageRequest,
         response_model=SendMessageResponse,
-        alternate_responses=(AlternateResponse(status=202, model=HeldSendResponse),),
+        alternate_responses=(AlternateResponse(status=202, model=HeldSendResponse), *_SEND_FAILURES),
     ),
     ("POST", "/api/chats/{chat_id}/presence"): RouteModels(request_model=PresenceReport, response_model=OkResponse),
     ("GET", "/api/chats/{chat_id}/watchers"): RouteModels(response_model=ChatWatchersResponse),
     ("POST", "/api/chats/{chat_id}/model"): RouteModels(
-        request_model=SetModelChoiceRequest, response_model=SendMessageResponse
+        request_model=SetModelChoiceRequest, response_model=SendMessageResponse, alternate_responses=(_CONVERGING,)
     ),
     ("GET", "/api/chats/{chat_id}/model-options"): RouteModels(response_model=ModelOptionsResponse),
     ("GET", "/api/chats/{chat_id}/powered-by"): RouteModels(response_model=PoweredByResponse),
-    ("POST", "/api/chats/{chat_id}/interrupt"): RouteModels(response_model=InterruptAgentResponse),
-    ("POST", "/api/chats/{chat_id}/flush-queue"): RouteModels(response_model=SendMessageResponse),
-    ("POST", "/api/chats/{chat_id}/shoulder-tap-atomic"): RouteModels(response_model=ShoulderTapAtomicResponse),
-    ("POST", "/api/chats/{chat_id}/drain-to-composer"): RouteModels(response_model=DrainToComposerResponse),
+    ("POST", "/api/chats/{chat_id}/interrupt"): RouteModels(
+        response_model=InterruptAgentResponse, alternate_responses=(_CONVERGING,)
+    ),
+    ("POST", "/api/chats/{chat_id}/flush-queue"): RouteModels(
+        response_model=SendMessageResponse,
+        alternate_responses=(_CONVERGING, AlternateResponse(status=500, model=SendFailureResponse)),
+    ),
+    ("POST", "/api/chats/{chat_id}/shoulder-tap-atomic"): RouteModels(
+        response_model=ShoulderTapAtomicResponse, alternate_responses=(_CONVERGING,)
+    ),
+    ("POST", "/api/chats/{chat_id}/drain-to-composer"): RouteModels(
+        response_model=DrainToComposerResponse, alternate_responses=(_CONVERGING,)
+    ),
     ("GET", "/api/chats/{chat_id}/screen"): RouteModels(response_model=ScreenCaptureResponse),
     ("POST", "/api/chats/{chat_id}/handoff"): RouteModels(
-        request_model=SwitchChatRequest, response_model=SwitchChatResponse, success_status=202
+        request_model=SwitchChatRequest,
+        response_model=SwitchChatResponse,
+        success_status=202,
+        alternate_responses=(_CONVERGING,),
     ),
     ("POST", "/api/chats/{chat_id}/handoff/cancel"): RouteModels(response_model=HandoffCancelResponse),
     ("POST", "/api/chats/{chat_id}/handoff/retry"): RouteModels(
@@ -2387,14 +2445,14 @@ _ROUTE_TABLE: Final[RouteTable] = {
         reason="A server-sent event stream of one subagent session's events"
     ),
 }
-ROUTE_TABLE: Final[RouteTable] = {
-    **_ROUTE_TABLE,
-    **auth_endpoints.ROUTE_TABLE,
-    **accounts_endpoints.ROUTE_TABLE,
-    **latchkey_endpoints.ROUTE_TABLE,
-    **focus_chat.ROUTE_TABLE,
-    **secret_requests_endpoints.ROUTE_TABLE,
-}
+ROUTE_TABLE: Final[RouteTable] = merge_route_tables(
+    _ROUTE_TABLE,
+    auth_endpoints.ROUTE_TABLE,
+    accounts_endpoints.ROUTE_TABLE,
+    latchkey_endpoints.ROUTE_TABLE,
+    focus_chat.ROUTE_TABLE,
+    secret_requests_endpoints.ROUTE_TABLE,
+)
 
 
 def create_application(state: ChatAppState) -> Flask:

@@ -29,16 +29,16 @@ from collections import deque
 from collections.abc import Coroutine
 from typing import Any, Callable
 
-from app_schema.routes import error_response
-from flask import Response, jsonify, request
+from app_schema.routes import error_response, model_response
+from flask import Response, request
 from flask.typing import ResponseReturnValue
 from loguru import logger
 from simple_websocket import ConnectionClosed
 
-from browser import telemetry
+from browser import telemetry, window_guardian
+from browser.api_models import ClipboardPasted
 from browser.audiopipe import AudioPipe, AudioPipeError
 from browser.audiopipe import is_available as is_audio_available
-from browser import window_guardian
 from browser.stream_conductor import StreamConnection, conductor
 from browser.videopipe import PixelfluxVideoPipe, VideoPipeError
 from browser.window_guardian import WindowGuardian
@@ -277,7 +277,7 @@ def clipboard_paste(
     if not run_on_loop(session.paste_into_active_tab()):
         logger.warning("clipboard paste for {} could not reach the active tab", browser_id)
         return error_response("paste failed", 500)
-    return jsonify({"ok": True})
+    return model_response(ClipboardPasted(ok=True))
 
 
 def clipboard_out(browser_id: str) -> Response:
