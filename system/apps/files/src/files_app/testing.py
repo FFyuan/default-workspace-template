@@ -1,7 +1,6 @@
-"""A gateway and a dufs that answer in memory, for the Files server's tests."""
+"""A gateway that answers in memory, for the Files server's tests."""
 
 import json
-from collections.abc import Callable
 from typing import Any
 from typing import Final
 
@@ -41,13 +40,21 @@ def propfind_body(folder: str, children: list[tuple[str, bool, int]]) -> bytes:
 
 class FakeComputer:
     """The user's computer as the gateway reaches it: the permissions it granted, the folders it holds, and every
-    request it was sent."""
+    request it was sent. It grants per device when a permission names it, and then serves its files under its id
+    alone; otherwise with no id alone, as the gateway refuses a path no grant matches."""
 
-    def __init__(self, permissions: list[str], folders: dict[str, list[tuple[str, bool, int]]], is_awake: bool = True):
+    def __init__(
+        self,
+        permissions: list[str],
+        folders: dict[str, list[tuple[str, bool, int]]],
+        is_awake: bool = True,
+        is_writable: bool = True,
+    ):
         self.permissions = permissions
         self.folders = folders
         self.files: dict[str, bytes] = {}
         self.is_awake = is_awake
+        self.is_writable = is_writable
         self.requests: list[httpx.Request] = []
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -57,14 +64,16 @@ class FakeComputer:
             return httpx.Response(200, json={"devices": [{"device_id": DEVICE, "hostname": "Kims-Mac.local"}]})
         if path == "/permissions/self":
             return httpx.Response(200, json={"rules": [{"latchkey-self": list(self.permissions)}]})
-        if path == "/permission-requests":
-            return httpx.Response(201, json={"id": "request-1"})
         prefix = "/minds-api-proxy/api/v1/files"
         if not path.startswith(prefix):
             return httpx.Response(404)
         if not self.is_awake:
             return httpx.Response(502, text="device unreachable")
-        on_computer = httpx.URL(path[len(prefix) :]).path
+        rest = path[len(prefix) :]
+        is_by_id = rest.startswith(f"/{DEVICE}/")
+        if is_by_id != any(f"-{DEVICE}:" in permission for permission in self.permissions):
+            return httpx.Response(403, text="request not permitted by the user")
+        on_computer = httpx.URL(rest[len(f"/{DEVICE}") :] if is_by_id else rest).path
         folder = on_computer.rstrip("/") or "/"
         if request.method == "PROPFIND":
             if folder in self.folders:
@@ -88,6 +97,8 @@ class FakeComputer:
                     (b"Content-Disposition", f'inline; filename="{name}"'.encode()),
                 ],
             )
+        if request.method == "PUT" and not self.is_writable:
+            return httpx.Response(403, text="forbidden")
         if request.method == "PUT":
             self.files[on_computer] = request.read()
             return httpx.Response(201)
@@ -103,10 +114,6 @@ class FakeComputer:
         return Gateway(
             "http://gateway.test", "secret", None, httpx.Client(transport=httpx.MockTransport(self.streamed))
         )
-
-
-def mock_dufs(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.Client:
-    return httpx.Client(base_url="http://dufs.test", transport=httpx.MockTransport(handler))
 
 
 def json_of(response: TestResponse) -> dict[str, Any]:

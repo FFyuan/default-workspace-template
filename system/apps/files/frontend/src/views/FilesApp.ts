@@ -9,7 +9,7 @@ import m from "mithril";
 
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
-import { alertDotIcon, badgedIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
+import { alertDotIcon, icon, type IconName } from "@imbue/workspace-ui/src/components/icons";
 import { createMenu, type Menu, type MenuRow } from "@imbue/workspace-ui/src/components/menu";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 import { Toasts } from "@imbue/workspace-ui/src/components/toasts";
@@ -27,18 +27,14 @@ import {
   stuckSyncOf,
   targetOf,
   type Connections,
-  type DroppedItem,
-  type PendingConnection,
   type Share,
 } from "../models/connections";
 import type { SortKey, ViewMode } from "../models/preferences";
 import { folderPathOf, isWithin, segmentsOf } from "../models/paths";
 import { isFileDrag, sourcesFromDrop } from "../models/uploads";
 import { DROP_FOLDER_ATTR, ENTRY_DRAG_TYPE, FOLDER_SURFACE_ATTR } from "./entries";
-
-/** Marks the Connected section, where an item dragged in from the user's computer is connected rather than uploaded. */
-const CONNECT_DROP_ATTR = "data-connect-drop";
 import { menuRowsOf, type FilesController } from "./FilesController";
+import { cornerBadge, fileIconSvg } from "./FileIcon";
 import { ColumnView, IconView, ListView } from "./FolderViews";
 import { iconButton } from "./iconButton";
 import { handleKeydown } from "./keyboard";
@@ -65,6 +61,7 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 const CONNECTED_INFO =
   "Files and folders shared from your computers. A synced one has a copy here; the rest open live from your computer while it's awake.";
+const NOTHING_CONNECTED = "Nothing yet. Share a file or folder from Imbue Studio on your computer.";
 
 interface SidebarRow {
   key: string;
@@ -77,6 +74,8 @@ interface SidebarRow {
   /** Marks after the label, shown only when there is something to say: read-only, stuck, not answering. */
   badges?: m.Children;
   isFaint?: boolean;
+  /** A shared file opens its page and takes no drops; every other row is a folder. */
+  isFile?: boolean;
   onOpen?: () => void;
 }
 
@@ -88,7 +87,7 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
       key: row.key,
       type: "button",
       "data-sidebar-row": row.key,
-      [DROP_FOLDER_ATTR]: row.path,
+      [DROP_FOLDER_ATTR]: row.isFile === true ? undefined : row.path,
       "aria-current": isCurrent ? "true" : undefined,
       ...(row.title === undefined ? {} : hoverTooltipAttrs(row.title, "right", { maxWidth: 260 })),
       class: `flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) ${
@@ -109,18 +108,21 @@ function sidebarRow(app: FilesController, row: SidebarRow, isCurrent: boolean): 
     [
       row.iconBadge === undefined
         ? m.trust(icon(row.icon, { size: 16, className: "shrink-0" }))
-        : m(
-            "span.files-share-icon",
-            { "data-share-badge": row.iconBadge, class: "flex shrink-0" },
-            m.trust(badgedIcon(row.icon, SHARE_BADGE_ICONS[row.iconBadge], { size: 16 })),
-          ),
+        : sharedItemIcon(row.label, row.icon === "folder", row.iconBadge),
       m("span.files-sidebar-label", { class: "min-w-0 flex-1 truncate" }, row.label),
       row.badges ?? null,
     ],
   );
 }
 
-const SHARE_BADGE_ICONS: Record<ShareBadge, IconName> = { linked: "link", synced: "refresh" };
+/** A shared item drawn as the folder views draw it, with their small disc over its corner saying how it reaches the
+ *  workspace. */
+function sharedItemIcon(name: string, isFolder: boolean, badge: ShareBadge): m.Vnode {
+  return m("span.files-share-icon", { "data-share-badge": badge, class: "relative flex shrink-0" }, [
+    m.trust(fileIconSvg(name, isFolder, 18)),
+    cornerBadge(badge, 18),
+  ]);
+}
 
 function mark(kind: string, label: string, body: m.Children, extra: string): m.Vnode {
   return m("span.files-share-mark", { "data-mark": kind, "aria-label": label, class: `flex shrink-0 ${extra}` }, body);
@@ -151,10 +153,11 @@ function shareRow(app: FilesController, connections: Connections, share: Share):
     key: `share:${share.device}:${share.path}`,
     label: labelOf(share),
     path: target,
-    icon: share.kind === "file" ? "file" : "folder",
+    icon: share.kind === "file" ? "page" : "folder",
     iconBadge: shareBadgeOf(share),
     title: describeShare(share, deviceNameOf(connections, share.device)),
     isFaint: !share.is_reachable && share.synced_copy === null,
+    isFile: share.kind === "file",
     badges: [
       share.access === "read" ? readOnlyMark() : null,
       share.sync_state === "behind" ? stuckMark() : null,
@@ -162,38 +165,6 @@ function shareRow(app: FilesController, connections: Connections, share: Share):
     ],
     onOpen: share.kind === "file" ? () => app.openPage(target, "view") : undefined,
   };
-}
-
-/** A connection asked for and waiting on its approval in Imbue Studio. */
-function pendingRow(waiting: PendingConnection): m.Vnode {
-  return m(
-    "div.files-pending-connection",
-    {
-      key: `pending:${waiting.key}`,
-      ...hoverTooltipAttrs("Waiting for you to approve it in Imbue Studio on your computer.", "right", {
-        maxWidth: 260,
-      }),
-      class: "flex h-7 w-full shrink-0 items-center gap-2 rounded-md px-2 text-(length:--font-size-row) text-faint",
-    },
-    [
-      m.trust(icon(waiting.isFolder ? "folder" : "file", { size: 16, className: "shrink-0" })),
-      m("span", { class: "min-w-0 flex-1 truncate" }, waiting.name),
-      mark("pending", "Waiting for approval", m("span.spinner.spinner--sm"), "text-faint"),
-    ],
-  );
-}
-
-/** Where an item dragged in from the user's computer lands to be connected. */
-function dropToConnectRow(): m.Vnode {
-  return m(
-    "div.files-connect-drop",
-    {
-      key: "connect-drop",
-      class:
-        "flex h-7 w-full shrink-0 items-center gap-2 rounded-md border border-dashed border-accent px-2 text-(length:--font-size-row) text-accent",
-    },
-    [m.trust(icon("plus", { size: 16, className: "shrink-0" })), m("span", { class: "truncate" }, "Drop to connect")],
-  );
 }
 
 function sectionHeading(label: string, extra: m.Children = null): m.Vnode {
@@ -253,9 +224,8 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
       if (shareRows.length > 0) {
         connectedBody = shareRows.map((row) => sidebarRow(app, row, row.key === current));
       } else {
-        const empty = model.connectionsError ?? (connections === null ? "Looking…" : null);
-        connectedBody =
-          empty === null ? null : m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, empty);
+        const empty = model.connectionsError ?? (connections === null ? "Looking…" : NOTHING_CONNECTED);
+        connectedBody = m("div.files-connected-empty", { class: "px-2 py-1 type-helper text-faint" }, empty);
       }
       return m(
         "nav.files-sidebar",
@@ -269,47 +239,21 @@ function Sidebar(): m.Component<{ app: FilesController; floating: boolean }> {
           m("div", { class: "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-1 pb-3" }, [
             sectionHeading("Shortcuts"),
             shortcutRows.map((row) => sidebarRow(app, row, row.key === current)),
-            m(
-              "div.files-connected",
-              {
-                [CONNECT_DROP_ATTR]: "",
-                class: `flex flex-col gap-0.5 rounded-md ${app.isConnectDropping ? "bg-accent-light/40" : ""}`,
-              },
-              [
-                sectionHeading("Connected", [
-                  m(
-                    "span.files-connected-info",
-                    {
-                      tabindex: 0,
-                      "aria-label": CONNECTED_INFO,
-                      class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
-                      ...hoverTooltipAttrs(CONNECTED_INFO, "right", { maxWidth: 220 }),
-                    },
-                    m.trust(icon("info", { size: 13 })),
-                  ),
-                ]),
-                connectedBody,
-                app.pending.map((waiting) => pendingRow(waiting)),
-                app.isConnectDropping ? dropToConnectRow() : null,
+            m("div.files-connected", { class: "flex flex-col gap-0.5" }, [
+              sectionHeading("Connected", [
                 m(
-                  "button.files-connect",
+                  "span.files-connected-info",
                   {
-                    type: "button",
-                    "data-action": "connect",
-                    class:
-                      "flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-(length:--font-size-row) text-faint hover:bg-fill-hover hover:text-primary",
-                    onclick: () => {
-                      app.isSidebarOpen = false;
-                      void app.connectLocal();
-                    },
+                    tabindex: 0,
+                    "aria-label": CONNECTED_INFO,
+                    class: "flex shrink-0 cursor-help text-faint hover:text-secondary",
+                    ...hoverTooltipAttrs(CONNECTED_INFO, "right", { maxWidth: 220 }),
                   },
-                  [
-                    m.trust(icon("plus", { size: 16, className: "shrink-0" })),
-                    m("span", { class: "truncate" }, "Connect a file or folder…"),
-                  ],
+                  m.trust(icon("info", { size: 13 })),
                 ),
-              ],
-            ),
+              ]),
+              connectedBody,
+            ]),
           ]),
           resizeHandle(app),
         ],
@@ -376,7 +320,7 @@ function Breadcrumb(): m.Component<{ app: FilesController }> {
                       : "text-secondary hover:bg-fill-hover hover:text-primary"
                 }`,
                 onclick: () => {
-                  if (crumb.path !== model.folder || model.search !== null) model.navigate(crumb.path);
+                  if (crumb.path !== model.folder) model.navigate(crumb.path);
                 },
               },
               crumb.label,
@@ -462,22 +406,18 @@ function Toolbar(): m.Component<{ app: FilesController }> {
         ),
         optionsMenu.view(optionRows),
       ]);
-      return m(
-        "header.files-toolbar",
-        { class: "flex h-12 shrink-0 items-center gap-1 border-b border-default bg-surface px-3" },
-        [
-          app.isNarrow
-            ? iconButton("Show sidebar", "panel-left", {
-                "data-action": "sidebar",
-                onclick: () => (app.isSidebarOpen = true),
-              })
-            : null,
-          m(Breadcrumb, { app }),
-          viewSwitch,
-          add,
-          options,
-        ],
-      );
+      return m("header.files-toolbar", { class: "flex shrink-0 items-center gap-1 bg-surface px-3 py-1" }, [
+        app.isNarrow
+          ? iconButton("Show sidebar", "panel-left", {
+              "data-action": "sidebar",
+              onclick: () => (app.isSidebarOpen = true),
+            })
+          : null,
+        m(Breadcrumb, { app }),
+        viewSwitch,
+        add,
+        options,
+      ]);
     },
   };
 }
@@ -489,25 +429,12 @@ function FolderBody(): m.Component<{ app: FilesController }> {
     view({ attrs: { app } }) {
       const model = app.model;
       const mode = app.viewMode;
-      if (mode === "columns" && model.search === null) return m(ColumnView, { app });
+      if (mode === "columns") return m(ColumnView, { app });
       const state = model.folderState(model.folder);
-      const entries = model.shownEntries();
-      const search = model.search;
-      const connections = model.connections;
-      const share = shareAt(connections, model.folder);
-      const stuck =
-        share === undefined || connections === null
-          ? null
-          : stuckSyncOf(share, deviceNameOf(connections, share.device));
+      const entries = model.visibleEntries(model.folder);
+      const stuck = stuckSyncOf(model.connections, model.folder);
       let empty: m.Children = null;
-      if (search !== null) {
-        if (search.status === "error") empty = message("Search failed", search.error ?? "");
-        else if (entries.length === 0)
-          empty =
-            search.status === "searching"
-              ? m("div", { class: "flex justify-center pt-16" }, m("div.spinner"))
-              : message("No results", `Nothing in this folder matches "${search.query}".`);
-      } else if (state === undefined || (state.status === "loading" && entries.length === 0)) {
+      if (state === undefined || (state.status === "loading" && entries.length === 0)) {
         empty = m("div", { class: "flex justify-center pt-16" }, m("div.spinner"));
       } else if (state.status === "error" && entries.length === 0) {
         empty = message("Couldn't open this folder", state.error ?? "", () => void model.load(model.folder));
@@ -523,18 +450,7 @@ function FolderBody(): m.Component<{ app: FilesController }> {
       }
       return m("div", { class: "min-h-full" }, [
         stuck !== null && entries.length > 0 ? stuckBanner(stuck) : null,
-        search === null
-          ? null
-          : m(
-              "div.files-search-header",
-              { class: "flex items-center gap-2 px-5 pt-3 pb-1 type-helper text-secondary" },
-              [
-                m("span", `Results in ${segmentsOf(search.folder).pop() ?? "Computer"}`),
-                search.status === "searching" && entries.length > 0 ? m("div.spinner.spinner--sm") : null,
-              ],
-            ),
-        // Results come from all through the folder, so they show as a list, which says where each one is.
-        empty ?? (mode === "icons" && search === null ? m(IconView, { app, entries }) : m(ListView, { app, entries })),
+        empty ?? (mode === "icons" ? m(IconView, { app, entries }) : m(ListView, { app, entries })),
       ]);
     },
   };
@@ -577,8 +493,10 @@ function UploadPanel(): m.Component<{ app: FilesController }> {
       const busy = uploads.isBusy;
       const failed = uploads.items.filter((item) => item.status === "failed").length;
       const done = uploads.items.filter((item) => item.status === "done").length;
+      // The item under way, counted from the first: the ones already settled, then this one.
+      const settled = uploads.items.filter((item) => item.status !== "queued" && item.status !== "uploading").length;
       const summary = busy
-        ? `Uploading ${uploads.items.filter((item) => item.status === "queued" || item.status === "uploading").length} of ${uploads.items.length}`
+        ? `Uploading ${Math.min(settled + 1, uploads.items.length)} of ${uploads.items.length}`
         : failed > 0
           ? `${failed} upload${failed === 1 ? "" : "s"} failed`
           : `Uploaded ${formatItemCount(done)}`;
@@ -660,30 +578,6 @@ function dropFolderAt(app: FilesController, target: EventTarget | null): string 
   return element?.getAttribute(DROP_FOLDER_ATTR) ?? app.model.folder;
 }
 
-/** Whether a drag over `target` is on the Connected section itself, rather than on one of its shares, which a drop
- *  uploads into like any folder. */
-function isOverConnect(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  const section = target.closest(`[${CONNECT_DROP_ATTR}]`);
-  if (section === null) return false;
-  const folder = target.closest(`[${DROP_FOLDER_ATTR}]`);
-  return folder === null || !section.contains(folder);
-}
-
-/** The items a drop from the user's computer carries, by name and kind: a browser tells nothing of where they are. */
-function droppedItemsOf(transfer: DataTransfer): DroppedItem[] {
-  const items = Array.from(transfer.items)
-    .filter((item) => item.kind === "file")
-    .map((item) => item.webkitGetAsEntry?.() ?? null);
-  if (items.length > 0 && items.every((entry) => entry !== null)) {
-    return items.map((entry) => ({
-      name: (entry as FileSystemEntry).name,
-      isFolder: (entry as FileSystemEntry).isDirectory,
-    }));
-  }
-  return Array.from(transfer.files).map((file) => ({ name: file.name, isFolder: false }));
-}
-
 function installDropHandling(app: FilesController, root: HTMLElement): () => void {
   const model = app.model;
   const isEntryDrag = (event: DragEvent): boolean =>
@@ -693,23 +587,9 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
     model.dropTarget = folder;
     m.redraw();
   };
-  const setConnecting = (isOver: boolean): void => {
-    if (app.isConnectDropping === isOver) return;
-    app.isConnectDropping = isOver;
-    m.redraw();
-  };
   const onDragOver = (event: DragEvent): void => {
     const fromOutside = isFileDrag(event.dataTransfer);
     if (!fromOutside && !isEntryDrag(event)) return;
-    const isConnecting = fromOutside && isOverConnect(event.target);
-    setConnecting(isConnecting);
-    if (isConnecting) {
-      event.preventDefault();
-      if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy";
-      setTarget(null);
-      return;
-    }
-    if (!fromOutside && isOverConnect(event.target)) return;
     event.preventDefault();
     const folder = dropFolderAt(app, event.target);
     if (event.dataTransfer !== null) event.dataTransfer.dropEffect = fromOutside ? "copy" : "move";
@@ -718,7 +598,6 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
   const onDragLeave = (event: DragEvent): void => {
     if (event.relatedTarget === null || !root.contains(event.relatedTarget as Node)) {
       setTarget(null);
-      setConnecting(false);
     }
   };
   const onDrop = (event: DragEvent): void => {
@@ -726,12 +605,6 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
     if (transfer === null) return;
     const folder = dropFolderAt(app, event.target);
     setTarget(null);
-    setConnecting(false);
-    if (isFileDrag(transfer) && isOverConnect(event.target)) {
-      event.preventDefault();
-      void app.connectDropped(droppedItemsOf(transfer));
-      return;
-    }
     if (isFileDrag(transfer)) {
       event.preventDefault();
       void sourcesFromDrop(transfer).then((sources) => model.uploadInto(folder, sources));
@@ -743,10 +616,7 @@ function installDropHandling(app: FilesController, root: HTMLElement): () => voi
       void model.moveInto(paths, folder);
     }
   };
-  const onDragEnd = (): void => {
-    setTarget(null);
-    setConnecting(false);
-  };
+  const onDragEnd = (): void => setTarget(null);
   root.addEventListener("dragover", onDragOver);
   root.addEventListener("dragleave", onDragLeave);
   root.addEventListener("drop", onDrop);
@@ -793,7 +663,7 @@ export function FilesApp(): m.Component<{ app: FilesController }> {
             "main.files-folder",
             {
               [FOLDER_SURFACE_ATTR]: model.folder,
-              class: `relative min-h-0 flex-1 ${app.viewMode === "columns" && model.search === null ? "overflow-hidden" : "overflow-y-auto"} ${
+              class: `relative min-h-0 flex-1 ${app.viewMode === "columns" ? "overflow-hidden" : "overflow-y-auto"} ${
                 fileDropOnFolder ? "bg-accent-light/50 outline-2 -outline-offset-4 outline-accent outline-dashed" : ""
               }`,
               onclick: () => {

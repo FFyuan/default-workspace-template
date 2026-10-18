@@ -2,15 +2,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fileEntry, folderEntry, memoryStorage } from "../testing/records";
-import * as dufs from "./dufs";
+import * as server from "./server";
 import { FilesModel, compareEntries, type ConflictChoice, type FilesHost } from "./FilesModel";
 
-vi.mock("./dufs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./dufs")>();
+vi.mock("./server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./server")>();
   return {
     ...actual,
     listFolder: vi.fn(),
-    searchFolder: vi.fn(),
     exists: vi.fn(),
     movePath: vi.fn(),
     deletePath: vi.fn(),
@@ -46,14 +45,15 @@ function harness(): Harness {
     openFile: vi.fn(),
     confirmDelete: vi.fn(async () => true),
     confirmReplace: vi.fn(async () => replaceAnswer.value),
+    askNewName: vi.fn(async () => null),
   };
   const model = new FilesModel(host, HOME, { exists: true, entries: ENTRIES });
   return { model, host, locations, replaceAnswer };
 }
 
 beforeEach(() => {
-  vi.mocked(dufs.listFolder).mockResolvedValue({ exists: true, entries: ENTRIES });
-  vi.mocked(dufs.exists).mockResolvedValue(false);
+  vi.mocked(server.listFolder).mockResolvedValue({ exists: true, entries: ENTRIES });
+  vi.mocked(server.exists).mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -157,7 +157,7 @@ describe("renaming", () => {
     model.startRename("/home/b.txt");
     model.setRenameDraft("c.txt");
     await model.commitRename();
-    expect(dufs.movePath).toHaveBeenCalledWith("/home/b.txt", "/home/c.txt");
+    expect(server.movePath).toHaveBeenCalledWith("/home/b.txt", "/home/c.txt");
     expect(model.rename).toBeNull();
     expect(model.selection).toEqual(["/home/c.txt"]);
   });
@@ -167,7 +167,7 @@ describe("renaming", () => {
     model.startRename("/home/b.txt");
     model.setRenameDraft("a.png");
     await model.commitRename();
-    expect(dufs.movePath).not.toHaveBeenCalled();
+    expect(server.movePath).not.toHaveBeenCalled();
     expect(model.rename?.error).toBe('"a.png" is already taken.');
   });
 
@@ -177,8 +177,32 @@ describe("renaming", () => {
     model.navigate("/home/zeta/sub/", { select: [] });
     model.rename = { path: "/home/zeta/", draft: "eta", error: null, isSaving: false };
     await model.commitRename();
-    expect(dufs.movePath).toHaveBeenCalledWith("/home/zeta/", "/home/eta/");
+    expect(server.movePath).toHaveBeenCalledWith("/home/zeta/", "/home/eta/");
     expect(model.folder).toBe("/home/eta/sub/");
+  });
+
+  it("does not start on an entry read live from a computer, which cannot be renamed there", () => {
+    const live = "/__remote/host-mac/Users/kim/";
+    const host = harness().host;
+    const model = new FilesModel(host, live, { exists: true, entries: [fileEntry(live, "notes.md")] });
+    model.startRename(`${live}notes.md`);
+    expect(model.rename).toBeNull();
+  });
+});
+
+describe("moving", () => {
+  it("moves nothing into or out of a folder read live from a computer, and says why once a drag", async () => {
+    const { model } = harness();
+    await model.moveInto(["/home/b.txt"], "/__remote/host-mac/Users/kim/");
+    await model.moveInto(
+      ["/__remote/host-mac/Users/kim/notes.md", "/__remote/host-mac/Users/kim/plan.md"],
+      "/home/zeta/",
+    );
+    expect(server.movePath).not.toHaveBeenCalled();
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual([
+      "Moving isn't supported on files shared from your computer.",
+      "Moving isn't supported on files shared from your computer.",
+    ]);
   });
 });
 
@@ -187,25 +211,59 @@ describe("deleting", () => {
     const { model, host } = harness();
     model.selection = ["/home/b.txt", "/home/a.png"];
     await model.deleteEntries(model.selection);
-    expect(dufs.deletePath).toHaveBeenCalledTimes(2);
+    expect(server.deletePath).toHaveBeenCalledTimes(2);
     expect(model.selection).toEqual([]);
 
     vi.mocked(host.confirmDelete).mockResolvedValueOnce(false);
     await model.deleteEntries(["/home/b.txt"]);
-    expect(dufs.deletePath).toHaveBeenCalledTimes(2);
+    expect(server.deletePath).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps what could not be deleted selected, and stays in a folder whose delete failed", async () => {
+    const { model, locations } = harness();
+    vi.mocked(server.deletePath).mockImplementation(async (path) => {
+      if (path !== "/home/b.txt") throw new Error(`Couldn't delete ${path}`);
+    });
+    model.selection = ["/home/b.txt", "/home/a.png"];
+    await model.deleteEntries(model.selection);
+    expect(model.selection).toEqual(["/home/a.png"]);
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual(["Couldn't delete /home/a.png"]);
+
+    model.navigate("/home/zeta/");
+    await model.deleteEntries(["/home/zeta/"]);
+    expect(model.folder).toBe("/home/zeta/");
+    expect(locations[locations.length - 1]).toEqual(["/home/zeta/", "push", 1]);
+    vi.mocked(server.deletePath).mockReset();
   });
 });
 
 describe("creating", () => {
   it("makes an untitled folder clear of the names there and starts naming it", async () => {
     const { model } = harness();
-    vi.mocked(dufs.listFolder).mockResolvedValue({
+    vi.mocked(server.listFolder).mockResolvedValue({
       exists: true,
       entries: [...ENTRIES, folderEntry(HOME, "untitled folder")],
     });
     model.folders.get(HOME)?.entries.push(folderEntry(HOME, "untitled folder"));
     await model.createFolder();
-    expect(dufs.createFolder).toHaveBeenCalledWith("/home/untitled folder 2/");
+    expect(server.createFolder).toHaveBeenCalledWith("/home/untitled folder 2/");
+  });
+
+  it("asks for the name first in a computer's live share, where nothing can be renamed in place", async () => {
+    const live = "/__remote/host-mac/Users/kim/";
+    const host = harness().host;
+    const model = new FilesModel(host, live, { exists: true, entries: [folderEntry(live, "untitled folder")] });
+    vi.mocked(server.listFolder).mockResolvedValue({ exists: true, entries: [] });
+
+    await model.createFolder();
+    expect(host.askNewName).toHaveBeenCalledWith("untitled folder 2", true);
+    expect(server.createFolder).not.toHaveBeenCalled();
+
+    vi.mocked(host.askNewName).mockResolvedValueOnce("Drafts");
+    await model.createFolder();
+    expect(server.createFolder).toHaveBeenCalledWith(`${live}Drafts/`);
+    expect(model.rename).toBeNull();
+    expect(model.selection).toEqual([`${live}Drafts/`]);
   });
 });
 

@@ -1,7 +1,7 @@
 [project]
 name = "files-app"
 version = "0.1.0"
-description = "Files: the workspace's file browser, served in front of dufs, with the folders shared from the user's computers"
+description = "Files: the workspace's file browser, with the folders shared from the user's computers"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -1,6 +1,7 @@
 /**
- * The Files app's page. dufs serves this one document for every folder and every file page, with the folder's
- * listing or the file's facts filled in (see models/dufs.ts); this decides which of the two it is and mounts it.
+ * The Files app's page. The Files server serves this one document for every folder and every file page, with the
+ * folder's listing or the file's facts filled in (see models/server.ts); this decides which of the two it is and
+ * mounts it.
  *
  * A launch opens at the workspace folder with an optional `?path=<folder>`, which the page honours in place before
  * anything draws. Framed by the workspace shell, the page reports where it is (`shell:location`) on every move, so
@@ -17,7 +18,7 @@ import { installElementContextMenu } from "@imbue/workspace-ui/src/context_menu"
 import type { ContextMenuRow } from "@imbue/workspace-ui/src/context_menu_rows";
 import { installCursorHidingWhileTyping } from "@imbue/workspace-ui/src/hideCursorWhileTyping";
 
-import { entryOf, readPageData, urlOf } from "./models/dufs";
+import { entryOf, pageUrlOf, readPageData } from "./models/server";
 import { decodePathname, isFolderPath, titleOf } from "./models/paths";
 import { ENTRY_PATH_ATTR, FOLDER_SURFACE_ATTR } from "./views/entries";
 import { FilePage, FilePageModel } from "./views/FilePage";
@@ -49,8 +50,9 @@ function bootstrap(): void {
   if (root === null || data === null) return;
 
   const requested = rootedPathParam(window.location.search);
+  // A path without its slash is a file's (to its page) or a folder named loosely, which the server lists at `?view`.
   if (requested !== null && !isFolderPath(requested)) {
-    window.location.replace(urlOf(requested));
+    window.location.replace(pageUrlOf(requested, "view"));
     return;
   }
 
@@ -62,11 +64,11 @@ function bootstrap(): void {
   installCursorHidingWhileTyping(document);
 
   const path = decodePathname(window.location.pathname);
-  if (data.kind !== "Index") {
+  if (data.kind === "file") {
     const page = new FilePageModel({
       path,
-      page: data.kind === "Edit" ? "edit" : "view",
-      isText: data.editable === true,
+      page: new URLSearchParams(window.location.search).has("edit") ? "edit" : "view",
+      isText: data.is_text,
     });
     document.title = titleOf(path);
     connection.location(window.location.pathname + window.location.search, titleOf(path));
@@ -78,11 +80,8 @@ function bootstrap(): void {
 
   // A `?path=` folder is fetched rather than taken from the page, which lists the folder the launch landed on.
   const folder = requested ?? (isFolderPath(path) ? path : `${path}/`);
-  if (requested !== null) window.history.replaceState(null, "", urlOf(folder));
   const initial =
-    requested === null
-      ? { exists: data.dir_exists !== false, entries: (data.paths ?? []).map((item) => entryOf(folder, item)) }
-      : undefined;
+    requested === null ? { exists: true, entries: data.entries.map((record) => entryOf(folder, record)) } : undefined;
   const app = new FilesController(folder, initial, connection);
 
   installElementContextMenu({

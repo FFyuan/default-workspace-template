@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type Share, describeShare, requestConnection } from "./connections";
+import { type Connections, type Share, describeShare, deviceNameOf, isLiveShared, fetchConnections } from "./connections";
 
-const MAC = "Kims-Mac.local";
+const MAC = "Kims-Mac";
 
 function share(overrides: Partial<Share>): Share {
   return {
@@ -37,25 +37,39 @@ describe("describeShare", () => {
   });
 });
 
-describe("requestConnection", () => {
+describe("isLiveShared", () => {
+  it("is true only under the live view of a computer, not in a synced copy", () => {
+    expect(isLiveShared("/__remote/host-mac/Users/kim/notes/")).toBe(true);
+    expect(isLiveShared("/home/user/synced_folders/host-mac/Users/kim/notes/")).toBe(false);
+  });
+});
+
+describe("deviceNameOf", () => {
+  it("names a computer as people say it, without the .local macOS adds", () => {
+    const connections: Connections = { devices: [{ id: "host-mac", name: "Kims-Mac.local" }], shares: [] };
+    expect(deviceNameOf(connections, "host-mac")).toBe("Kims-Mac");
+    expect(deviceNameOf(connections, "host-gone")).toBe("your computer");
+  });
+});
+
+describe("fetchConnections", () => {
   it("quotes the server's refusal, from its {detail} body or its text", async () => {
     const refusals = [
-      new Response(JSON.stringify({ detail: "Imbue Studio refused the request." }), {
-        status: 403,
+      new Response(JSON.stringify({ detail: "Couldn't read your shares: the gateway answered 500" }), {
+        status: 502,
         headers: { "Content-Type": "application/json" },
       }),
       new Response("Not Found", { status: 404, headers: { "Content-Type": "text/plain" } }),
-      new Response("", { status: 502 }),
+      new Response("", { status: 503 }),
     ];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => refusals.shift()),
     );
     try {
-      const ask = { device: "host-mac", path: "~", access: "read" as const, sync: false };
-      await expect(requestConnection(ask)).rejects.toThrow("Imbue Studio refused the request.");
-      await expect(requestConnection(ask)).rejects.toThrow("Not Found");
-      await expect(requestConnection(ask)).rejects.toThrow("Couldn't ask your computer (502)");
+      await expect(fetchConnections()).rejects.toThrow("Couldn't read your shares: the gateway answered 500");
+      await expect(fetchConnections()).rejects.toThrow("Not Found");
+      await expect(fetchConnections()).rejects.toThrow("Couldn't read your connections (503)");
     } finally {
       vi.unstubAllGlobals();
     }

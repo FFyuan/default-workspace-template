@@ -1,5 +1,5 @@
 """The latchkey gateway, as Files reaches it: the user's devices, the file-sharing permissions this workspace holds on
-each, a request for a new one, and the shared files themselves. Every supervised program inherits the gateway's address
+each, and the shared files themselves. Every supervised program inherits the gateway's address
 and credentials from its environment, as the chat app's latchkey endpoints do."""
 
 import os
@@ -58,7 +58,6 @@ class Gateway:
         device: str | None = None,
         headers: Mapping[str, str] | None = None,
         content: str | bytes | Iterable[bytes] | None = None,
-        json: object = None,
         timeout: float | None = DEFAULT_TIMEOUT_SECONDS,
     ) -> httpx.Response:
         """A whole response from ``path`` on the gateway (``devices``, ``permissions/self``, ...)."""
@@ -67,7 +66,6 @@ class Gateway:
             f"{self._base_url}/{path.lstrip('/')}",
             headers=self._headers(device, headers),
             content=content,
-            json=json,
             timeout=timeout,
         )
 
@@ -87,7 +85,10 @@ class Gateway:
         return self._client.send(request, stream=True)
 
 
-def device_files_path(path: str) -> str:
-    """The gateway path of a file or folder on a device's file server; the device itself goes in a header. (The
-    file-sharing permissions match this path with no device id in it.)"""
-    return f"minds-api-proxy/api/v1/files/{urllib.parse.quote(path.lstrip('/'), safe='/')}"
+def device_files_path(path: str, device: str | None) -> str:
+    """The gateway path of a file or folder on a device's file server. A device that grants file sharing per device
+    serves it under its own id (``minds-file-server-read-<device id>:<path>`` matches ``files/<device id><path>``);
+    one that predates that serves it with no id (``minds-file-server-read-<path>`` matches ``files<path>``). Either
+    way the device also goes in a header, which routes the request to it."""
+    quoted = urllib.parse.quote(path.lstrip("/"), safe="/")
+    return f"minds-api-proxy/api/v1/files/{device}/{quoted}" if device else f"minds-api-proxy/api/v1/files/{quoted}"

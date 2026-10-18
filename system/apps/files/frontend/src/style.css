@@ -6,8 +6,8 @@
 @source "./**/*.ts";
 
 :root {
-  --files-folder: #8db7e0;
-  --files-folder-back: #6c9dcf;
+  --files-folder: #8eafcb;
+  --files-folder-back: #7096b7;
   --files-family-image: #2f8f6b;
   --files-family-video: #7a5bc7;
   --files-family-audio: #c9507f;

@@ -1,14 +1,13 @@
-"""The Files server: dufs behind it for the workspace's own files, and four things dufs cannot do in front of it.
+"""The Files server: the workspace's files and the files shared from the user's computers, answered the same way.
 
-- ``/__files/api/connections`` lists what the user has shared from their computers (GET), and asks for a new share
-  (POST), which pops Imbue Studio's sharing dialog on the computer.
+- ``/<path>`` is the workspace's own file or folder (``local_files``), ``/__remote/<device>/<path>`` one read live from
+  the computer it is on (``device_files``). Either way a folder or a file's ``?view`` / ``?edit`` page is the
+  frontend's ``index.html`` with the path's page data filled in, ``?json`` is that data alone, a file's plain GET is
+  its bytes, ``?zip`` a folder as a zip, and PUT, MKCOL, MOVE, and DELETE change it.
+- ``/__files/assets/`` is the frontend's build, ``/__files/api/connections`` what the user has shared with the
+  workspace from their computers.
 - ``/__files/api/schema`` is the OpenAPI document of these routes, built from the url map (``app_schema``); the
   manifest's ``api_schema_path``, which the visiting-agent primer links.
-- ``/__remote/<device>/<path>`` is a shared item read live from the computer it is on, answered in dufs's own shape
-  (a page, ``?json``, the bytes, PUT, DELETE, MKCOL), so the frontend browses it as it browses any folder.
-- Every answer's ``Content-Disposition`` is made ASCII-safe. dufs names the file in it as it is, and a name with a
-  character outside Latin-1 (the narrow space macOS puts in screenshot names) breaks the forwarder between the
-  workspace and the user's browser, which then answers with an error in place of the file.
 """
 
 import base64
@@ -23,7 +22,8 @@ import httpx
 from flask import Flask
 from flask import Response
 from flask import request
-from flask import stream_with_context
+from flask import send_from_directory
+from loguru import logger
 
 from app_schema.api_schema import RouteModels
 from app_schema.api_schema import RouteTable
@@ -31,327 +31,198 @@ from app_schema.api_schema import SchemalessRoute
 from app_schema.api_schema import register_api_schema_route
 from app_schema.routes import error_response
 from app_schema.routes import model_response
-from app_schema.routes import parse_request_body
 from files_app.connections import SYNCED_FOLDERS
-from files_app.connections import ConnectionRequest
-from files_app.connections import ConnectionRequested
 from files_app.connections import Connections
 from files_app.connections import list_connections
-from files_app.connections import list_on_device
+from files_app.device_files import DeviceFiles
 from files_app.gateway import Gateway
-from files_app.gateway import device_files_path
+from files_app.local_files import LocalFiles
+from files_app.sources import FileSource
+from files_app.sources import FilesError
+from files_app.sources import PageData
 
 API_PREFIX: Final[str] = "/__files/api"
 APP_DISPLAY_NAME: Final[str] = "Files"
 APP_DESCRIPTION: Final[str] = (
     "The workspace's file browser: the files here and on the person's connected computers, to open, upload and share."
 )
+ASSETS_PREFIX: Final[str] = "/__files/assets"
 REMOTE_PREFIX: Final[str] = "/__remote"
 
-_HOP_BY_HOP: Final[frozenset[str]] = frozenset(
-    {
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "host",
-    }
-)
-# What every route exchanges, which the API document publishes. The workspace's own files and a connected
-# computer's are served in dufs's shapes (pages, files, WebDAV, its JSON listings) and are typed with the file
-# browser that replaces dufs; the two connection routes exchange JSON.
-_DUFS_PROXY: Final[SchemalessRoute] = SchemalessRoute(reason="the workspace's own files, served by dufs")
-_REMOTE_PROXY: Final[SchemalessRoute] = SchemalessRoute(
-    reason="the files a connected computer shares, served in dufs's shapes"
-)
-_OPENAPI_METHODS: Final[tuple[str, ...]] = ("GET", "POST", "PUT", "DELETE", "PATCH")
-ROUTE_TABLE: RouteTable = {
-    ("GET", "/__files/api/connections"): RouteModels(response_model=Connections),
-    ("POST", "/__files/api/connections"): RouteModels(
-        request_model=ConnectionRequest, response_model=ConnectionRequested
-    ),
-    **{(method, path): _DUFS_PROXY for method in _OPENAPI_METHODS for path in ("/", "/{path}")},
-    **{
-        (method, path): _REMOTE_PROXY
-        for method in _OPENAPI_METHODS
-        for path in ("/__remote/{device}/", "/__remote/{device}/{path}")
-    },
-}
-
-_ALL_METHODS: Final[list[str]] = [
-    "GET",
-    "HEAD",
-    "POST",
-    "PUT",
-    "DELETE",
-    "OPTIONS",
-    "MKCOL",
-    "MOVE",
-    "COPY",
-    "PROPFIND",
-    "PATCH",
-    "CHECKAUTH",
-    "LOGOUT",
-]
+_METHODS: Final[list[str]] = ["GET", "HEAD", "PUT", "DELETE", "MKCOL", "MOVE"]
 _CHUNK: Final[int] = 64 * 1024
-# What a file page offers to edit, as dufs does: small, and text.
-_EDITABLE_LIMIT: Final[int] = 4 * 1024 * 1024
-_TEXT_TYPES: Final[re.Pattern[str]] = re.compile(r"^(text/|application/(json|xml|javascript|x-sh|toml|yaml))")
-_ASSETS_PREFIX: Final[re.Pattern[str]] = re.compile(r'src="(/__dufs_v[^"/]+__/)')
-_UNREACHABLE: Final[str] = "Your computer isn't answering. It may be asleep, or Imbue Studio may be closed."
+# A name vite gives a build file from its content, so the file at it never changes.
+_HASHED_ASSET: Final[re.Pattern[str]] = re.compile(r"-[A-Za-z0-9_-]{8}\.(js|css)$")
+_A_YEAR_IN_SECONDS: Final[int] = 365 * 24 * 60 * 60
+_NO_MOVE_TO_COMPUTER: Final[str] = "Moving isn't supported on files shared from your computer."
 _NO_GATEWAY: Final[str] = "This workspace isn't connected to Imbue Studio, so it can't reach your computers."
 
-
-def safe_content_disposition(value: str) -> str:
-    """The header with its plain ``filename`` reduced to ASCII; the exact name stays in ``filename*``."""
-    match = re.search(r'filename="([^"]*)"', value)
-    if match is None:
-        return value.encode("ascii", "replace").decode("ascii")
-    plain = match.group(1).encode("ascii", "replace").decode("ascii").replace("?", "_")
-    head = value[: match.start()] + f'filename="{plain}"' + value[match.end() :]
-    if "filename*=" not in head:
-        head += f"; filename*=UTF-8''{urllib.parse.quote(match.group(1))}"
-    return head.encode("ascii", "replace").decode("ascii")
-
-
-def _outgoing_headers(upstream: httpx.Headers) -> list[tuple[str, str]]:
-    headers: list[tuple[str, str]] = []
-    for raw_key, raw_value in upstream.raw:
-        key = raw_key.decode("latin-1")
-        if key.lower() in _HOP_BY_HOP:
-            continue
-        value = raw_value.decode("utf-8", "replace")
-        if key.lower() == "content-disposition":
-            value = safe_content_disposition(value)
-        headers.append((key, value.encode("latin-1", "replace").decode("latin-1")))
-    return headers
-
-
-def _request_body() -> Iterator[bytes] | None:
-    if request.content_length in (None, 0) and "chunked" not in request.headers.get("Transfer-Encoding", ""):
-        return None
-    stream = request.stream
-    return iter(lambda: stream.read(_CHUNK), b"")
-
-
-def _relayed(upstream: httpx.Response) -> Response:
-    response = Response(stream_with_context(upstream.iter_raw(_CHUNK)), status=upstream.status_code)
-    response.headers.clear()
-    for key, value in _outgoing_headers(upstream.headers):
-        response.headers.add(key, value)
-    response.call_on_close(upstream.close)
-    return response
-
-
-def _json(content: object, status: int = 200) -> Response:
-    return Response(json.dumps(content), status=status, mimetype="application/json")
+# What every route exchanges, which the API document publishes. The connections listing is the one JSON route; a
+# path's routes serve files of any kind (its page, its bytes, a zip, and ``?json`` the page data its view describes),
+# so they are declared schemaless with what they answer.
+_WORKSPACE_PATHS: Final[tuple[str, ...]] = ("/", "/{path}")
+_REMOTE_PATHS: Final[tuple[str, ...]] = (f"{REMOTE_PREFIX}/{{device}}/", f"{REMOTE_PREFIX}/{{device}}/{{path}}")
+_FILE_VERBS: Final[dict[str, str]] = {
+    "GET": "a folder's page or a file's bytes; ``?json`` the path's page data, ``?zip`` a folder as a zip",
+    "PUT": "the file's new bytes, as the body; answers no body",
+    "DELETE": "removes the path; answers no body",
+}
+ROUTE_TABLE: RouteTable = {
+    ("GET", f"{API_PREFIX}/connections"): RouteModels(response_model=Connections),
+    ("GET", f"{ASSETS_PREFIX}/{{name}}"): SchemalessRoute(reason="a file of the frontend's build"),
+    **{(method, path): SchemalessRoute(reason=reason) for path in _WORKSPACE_PATHS for method, reason in _FILE_VERBS.items()},
+    **{
+        (method, path): SchemalessRoute(reason=f"{reason}, read live from the computer the path is on")
+        for path in _REMOTE_PATHS
+        for method, reason in _FILE_VERBS.items()
+    },
+}
 
 
 def _text(message: str, status: int) -> Response:
     return Response(message, status=status, mimetype="text/plain")
 
 
+def _request_body() -> Iterator[bytes]:
+    if request.content_length in (None, 0) and "chunked" not in request.headers.get("Transfer-Encoding", ""):
+        return iter(())
+    stream = request.stream
+    return iter(lambda: stream.read(_CHUNK), b"")
+
+
+def _requested_path() -> str:
+    """The path as the browser sent it, decoded: the server's own decoding may have merged or dropped segments."""
+    return urllib.parse.unquote(urllib.parse.urlsplit(request.environ.get("REQUEST_URI", request.path)).path)
+
+
 def create_app(
-    dufs_url: str,
     gateway: Gateway | None,
     static_directory: Path,
-    agent_id: str,
+    root: Path = Path("/"),
     synced_root: Path = SYNCED_FOLDERS,
-    client: httpx.Client | None = None,
 ) -> Flask:
     app = Flask(__name__, static_folder=None)
     register_api_schema_route(
         app, f"{API_PREFIX}/schema", title=APP_DISPLAY_NAME, description=APP_DESCRIPTION, route_table=ROUTE_TABLE
     )
-    dufs = client or httpx.Client(base_url=dufs_url, timeout=httpx.Timeout(30.0, read=None))
-    assets_prefix: list[str] = []
+    # Absolute, as Flask would read a relative one from its own package rather than the working directory.
+    static_directory = static_directory.resolve()
+    local = LocalFiles(root)
+    # Whether each device's file server is reached under its id, as the last listing of the shares found.
+    device_paths: dict[str, bool] = {}
 
-    def dufs_assets_prefix() -> str:
-        """The prefix dufs serves the bundle under, read once off one of its own pages."""
-        if not assets_prefix:
-            page = dufs.get("/", headers={"User-Agent": "Mozilla/5.0"}).text
-            match = _ASSETS_PREFIX.search(page)
-            assets_prefix.append(match.group(1) if match else "/")
-        return assets_prefix[0]
-
-    def page(data: dict[str, object]) -> Response:
-        """The app's page with the data a dufs page would carry, for a path dufs does not serve."""
-        encoded = base64.b64encode(json.dumps(data).encode()).decode()
-        html = (static_directory / "index.html").read_text()
-        html = html.replace("__ASSETS_PREFIX__", dufs_assets_prefix()).replace("__INDEX_DATA__", encoded)
+    def page(data: PageData) -> Response:
+        encoded = base64.b64encode(json.dumps(data.model_dump()).encode()).decode()
+        html = (static_directory / "index.html").read_text().replace("__INDEX_DATA__", encoded)
         response = Response(html, mimetype="text/html")
         response.headers["Cache-Control"] = "no-cache"
         return response
 
-    # Connections
+    def failure(error: FilesError) -> Response:
+        """The error in plain words; a page asked for that isn't there is Files' own "not found" page."""
+        is_page_asked = "text/html" in request.headers.get("Accept", "") and "json" not in request.args
+        if error.status == 404 and is_page_asked:
+            response = send_from_directory(static_directory, "404.html", max_age=None)
+            response.status_code = 404
+            return response
+        return _text(error.message, error.status)
+
+    def answer(source: FileSource, prefix: str, path: str) -> Response:
+        # A gateway client drops dot segments, so `..` would climb out of a computer's file server to the gateway's
+        # own API; nothing is reached that way in the workspace either.
+        if any(segment in (".", "..") for segment in path.split("/")):
+            return _text(f"{path} isn't a path to a file or folder.", 400)
+        query = request.args
+        try:
+            if request.method in ("GET", "HEAD"):
+                if "zip" in query:
+                    return source.zip(path)
+                if "json" in query:
+                    return Response(source.describe(path).model_dump_json(), mimetype="application/json")
+                if "view" in query or "edit" in query or path.endswith("/"):
+                    return page(source.describe(path))
+                read = source.read(path, request.headers)
+                return read if read is not None else page(source.describe(path))
+            if request.method == "PUT":
+                source.write(path, _request_body(), request.content_length)
+                return _text("", 201)
+            if request.method == "MKCOL":
+                source.make_folder(path)
+                return _text("", 201)
+            if request.method == "DELETE":
+                source.delete(path)
+                return _text("", 204)
+            destination = urllib.parse.unquote(urllib.parse.urlsplit(request.headers.get("Destination", "")).path)
+            if prefix == "" and destination.startswith(f"{REMOTE_PREFIX}/"):
+                return _text(_NO_MOVE_TO_COMPUTER, 501)
+            source.move(path, destination[len(prefix) :])
+            return _text("", 201)
+        except FilesError as error:
+            return failure(error)
+        except PermissionError:
+            return _text(f"You don't have permission to change or read {path}.", 403)
+        except OSError as error:
+            logger.warning("{} {} failed: {}", request.method, path, error)
+            return _text(f"Couldn't do that with {path}: {error.strerror or error}", 500)
+
+    @app.get(f"{ASSETS_PREFIX}/<path:name>")
+    def asset(name: str) -> Response:
+        """A file of the frontend's build; one named from its content is cached for good."""
+        is_hashed = _HASHED_ASSET.search(name) is not None
+        response = send_from_directory(static_directory, name, max_age=_A_YEAR_IN_SECONDS if is_hashed else None)
+        if not is_hashed:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.get(f"{API_PREFIX}/connections")
     def connections() -> Response:
-        """The person's connected computers and the folders each shares with this workspace.
+        """The computers connected to this workspace and what each shares with it.
 
-        Answers ``{"devices": [...], "shares": [...]}``; both lists are empty when the
-        workspace is not connected to Imbue Studio.
+        Each share says how it reaches the workspace (live, or a synced copy and whether the copy has kept up).
+        Nothing is listed while the workspace is not connected to Imbue Studio; a 502 says when Imbue Studio could
+        not be read.
         """
         if gateway is None:
             return model_response(Connections(devices=(), shares=()))
         try:
             listed = list_connections(gateway, synced_root)
-        except httpx.HTTPError as error:
+        except (httpx.HTTPError, ValueError) as error:
+            # ValueError: an answer from the gateway that is not the JSON it should be.
+            logger.warning("Couldn't read the shares through the gateway: {}", error)
             return error_response(f"Couldn't read your shares: {error}", 502)
+        device_paths.update({device.id: device.has_device_paths for device in listed.devices})
         return model_response(listed)
 
-    @app.post(f"{API_PREFIX}/connections")
-    def request_connection() -> Response:
-        """Ask a connected computer to share a folder with this workspace.
-
-        The JSON body names the ``device``, the ``path`` on it (its home folder when
-        omitted), ``access`` (``read`` or ``write``) and whether to ``sync`` the folder
-        here; the person approves the request on that computer.
-        """
-        if gateway is None:
-            return error_response(_NO_GATEWAY, 503)
-        body = parse_request_body(ConnectionRequest)
-        device = body.device
-        path = body.path.strip() or "~"
-        access = "WRITE" if body.access == "write" else "READ"
-        payload: dict[str, object] = {"path": path, "access": access}
-        if body.sync:
-            payload["sync"] = {"conflict": "NEWER"}
-        try:
-            response = gateway.request(
-                "POST",
-                "permission-requests",
-                device=device or None,
-                json={
-                    "agent_id": agent_id,
-                    "type": "file-sharing",
-                    "payload": payload,
-                    "rationale": "You asked Files to connect this from your computer.",
-                },
-            )
-        except httpx.HTTPError as error:
-            return error_response(f"Couldn't ask Imbue Studio: {error}", 502)
-        if response.status_code >= 400:
-            return error_response(response.text or "Imbue Studio refused the request.", response.status_code)
-        return model_response(ConnectionRequested(requested=True))
-
-    # Shared items, live
-
-    def remote_listing(device: str, path: str) -> Response:
-        entries = list_on_device(gateway, device, path, depth=1) if gateway else None
-        if entries is None:
-            return _text(_UNREACHABLE, 502)
-        return _json(
-            {
-                "href": f"{REMOTE_PREFIX}/{device}{path}",
-                "kind": "Index",
-                "uri_prefix": "/",
-                "allow_upload": True,
-                "allow_delete": True,
-                "allow_search": False,
-                "allow_archive": False,
-                "dir_exists": True,
-                "paths": [
-                    {
-                        "path_type": "Dir" if entry.is_folder else "File",
-                        "name": entry.name,
-                        "mtime": entry.mtime,
-                        "size": entry.size,
-                    }
-                    for entry in entries[1:]
-                ],
-            }
-        )
-
-    @app.route(f"{REMOTE_PREFIX}/<device>/", defaults={"path": ""}, methods=_ALL_METHODS)
-    @app.route(f"{REMOTE_PREFIX}/<device>/<path:path>", methods=_ALL_METHODS)
+    @app.route(f"{REMOTE_PREFIX}/<device>/", defaults={"path": ""}, methods=_METHODS)
+    @app.route(f"{REMOTE_PREFIX}/<device>/<path:path>", methods=_METHODS)
     def remote(device: str, path: str) -> Response:
-        """The files a connected computer shares, served the way the workspace's own files are.
+        """A file or folder shared from one of the person's computers, read and changed live on it.
 
-        A ``GET`` with ``json`` lists a folder, with ``view`` or ``edit`` shows a file's
-        page, and otherwise downloads the file; ``PUT`` uploads one, ``DELETE`` removes
-        one, ``MKCOL`` makes a folder, and ``PROPFIND`` is WebDAV's listing, each
-        forwarded to the computer. Renaming (``MOVE``) and folder downloads (``zip``)
-        are not supported on a computer's files.
+        The same verbs and answers as a workspace path (``?json`` the page data: a folder's entries, each with
+        ``name``, ``is_folder``, ``is_symlink``, ``size`` and ``mtime``, or a file's ``is_text``); a 503 while the
+        workspace is not connected to Imbue Studio, and moving onto or off a computer is not supported.
         """
         if gateway is None:
             return _text(_NO_GATEWAY, 503)
-        raw_path = urllib.parse.unquote(urllib.parse.urlsplit(request.environ.get("REQUEST_URI", request.path)).path)
-        device_path = "/" + raw_path[len(f"{REMOTE_PREFIX}/{device}/") :]
-        query = request.args
-        method = request.method
-        if method == "GET" and "json" in query:
-            if "q" in query:
-                return _json({"href": device_path, "kind": "Index", "paths": [], "dir_exists": True})
-            return remote_listing(device, device_path)
-        if method == "GET" and "zip" in query:
-            return _text("Downloading a folder from your computer isn't supported yet.", 501)
-        if method == "MOVE":
-            return _text("Renaming isn't supported on files shared from your computer.", 501)
-        if method in ("GET", "HEAD") and ("view" in query or "edit" in query or device_path.endswith("/")):
-            described = list_on_device(gateway, device, device_path, depth=0)
-            if described is None or len(described) == 0:
-                return _text(_UNREACHABLE, 502)
-            entry = described[0]
-            href = f"{REMOTE_PREFIX}/{device}{device_path}"
-            if entry.is_folder:
-                return page(
-                    {
-                        "href": href,
-                        "kind": "Index",
-                        "uri_prefix": "/",
-                        "allow_upload": True,
-                        "allow_delete": True,
-                        "dir_exists": True,
-                        "paths": [],
-                    }
-                )
-            editable = entry.size <= _EDITABLE_LIMIT and bool(_TEXT_TYPES.match(entry.content_type))
-            kind = "Edit" if "edit" in query else "View"
-            return page(
-                {
-                    "href": href,
-                    "kind": kind,
-                    "uri_prefix": "/",
-                    "allow_upload": True,
-                    "allow_delete": True,
-                    "editable": editable,
-                }
-            )
-        forwarded = {
-            key: value
-            for key, value in request.headers.items()
-            if key.lower() in ("range", "content-type", "content-length", "depth")
-        }
-        upstream_request = gateway.build(method, device_files_path(device_path), device, forwarded, _request_body())
+        prefix = f"{REMOTE_PREFIX}/{device}"
+        source = DeviceFiles(gateway, device, device_paths.get(device))
         try:
-            upstream = gateway.send(upstream_request)
-        except httpx.HTTPError:
-            return _text(_UNREACHABLE, 502)
-        if upstream.status_code == 403:
-            upstream.close()
-            return _text("Your computer only shares this to read.", 403)
-        return _relayed(upstream)
+            return answer(source, prefix, _requested_path()[len(prefix) :])
+        finally:
+            if source.known_device_paths is not None:
+                device_paths[device] = source.known_device_paths
 
-    # Everything else is dufs's
+    @app.route("/", defaults={"path": ""}, methods=_METHODS)
+    @app.route("/<path:path>", methods=_METHODS)
+    def workspace(path: str) -> Response:
+        """A file or folder of the workspace.
 
-    @app.route("/", defaults={"path": ""}, methods=_ALL_METHODS)
-    @app.route("/<path:path>", methods=_ALL_METHODS)
-    def proxy(path: str) -> Response:
-        """The workspace's own files, served by dufs: a page per folder and file, WebDAV for every method.
-
-        ``GET`` with ``json`` lists a folder, with ``zip`` downloads one, and with
-        ``view`` or ``edit`` shows a file's page; ``PUT`` uploads, ``DELETE`` removes,
-        ``MKCOL`` makes a folder, ``MOVE`` renames, and ``PROPFIND`` is WebDAV's listing.
+        GET answers a folder's page (or ``?json`` its page data: ``{"kind": "folder", "entries": [...]}``, each entry
+        with ``name``, ``is_folder``, ``is_symlink``, ``size`` and ``mtime``), a file's bytes (``?view`` or ``?edit``
+        its page, ``?json`` ``{"kind": "file", "is_text": ...}``), or ``?zip`` a folder as a zip. PUT writes a file
+        from the body, MKCOL makes a folder, MOVE (to the ``Destination`` header) renames, DELETE removes. A refusal
+        is plain words under its status.
         """
-        target = request.environ.get("REQUEST_URI") or request.full_path
-        headers = [(key, value) for key, value in request.headers.items() if key.lower() not in _HOP_BY_HOP]
-        upstream_request = dufs.build_request(request.method, target, headers=headers, content=_request_body())
-        upstream = dufs.send(upstream_request, stream=True)
-        return _relayed(upstream)
+        return answer(local, "", _requested_path())
 
     return app

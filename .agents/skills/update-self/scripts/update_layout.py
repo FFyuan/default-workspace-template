@@ -38,7 +38,7 @@ GETTING_STARTED_DIR = "system/apps/getting_started"
 
 GETTING_STARTED_FRONTEND_DIR = f"{GETTING_STARTED_DIR}/frontend"
 
-# The Files app, whose bundle dufs serves as its --assets directory.
+# The Files app, whose bundle its own server serves.
 FILES_DIR = "system/apps/files"
 
 FILES_FRONTEND_DIR = f"{FILES_DIR}/frontend"

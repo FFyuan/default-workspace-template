@@ -142,7 +142,7 @@ export function kindLabelOf(name: string, isFolder: boolean): string {
   return extension === "" ? "Document" : `${extension.toUpperCase()} file`;
 }
 
-/** How a file page shows a file; `isText` is dufs's word that the file is small and decodes as text. */
+/** How a file page shows a file; `isText` is the server's word that the file is small and reads as text. */
 export function previewKindOf(name: string, isText: boolean): PreviewKind {
   const extension = extensionOf(name);
   const family = familyOf(name, false);
@@ -155,7 +155,7 @@ export function previewKindOf(name: string, isText: boolean): PreviewKind {
 /** Binary formats in otherwise textual families. */
 const BINARY_DATA = new Set(["db", "sqlite", "parquet"]);
 
-/** Whether a file is likely text a person would edit: worth offering Edit on before dufs has said so. */
+/** Whether a file is likely text a person would edit: worth offering Edit on before the server has said so. */
 export function isTextLike(name: string): boolean {
   const extension = extensionOf(name);
   if (BINARY_DATA.has(extension)) return false;

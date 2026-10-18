@@ -7,7 +7,7 @@ import m from "mithril";
 
 import { createMenu, type Menu } from "@imbue/workspace-ui/src/components/menu";
 
-import type { Entry } from "../models/dufs";
+import type { Entry } from "../models/server";
 import type { SelectHow } from "../models/FilesModel";
 import { stemLength } from "../models/paths";
 import { menuRowsOf, type FilesController } from "./FilesController";
