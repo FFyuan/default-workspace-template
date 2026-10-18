@@ -97,7 +97,9 @@
   },
   "enabledPlugins": {
     "imbue-code-guardian@imbue-code-guardian": true,
-    "frontend-design@claude-code-plugins-pinned": true
+    "frontend-design@claude-code-plugins-pinned": true,
+    "imbue-mngr-skills@imbue-skills": true,
+    "imbue-studio-skills@imbue-skills": true
   },
   "extraKnownMarketplaces": {
     "imbue-code-guardian": {
@@ -110,6 +112,12 @@
       "source": {
         "source": "directory",
         "path": "/opt/agent-plugins/claude-code-plugins-pinned"
+      }
+    },
+    "imbue-skills": {
+      "source": {
+        "source": "directory",
+        "path": "/opt/agent-plugins/imbue-skills"
       }
     }
   },

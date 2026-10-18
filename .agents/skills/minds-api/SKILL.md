@@ -1,59 +1,30 @@
 ---
 name: minds-api
-description: "Use to act on OTHER Imbue Studio workspaces on the user's behalf -- list them, create a fresh one, SSH into one, read or export its backups, start/stop/destroy/recover it, or change its settings and service sharing. Reached through the latchkey gateway's minds-api-proxy; most routes need a per-workspace permission grant. For bringing another workspace's content into this one, use the migrate-workspace skill, which drives these routes as part of a much larger flow."
-compatibility: Requires latchkey (the standard agent gateway) and curl; ssh/ssh-keygen for the SSH capability. mngr for handing tasks to another workspace's agent.
+description: "Use to act on OTHER Imbue Studio workspaces on the user's behalf -- list them, create a fresh one, SSH into one, read or export its backups, start/stop/destroy/recover it, or change its settings. The imbue-studio plugin skill teaches how to reach the API and read its schema; this skill adds what only applies from inside a workspace: the permission verbs, the SSH and backup-export flows, and the rules for creating a workspace from here. For bringing another workspace's content into this one, use the migrate-workspace skill, which drives these routes as part of a much larger flow."
+compatibility: Requires latchkey (the standard agent gateway) and curl; ssh/ssh-keygen for the SSH capability. The imbue-studio skill from the imbue-studio-skills plugin.
 metadata:
   author: imbue
 ---
 
-# Imbue Studio API
+# Imbue Studio API, from inside a workspace
 
-Imbue Studio exposes a small HTTP API that lets an agent in one workspace act on *other*
-workspaces through the hub: list them, read detail/version/backups, create new
-ones, destroy/start/stop them, export backups, establish SSH access, update
-settings, and run health/restart recovery.
+The `imbue-studio` skill (from the `imbue-studio-skills` plugin, installed in
+every workspace) is the entry point: it says how to reach the API from wherever
+you are, that `GET /api/schema` is the live contract to read before assuming any
+route or field, how long operations are polled, and what never to do with the
+user's credentials. Load it first. From inside a workspace that means every call
+is `latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/...`; you
+never hold a token, and the schema lists only the routes the gateway can reach.
 
-You never hold a token. Every call goes through the **latchkey gateway's
-`minds-api-proxy`** on the reserved gateway-self host `latchkey-self.invalid`;
-the gateway injects the central Imbue Studio API key and forwards to the desktop
-client. So always use **`latchkey curl`** (not plain `curl`), and address the
-proxy like this:
+This skill adds the parts that exist only on this side of the gateway.
 
-```bash
-# The OpenAPI schema (always allowed, no grant needed):
-latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/schema
+## Permissions
 
-# Any /api/v1 route (the proxy strips /minds-api-proxy before forwarding):
-latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/v1/workspaces
-```
-
-## Discover the API first
-
-`GET /api/schema` is the **authoritative, always-current** description of every
-route you can reach and every request/response type. Read it before assuming a
-route or field shape -- this skill lists the highlights, but the schema is the
-source of truth (and only lists routes actually reachable through the gateway):
-
-```bash
-latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/schema | jq '.paths | keys'
-# Inspect one route's request/response models:
-latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/schema \
-  | jq '.paths["/api/v1/workspaces/{agent_id}/ssh"]'
-```
-
-A workspace is addressed by its **agent id** (the `agent_id` field in the
-listing below). Your own workspace's id is usually `$MNGR_AGENT_ID`; confirm it
-appears in `GET /api/v1/workspaces` if you need to self-reference.
-
-## Getting access for a specific workspace (latchkey permissions)
-
-Only two endpoints are allowed by default: the schema above, and `GET
-/api/v1/app/version` (the newest workspace-template ref the running Imbue Studio app
-supports -- what `update-self` caps itself against). Every
-`/api/v1/workspaces/...`
-call is gated by the `minds-workspaces` detent scope, with one permission per
-verb. The **targeted** verbs are granted *per workspace*, so you ask for access
-to one specific workspace at a time.
+Two routes are allowed by default: `/api/schema` and `GET /api/v1/app/version`.
+Every `/api/v1/workspaces/...` call is gated by the `minds-workspaces` detent
+scope, one permission per verb. The gateway's own verb list is the authority
+(a `403` names the request as not permitted, never the verb); these are its
+verbs today:
 
 | Verb permission | Covers | Targeted? |
 |---|---|---|
@@ -61,204 +32,102 @@ to one specific workspace at a time.
 | `minds-workspaces-create` | create a new workspace | no |
 | `minds-workspaces-ssh` | establish SSH access | yes |
 | `minds-workspaces-backups-export` | export a backup snapshot | yes |
+| `minds-workspaces-backups-manage` | enable, disable, repoint, or verify backups | yes |
 | `minds-workspaces-destroy` | destroy a workspace | yes |
 | `minds-workspaces-lifecycle` | start / stop the host | yes |
 | `minds-workspaces-update` | update settings (color, account) | yes |
-| `minds-workspaces-recover` | health check + restart | yes |
-| `minds-workspaces-sharing` | view/change service sharing | yes |
+| `minds-workspaces-recover` | health check, restart, machine resize | yes |
 
-When a call comes back rejected (a "not permitted by the user" message / 403),
-file a permission request and wait for the user to approve it. Imbue Studio uses a
-dedicated `type: "workspace"` request (distinct from the predefined-service
-requests in `.agents/skills/connect-external-service/references/latchkey.md`).
-It goes in a tool call of its own, with nothing else in it and its output
-untouched -- see "File exactly one permission request per tool call" there for
-why:
+Targeted verbs are granted per workspace, so ask for one workspace at a time.
+File the `type: "workspace"` request the way the `imbue-studio` skill shows
+(one request per tool call, nothing else in it, then end your turn and wait):
+`payload.permissions` lists verbs from the table, `payload.target_workspace_id`
+names the workspace the targeted verbs act on (null for `read` and `create`, or
+to ask for a verb across every workspace). Request exactly the verbs the task
+needs, with a rationale that names the workspace and the goal; the user sees
+them as checkboxes per workspace.
+
+A workspace is addressed by its agent id. Your own is usually `$MNGR_AGENT_ID`;
+confirm it appears in `GET /api/v1/workspaces` if you need to self-reference.
+
+## Creating a workspace from here (`minds-workspaces-create`)
+
+`POST /api/v1/workspaces` answers `202` with an operation handle; poll
+`/api/v1/workspaces/operations/create/<op>` until `is_done` (its `/logs` route
+streams the create log). Two rules apply only when creating from a workspace:
+
+- **Always send `branch`, read from `GET /api/v1/app/version`** (its
+  `workspace_template_ref`): the release this app was built against. Omitted,
+  the new workspace takes the template's default branch, unreleased code. Never
+  send the newest upstream tag, which may be a release this app does not
+  support. If the read fails, say so and create nothing.
+- **Leave every `backup_*` field unset** (the default is
+  `backup_provider=CONFIGURE_LATER`). Configuring backups can involve the user's
+  storage credentials, which you never ask for or send; the user enables backups
+  from the desktop app afterwards.
 
 ```bash
-latchkey curl -XPOST http://latchkey-self.invalid/permission-requests \
+REF=$(latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/v1/app/version | jq -er .workspace_template_ref) || exit 1
+latchkey curl -XPOST http://latchkey-self.invalid/minds-api-proxy/api/v1/workspaces \
   -H 'Content-Type: application/json' \
-  -d '{
-        "agent_id": "'"${MINDS_CHAT_ID:-$MNGR_AGENT_ID}"'",
-        "type": "workspace",
-        "payload": {
-          "permissions": ["minds-workspaces-ssh", "minds-workspaces-backups-export"],
-          "target_workspace_id": "<TARGET_WORKSPACE_AGENT_ID>"
-        },
-        "rationale": "I need SSH + backup-export access to <name> so I can migrate its content into a fresh workspace."
-      }'
+  -d '{"git_url": "<template-repo-url>", "branch": "'"$REF"'"}'
 ```
 
-- `payload.permissions` is the list of verb names from the table above.
-- `payload.target_workspace_id` is the specific workspace the **targeted** verbs
-  act on. Omit it / set `null` for the non-targeted verbs (`read`, `create`), or
-  to request a verb across *all* workspaces.
-- After posting, **wait for a system message** telling you whether the user
-  approved or denied (same as the latchkey permission flow in the
-  `connect-external-service` skill). Re-run your call once approved.
+## SSH into another workspace (`minds-workspaces-ssh`)
 
-Tip: request exactly the verbs the task needs, with a clear rationale -- the
-user sees these as checkboxes per workspace.
-
-## Core capabilities
-
-Paths below are relative to `http://latchkey-self.invalid/minds-api-proxy`.
-Bodies are JSON; send `-H 'Content-Type: application/json'` (the API validates
-the body only when that header is set).
-
-### List / inspect workspaces (`minds-workspaces-read`)
+Generate a keypair locally; only the public key leaves you, and the grant is
+time-limited. Pass your own workspace id as `requester_workspace_id`: the hub
+needs it to dedupe your grant and, for a *local* target, to broker a tunnel
+back into your container.
 
 ```bash
-latchkey curl .../api/v1/workspaces | jq '.workspaces[] | {agent_id, name, host_state, provider_name}'
-latchkey curl .../api/v1/workspaces/<id>            # one workspace's detail
-latchkey curl .../api/v1/workspaces/<id>/version    # Imbue Studio version + upgrade history
-```
-
-The listing includes destroyed-but-still-backed-up workspaces, so you can find
-an old workspace even after its host is gone.
-
-### Create a new workspace (`minds-workspaces-create`)
-
-`POST /api/v1/workspaces` returns `202` with an operation handle; the new
-workspace's `agent_id` appears once `mngr create` finishes, so you **poll the
-typed operation route** until it's done:
-
-```bash
-# The release this app supports. `jq -e` fails on the 403/404 an app too old
-# for the route answers, rather than posting an empty branch.
-REF=$(latchkey curl .../api/v1/app/version | jq -er .workspace_template_ref) || exit 1
-
-OP=$(latchkey curl -XPOST .../api/v1/workspaces \
-  -H 'Content-Type: application/json' \
-  -d '{"git_url": "<template-repo-url>", "branch": "'"$REF"'"}' | jq -r .operation_id)
-
-# Poll create status (DONE -> the workspace is ready; FAILED -> read .error):
-latchkey curl .../api/v1/workspaces/operations/create/$OP | jq '{status, is_done, agent_id, error}'
-# Live logs (server-sent events):
-latchkey curl -N .../api/v1/workspaces/operations/create/$OP/logs
-```
-
-`git_url` is required (typically the template repo a fresh agent is built from).
-
-**From the workspace template, always send `branch`, read from `GET
-/api/v1/app/version`** -- the release this app was built against. Omitted, the
-new workspace takes the template's default branch: unreleased code, which the
-create records as the app's release anyway. Never send the newest tag upstream
-instead, which may be a release this app does not support. If the read fails,
-say so and create nothing. From any other repository, send a ref that repo has,
-or omit `branch` for its default branch.
-
-Many other optional fields exist (`host_name`, `launch_mode`, `account_id`,
-`region`, `backup_*`) -- see `CreateWorkspaceRequest` in the schema. A `400`
-with `{error, field}` means a field-level problem; a `422`
-`{"errors":[{field,message}]}` means a structurally invalid body.
-
-**Backups: always create with backups unconfigured.** Leave every `backup_*`
-field unset (the default is `backup_provider=CONFIGURE_LATER`). Configuring
-backups can involve the user's storage credentials (`backup_api_key_env`),
-which are secrets you must NEVER ask the user for and never send through this
-API -- the user enables backups themselves from the Imbue Studio desktop app
-afterwards. (The user's *master password* is likewise never yours to handle;
-newer Imbue Studio versions use it only inside the desktop app to protect
-cross-device sync, and it does not appear in this API at all.)
-
-### SSH into another workspace (`minds-workspaces-ssh`)
-
-You generate a keypair locally; only the public key leaves you, and the grant is
-time-limited. Pass your own workspace id as `requester_workspace_id` (the hub
-needs it to dedupe your grant and, for a *local* target, to broker a tunnel back
-into your container).
-
-```bash
-ssh-keygen -t ed25519 -N '' -f /tmp/mind_key   # /tmp/mind_key(.pub)
-
-CONN=$(latchkey curl -XPOST .../api/v1/workspaces/<TARGET_ID>/ssh \
+ssh-keygen -t ed25519 -N '' -f /tmp/mind_key
+CONN=$(latchkey curl -XPOST http://latchkey-self.invalid/minds-api-proxy/api/v1/workspaces/<TARGET_ID>/ssh \
   -H 'Content-Type: application/json' \
   -d '{"public_key": "'"$(cat /tmp/mind_key.pub)"'", "requester_workspace_id": "'"$MNGR_AGENT_ID"'"}')
-echo "$CONN" | jq    # {agent_id, user, host, port, expires_at}
-
 ssh -i /tmp/mind_key -p "$(echo "$CONN" | jq -r .port)" \
     "$(echo "$CONN" | jq -r .user)@$(echo "$CONN" | jq -r .host)"
 ```
 
-- For a **remote** target you get its real address. For a **local**
-  (Docker/Lima) target you get `host="127.0.0.1"` and a port that is reachable
-  from inside *your own* workspace (the hub reverse-tunnels into your container),
-  so run the `ssh` from this workspace.
-- The grant expires at `expires_at`; re-request to refresh (it won't stack).
-- `502` usually means the target (or your own container) is offline/unreachable;
-  `404` means the workspace id is unknown.
+- A **remote** target answers with its real address. A **local** (Docker/Lima)
+  target answers `host="127.0.0.1"` and a port reachable from inside *your own*
+  workspace (the hub reverse-tunnels into your container), so run the `ssh`
+  from here.
+- The grant expires at `expires_at`; re-request to refresh (it does not stack).
+- `502` usually means the target (or your own container) is offline; `404`
+  means the workspace id is unknown.
 
-### Read / export backups (`minds-workspaces-read`, `minds-workspaces-backups-export`)
+## Exporting a backup (`minds-workspaces-backups-export`)
+
+`GET /api/v1/workspaces/<id>/backups` lists snapshots, even for an offline or
+destroyed workspace. An export is a binary stream; save it under `/var/tmp`,
+which is disk: an export can run to many GB, and `/tmp` is memory.
 
 ```bash
-# List snapshots (works even for an offline/destroyed workspace):
-latchkey curl .../api/v1/workspaces/<id>/backups \
-  | jq '{is_backing_up, snapshots: [.snapshots[] | {short_id, time, total_size_bytes}]}'
-
-# Export one snapshot as a zip (binary stream -> save with -o). Save it under
-# /var/tmp, which is disk: an export can run to many GB, and /tmp is memory.
 latchkey curl -o /var/tmp/restore.zip \
-  -XPOST .../api/v1/workspaces/<id>/backups/<snapshot_id>/export
+  -XPOST http://latchkey-self.invalid/minds-api-proxy/api/v1/workspaces/<id>/backups/<snapshot_id>/export
 ```
 
-### Recover / lifecycle (`minds-workspaces-recover`, `-lifecycle`, `-destroy`)
+## Migrating an old workspace into a fresh one
 
-```bash
-latchkey curl .../api/v1/workspaces/<id>/health | jq           # probes + dispatch tier
-latchkey curl -XPOST .../api/v1/workspaces/<id>/restart -H 'Content-Type: application/json' -d '{"scope":"services"}'
-latchkey curl -XPOST .../api/v1/workspaces/<id>/start          # or /stop
-latchkey curl -XPOST .../api/v1/workspaces/<id>/destroy        # 202 + poll operations/destroy/<id>
-```
-
-Restart and destroy return operation handles; poll
-`.../api/v1/workspaces/operations/restart/<id>` and
-`.../api/v1/workspaces/operations/destroy/<id>` (each with `/logs`) the same way
-as create.
-
-## Headline workflow: migrate an old workspace into a fresh one
-
-Moving a user's content out of an old, outdated, or broken workspace into a clean
-new one is **the `migrate-workspace` skill's job, not this one's.** Do not
-improvise a migration out of the routes above: the real flow also has to resolve
-what the user actually authored (by diffing the source against its own template
-base), map paths across the tree reorganization, re-register apps and scheduled
-jobs, recreate every past chat with its history, and re-audit the credential and
+That is **the `migrate-workspace` skill's job, not this one's.** Do not
+improvise a migration out of these routes: the real flow resolves what the
+user actually authored, maps paths across the tree reorganization, re-registers
+apps and scheduled jobs, recreates every past chat, and re-audits credential and
 permission call sites. This skill only supplies the plumbing it uses.
 
-Which side you are on decides what you do:
-
-- **In the NEW workspace** (the user asks you to bring their old stuff over) --
-  load `migrate-workspace` and follow it. It uses `minds-workspaces-read` to find
-  the source, `-lifecycle` to start it, `-ssh` for the live session it reads over,
-  and `-destroy` only if the user asks for that at the very end.
-- **In the OLD workspace** (the user says they want to move to a new one) --
-  `migrate-workspace`'s own escape hatch covers this in two steps: create the
-  fresh workspace here (`POST /api/v1/workspaces` with the template `git_url`
-  and a `branch` from `GET /api/v1/app/version`,
-  polling `operations/create/<op>` until `DONE`, every `backup_*` field left
-  unset), then tell the user to open it and ask its agent to migrate. Copy nothing
-  yourself.
-
-If the old workspace cannot be started at all, the live-session flow does not
-apply. Export its newest snapshot (`GET .../<OLD>/backups`, then
-`POST .../<OLD>/backups/<snapshot_id>/export -o /var/tmp/old.zip`) and work through
-the contents with the user by hand.
-
-Throughout: request only the per-workspace permissions each step needs, with a
-rationale that names the workspace and the goal, and wait for approval before
-retrying a gated call.
+- **In the NEW workspace** (the user asks you to bring their old stuff over):
+  load `migrate-workspace` and follow it.
+- **In the OLD workspace** (the user wants to move to a new one): create the
+  fresh workspace as above, then tell the user to open it and ask its agent to
+  migrate. Copy nothing yourself.
+- If the old workspace cannot be started at all, export its newest snapshot and
+  work through the contents with the user by hand.
 
 ## Notes
 
-- Always prefer `latchkey curl` over `curl`; the gateway is what injects auth and
-  routes the proxy. A connection error (curl exit 7) usually means the user's
-  computer is offline.
-- The schema endpoint is the contract. If a field or route here ever disagrees
-  with `GET /api/schema`, trust the schema.
-- Don't expose the proxy/gateway mechanics to the user unless they ask -- talk in
-  terms of "your workspaces".
-- For general latchkey usage and the predefined-service permission flow, see
-  `.agents/skills/connect-external-service/references/latchkey.md`; this skill
-  only adds the `type: "workspace"` permission request specific to Imbue Studio and the
-  workspace routes.
+- A connection error (curl exit 7) usually means the user's computer is offline.
+- Do not expose the proxy or gateway mechanics to the user unless they ask; talk
+  in terms of "your workspaces".
+- General latchkey usage and the predefined-service permission flow are in
+  `.agents/skills/connect-external-service/references/latchkey.md`.

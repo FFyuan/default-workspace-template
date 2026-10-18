@@ -26,13 +26,19 @@ if [[ ! -f "$CODEX_HOME/config.toml" ]]; then
 fi
 
 if ! command -v codex &>/dev/null; then
-    echo "warning: codex is not on PATH; code-guardian could not be installed" >&2
+    echo "warning: codex is not on PATH; the agent plugins could not be installed" >&2
     exit "$STRICT"
 fi
 
-# The marketplace source (the local copy install_agent_plugins.sh pins) and the
-# plugin enablement live in mngr config_overrides, so this needs no network.
+# The marketplace sources (the local copies install_agent_plugins.sh pins) and
+# the plugin enablement live in mngr config_overrides, so this needs no network.
 if ! codex plugin add imbue-code-guardian@imbue-code-guardian; then
     echo "warning: code-guardian installation failed; this Codex agent may lack review skills and Stop checks" >&2
     exit "$STRICT"
 fi
+for plugin in imbue-mngr-skills@imbue-skills imbue-studio-skills@imbue-skills; do
+    if ! codex plugin add "$plugin"; then
+        echo "warning: $plugin installation failed; this Codex agent may lack the mngr and Imbue Studio skills" >&2
+        exit "$STRICT"
+    fi
+done

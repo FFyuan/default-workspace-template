@@ -37,7 +37,7 @@ def _repo(path: Path) -> Path:
 
 
 def _run(
-    tmp_path: Path, guardian_commit: str, claude_code_commit: str
+    tmp_path: Path, guardian_commit: str, claude_code_commit: str, skills_commit: str
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", str(_SCRIPT)],
@@ -47,6 +47,8 @@ def _run(
             "CODE_GUARDIAN_COMMIT": guardian_commit,
             "CLAUDE_CODE_REPO": (tmp_path / "claude-code").as_uri(),
             "CLAUDE_CODE_COMMIT": claude_code_commit,
+            "IMBUE_SKILLS_REPO": (tmp_path / "imbue-skills").as_uri(),
+            "IMBUE_SKILLS_COMMIT": skills_commit,
             "AGENT_PLUGINS_ROOT": str(tmp_path / "plugins"),
         },
         capture_output=True,
@@ -55,8 +57,8 @@ def _run(
     )
 
 
-def _sources(tmp_path: Path) -> tuple[str, str, str]:
-    """Two code-guardian commits and one claude-code commit; returns their hashes."""
+def _sources(tmp_path: Path) -> tuple[str, str, str, str]:
+    """Two code-guardian commits, a claude-code commit, and an imbue-skills commit; returns their hashes."""
     guardian = _repo(tmp_path / "code-guardian")
     first = _commit(
         guardian,
@@ -77,13 +79,23 @@ def _sources(tmp_path: Path) -> tuple[str, str, str]:
         },
         "plugins",
     )
-    return first, second, claude_code_commit
+    imbue_skills = _repo(tmp_path / "imbue-skills")
+    skills_commit = _commit(
+        imbue_skills,
+        {
+            ".claude-plugin/marketplace.json": "{}",
+            "LICENSE": "MIT",
+            "plugins/imbue-studio-skills/skills/imbue-studio/SKILL.md": "studio",
+        },
+        "marketplace",
+    )
+    return first, second, claude_code_commit, skills_commit
 
 
 def test_each_marketplace_is_put_in_place_at_its_pinned_commit(tmp_path: Path) -> None:
-    first, _, claude_code_commit = _sources(tmp_path)
+    first, _, claude_code_commit, skills_commit = _sources(tmp_path)
 
-    result = _run(tmp_path, first, claude_code_commit)
+    result = _run(tmp_path, first, claude_code_commit, skills_commit)
 
     assert result.returncode == 0, result.stderr
     guardian = tmp_path / "plugins" / "imbue-code-guardian"
@@ -101,28 +113,38 @@ def test_each_marketplace_is_put_in_place_at_its_pinned_commit(tmp_path: Path) -
     assert manifest["plugins"] == [
         {"name": "frontend-design", "source": "./plugins/frontend-design"}
     ]
+    # The imbue-skills repository is a marketplace as published, so it is taken whole.
+    skills = tmp_path / "plugins" / "imbue-skills"
+    assert (
+        skills / "plugins/imbue-studio-skills/skills/imbue-studio/SKILL.md"
+    ).read_text() == "studio"
+    assert (skills / "LICENSE").read_text() == "MIT"
+    assert not (skills / ".git").exists()
+    assert (skills / ".pinned-commit").read_text().strip() == skills_commit
     assert sorted(path.name for path in (tmp_path / "plugins").iterdir()) == [
         "claude-code-plugins-pinned",
         "imbue-code-guardian",
+        "imbue-skills",
     ]
 
 
 def test_a_marketplace_already_at_its_pin_is_left_alone(tmp_path: Path) -> None:
-    first, _, claude_code_commit = _sources(tmp_path)
-    _run(tmp_path, first, claude_code_commit)
+    first, _, claude_code_commit, skills_commit = _sources(tmp_path)
+    _run(tmp_path, first, claude_code_commit, skills_commit)
     shutil.rmtree(tmp_path / "code-guardian")
     shutil.rmtree(tmp_path / "claude-code")
+    shutil.rmtree(tmp_path / "imbue-skills")
 
-    result = _run(tmp_path, first, claude_code_commit)
+    result = _run(tmp_path, first, claude_code_commit, skills_commit)
 
     assert result.returncode == 0, result.stderr
 
 
 def test_a_pin_bump_replaces_the_marketplace(tmp_path: Path) -> None:
-    first, second, claude_code_commit = _sources(tmp_path)
-    _run(tmp_path, first, claude_code_commit)
+    first, second, claude_code_commit, skills_commit = _sources(tmp_path)
+    _run(tmp_path, first, claude_code_commit, skills_commit)
 
-    result = _run(tmp_path, second, claude_code_commit)
+    result = _run(tmp_path, second, claude_code_commit, skills_commit)
 
     assert result.returncode == 0, result.stderr
     guardian = tmp_path / "plugins" / "imbue-code-guardian"
@@ -133,10 +155,10 @@ def test_a_pin_bump_replaces_the_marketplace(tmp_path: Path) -> None:
 def test_a_failed_fetch_fails_and_keeps_the_marketplace_in_place(
     tmp_path: Path,
 ) -> None:
-    first, _, claude_code_commit = _sources(tmp_path)
-    _run(tmp_path, first, claude_code_commit)
+    first, _, claude_code_commit, skills_commit = _sources(tmp_path)
+    _run(tmp_path, first, claude_code_commit, skills_commit)
 
-    result = _run(tmp_path, "0" * 40, claude_code_commit)
+    result = _run(tmp_path, "0" * 40, claude_code_commit, skills_commit)
 
     assert result.returncode != 0
     guardian = tmp_path / "plugins" / "imbue-code-guardian"
