@@ -87,8 +87,8 @@ class RouteModels(FrozenModel):
     )
     is_body_parsed_by_view: bool = Field(
         default=False,
-        description="The view validates its body itself, with a parser whose refusals are its own contract; "
-        "the request model then documents the body's shape without parsing it",
+        description="The view reads its body itself (a parser whose refusals are its own contract, or a "
+        "byte-capped read of the stream); the request model then documents the body's shape without parsing it",
     )
 
 
