@@ -900,6 +900,10 @@ def test_main_announces_each_boot_step_to_the_agent_events_in_order(
     lines = (state_dir / BOOTSTRAP_EVENTS_RELATIVE_PATH).read_text().splitlines()
     events = [json.loads(line) for line in lines]
     assert all(event["source"] == "bootstrap" for event in events)
+    assert all(
+        re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{9}Z", event["timestamp"])
+        for event in events
+    )
     assert len({event["event_id"] for event in events}) == len(events)
     started = [
         event["step"]

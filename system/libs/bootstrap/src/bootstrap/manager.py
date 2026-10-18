@@ -868,15 +868,26 @@ def _bootstrap_events_path() -> Path | None:
     return Path(state_dir) / BOOTSTRAP_EVENTS_RELATIVE_PATH
 
 
+def _event_timestamp() -> str:
+    """The envelope's nanosecond-precision UTC form (``2026-02-28T00:00:00.123456789Z``), as other writers pad it."""
+    now = datetime.now(timezone.utc)
+    return f"{now.strftime('%Y-%m-%dT%H:%M:%S')}.{now.microsecond:06d}000Z"
+
+
 def _emit_bootstrap_event(
     event_type: str, step: str, label: str, duration_seconds: float | None
 ) -> None:
-    """Append one step event. Best effort: the boot must never fail over its own progress log."""
+    """Append one step event. Best effort: the boot must never fail over its own progress log.
+
+    The envelope is spelled out by hand rather than through ``imbue_common``'s
+    ``EventEnvelope``: this package deliberately depends on nothing beyond loguru
+    and tenacity (see its pyproject), so the first boot has nothing to import.
+    """
     events_path = _bootstrap_events_path()
     if events_path is None:
         return
     event: dict[str, object] = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": _event_timestamp(),
         "type": event_type,
         "event_id": f"boot-{uuid.uuid4().hex}",
         "source": BOOTSTRAP_EVENTS_SOURCE,
