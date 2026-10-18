@@ -148,6 +148,25 @@ def test_a_window_closed_post_sweeps_at_once_and_answers_no_content(monkeypatch:
     wait_for(lambda: len(swept) == 1, timeout=5.0, poll_interval=0.02, error_message="the hinted sweep never ran")
 
 
+def test_a_window_closed_post_of_another_shape_is_refused_and_brings_no_sweep(monkeypatch: pytest.MonkeyPatch) -> None:
+    swept: list[str] = []
+
+    async def fake_sweep(self: bsession.BrowserSessionManager, shell_url: str) -> list[str] | None:
+        swept.append(shell_url)
+        return []
+
+    monkeypatch.setattr(bsession.BrowserSessionManager, "sweep_from_shell", fake_sweep)
+    client = runner.application.test_client()
+
+    odd_shape = client.post("/api/window-closed", json=["/?session=browser-1"])
+    partial = client.post("/api/window-closed", json={"path": "/?session=browser-1"})
+
+    assert [r.status_code for r in (odd_shape, partial)] == [400, 400]
+    assert "JSON object" in odd_shape.get_json()["detail"]
+    assert "window_id" in partial.get_json()["detail"]
+    assert swept == []
+
+
 def test_close_tab_closes_the_shown_tab_of_a_running_browser_and_refuses_the_rest() -> None:
     running = bsession.LiveBrowser(browser_id="browser-1")
     running._lifecycle = "running"
