@@ -389,7 +389,6 @@ SHELL_PAGE_SCRIPT = """\
 </script>"""
 
 
-
 class HealthResponse(FrozenModel):
     """What the health probe answers."""
 
