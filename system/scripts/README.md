@@ -16,14 +16,17 @@ Provisioning and utility scripts:
   each one enforces.
 - Plugin provisioning: `install_agent_plugins.sh` (run by `setup_system.sh`)
   puts the agent plugins under `/opt/agent-plugins/` as local marketplaces, at
-  commits it pins: code-guardian, and Anthropic's `frontend-design` under a
+  commits it pins: code-guardian; Anthropic's `frontend-design` under a
   marketplace of our own (`claude-code-plugins-pinned`, since Claude reserves
-  the official name for GitHub sources). `.claude/settings.json` declares them,
+  the official name for GitHub sources); and Imbue's `imbue-skills`
+  marketplace (the `imbue-mngr-skills` and `imbue-studio-skills` plugins,
+  exported from the mngr repository). `.claude/settings.json` declares them,
   and Claude loads them in place, so no session or account installs anything
   and nothing is fetched at runtime; a pin bump reaches running workspaces when
   update-self re-runs `setup_system.sh`. `codex_update_plugin.sh` installs
-  code-guardian into each mngr Codex agent's isolated home from the same local
-  copy, after its config is written and before launch.
+  code-guardian and the two imbue-skills plugins into each mngr Codex agent's
+  isolated home from the same local copies, after its config is written and
+  before launch.
   Re-provisioning restores plugin enablement after mngr rewrites the config.
   Install failures warn without blocking launch; use `--strict` for verification.
   The marketplace source and plugin enablement are declared in the Codex agent

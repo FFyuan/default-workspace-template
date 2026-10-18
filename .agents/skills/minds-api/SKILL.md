@@ -9,12 +9,16 @@ metadata:
 # Imbue Studio API, from inside a workspace
 
 The `imbue-studio` skill (from the `imbue-studio-skills` plugin, installed in
-every workspace) is the entry point: it says how to reach the API from wherever
-you are, that `GET /api/schema` is the live contract to read before assuming any
-route or field, how long operations are polled, and what never to do with the
-user's credentials. Load it first. From inside a workspace that means every call
-is `latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/...`; you
-never hold a token, and the schema lists only the routes the gateway can reach.
+every workspace for Claude and Codex agents) is the entry point: it says how to
+reach the API from wherever you are, that `GET /api/schema` is the live contract
+to read before assuming any route or field, how long operations are polled, and
+what never to do with the user's credentials. Load it first when your harness
+has it. The short form, enough on a harness without plugins: from inside a
+workspace every call is `latchkey curl
+http://latchkey-self.invalid/minds-api-proxy/api/...`; you never hold a token;
+the schema lists only the routes the gateway can reach; a long operation
+answers `202` with an operation handle that you poll until `is_done`; and you
+never ask for, read, or send the user's credentials or master password.
 
 This skill adds the parts that exist only on this side of the gateway.
 
