@@ -27,9 +27,9 @@ This skill adds the parts that exist only on this side of the gateway.
 No grant is needed for `GET /api/schema`, `GET /api/v1/app/version`,
 `GET /api/v1/timezone`, or your own agent's routes under
 `/api/v1/agents/<your id>/`. Every `/api/v1/workspaces/...` call is gated by the
-`minds-workspaces` detent scope, one permission per verb. The gateway's own verb list is the authority
-(a `403` names the request as not permitted, never the verb); these are its
-verbs today:
+`minds-workspaces` detent scope, one permission per verb. The gateway's own verb
+list is the authority (a `403` names the request as not permitted, never the
+verb); these are its verbs today:
 
 | Verb permission | Covers | Targeted? |
 |---|---|---|
