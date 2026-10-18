@@ -6,6 +6,7 @@ from app_schema.api_schema import (
     AlternateResponse,
     ErrorResponse,
     RouteModels,
+    RouteTable,
     SchemalessRoute,
     register_api_schema_route,
 )
@@ -203,7 +204,7 @@ class RicherFailure(ErrorResponse):
     kind: str
 
 
-def _handmade(route_table: dict) -> Flask:
+def _handmade(route_table: RouteTable) -> Flask:
     app = Flask("handmade", static_folder=None)
     app.config["PROPAGATE_EXCEPTIONS"] = True
 
