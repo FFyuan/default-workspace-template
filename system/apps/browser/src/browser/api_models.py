@@ -233,7 +233,7 @@ class AcquireAnswer(ControlState):
 
     ok: bool = Field(description="True when the agent holds the browser")
     status: str = Field(
-        description="acquired, busy_human, busy_agent, starting (retry shortly), crashed, stopped, or timed_out"
+        description="acquired, busy_human, busy_agent, starting (retry shortly), crashed, stopped, closed, or timed_out"
     )
     enqueued: bool = Field(
         description="Whether the agent was queued to be messaged when the browser frees"
