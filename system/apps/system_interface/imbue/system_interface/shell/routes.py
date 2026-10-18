@@ -361,7 +361,7 @@ def _show_relayed_page(shown: ShownPage, relayed: EmbedderMessageRelayRequest) -
 
 
 def pending_update() -> ResponseReturnValue:
-    """The kept rollback point of the last careful-flow apply, or ``null`` when there is none."""
+    """The kept rollback point of the last careful-flow apply as ``notice``, which is ``null`` when there is none."""
     return model_response(PendingUpdateResponse(notice=_shell().update_notice.current()))
 
 
