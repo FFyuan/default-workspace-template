@@ -351,14 +351,11 @@ config_overrides.suppress_unstable_features_warning = true
 config_overrides.service_tier = "default"
 config_overrides.features = { memories = false, code_mode_only = true, code_mode_host = true, goals = false, unified_exec_tty = false, apps = false }
 config_overrides.tools = { update_plan = { enabled = false }, experimental_request_user_input = { enabled = false }, web_search = { enabled = false } }
-# Keep sources and enablement through mngr's config rewrite. Each source is the
-# copy that system/scripts/install_agent_plugins.sh pins into the image, so an
-# agent's install needs no network.
+# Keep source and enablement through mngr's config rewrite. The source is the
+# copy of code-guardian that system/scripts/install_agent_plugins.sh pins into
+# the image, so an agent's install needs no network.
 config_overrides.marketplaces.imbue-code-guardian = { source_type = "local", source = "/opt/agent-plugins/imbue-code-guardian" }
-config_overrides.marketplaces.imbue-skills = { source_type = "local", source = "/opt/agent-plugins/imbue-skills" }
 config_overrides.plugins."imbue-code-guardian@imbue-code-guardian" = { enabled = true }
-config_overrides.plugins."imbue-mngr-skills@imbue-skills" = { enabled = true }
-config_overrides.plugins."imbue-studio-skills@imbue-skills" = { enabled = true }
 # Codex-only instructions, appended to every codex agent's system prompt.
 append_system_prompt__extend = ["""# Codex-specific instructions
 

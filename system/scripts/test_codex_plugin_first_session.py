@@ -75,9 +75,6 @@ def test_first_session_and_reprovision_load_native_reviews(tmp_path: Path) -> No
         overrides["marketplaces"]["imbue-code-guardian"]["source"] = str(
             plugins_root / "imbue-code-guardian"
         )
-        overrides["marketplaces"]["imbue-skills"]["source"] = str(
-            plugins_root / "imbue-skills"
-        )
         (home / "config.toml").write_text(tomlkit.dumps(overrides))
         result = subprocess.run(
             [*shlex.split(installer), "--strict"],
@@ -140,18 +137,6 @@ def test_first_session_and_reprovision_load_native_reviews(tmp_path: Path) -> No
                         "verify-conversation",
                     )
                 } <= {skill["name"] for skill in guardian_skills}
-                imbue_skills = [
-                    skill
-                    for skill in skills["skills"]
-                    if "imbue-skills" in skill["path"]
-                ]
-                assert {
-                    "imbue-studio-skills:imbue-studio",
-                    "imbue-mngr-skills:mngr-help",
-                    "imbue-mngr-skills:find-agent",
-                    "imbue-mngr-skills:message-agent",
-                    "imbue-mngr-skills:wait-for-agent",
-                } <= {skill["name"] for skill in imbue_skills}
                 hooks = _rpc(process, 3, "hooks/list", {"cwds": [str(tmp_path)]})[
                     "data"
                 ][0]

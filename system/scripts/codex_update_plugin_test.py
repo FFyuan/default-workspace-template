@@ -74,11 +74,9 @@ def test_install_and_reprovision_target_mngrs_home(tmp_path: Path) -> None:
         result, calls, home = _run(tmp_path)
         assert result.returncode == 0, result.stderr
         assert all(call[0] == str(home) for call in calls)
-        # Only the adds, from the local marketplaces: nothing is fetched.
+        # Only the add, from the local marketplace: nothing is fetched.
         assert [call[1] for call in calls] == [
-            ["plugin", "add", "imbue-code-guardian@imbue-code-guardian"],
-            ["plugin", "add", "imbue-mngr-skills@imbue-skills"],
-            ["plugin", "add", "imbue-studio-skills@imbue-skills"],
+            ["plugin", "add", "imbue-code-guardian@imbue-code-guardian"]
         ]
         assert "enabled = true" in (home / "config.toml").read_text()
         assert 'model = "example"' in (home / "config.toml").read_text()

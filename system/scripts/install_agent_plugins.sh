@@ -8,14 +8,10 @@
 #   claude-code-plugins-pinned/  Anthropic's frontend-design plugin, in a
 #                                marketplace of our own: Claude reserves the
 #                                name "claude-code-plugins" for GitHub sources.
-#   imbue-skills/                Imbue's marketplace of mngr and Imbue Studio
-#                                skills, exported from the mngr repository's
-#                                skills_plugin directories; the repo is the
-#                                marketplace, so it is taken whole.
 #
-# .claude/settings.json declares each as a directory marketplace, and Claude
+# .claude/settings.json declares both as directory marketplaces, and Claude
 # loads their plugins in place, so no session or account installs anything.
-# Codex agents install the same plugins from the local copies when provisioned
+# Codex agents install code-guardian from the local copy when provisioned
 # (codex_update_plugin.sh). Nothing fetches plugins at runtime, so a plugin
 # update reaches workspaces only through a pin bump here, which update-self
 # applies by re-running setup_system.sh.
@@ -25,8 +21,6 @@ set -euo pipefail
 : "${CODE_GUARDIAN_COMMIT:=28a521b9df2046c4d0804a08eace5e3013bf34dd}"
 : "${CLAUDE_CODE_REPO:=https://github.com/anthropics/claude-code.git}"
 : "${CLAUDE_CODE_COMMIT:=94506ff0d3bd9185f1752da36e968775021fb48f}"
-: "${IMBUE_SKILLS_REPO:=https://github.com/imbue-ai/imbue-skills.git}"
-: "${IMBUE_SKILLS_COMMIT:=7fe1bcd9bfb1479782f8ec148c0acd6c676d6909}"
 : "${AGENT_PLUGINS_ROOT:=/opt/agent-plugins}"
 
 export GIT_TERMINAL_PROMPT=0
@@ -87,9 +81,4 @@ if ! is_current claude-code-plugins-pinned "$CLAUDE_CODE_COMMIT"; then
 }
 JSON
     publish claude-code-plugins-pinned "$CLAUDE_CODE_COMMIT" "$staged"
-fi
-
-if ! is_current imbue-skills "$IMBUE_SKILLS_COMMIT"; then
-    fetch_commit "$IMBUE_SKILLS_REPO" "$IMBUE_SKILLS_COMMIT" "$tmp/imbue-skills"
-    publish imbue-skills "$IMBUE_SKILLS_COMMIT" "$tmp/imbue-skills"
 fi
