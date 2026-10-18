@@ -200,7 +200,7 @@ class SecretRequestResponse(SecretRequestFields):
     env_path: str = Field(description="The repo-relative path of the env file the values go to")
     is_notice_delivered: bool | None = Field(
         default=None,
-        description="Whether the resolution notice reached the chat; absent on a read, which sends none",
+        description="Whether the resolution notice reached the chat; null on a read, which sends none",
     )
 
     @classmethod
