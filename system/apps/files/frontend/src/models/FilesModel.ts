@@ -1,7 +1,8 @@
 /**
  * Everything a Files window knows: the folder on show and the listings it has fetched, what is selected, how
- * entries are laid out and ordered, the rename being typed, and the history of folders visited. Views read it and call its verbs; it talks to the server through `server` and to its surroundings (the
- * address bar, the shell, the dialogs) through a `FilesHost`.
+ * entries are laid out and ordered, the rename being typed, and the history of folders visited. Views read it and
+ * call its verbs; it talks to the server through `server` and to its surroundings (the address bar, the shell, the
+ * dialogs) through a `FilesHost`.
  */
 
 import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";

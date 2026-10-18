@@ -1,7 +1,7 @@
 /**
  * Paths as the Files app handles them: absolute, decoded, with a folder's path ending in `/` (`/home/user/`) and a
- * file's not (`/home/user/notes.md`). The Files server serves the filesystem root, so a path is also the URL path of its page,
- * once encoded.
+ * file's not (`/home/user/notes.md`). The Files server serves the filesystem root, so a path is also the URL path of
+ * its page, once encoded.
  */
 
 export const ROOT = "/";
