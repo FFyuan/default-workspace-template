@@ -9,13 +9,13 @@ import stat
 import urllib.parse
 import zipfile
 from collections.abc import Iterator
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
 from flask import Response
 from flask import send_file
 from loguru import logger
+from werkzeug.datastructures import Headers
 
 from files_app.sources import EntryRecord
 from files_app.sources import FileData
@@ -48,7 +48,7 @@ class LocalFiles:
             return FolderData(entries=tuple(_entries_of(target)))
         return FileData(is_text=_is_text(target))
 
-    def read(self, path: str, headers: Mapping[str, str]) -> Response | None:
+    def read(self, path: str, headers: Headers) -> Response | None:
         target = self._existing(path)
         if target.is_dir():
             return None
@@ -188,6 +188,9 @@ class _Spool:
         return len(data)
 
     def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
         pass
 
     def drain(self) -> bytes:

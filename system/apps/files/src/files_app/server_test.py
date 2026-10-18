@@ -143,9 +143,8 @@ def test_an_upload_cut_short_leaves_the_old_file_and_nothing_beside_it(tmp_path:
     client = _app(None, tmp_path)
     root = tmp_path / "root"
     (root / "notes.txt").write_text("old")
-    response = client.put(
-        "/notes.txt", input_stream=io.BytesIO(b"ne"), headers={"Content-Length": "10"}, content_type="text/plain"
-    )
+    # The browser said ten bytes were coming, and two came before the connection ended.
+    response = client.put("/notes.txt", input_stream=io.BytesIO(b"ne"), environ_overrides={"CONTENT_LENGTH": "10"})
     assert response.status_code >= 400
     assert (root / "notes.txt").read_text() == "old"
     assert [path.name for path in root.iterdir()] == ["notes.txt"]
@@ -366,7 +365,10 @@ def test_a_shared_folder_with_no_copy_is_listed_live_as_a_workspace_folder_is(tm
     assert _page_data(client.get(f"/__remote/{DEVICE}/Users/kim/Atkinson/")) == listing
 
     destination = {"Destination": f"http://localhost/__remote/{DEVICE}/Users/kim/Atkinson/Sans.otf"}
-    assert client.open(f"/__remote/{DEVICE}/Users/kim/Atkinson/Mono.otf", method="MOVE", headers=destination).status_code == 501
+    assert (
+        client.open(f"/__remote/{DEVICE}/Users/kim/Atkinson/Mono.otf", method="MOVE", headers=destination).status_code
+        == 501
+    )
     assert client.get(f"/__remote/{DEVICE}/Users/kim/Atkinson/?zip").status_code == 501
 
 

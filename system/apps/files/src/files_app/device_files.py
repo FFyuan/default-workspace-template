@@ -12,6 +12,7 @@ from flask import Response
 from flask import request
 from flask import stream_with_context
 from loguru import logger
+from werkzeug.datastructures import Headers
 
 from files_app.connections import device_permissions
 from files_app.connections import devices_with_device_paths
@@ -28,7 +29,6 @@ from files_app.webdav import DavEntry
 
 UNREACHABLE: Final[str] = "Your computer isn't answering. It may be asleep, or Imbue Studio may be closed."
 _TEXT_TYPES: Final[re.Pattern[str]] = re.compile(r"^(text/|application/(json|xml|javascript|x-sh|toml|yaml))")
-_FORWARDED_HEADERS: Final[frozenset[str]] = frozenset({"range", "content-type", "content-length"})
 _HOP_BY_HOP: Final[frozenset[str]] = frozenset(
     {
         "connection",
@@ -60,7 +60,9 @@ def safe_content_disposition(value: str) -> str:
 
 
 def _record(entry: DavEntry) -> EntryRecord:
-    return EntryRecord(name=entry.name, is_folder=entry.is_folder, is_symlink=False, size=entry.size, mtime=entry.mtime)
+    return EntryRecord(
+        name=entry.name, is_folder=entry.is_folder, is_symlink=False, size=entry.size, mtime=entry.mtime
+    )
 
 
 def _relayed(upstream: httpx.Response) -> Response:
@@ -113,10 +115,11 @@ class DeviceFiles:
             return FolderData(entries=tuple(_record(child) for child in described[1:]))
         return FileData(is_text=entry.size <= EDITABLE_LIMIT and bool(_TEXT_TYPES.match(entry.content_type)))
 
-    def _send(self, method: str, path: str, headers: Mapping[str, str], body: Iterator[bytes] | None) -> httpx.Response:
-        forwarded = {key: value for key, value in headers.items() if key.lower() in _FORWARDED_HEADERS}
+    def _send(
+        self, method: str, path: str, headers: Mapping[str, str], body: Iterator[bytes] | None
+    ) -> httpx.Response:
         files_path = device_files_path(path, self._device if self.has_device_paths else None)
-        outgoing = self._gateway.build(method, files_path, self._device, forwarded, body)
+        outgoing = self._gateway.build(method, files_path, self._device, headers, body)
         try:
             upstream = self._gateway.send(outgoing)
         except httpx.HTTPError as error:
@@ -136,9 +139,10 @@ class DeviceFiles:
         finally:
             upstream.close()
 
-    def read(self, path: str, headers: Mapping[str, str]) -> Response | None:
+    def read(self, path: str, headers: Headers) -> Response | None:
         # A HEAD stays one, so asking whether a file is there doesn't fetch it from the computer.
-        return _relayed(self._send(request.method, path, headers, None))
+        ranged = {"Range": headers["Range"]} if "Range" in headers else {}
+        return _relayed(self._send(request.method, path, ranged, None))
 
     def write(self, path: str, body: Iterator[bytes], length: int | None) -> None:
         headers = {} if length is None else {"Content-Length": str(length)}

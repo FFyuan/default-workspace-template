@@ -81,9 +81,7 @@ function bootstrap(): void {
   // A `?path=` folder is fetched rather than taken from the page, which lists the folder the launch landed on.
   const folder = requested ?? (isFolderPath(path) ? path : `${path}/`);
   const initial =
-    requested === null
-      ? { exists: true, entries: data.entries.map((record) => entryOf(folder, record)) }
-      : undefined;
+    requested === null ? { exists: true, entries: data.entries.map((record) => entryOf(folder, record)) } : undefined;
   const app = new FilesController(folder, initial, connection);
 
   installElementContextMenu({

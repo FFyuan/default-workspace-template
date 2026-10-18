@@ -2,11 +2,11 @@
 the page data a folder or a file's page carries (and ``?json`` returns), and the verbs a source of files offers."""
 
 from collections.abc import Iterator
-from collections.abc import Mapping
 from typing import Literal
 from typing import Protocol
 
 from flask import Response
+from werkzeug.datastructures import Headers
 
 from imbue.imbue_common.frozen_model import FrozenModel
 
@@ -49,7 +49,7 @@ class FileSource(Protocol):
 
     def describe(self, path: str) -> PageData: ...
 
-    def read(self, path: str, headers: Mapping[str, str]) -> Response | None:
+    def read(self, path: str, headers: Headers) -> Response | None:
         """The file's bytes, or None for a folder, whose page is served instead."""
         ...
 
