@@ -12,6 +12,7 @@ from abc import abstractmethod
 from collections.abc import Callable
 from collections.abc import Sequence
 from pathlib import Path
+from typing import TypeVar
 
 
 class OneShotCompletionError(RuntimeError):
@@ -22,10 +23,22 @@ class OneShotCompletionTimeoutError(OneShotCompletionError):
     """The harness's CLI did not answer in time; another model would wait as long, so no fallback is tried."""
 
 
-def answer_on_first_model(models: Sequence[str | None], complete_on: Callable[[str | None], str]) -> str:
-    """``complete_on``'s answer on the first of ``models`` (None: the account's default) that gives one.
+_ModelT = TypeVar("_ModelT")
 
-    Raises ``OneShotCompletionError`` naming every model's failure, or the first timeout as it is.
+
+def describe_model_name(model: str | None) -> str:
+    """A model named by its id, None meaning the account's default, as a failure names it."""
+    return model or "default model"
+
+
+def answer_on_first_model(
+    models: Sequence[_ModelT],
+    complete_on: Callable[[_ModelT], str],
+    describe: Callable[[_ModelT], str],
+) -> str:
+    """``complete_on``'s answer on the first of ``models`` that gives one.
+
+    Raises ``OneShotCompletionError`` naming every model's failure (by ``describe``), or the first timeout as it is.
     """
     failures: list[str] = []
     for model in models:
@@ -34,7 +47,7 @@ def answer_on_first_model(models: Sequence[str | None], complete_on: Callable[[s
         except OneShotCompletionTimeoutError:
             raise
         except OneShotCompletionError as e:
-            failures.append(f"{model or 'default model'}: {e}")
+            failures.append(f"{describe(model)}: {e}")
     raise OneShotCompletionError("; ".join(failures))
 
 

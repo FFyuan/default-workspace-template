@@ -109,6 +109,7 @@ class _NamingHarness:
         ("Rome trip: plan five days in May", "Rome trip: plan five days in May"),
         ('"Nginx 502: fix websockets behind proxy."', "Nginx 502: fix websockets behind proxy"),
         ("  Stripe MRR: spreadsheet by customer\n", "Stripe MRR: spreadsheet by customer"),
+        ("Orçamento da cozinha: calcular a reforma", "Orcamento da cozinha: calcular a reforma"),
     ],
 )
 def test_parse_generated_chat_name_keeps_a_short_name_and_description(answer: str, expected: str) -> None:
@@ -125,6 +126,8 @@ def test_parse_generated_chat_name_keeps_a_short_name_and_description(answer: st
         "Rome trip: plan\nSecond line: more",
         "Rome trip: " + "a very long description " * 4,
         "!!!: ???",
+        "確定申告: 申告の手順を説明",
+        "React 待办应用: 学习做待办事项",
     ],
 )
 def test_parse_generated_chat_name_refuses_an_answer_that_is_not_a_usable_name(answer: str) -> None:

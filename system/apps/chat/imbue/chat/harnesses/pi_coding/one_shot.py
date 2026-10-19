@@ -21,6 +21,7 @@ from imbue.chat.harnesses.one_shot import OneShotCompletion
 from imbue.chat.harnesses.one_shot import OneShotCompletionError
 from imbue.chat.harnesses.one_shot import OneShotCompletionTimeoutError
 from imbue.chat.harnesses.one_shot import answer_on_first_model
+from imbue.chat.harnesses.one_shot import describe_model_name
 from imbue.chat.harnesses.pi_coding.account_binding import PiAccountBinding
 from imbue.chat.harnesses.pi_coding.model import list_pi_models
 from imbue.concurrency_group.errors import ProcessError
@@ -132,7 +133,9 @@ class PiOneShotCompletion(OneShotCompletion):
         models = choose_pi_one_shot_models(offered_tags, _account_providers(account_dir))
         if not models:
             raise OneShotCompletionError(f"pi offers no model that runs only on the account at {account_dir}")
-        return answer_on_first_model(models, lambda model: self._complete_on(model, env, system_prompt, prompt))
+        return answer_on_first_model(
+            models, lambda model: self._complete_on(model, env, system_prompt, prompt), describe_model_name
+        )
 
     def _complete_on(self, model: str | None, env: dict[str, str], system_prompt: str, prompt: str) -> str:
         started_at = time.monotonic()

@@ -19,6 +19,7 @@ from imbue.chat.harnesses.one_shot import OneShotCompletion
 from imbue.chat.harnesses.one_shot import OneShotCompletionError
 from imbue.chat.harnesses.one_shot import OneShotCompletionTimeoutError
 from imbue.chat.harnesses.one_shot import answer_on_first_model
+from imbue.chat.harnesses.one_shot import describe_model_name
 from imbue.concurrency_group.errors import ProcessError
 from imbue.concurrency_group.subprocess_utils import run_local_command_modern_version
 from imbue.imbue_common.pure import pure
@@ -107,7 +108,9 @@ class ClaudeOneShotCompletion(OneShotCompletion):
     def complete(self, account_dir: Path, system_prompt: str, prompt: str) -> str:
         """The answer on the first model in ``ONE_SHOT_MODEL_PREFERENCE`` that gives one."""
         return answer_on_first_model(
-            ONE_SHOT_MODEL_PREFERENCE, lambda model: self._complete_on(model, account_dir, system_prompt, prompt)
+            ONE_SHOT_MODEL_PREFERENCE,
+            lambda model: self._complete_on(model, account_dir, system_prompt, prompt),
+            describe_model_name,
         )
 
     def _complete_on(self, model: str | None, account_dir: Path, system_prompt: str, prompt: str) -> str:

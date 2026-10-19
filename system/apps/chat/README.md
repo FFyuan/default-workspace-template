@@ -443,6 +443,12 @@ The message goes to the model inside `<message>` tags, with the instruction
 repeated after it, and the system prompt says it is text to title: a small model
 handed a bare "what's 2+2?" answers "4" rather than naming the chat.
 
+Names are ASCII. A chat's true name is the ASCII part of its name, so a name in
+another script would leave it a fragment ("React 待办应用" -> "React") or nothing,
+and the rename would be refused. The model is asked to title a message in a
+Latin-alphabet language in that language without accents, and any other message
+in English; the parser drops whatever accents remain and refuses the rest.
+
 The question goes out alongside the send, not after it: the account is known
 from the moment a create starts (`resolve_chat_account_binding`), so a chat still
 coming up is asked about too. The answer is shown in the chat list as soon as it

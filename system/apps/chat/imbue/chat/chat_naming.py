@@ -17,6 +17,7 @@ import json
 import re
 import threading
 import time
+import unicodedata
 from collections.abc import Callable
 from concurrent.futures import Executor
 from concurrent.futures import Future
@@ -75,7 +76,9 @@ three to seven words saying what the person wants done.
 "debug a failing migration"), unless it begins with a proper noun. Never describe the person ("asks", "wants", "user").
 - Use exactly one colon, the ASCII ": ", even in languages that write another colon.
 - Keep the whole line under {_REQUESTED_NAME_LENGTH} characters. No quotes, markdown, emoji or trailing period.
-- Write the title in the language the message is written in.
+- Use only ASCII characters. Write the title in the language the message is written in when that language uses \
+the Latin alphabet, dropping accents ("e" for "é"). For a message in any other script (Japanese, Chinese, Korean, \
+Russian, Arabic, ...), write the title in English, not romanized.
 
 A short question or request still has a subject: name it. Reply with exactly {_NO_NAME_ANSWER} only when the message \
 has no subject at all: a greeting, a test, a single word, or a request for help that does not say with what.
@@ -91,6 +94,8 @@ Japanese translation: translate a thank-you phrase
 Cat limerick: write a short funny poem
 <message>¿Me ayudas a preparar una entrevista de trabajo?</message>
 Entrevista de trabajo: preparar respuestas y preguntas
+<message>東京で三日間の旅行プランを立てたいです</message>
+Tokyo trip: plan a three-day itinerary
 <message>hey, quick question</message>
 {_NO_NAME_ANSWER}"""
 
@@ -122,10 +127,20 @@ def chat_naming_prompt(message: str) -> str:
 
 
 @pure
+def _without_accents(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+
+
+@pure
 def parse_generated_chat_name(answer: str) -> str | None:
-    """The chat name in a model's answer, or None when it gave none or broke the "Short name: description" form."""
-    line = answer.strip().strip("\"'").strip()
-    if line == _NO_NAME_ANSWER or "\n" in line:
+    """The chat name in a model's answer, or None when it gave none or broke the "Short name: description" form.
+
+    Only an ASCII name is taken: the chat's true name is the ASCII part of its name, so a name in another script
+    would leave it a fragment of the name ("React 待办应用" -> "React") or nothing at all. Accents are dropped
+    first ("Orçamento" -> "Orcamento"), as the prompt asks and models do not always.
+    """
+    line = _without_accents(answer.strip().strip("\"'").strip())
+    if line == _NO_NAME_ANSWER or "\n" in line or not line.isascii():
         return None
     short_name, separator, description = line.partition(": ")
     if not separator or not short_name.strip() or not description.strip():
