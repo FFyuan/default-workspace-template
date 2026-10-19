@@ -34,6 +34,12 @@ three things running:
    registered service's local backend (from `data/.state/apps.toml`; the
    Caddyfile re-renders and hot-reloads when the registry changes), and
    unknown-but-plausible service origins to an auto-retrying loading page.
+   Every response it sends, a service's or its own, carries the browser
+   hardening headers (`Strict-Transport-Security`, `X-Content-Type-Options:
+   nosniff`, `Referrer-Policy: same-origin`, and a `frame-ancestors` policy
+   naming who may embed the workspace) and no `Server` header, so a service
+   gets them without setting any itself; a service's own
+   `Content-Security-Policy` is left in place beside the gateway's.
 3. **frpc, one per relay**: outbound tunnels to EVERY relay of the region
    (the multi-relay design: any relay can then serve any visitor),
    authenticated by the per-share relay token (in the client metadata; the
@@ -175,9 +181,9 @@ their own registered origin (`chat-<rand>.<domain>`), framed by the shell, so a
 workspace-level grant admits the chat origin directly and a `[services.chat]`
 grant narrows a visitor to it. A visitor holding only a per-app grant reaches
 that app's origin and nothing else -- not the shell, so not the tabs the shell
-arranges; the origin's own pages (a chat at `/<agent-id>`, the file viewer's
+arranges; the origin's own pages (a chat at `/<agent-id>`, the Files app's
 listing) are what they see, and a `[services.files]` grant admits only the
-file viewer. Whether an app declares `system` (part of the workspace itself,
+Files app. Whether an app declares `system` (part of the workspace itself,
 which the Imbue Studio Share tab lists under its System group) makes no
 difference here. Nothing here is configured per app: caddy re-renders its
 routes from the registry, so the chat origin (like every app's) is claimed and
