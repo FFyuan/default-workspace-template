@@ -116,8 +116,7 @@ def test_a_file_asked_for_as_a_download_is_an_attachment_under_its_name_and_a_re
     assert shared.status_code == 200 and shared.data == b"\x89PNG"
     assert shared.headers["Content-Disposition"].startswith('attachment; filename="photo.png"')
 
-    # A refusal is answered in plain words, even to the page-loading request a download is, and is never handed to
-    # the browser to save as the file.
+    # The frame a download loads in accepts text/html; a refusal still comes back in plain words, never as the file.
     missing_here = client.get("/missing.zip?download", headers={"Accept": "text/html,*/*"})
     assert missing_here.status_code == 404
     assert missing_here.content_type.startswith("text/plain")

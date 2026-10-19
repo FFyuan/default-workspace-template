@@ -4,10 +4,9 @@
  * ``onFailure`` gets a note saying ``name`` could not be downloaded, with the server's words when it answered in
  * plain text.
  *
- * Not a link with a ``download`` attribute: Imbue Studio frames the workspace from another site, so the workspace's
- * session cookie is partitioned to that framing, and the browser sends a ``download`` link's request without it --
- * the workspace refuses it, and the browser saves the refusal. A frame's load carries the cookie like any page's.
- * A download never finishes a frame's load, so a frame that loads showed the server's answer instead.
+ * Not a link with a ``download`` attribute: Imbue Studio frames the workspace from another site, which partitions the
+ * workspace's session cookie, and the browser sends a ``download`` link's request without it; a frame's load carries
+ * it. A download never finishes a frame's load, so a frame that loads got an answer other than the file.
  */
 export function startDownload(document: Document, url: string, name: string, onFailure: (note: string) => void): void {
   const frame = document.createElement("iframe");
@@ -19,7 +18,7 @@ export function startDownload(document: Document, url: string, name: string, onF
     onFailure(words === "" ? `Couldn't download ${name}.` : `Couldn't download ${name}: ${words}`);
   });
   frame.src = url;
-  // Left in place once the download starts: the page cannot tell when that is, and removing the frame before its
-  // response arrives cancels the download.
+  // Left in place on success: the page cannot tell when the response arrives, and removing the frame before then
+  // cancels the request.
   document.body.appendChild(frame);
 }
