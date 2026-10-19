@@ -12,6 +12,7 @@ from app_manifest.content_security_policy import (
     inline_source,
     url_origin,
 )
+from app_manifest.errors import PolicySourceError
 from app_manifest.testing import assert_document_policy_admits_page
 
 _PAGE_WITH_SCRIPTS = (
@@ -48,7 +49,7 @@ def test_inline_script_hashes_cover_each_inline_body_once_and_skip_external_and_
 def test_url_origin_keeps_the_scheme_host_and_port_and_refuses_a_relative_url() -> None:
     assert url_origin("https://raw.githubusercontent.com/imbue-ai/x/main/catalog.json") == "https://raw.githubusercontent.com"
     assert url_origin("http://localhost:8030/api?x=1") == "http://localhost:8030"
-    with pytest.raises(ValueError):
+    with pytest.raises(PolicySourceError):
         url_origin("catalog/new-tab-templates.json")
 
 

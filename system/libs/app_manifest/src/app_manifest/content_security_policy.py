@@ -40,6 +40,8 @@ from urllib.parse import urlsplit
 
 from flask import Blueprint, Flask, Response
 
+from app_manifest.errors import PolicySourceError
+
 CONTENT_SECURITY_POLICY_HEADER: Final[str] = "Content-Security-Policy"
 
 DOCUMENT_POLICY_DIRECTIVES: Final[Mapping[str, str]] = {
@@ -67,7 +69,7 @@ def url_origin(url: str) -> str:
     """The policy source admitting one origin: the scheme and host (and explicit port) of ``url``, nothing of its path."""
     parts = urlsplit(url)
     if not parts.scheme or not parts.netloc:
-        raise ValueError(f"not an absolute http(s) URL: {url!r}")
+        raise PolicySourceError(f"not an absolute http(s) URL: {url!r}")
     return f"{parts.scheme}://{parts.netloc}"
 
 
