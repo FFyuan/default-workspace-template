@@ -63,6 +63,8 @@ _AGENT_POLL_SECONDS: Final[float] = 2.0
 _MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message(?:\s[^<>]*)?/?>", re.IGNORECASE)
 # The answer's own tags; a model that leaves off the closing one has still put the title after the opening one.
 _TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"<title>(.*?)(?:</title>|$)", re.IGNORECASE | re.DOTALL)
+# One that leaves off the opening one has still put the title before the closing one.
+_CLOSING_TITLE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"</title>", re.IGNORECASE)
 # The name of the form standing in for the subject ("Short name: Wiki contributions system").
 _FORM_LABEL_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?:short name|chat name|name|chat title|title|subject)\s*:\s*", re.IGNORECASE
@@ -175,11 +177,13 @@ def parse_generated_chat_name(answer: str) -> str | None:
     and typographic quotes and dashes straightened first ("Orçamento" -> "Orcamento", "Kid’s" -> "Kid's"), as the
     prompt asks and models do not always.
 
-    The name is read from between the answer's ``<title>`` tags, or from the whole answer when it has none. A
-    leading name of the form itself ("Short name: ", "Title: ") is not the subject and is dropped.
+    The name is read from between the answer's ``<title>`` tags, or, when it has no opening tag, from the answer up
+    to a closing one. A leading name of the form itself ("Short name: ", "Title: ") is not the subject and is dropped.
     """
     title_match = _TITLE_PATTERN.search(answer)
-    title = title_match.group(1) if title_match is not None else answer
+    title = (
+        title_match.group(1) if title_match is not None else _CLOSING_TITLE_TAG_PATTERN.split(answer, maxsplit=1)[0]
+    )
     line = _spelled_in_ascii(title).strip().strip("\"'").strip()
     form_label = _FORM_LABEL_PATTERN.match(line)
     if form_label is not None:
