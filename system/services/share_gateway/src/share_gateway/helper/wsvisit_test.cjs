@@ -198,8 +198,27 @@ test("get waits for an app that answers 503 while it starts, then returns its an
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { seen: "Bearer t" });
     assert.equal(calls, 3);
-    const stillDown = await helper.fetchWaitingForTheApp(url, { headers: {} }, 5000, origins, 0);
-    assert.equal(stillDown.status, 200);
+  } finally {
+    server.close();
+  }
+});
+
+test("get gives up on an app that keeps answering 503 after the bounded retries", async () => {
+  const http = require("node:http");
+  let calls = 0;
+  const server = http.createServer((request, response) => {
+    calls += 1;
+    response.writeHead(503, { "Retry-After": "0" });
+    response.end("still starting");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/schema`;
+    const origins = new Set([`http://127.0.0.1:${server.address().port}`]);
+    assert.equal((await helper.fetchWaitingForTheApp(url, { headers: {} }, 5000, origins, 0)).status, 503);
+    assert.equal(calls, 1);
+    assert.equal((await helper.fetchWaitingForTheApp(url, { headers: {} }, 5000, origins, 2)).status, 503);
+    assert.equal(calls, 4);
   } finally {
     server.close();
   }
