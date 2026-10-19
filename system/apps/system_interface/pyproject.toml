@@ -79,6 +79,7 @@ artifacts = [
 packages = ["imbue"]
 
 [tool.pytest.ini_options]
+required_plugins = ["pytest-workspace-env"]
 timeout_func_only = true
 markers = [
     "acceptance: marks tests as requiring network access, Modal credentials, etc. These are required to pass in CI",

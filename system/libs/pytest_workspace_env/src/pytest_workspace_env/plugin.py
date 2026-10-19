@@ -13,17 +13,21 @@ _CLEARED_AGENT_ENV_KEY: Final[pytest.StashKey[tuple[str, ...]]] = pytest.StashKe
 ]()
 
 # What an mngr agent's environment holds and CI's does not: mngr's and Imbue Studio's own variables, the
-# code-guardian stop hook's settings, and the per-agent directories the agent types point their harness at.
+# code-guardian stop hook's settings, Claude Code's own session variables, the tmux session the agent runs in,
+# and the per-agent directories the agent types point their harness at.
 _AGENT_ENV_PREFIXES: Final[tuple[str, ...]] = (
     "MNGR_",
     "MINDS_",
     "CODE_GUARDIAN_",
     "REVIEWER_",
+    "CLAUDE_",
 )
 _AGENT_ENV_NAMES: Final[frozenset[str]] = frozenset(
     {
+        "CLAUDECODE",
+        "TMUX",
+        "TMUX_PANE",
         "LLM_USER_PATH",
-        "CLAUDE_CONFIG_DIR",
         "ORIGINAL_CLAUDE_CONFIG_DIR",
         "PI_CODING_AGENT_DIR",
     }

@@ -1,17 +1,16 @@
 """The browser's preview boots beside the live service without touching its ports or its profiles.
 
-The real ``browser-service`` is booted through ``serve_isolated_instance.py`` from the manifest's
-``[preview]`` table, the way update-self's isolated boot and update-app's preview boot it, while the live
-service's ports are taken and a live profile sits under the live host dir.
+This checkout's ``browser-service`` is booted by update-app's ``preview_app.py`` from the manifest's
+``[preview]`` table, while the live service's ports are taken and a live profile sits under the live host dir.
 """
 
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import json
 import shutil
 import socket
-import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -23,10 +22,16 @@ from app_manifest.manifest import load_manifest
 from imbue.mngr.utils.polling import wait_for
 
 _APP_DIR = Path(__file__).parent
-_SERVE_SCRIPT = _APP_DIR.parents[2] / ".agents" / "shared" / "scripts" / "serve_isolated_instance.py"
-_INSTANCE_NAME = "browser-preview-test"
-# Where serve_isolated_instance.py records the ports it gave the instance, under its repo root.
-_INSTANCE_STATE = Path("data/.state/isolated-instances") / _INSTANCE_NAME / "instance.json"
+_CHECKOUT = _APP_DIR.parents[2]
+
+_PREVIEW_SCRIPT = _CHECKOUT / ".agents" / "skills" / "update-app" / "scripts" / "preview_app.py"
+_spec = importlib.util.spec_from_file_location("preview_app", _PREVIEW_SCRIPT)
+assert _spec is not None and _spec.loader is not None
+preview_app = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = preview_app
+_spec.loader.exec_module(preview_app)
+
+_APP_NAME = "browser"
 
 # The live service's own port and its CDP proxy's (runner.py).
 _LIVE_PORTS = (8081, 8083)
@@ -37,7 +42,8 @@ _DISK_TEMP_ROOT = Path("/var/tmp")
 
 _LIVE_PROFILE = "browser-use-user-data-dir-browser-1"
 
-# The shared script's health probe makes up to 60 one-second attempts; the restore and the teardown each get as long.
+# The shared script's health probe makes up to 60 one-second attempts, for the instance and again for its preview
+# frame; the restore and the teardown each get as long.
 _STEP_TIMEOUT_SECONDS = 60
 
 
@@ -65,9 +71,15 @@ def repo_root_on_disk() -> Iterator[Path]:
         yield Path(directory)
 
 
-@pytest.mark.timeout(4 * _STEP_TIMEOUT_SECONDS)
-def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(repo_root_on_disk: Path) -> None:
+@pytest.mark.timeout(5 * _STEP_TIMEOUT_SECONDS)
+def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(
+    repo_root_on_disk: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repo_root = repo_root_on_disk / "workspace"
+    # The shared script registers the preview's services by running the live repo's registration script.
+    (repo_root / "system" / "scripts").mkdir(parents=True)
+    shutil.copy(_CHECKOUT / "system" / "scripts" / "forward_port.py", repo_root / "system" / "scripts")
+    monkeypatch.setenv("MINDS_APPS_FILE", str(repo_root_on_disk / "apps.toml"))
     live_data = repo_root / "data" / ".apps" / "browser"
     live_data.mkdir(parents=True)
     # An empty saved fleet: a restore over it sweeps every profile under its root that it does not name.
@@ -77,67 +89,38 @@ def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(rep
     live_profile = live_host_dir / "browser-profiles" / _LIVE_PROFILE
     live_profile.mkdir(parents=True)
     (live_profile / "Cookies").write_text("the user's logins")
+    # What the instance inherits in a workspace: the live host dir, under which the live profiles sit.
+    monkeypatch.setenv("MNGR_HOST_DIR", str(live_host_dir))
+    # Lets the restore run where Chromium is not installed; an empty fleet launches no Chromium anyway.
+    monkeypatch.setenv("BROWSER_SKIP_INSTALL_CHECK", "1")
+    # A port nothing listens on, so the preview's window sweep reaches no shell.
+    monkeypatch.setenv("MINDS_WORKSPACE_SERVER_URL", "http://127.0.0.1:1")
 
-    preview = load_manifest(_APP_DIR / "app.toml").preview
-    command = shutil.which(preview.command[0])
-    assert command is not None, f"{preview.command[0]!r} is not on PATH"
+    health_path = load_manifest(_APP_DIR / "app.toml").preview.health_path
+    instance_state = (
+        repo_root / preview_app.INSTANCES_ROOT / preview_app.instance_name(_APP_NAME) / preview_app.INSTANCE_STATE_FILENAME
+    )
     repo_args = ["--repo-root", str(repo_root)]
-    up_argv = [
-        sys.executable,
-        str(_SERVE_SCRIPT),
-        "up",
-        "--name",
-        _INSTANCE_NAME,
-        "--cwd",
-        str(repo_root),
-        *repo_args,
-        "--health-path",
-        preview.health_path,
-        *(arg for port_name in preview.ports for arg in ("--port", str(port_name))),
-        *(arg for key, value in preview.env.items() for arg in ("--env", f"{key}={value}")),
-        *(arg for key, source in preview.copies.items() for arg in ("--copy", f"{key}={source}")),
-        # What the instance inherits in a workspace: the live host dir, under which the live profiles sit.
-        "--env",
-        f"MNGR_HOST_DIR={live_host_dir}",
-        # Lets the restore run where Chromium is not installed; an empty fleet launches no Chromium anyway.
-        "--env",
-        "BROWSER_SKIP_INSTALL_CHECK=1",
-        # A port nothing listens on, so the preview's window sweep reaches no shell.
-        "--env",
-        "MINDS_WORKSPACE_SERVER_URL=http://127.0.0.1:1",
-        "--",
-        command,
-        *preview.command[1:],
-        *preview.args,
-    ]
-
     with _held(_LIVE_PORTS[0]), _held(_LIVE_PORTS[1]):
         try:
-            up = subprocess.run(
-                up_argv, capture_output=True, text=True, timeout=2 * _STEP_TIMEOUT_SECONDS, check=False
-            )
-            assert up.returncode == 0, up.stderr
-            url = up.stdout.strip()
-            ports = json.loads((repo_root / _INSTANCE_STATE).read_text())["ports"]
+            assert preview_app.main(["up", "--app", _APP_NAME, "--worktree", str(_CHECKOUT), *repo_args]) == 0
+            ports = json.loads(instance_state.read_text())["ports"]
             assert set(ports.values()).isdisjoint(_LIVE_PORTS), ports
             # The CDP proxy moves to an ephemeral port when its own is taken, so only a listener on the cdp port
             # shows the preview was given that port.
             socket.create_connection(("127.0.0.1", ports["cdp"]), timeout=5).close()
+            url = preview_app.live_preview_url(repo_root, _APP_NAME)
+            assert url is not None
             wait_for(
-                lambda: not _get_json(f"{url}{preview.health_path}")["initializing"],
+                lambda: not _get_json(f"{url}{health_path}")["initializing"],
                 timeout=_STEP_TIMEOUT_SECONDS,
                 poll_interval=0.5,
                 error_message="the preview's restore never finished",
             )
         finally:
-            down = subprocess.run(
-                [sys.executable, str(_SERVE_SCRIPT), "down", "--name", _INSTANCE_NAME, *repo_args],
-                capture_output=True,
-                text=True,
-                timeout=_STEP_TIMEOUT_SECONDS,
-                check=False,
-            )
+            down_code = preview_app.main(["down", "--app", _APP_NAME, *repo_args])
 
-    assert down.returncode == 0, down.stderr
+    assert down_code == 0
+    assert preview_app.live_preview_url(repo_root, _APP_NAME) is None
     assert (live_profile / "Cookies").read_text() == "the user's logins"
     assert (live_data / "instances.json").read_text() == live_fleet

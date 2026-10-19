@@ -30,6 +30,10 @@ _AGENT_ENV = {
     "MNGR_AGENT_ID": "agent-0000000000000000000000000000leak",
     "MINDS_CHAT_ID": "agent-0000000000000000000000000000chat",
     "CLAUDE_CONFIG_DIR": "/agent/claude-config",
+    "CLAUDECODE": "1",
+    "CLAUDE_CODE_ENTRYPOINT": "cli",
+    "TMUX": "/tmp/tmux-0/default,7,0",
+    "TMUX_PANE": "%3",
 }
 
 _UNRELATED_VAR = "PYTEST_WORKSPACE_ENV_UNRELATED"
