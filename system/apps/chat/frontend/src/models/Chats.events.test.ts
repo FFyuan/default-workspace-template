@@ -48,7 +48,7 @@ function open(): void {
 const chat = chatSnapshotFixture;
 
 function proto(chatId: string, phase: ProvisionalChat["phase"], error: string | null = null): ProvisionalChat {
-  return { chat_id: chatId, name: "Chat 1", account_id: "acct-1", phase, error, is_seeded: false, is_default: false };
+  return { chat_id: chatId, name: "Chat 1", account_id: "acct-1", phase, error, is_seeded: false };
 }
 
 /** Whether a promise has settled yet, without waiting on it: the hold must be observable. A
@@ -115,6 +115,15 @@ describe("the provisional chats over the socket", () => {
       chats: [chat("agent-1", { active_agent: { agent_id: "agent-2" } }), chat("agent-9")],
     });
     expect(changes).toHaveLength(1);
+  });
+
+  it("takes the default chat from the list, even when only the default changed", () => {
+    push({ type: "chats_updated", chats: [chat("agent-1"), chat("agent-2")], default_chat_id: "agent-1" });
+    expect(manager.getDefaultChatId()).toBe("agent-1");
+
+    push({ type: "chats_updated", chats: [chat("agent-1"), chat("agent-2")], default_chat_id: "agent-2" });
+
+    expect(manager.getDefaultChatId()).toBe("agent-2");
   });
 
   it("resolves at once for a chat the app already lists", async () => {

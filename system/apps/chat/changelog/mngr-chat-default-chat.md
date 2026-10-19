@@ -1,4 +1,4 @@
-The workspace's welcome chat (the one the Mind app seeds) is now its **default chat**, where a message with no chat of its own goes:
+The workspace now has a **default chat**, where a message with no chat of its own goes. The welcome chat (the one the Mind app seeds) is the default to begin with:
 
 - The chat list always leads with it (its helpers under it), in a medium weight and set off from the other chats by a thin rule, instead of sorting it by recency.
 
@@ -6,4 +6,6 @@ The workspace's welcome chat (the one the Mind app seeds) is now its **default c
 
 - A draft or message sent to the "current chat" from a window that shows none (the desktop's "Design your own...") lands in it.
 
-Chat snapshots and provisional chats carry a new `is_default` field. A workspace that was never seeded, or whose welcome chat was deleted, has no default chat and keeps the previous most-recent-chat behavior.
+- The default chat can be deleted like any chat. Another chat becomes the default right away (the one messaged most recently, never a helper chat an agent started) and moves to the top; with no chat left, the new chat the list opens becomes the default.
+
+The default is kept as a pointer in `data/.apps/chat/default_chat.json`, not as a property of any chat. `chats_updated` pushes and `GET /api/chats` carry it as `default_chat_id`.

@@ -30,6 +30,8 @@ from imbue.chat.chat_settings import ChatSettingsStore
 from imbue.chat.chat_settings import SETTINGS_FILENAME
 from imbue.chat.config import Config
 from imbue.chat.config import load_config
+from imbue.chat.default_chat import DEFAULT_CHAT_FILENAME
+from imbue.chat.default_chat import DefaultChatStore
 from imbue.chat.event_queues import AgentEventQueues
 from imbue.chat.harnesses.auth_flows import AuthFlowService
 from imbue.chat.harnesses.auth_flows import reap_orphaned_auth_processes
@@ -134,6 +136,7 @@ def build_production_state(
     agent_manager = AgentManager.build(
         broadcaster,
         message_stamps=MessageStampStore(path=data_dir / STAMPS_FILENAME),
+        default_chat=DefaultChatStore(path=data_dir / DEFAULT_CHAT_FILENAME),
         # The window of a chat the Imbue Studio app starts is opened through the shell, and which chats
         # have had theirs is remembered beside the stamps so a restart never re-pops one.
         auto_open=None

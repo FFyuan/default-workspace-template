@@ -815,7 +815,6 @@ describe("MessageInput first send of a seeded chat", () => {
       phase: "awaiting_first_send",
       error: null,
       is_seeded: true,
-      is_default: true,
     };
     mocks.selectedAccount = { id: "acct-1" };
   });

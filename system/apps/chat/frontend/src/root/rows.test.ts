@@ -6,7 +6,7 @@ import { defaultGroupSize, groupedRows, parentOf, rowsFromSnapshots } from "./ro
 const NONE: ReadonlySet<string> = new Set();
 
 function provisional(chatId: string, phase: ProvisionalChat["phase"], name = ""): ProvisionalChat {
-  return { chat_id: chatId, name, account_id: "", phase, error: null, is_seeded: false, is_default: false };
+  return { chat_id: chatId, name, account_id: "", phase, error: null, is_seeded: false };
 }
 
 describe("rowsFromSnapshots", () => {
@@ -14,6 +14,7 @@ describe("rowsFromSnapshots", () => {
     const rows = rowsFromSnapshots(
       [chatSnapshotFixture("agent-a", { title: "Plan", last_messaged_at: 1_700_000_000 })],
       [provisional("agent-a", "creating"), provisional("agent-b", "failed")],
+      null,
     );
 
     expect(rows.map((row) => [row.chatId, row.title, row.status, row.lastActiveMs, row.isProvisional])).toEqual([
@@ -33,6 +34,7 @@ describe("groupedRows", () => {
         chatSnapshotFixture("agent-mine"),
       ],
       [],
+      null,
     );
 
     expect(groupedRows(rows, new Set(["agent-mine"])).map((row) => row.chatId)).toEqual([
@@ -58,6 +60,7 @@ describe("groupedRows", () => {
         }),
       ],
       [],
+      null,
     );
 
     const grouped = groupedRows(rows, NONE);
@@ -75,6 +78,7 @@ describe("groupedRows", () => {
     const rows = rowsFromSnapshots(
       [chatSnapshotFixture("agent-orphan", { labels: { agent_created: "true", lead_agent: "agent-gone" } })],
       [],
+      null,
     );
 
     expect(parentOf(rows[0], rows)).toBeNull();
@@ -85,7 +89,7 @@ describe("groupedRows", () => {
     const rows = rowsFromSnapshots(
       [
         chatSnapshotFixture("agent-recent", { last_messaged_at: 300 }),
-        chatSnapshotFixture("agent-welcome", { last_messaged_at: 100, is_default: true }),
+        chatSnapshotFixture("agent-welcome", { last_messaged_at: 100 }),
         chatSnapshotFixture("agent-helper", {
           last_messaged_at: 50,
           labels: { agent_created: "true", lead_agent: "agent-welcome" },
@@ -93,6 +97,7 @@ describe("groupedRows", () => {
         chatSnapshotFixture("agent-mine"),
       ],
       [],
+      "agent-welcome",
     );
 
     const grouped = groupedRows(rows, new Set(["agent-mine"]));
@@ -102,8 +107,11 @@ describe("groupedRows", () => {
   });
 
   it("leads with a default chat still awaiting its first send", () => {
-    const welcome: ProvisionalChat = { ...provisional("agent-welcome", "awaiting_first_send"), is_default: true };
-    const rows = rowsFromSnapshots([chatSnapshotFixture("agent-recent", { last_messaged_at: 300 })], [welcome]);
+    const rows = rowsFromSnapshots(
+      [chatSnapshotFixture("agent-recent", { last_messaged_at: 300 })],
+      [provisional("agent-welcome", "awaiting_first_send")],
+      "agent-welcome",
+    );
 
     const grouped = groupedRows(rows, NONE);
 
@@ -115,7 +123,7 @@ describe("groupedRows", () => {
   });
 
   it("has no default group when no chat is the default", () => {
-    const rows = rowsFromSnapshots([chatSnapshotFixture("agent-a"), chatSnapshotFixture("agent-b")], []);
+    const rows = rowsFromSnapshots([chatSnapshotFixture("agent-a"), chatSnapshotFixture("agent-b")], [], null);
 
     expect(defaultGroupSize(groupedRows(rows, NONE))).toBe(0);
   });

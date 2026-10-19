@@ -636,10 +636,6 @@ class ChatSnapshot(FrozenModel):
     last_messaged_at: float | None = Field(
         description="Epoch seconds of the chat's most recent message, or None when it has never been messaged; the chat list orders on it",
     )
-    is_default: bool = Field(
-        description="Whether this is the workspace's default chat (``default_chat_id``): listed first, and where a text "
-        "with no chat of its own goes"
-    )
 
 
 class ChatSegmentInfo(FrozenModel):
@@ -666,6 +662,9 @@ class ChatListResponse(FrozenModel):
     """Response from GET /api/chats: every chat this app lists, as the pages see it."""
 
     chats: tuple[ChatSnapshot, ...] = Field(description="One snapshot per listed chat")
+    default_chat_id: ChatId | None = Field(
+        description="The workspace's default chat (``default_chat.py``), or None while it has no chat to take it"
+    )
 
 
 class CreateChatRequest(FrozenModel):
@@ -770,10 +769,6 @@ class ProvisionalChat(FrozenModel):
     is_seeded: bool = Field(
         default=False,
         description="Whether the chat has a seed segment to show while it is created (``chat_seed.py``)",
-    )
-    is_default: bool = Field(
-        default=False,
-        description="Whether this is the workspace's default chat (``default_chat_id``); set on the copy the pages are sent",
     )
 
 

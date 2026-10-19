@@ -81,7 +81,6 @@ from imbue.chat.chat_records import ChatRecordError
 from imbue.chat.chat_records import ChatRecordStore
 from imbue.chat.chat_records import DEFAULT_CHAT_RECORDS_ROOT
 from imbue.chat.chat_records import InMemoryChatRecordStore
-from imbue.chat.chat_records import default_chat_id
 from imbue.chat.chat_records import is_seed_entry
 from imbue.chat.chat_seed import SeedTurn
 from imbue.chat.chat_seed import seed_agent_info
@@ -99,6 +98,9 @@ from imbue.chat.compaction_status import read_compaction_request
 from imbue.chat.compaction_status import read_compaction_signal
 from imbue.chat.compaction_status import shown_compaction_cause
 from imbue.chat.compaction_status import write_compaction_request
+from imbue.chat.default_chat import DefaultChatCandidate
+from imbue.chat.default_chat import DefaultChatStore
+from imbue.chat.default_chat import resolved_default_chat_id
 from imbue.chat.harnesses.account_binding import BindingError
 from imbue.chat.harnesses.activity import HarnessActivityTracker
 from imbue.chat.harnesses.agent_file_poll import AgentFilePoller
@@ -842,7 +844,6 @@ def chat_snapshot_for_active_agent(
     last_messaged_at: float | None,
     background_tasks: tuple[BackgroundTask, ...],
     compaction_cause: CompactionCause | None,
-    is_default: bool,
 ) -> ChatSnapshot:
     """The snapshot of a chat from the agent it runs on.
 
@@ -887,7 +888,6 @@ def chat_snapshot_for_active_agent(
             background_tasks=tuple(background_task_snapshot(task) for task in background_tasks),
         ),
         last_messaged_at=last_messaged_at,
-        is_default=is_default,
     )
 
 
@@ -1100,6 +1100,8 @@ class AgentManager:
     # When each chat was last messaged from the UI, kept on disk so a restart seeds the OOM
     # prioritizer's recency ranking from real history.
     _message_stamps: MessageStampStore
+    # Which chat is the workspace's default (``default_chat.py``), kept on disk so a restart keeps it.
+    _default_chat: DefaultChatStore
     # Re-tags chat agents' OOM ``oom_score_adj`` from live activity: page presence and
     # messages (via ``record_presence`` and ``record_message_sent``, from the chat app's
     # presence and send routes),
@@ -1164,6 +1166,7 @@ class AgentManager:
         messenger: MngrMessenger = _DEFAULT_MESSENGER,
         mngr_binary: str = _DEFAULT_MNGR_BINARY,
         message_stamps: MessageStampStore | None = None,
+        default_chat: DefaultChatStore | None = None,
         auto_open: AutoOpenReactor | None = None,
         chat_record_store: ChatRecordStore | None = None,
         chat_files_root: Path = DEFAULT_CHAT_RECORDS_ROOT,
@@ -1182,7 +1185,8 @@ class AgentManager:
         mngr executable used for the agent-creation, rename, stop, and destroy
         commands. ``message_stamps`` remembers when each chat was
         last messaged; the default keeps that in memory only, so a real server
-        passes one backed by the chat app's data directory. ``auto_open``
+        passes one backed by the chat app's data directory, as it does ``default_chat``, which
+        holds the workspace's default chat (``default_chat.py``). ``auto_open``
         surfaces labeled chats' windows; the default remembers nothing and reaches
         no shell, so a real server passes one backed by the ledger and the shell.
         ``chat_record_store`` holds the records of the chats that have run on several
@@ -1265,6 +1269,7 @@ class AgentManager:
         manager._sweep_started_at_by_agent = {}
         manager._compaction_finished_at_by_agent = {}
         manager._message_stamps = message_stamps if message_stamps is not None else MessageStampStore(path=None)
+        manager._default_chat = default_chat if default_chat is not None else DefaultChatStore(path=None)
         manager._transcript_broadcaster = None
         manager._watcher_eviction_callback = None
         manager._unviewed_transcript_release = None
@@ -1422,8 +1427,8 @@ class AgentManager:
             self._is_agent_list_known = True
 
     def _broadcast_chats_updated(self) -> None:
-        """Push every chat's snapshot to every WebSocket client."""
-        self._broadcaster.broadcast_chats_updated(self.get_chat_snapshots())
+        """Push every chat's snapshot, and which is the default, to every WebSocket client."""
+        self._broadcaster.broadcast_chats_updated(self.get_chat_snapshots(), self.get_default_chat_id())
 
     def _broadcast_provisional(self, provisional: ProvisionalChat) -> None:
         """Push a provisional chat to every client, under the name it is shown by."""
@@ -1432,19 +1437,45 @@ class AgentManager:
     def _provisional_as_shown(self, provisional: ProvisionalChat) -> ProvisionalChat:
         with self._lock:
             title = self._title_override_by_chat.get(provisional.chat_id)
-            is_default = self._default_chat_id_locked() == provisional.chat_id
-        shown = provisional.model_copy_update(to_update(provisional.field_ref().is_default, is_default))
         if title is None:
-            return shown
-        return shown.model_copy_update(to_update(shown.field_ref().name, title))
+            return provisional
+        return provisional.model_copy_update(to_update(provisional.field_ref().name, title))
 
     def get_default_chat_id(self) -> ChatId | None:
-        """The workspace's default chat (``default_chat_id``), or None for a workspace with none."""
-        with self._lock:
-            return self._default_chat_id_locked()
+        """The workspace's default chat (``default_chat.py``), or None while it has no chat to take it.
 
-    def _default_chat_id_locked(self) -> ChatId | None:
-        return default_chat_id(self._chat_record_by_id.values())
+        The chat it names is kept while it is listed; when it is gone another takes it at once and
+        is kept from then on. Until the agent list is read nothing is chosen, so a restart never
+        moves the default off a chat that simply has not been listed yet.
+        """
+        with self._lock:
+            stored = self._default_chat.read()
+            if not self._is_agent_list_known:
+                return stored
+            resolved = resolved_default_chat_id(stored, self._default_chat_candidates_locked())
+            self._default_chat.write(resolved)
+        return resolved
+
+    def _default_chat_candidates_locked(self) -> list[DefaultChatCandidate]:
+        """The chats that can be the default: every listed chat a user started, and every chat still provisional.
+        Lock held."""
+        last_messaged = self._message_stamps.read()
+        candidate_ids = [
+            chat.chat_id for agent, chat in self._listed_chats_locked() if agent.labels.get("agent_created") != "true"
+        ]
+        candidate_ids.extend(chat_id for chat_id in self._provisional_chats if chat_id not in candidate_ids)
+        return [
+            DefaultChatCandidate(
+                chat_id=chat_id,
+                seeded_at=self._seeded_at_locked(chat_id),
+                last_messaged_at=last_messaged.get(chat_id),
+            )
+            for chat_id in candidate_ids
+        ]
+
+    def _seeded_at_locked(self, chat_id: ChatId) -> datetime | None:
+        record = self._chat_record_by_id.get(chat_id)
+        return record.agents[0].started_at if record is not None and record.is_seeded else None
 
     def _snapshot_as_shown(self, snapshot: ChatSnapshot) -> ChatSnapshot:
         with self._lock:
@@ -1584,7 +1615,6 @@ class AgentManager:
             compaction_cause_by_agent = {
                 agent.id: self._compaction_cause_by_agent.get(agent.id) for agent, _chat in listed
             }
-            default_id = self._default_chat_id_locked()
         last_messaged = self._message_stamps.read()
         return [
             self._snapshot_as_shown(
@@ -1597,7 +1627,6 @@ class AgentManager:
                     last_messaged.get(chat.chat_id),
                     tasks_by_chat.get(chat.chat_id, ()),
                     compaction_cause_by_agent[agent.id],
-                    chat.chat_id == default_id,
                 )
             )
             for agent, chat in listed
@@ -1620,7 +1649,6 @@ class AgentManager:
             is_connecting = agent is not None and bool(self._connecting_message_ids_by_agent.get(agent.id))
             background_tasks = () if chat is None else self._background_tasks_by_chat.get(chat.chat_id, ())
             compaction_cause = None if agent is None else self._compaction_cause_by_agent.get(agent.id)
-            default_id = self._default_chat_id_locked()
         if chat is None or agent is None or is_primary_agent(agent):
             return None
         return chat_snapshot_for_active_agent(
@@ -1632,7 +1660,6 @@ class AgentManager:
             self._message_stamps.read().get(chat.chat_id),
             background_tasks,
             compaction_cause,
-            chat.chat_id == default_id,
         )
 
     def get_active_agent_info(self, chat_id: ChatId) -> AgentInfo | None:
@@ -3231,6 +3258,7 @@ class AgentManager:
             )
             self._provisional_chats[chat_id] = provisional
         self._broadcast_provisional(provisional)
+        self._broadcast_chats_updated()
         self._auto_open.request_open(chat_id)
         return CreatedChat(chat_id=chat_id, name=canonical_agent_name(display_name), display_name=display_name)
 
@@ -3247,6 +3275,7 @@ class AgentManager:
         with self._lock:
             provisional = self._mint_awaiting_chat_locked(account_id)
         self._broadcast_provisional(provisional)
+        self._broadcast_chats_updated()
         return provisional
 
     def awaiting_chat_for_empty_list(self) -> ProvisionalChat:
@@ -3261,6 +3290,7 @@ class AgentManager:
                     return provisional
             minted = self._mint_awaiting_chat_locked("")
         self._broadcast_provisional(minted)
+        self._broadcast_chats_updated()
         return minted
 
     def _mint_awaiting_chat_locked(self, account_id: str) -> ProvisionalChat:
@@ -3372,6 +3402,7 @@ class AgentManager:
                 self._delete_record_locked(parsed)
         self._auto_open.forget(parsed)
         self._broadcaster.broadcast_provisional_chat_completed(chat_id=parsed, success=False, error=None)
+        self._broadcast_chats_updated()
         return True
 
     def create_chat(

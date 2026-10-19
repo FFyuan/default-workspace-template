@@ -144,7 +144,6 @@ function seeded(phase: "awaiting_first_send" | "creating" | "failed", error: str
     phase,
     error,
     is_seeded: true,
-    is_default: true,
   };
 }
 
@@ -157,7 +156,6 @@ function failed(accountId: string, error: string): void {
     phase: "failed",
     error,
     is_seeded: false,
-    is_default: false,
   };
 }
 
@@ -170,7 +168,6 @@ function creating(): void {
     phase: "creating",
     error: null,
     is_seeded: false,
-    is_default: false,
   };
 }
 
@@ -183,7 +180,6 @@ function awaiting(accountId: string): void {
     phase: "awaiting_first_send",
     error: null,
     is_seeded: false,
-    is_default: false,
   };
 }
 
@@ -291,7 +287,6 @@ describe("ChatPanel over a provisional chat", () => {
       phase: "creating",
       error: null,
       is_seeded: false,
-      is_default: false,
     };
     render();
     failed("acct-1", "mngr create exited with code 2");

@@ -403,15 +403,18 @@ out as typed, since a harness runs a command only when the slash leads the
 message. The seed survives a restart of this app because
 the record does; discarding the chat before its first send drops both.
 
-The seeded chat (the Mind app's "Welcome") is the workspace's **default chat**
-(`default_chat_id` in `chat_records.py`: the earliest chat whose record starts with a
-seed). Its snapshot and its provisional chat carry `is_default`, and it is where a text
-with no chat of its own goes: the chat list leads with it (its helpers under it), in a
-medium weight and set off from the rest by a rule; the root shows it when nothing is
-selected, including after the chat on screen is deleted; and a `current_chat` intake
-from a window showing no chat lands in it. It can be renamed and deleted like any chat;
-a workspace that was never seeded, or whose welcome chat was deleted, has no default
-chat, and each of those falls back to the most recent chat.
+The workspace has one **default chat**, where a text with no chat of its own goes
+(`default_chat.py`). It is a pointer, like a star on one chat, kept in
+`data/.apps/chat/default_chat.json`; no chat is special in itself, so a handoff, a
+crash, or a relaunch leaves it where it is. The seeded chat (the Mind app's "Welcome")
+takes it first. When the chat it names is deleted, another takes it at once: the chat
+messaged most recently, never a helper another agent started; with no chat left, the
+chat the list opens (one awaiting its first send) takes it. Every `chats_updated` push
+and `GET /api/chats` carry its id as `default_chat_id`. The chat list leads with it (its
+helpers under it), in a medium weight and set off from the rest by a rule; the root
+shows it when nothing is selected, including after the chat on screen is deleted; and a
+`current_chat` intake from a window showing no chat lands in it. It can be renamed and
+deleted like any chat.
 
 A chat that starts with no message sends nothing and waits for the user's
 first one. Fast mode is a per-chat setting with three modes

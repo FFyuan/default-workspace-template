@@ -1031,11 +1031,12 @@ def test_the_chat_list_opened_with_nothing_selected_shows_the_most_recent_chat(t
 
 
 @pytest.mark.timeout(120, func_only=False)
-def test_the_chat_list_leads_with_the_welcome_chat_and_opens_on_it_over_a_more_recent_chat(
+def test_the_chat_list_leads_with_the_default_chat_and_lands_on_the_next_default_when_it_goes(
     tmp_path: Path, page: Page
 ) -> None:
     """The seeded welcome chat is the default chat: it heads the list, set apart from the rest and marked, ahead of
-    a chat messaged since, and it is the chat the list shows with nothing selected.
+    a chat messaged since, and it is the chat the list shows with nothing selected. When it goes, the chat messaged
+    most recently becomes the default at once, takes its place at the head, and is the chat the list lands on.
 
     The root is opened at the chat app's own URL, with no shell client connected: seeding also owes the welcome chat
     an auto-opened window, which would move a shell's chat window onto it whatever the root itself selected."""
@@ -1055,6 +1056,13 @@ def test_the_chat_list_leads_with_the_welcome_chat_and_opens_on_it_over_a_more_r
         expect(rows.nth(1)).to_have_attribute("data-chat-id", FIXTURE_AGENT_ID)
         default_group = page.locator(".chat-rail-default-group .chat-rail-row")
         expect(default_group).to_have_count(1)
+
+        assert agent_manager.discard_provisional_chat(welcome.chat_id)
+
+        expect(page).to_have_url(f"{server.chat_url}{_FIXTURE_ROOT_PATH}", timeout=15000)
+        expect(rows).to_have_count(1)
+        expect(rows.nth(0)).to_have_attribute("data-chat-id", FIXTURE_AGENT_ID)
+        expect(rows.nth(0)).to_have_attribute("data-default", "true")
 
 
 @pytest.mark.timeout(120, func_only=False)

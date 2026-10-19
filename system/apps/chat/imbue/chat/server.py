@@ -1994,7 +1994,11 @@ def _list_chats_endpoint() -> Response:
     agent_manager: AgentManager = get_state().agent_manager
     if not agent_manager.is_agent_list_known():
         return _agent_list_not_known_response()
-    return model_response(ChatListResponse(chats=tuple(agent_manager.get_chat_snapshots())))
+    return model_response(
+        ChatListResponse(
+            chats=tuple(agent_manager.get_chat_snapshots()), default_chat_id=agent_manager.get_default_chat_id()
+        )
+    )
 
 
 def _refuse_primary_agent(agent_state_name: str, labels: dict[str, str], verb: str) -> Response | None:
@@ -2276,7 +2280,9 @@ def _run_ws_broadcast_loop(websocket: Any, agent_manager: AgentManager) -> None:
         # process was running) can be dropped rather than waited on forever.
         for provisional in agent_manager.get_provisional_chats_as_shown():
             websocket.send(json.dumps(provisional_chat_created_message(provisional)))
-        websocket.send(json.dumps(chats_updated_message(agent_manager.get_chat_snapshots())))
+        websocket.send(
+            json.dumps(chats_updated_message(agent_manager.get_chat_snapshots(), agent_manager.get_default_chat_id()))
+        )
         shutdown = False
         while not shutdown:
             # The pages send nothing; anything that arrives is drained and ignored.

@@ -36,7 +36,11 @@ const STATUS_BY_PROVISIONAL_PHASE: Readonly<Record<ProvisionalChatPhase, string>
 
 const PROVISIONAL_TITLE = "New chat";
 
-export function rowsFromSnapshots(chats: readonly ChatSnapshot[], provisional: readonly ProvisionalChat[]): ChatRow[] {
+export function rowsFromSnapshots(
+  chats: readonly ChatSnapshot[],
+  provisional: readonly ProvisionalChat[],
+  defaultChatId: string | null,
+): ChatRow[] {
   const known = new Set(chats.map((chat) => chat.chat_id));
   const rows: ChatRow[] = chats.map((chat) => ({
     chatId: chat.chat_id,
@@ -46,7 +50,7 @@ export function rowsFromSnapshots(chats: readonly ChatSnapshot[], provisional: r
     agentIds: chat.agent_ids,
     lastActiveMs: chat.last_messaged_at === null ? null : chat.last_messaged_at * 1000,
     isProvisional: false,
-    isDefault: chat.is_default,
+    isDefault: chat.chat_id === defaultChatId,
   }));
   for (const chat of provisional) {
     if (known.has(chat.chat_id)) continue;
@@ -58,7 +62,7 @@ export function rowsFromSnapshots(chats: readonly ChatSnapshot[], provisional: r
       agentIds: [],
       lastActiveMs: null,
       isProvisional: true,
-      isDefault: chat.is_default,
+      isDefault: chat.chat_id === defaultChatId,
     });
   }
   return rows;

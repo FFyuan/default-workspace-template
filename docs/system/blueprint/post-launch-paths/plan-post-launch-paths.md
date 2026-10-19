@@ -129,7 +129,7 @@ A `desktops.json` written by the previous release carries `is_settling` on each 
 The receiving chat resolves in this order:
 
 - `chat`: the chat `chat_id` names among the chats the app lists (an agent, a recorded chat, or a provisional one); `404` otherwise.
-- `current_chat`: the chat `window_path` selects (`/?chat=<id>`, `/<id>`, or a subagent view `/<id>.<agent>.<session>` of it) when the app lists it; else the default chat (the seeded welcome chat); else the chat most recently messaged; else the rules of `new_chat`.
+- `current_chat`: the chat `window_path` selects (`/?chat=<id>`, `/<id>`, or a subagent view `/<id>.<agent>.<session>` of it) when the app lists it; else the default chat (the seeded welcome chat to begin with); else the chat most recently messaged; else the rules of `new_chat`.
 - `chat_selector`: the chats that are agents (a provisional chat cannot take a message).
   With none, the rules of `new_chat`; with one, that chat; with more, the choice is the user's, and the intake is held (section 3.6).
 - `new_chat`: the account is `account_id`, else the workspace's default (the pinned default, else the most recently used).

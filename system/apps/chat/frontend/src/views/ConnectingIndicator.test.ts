@@ -28,7 +28,6 @@ function provisionalChat(chatId: string, phase: ProvisionalChatPhase): Provision
     phase,
     error: null,
     is_seeded: false,
-    is_default: false,
   };
 }
 

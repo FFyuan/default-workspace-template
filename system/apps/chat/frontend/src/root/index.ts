@@ -34,6 +34,7 @@ import {
   fetchPendingIntake,
   getChatById,
   getChats,
+  getDefaultChatId,
   getProvisionalChats,
   hasReceivedChatList,
   initChats,
@@ -120,7 +121,7 @@ const emptyListChatBackoff = new ReconnectBackoff();
 
 /** The rail's rows in display order: the default chat first, then the most recent. */
 function railRows(): ChatRow[] {
-  return groupedRows(rowsFromSnapshots(getChats(), getProvisionalChats()), startedHere);
+  return groupedRows(rowsFromSnapshots(getChats(), getProvisionalChats(), getDefaultChatId()), startedHere);
 }
 
 function slotFillFor(chatId: string | null): SlotFill {
@@ -316,7 +317,7 @@ function dismissPick(): void {
 }
 
 function onChatsUpdated(): void {
-  const rows = rowsFromSnapshots(getChats(), getProvisionalChats());
+  const rows = rowsFromSnapshots(getChats(), getProvisionalChats(), getDefaultChatId());
   noteStatuses(new Map(rows.map((row) => [row.chatId, row.status])), isRootShown ? selectedChatId : null);
   // A chat that has messaged is no longer new; a deleted chat's frame goes with it.
   for (const chatId of startedHere) {
