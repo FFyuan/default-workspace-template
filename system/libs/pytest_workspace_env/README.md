@@ -18,9 +18,10 @@ update-self's test gate runs it.
 So the plugin removes every variable whose name starts with `MNGR_`, `MINDS_`,
 `CODE_GUARDIAN_`, `REVIEWER_` or `CLAUDE_`, plus `CLAUDECODE`, `TMUX`,
 `TMUX_PANE`, `LLM_USER_PATH`, `ORIGINAL_CLAUDE_CONFIG_DIR` and
-`PI_CODING_AGENT_DIR`, before any conftest is imported. Nothing the tests run can see them: not a module read at import
-time, not a test, not a subprocess a test starts. A test that needs one sets it
-itself (`monkeypatch.setenv`). The session header lists what was cleared.
+`PI_CODING_AGENT_DIR`, before any conftest is imported. Nothing the tests run
+can see them: not a module read at import time, not a test, not a subprocess a
+test starts. A test that needs one sets it itself (`monkeypatch.setenv`). The
+session header lists what was cleared.
 
 CI runs its pytest passes with a few of these variables set to fake values, so
 a pass that fails to load the plugin turns red there instead of in a user's
