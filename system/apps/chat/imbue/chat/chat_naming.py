@@ -61,7 +61,8 @@ _MAX_PROMPT_CHARACTERS: Final[int] = 3000
 _AGENT_WAIT_SECONDS: Final[float] = 600.0
 _AGENT_POLL_SECONDS: Final[float] = 2.0
 _MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message(?:\s[^<>]*)?/?>", re.IGNORECASE)
-# The answer's own tags; a model that leaves off the closing one has still put the title after the opening one.
+# Tags a model wraps its title in unasked; one that leaves off the closing tag has still put the title after
+# the opening one.
 _TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"<title>(.*?)(?:</title>|$)", re.IGNORECASE | re.DOTALL)
 # One that leaves off the opening one has still put the title before the closing one.
 _CLOSING_TITLE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"</title>", re.IGNORECASE)
