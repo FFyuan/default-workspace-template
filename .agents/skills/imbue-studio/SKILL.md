@@ -172,13 +172,14 @@ So in a shared workspace a file, a commit, or a message may have been written by
 Before relying on a workspace, find out whether it is shared:
 
 - **Ownership.** `GET /api/v1/workspaces` reports `is_owned` on every workspace; one that is not the user's own is shared, whatever its grants say.
-- **Your own workspace, from inside.** It is published while `data/.secrets/share.env` exists; test for the file, do not read it.
-  While published, people hold access when `data/.secrets/share_grants.toml` has a non-empty `users`, `emails`, or `email_domains` list under its `[workspace]` table.
-  Visiting agents hold access when `uv run --no-sync agent-access list --json` (run from the workspace root) lists an agent whose `scope` is `workspace`.
 - **Any workspace, from the user's machine.** `GET /api/v1/workspace-sharing/<id>` answers `enabled` and the grants document in force, and `GET /api/v1/workspace-sharing/<id>/agents` the visiting agents; a null grants document means unknown.
-- **Another workspace, from inside one.** The sharing routes are not reachable through the gateway, so read the same two files, and run the same `agent-access` listing, over the SSH session you hold into it.
+  People hold access when the document's `workspace` grants have a non-empty `users`, `emails`, or `email_domains` list.
+- **Your own workspace, from inside.** It is published while `data/.secrets/share.env` exists, and `ls data/.secrets/share.env` is the one way to ask: the directory holds secrets, and the workspace's secrets guard refuses every other command or tool that names a file in it (`test`, `cat`, a read tool), the grants document `share_grants.toml` beside it included.
+  Do not work around the guard; from inside you cannot read who holds a grant, so a published workspace counts as shared unless the user tells you nobody does.
+  Visiting agents hold access when `uv run --no-sync agent-access list --json` (run from the workspace root) lists an agent whose `scope` is `workspace`.
+- **Another workspace, from inside one.** The sharing routes are not reachable through the gateway, and the guard reads the command you hand `ssh` as well, so over the SSH session you hold into it run only the same `agent-access` listing, from that workspace's root; whether it is published, and who holds a grant on it, ask the user.
 
-A grant on a single app only (a `[services.<app>]` table, or a visiting agent whose scope names apps) admits its holder to that app and nothing else, and does not make the workspace shared.
+A grant on a single app only (a `services` entry of the grants document, or a visiting agent whose scope names apps) admits its holder to that app and nothing else, and does not make the workspace shared.
 A published workspace whose grant lists are all empty is not shared.
 When you cannot tell, treat the workspace as shared.
 
