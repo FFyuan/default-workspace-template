@@ -10,7 +10,7 @@ import { getTerminalOriginLabel } from "../document-meta";
 import { deriveAppOrigin } from "@imbue/workspace-ui/src/origin";
 import { ReconnectBackoff } from "@imbue/workspace-ui/src/models/backoff";
 import type { ModelChoice, ModelIdentity } from "./ModelSettings";
-import type { UserMessageEvent } from "./Response";
+import type { CompactionCause, UserMessageEvent } from "./Response";
 import { parseJsonMessage } from "@imbue/workspace-ui/src/models/ws-json";
 
 /** The agent-level facts about a chat's active agent that the pages render (the backend's
@@ -26,8 +26,11 @@ export interface ActiveAgent {
   account_id: string | null;
   // The agent's mngr lifecycle state.
   state: string;
-  // THINKING/TOOL_RUNNING/IDLE, or null when the chat app has no activity tracking for it.
+  // THINKING/TOOL_RUNNING/COMPACTING/IDLE, or null when the chat app has no activity tracking for it.
   activity_state: string | null;
+  // Who started the compaction while ``activity_state`` is COMPACTING; null otherwise, or when the
+  // chat app cannot tell.
+  compaction_cause: CompactionCause | null;
   // The live model/effort/fast selection plus the catalog option it matched. Null when no
   // model resolution is available.
   model_choice: ModelChoice | null;
@@ -40,6 +43,30 @@ export interface ActiveAgent {
   // A send is in flight and waiting for the agent to come up: the Connecting sub-state of
   // Sending, shown beside the model bar.
   is_connecting: boolean;
+  // The agent will resume on its own: a turn is in flight, or a background task is pending.
+  is_busy: boolean;
+  // The background tasks the chat waits on, oldest first. Rendered as given.
+  background_tasks: BackgroundTask[];
+}
+
+/** Who recorded a background task: the workspace's runner (``run_in_background.py``), which outlives the agent and
+ *  reports how its command ended to the chat, or the harness's own task list, whose tasks end with the agent's
+ *  process, unreported. */
+export type BackgroundTaskSource = "run_in_background" | "harness";
+
+/** One background task a chat waits on (the backend's ``BackgroundTaskSnapshot``): a command the agent
+ *  started whose completion will start its next turn. */
+export interface BackgroundTask {
+  id: string;
+  source: BackgroundTaskSource;
+  // The harness that recorded a "harness" task ("claude", ...); empty for the runner's.
+  harness: string;
+  // The harness's type for a "harness" task; empty for the runner's.
+  kind: string;
+  description: string;
+  // When it started (ISO 8601, UTC); for a "harness" task, when its turn-end hook first recorded it, at the
+  // end of the turn that started it.
+  started_at: string;
 }
 
 /** A handoff runs draining, summarizing, switching; a rebind runs draining, restarting; both can end failed. */

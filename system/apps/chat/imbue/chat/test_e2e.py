@@ -12,6 +12,8 @@ document.
 from __future__ import annotations
 
 import json
+import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -33,6 +35,7 @@ from playwright.sync_api import ViewportSize
 from playwright.sync_api import expect
 
 from imbue.chat.accounts import account_dir
+from imbue.chat.activity_state import ActivityState
 from imbue.chat.agent_discovery import MngrMessenger
 from imbue.chat.auto_open import chat_root_path
 from imbue.chat.harnesses.harness_type import HarnessType
@@ -45,17 +48,21 @@ from imbue.chat.testing import FIXTURE_SESSION_ID
 from imbue.chat.testing import RecordingMngrMessenger
 from imbue.chat.testing import RunningWorkspace
 from imbue.chat.testing import SummaryWritingMngrMessenger
+from imbue.chat.testing import get_json
+from imbue.chat.testing import is_chat_frontend_built
 from imbue.chat.testing import is_e2e_browser_installed
+from imbue.chat.testing import remove_background_task_marker
 from imbue.chat.testing import running_workspace
+from imbue.chat.testing import seed_agent_state
+from imbue.chat.testing import write_background_task_marker
 from imbue.mngr.utils.polling import wait_for
 from imbue.system_interface.app_context import DEFAULT_STATIC_DIRECTORY as SHELL_STATIC_DIRECTORY
 from imbue.system_interface.shell.desktops import DEFAULT_DESKTOP_NAME
 from imbue.system_interface.shell.desktops import slugify_desktop_name
-from imbue.system_interface.shell.testing import DUFS_BINARY
-from imbue.system_interface.shell.testing import file_viewer_registry_row
+from imbue.system_interface.shell.testing import files_registry_row
 from imbue.system_interface.shell.testing import message_handling_app
 from imbue.system_interface.shell.testing import registry_row_toml
-from imbue.system_interface.shell.testing import running_file_viewer
+from imbue.system_interface.shell.testing import running_files
 from imbue.system_interface.testing import find_free_port
 from imbue.system_interface.testing import serve_app
 
@@ -67,9 +74,7 @@ def _playwright_browsers_installed() -> bool:
 
 def _frontends_built() -> bool:
     """Whether both bundles exist: the chat page (``static/chat.html``) and the shell that frames it."""
-    return (Path(__file__).parent / "static" / "chat.html").is_file() and (
-        SHELL_STATIC_DIRECTORY / "index.html"
-    ).is_file()
+    return is_chat_frontend_built() and (SHELL_STATIC_DIRECTORY / "index.html").is_file()
 
 
 pytestmark = [
@@ -129,6 +134,7 @@ def _running_e2e_server(
     session_events: list[dict[str, Any]] | None = None,
     is_account_signed_in: bool = True,
     additional_agents: Sequence[tuple[str, str]] = (),
+    background_tasks_root: Path | None = None,
     extra_rows: Sequence[str] = (),
 ) -> AbstractContextManager[RunningWorkspace]:
     """The two-server workspace, the shell and the chat each on a free port of their own."""
@@ -139,6 +145,7 @@ def _running_e2e_server(
         session_events=session_events,
         additional_agents=additional_agents,
         is_account_signed_in=is_account_signed_in,
+        background_tasks_root=background_tasks_root,
         extra_rows=extra_rows,
     )
 
@@ -150,13 +157,8 @@ def e2e_server(tmp_path: Path) -> Generator[RunningWorkspace, None, None]:
         yield server
 
 
-def _get_json(url: str) -> Any:
-    with urllib.request.urlopen(url, timeout=5) as response:
-        return json.loads(response.read())
-
-
 def _desktops(server: RunningWorkspace) -> list[dict[str, Any]]:
-    return list(_get_json(f"{server.shell_url}/api/desktops")["desktops"])
+    return list(get_json(f"{server.shell_url}/api/desktops")["desktops"])
 
 
 def _chat_windows(server: RunningWorkspace, desktop_id: str = _HOME_DESKTOP_ID) -> list[dict[str, Any]]:
@@ -204,7 +206,7 @@ def _wait_for_client_on_desktop(server: RunningWorkspace, client_id: str, deskto
     wait_for(
         lambda: any(
             client["id"] == client_id and client["active_desktop"] == desktop_id
-            for client in _get_json(f"{server.shell_url}/api/clients")["clients"]
+            for client in get_json(f"{server.shell_url}/api/clients")["clients"]
         ),
         timeout=15.0,
         poll_interval=0.1,
@@ -337,9 +339,59 @@ def test_chat_transcript_area_is_pure_white(e2e_server: RunningWorkspace, page: 
     )
 
 
+@pytest.mark.timeout(90, func_only=False)
+def test_a_chat_waiting_on_background_tasks_shows_the_wait_in_the_list_and_the_strip(
+    tmp_path: Path, page: Page
+) -> None:
+    """Between turns with tasks pending, the list draws the dashed ring and the strip the wait line, which opens
+    into one row per task; reduced motion holds the ring still, and the wait goes when the tasks do."""
+    with _running_e2e_server(tmp_path, background_tasks_root=tmp_path / "background_tasks") as server:
+        manager = server.chat_state.agent_manager
+        agent = manager.get_agent_by_id(FIXTURE_AGENT_ID)
+        assert agent is not None
+        seed_agent_state(
+            manager,
+            FIXTURE_AGENT_ID,
+            name=agent.name,
+            state="WAITING",
+            labels=agent.labels,
+            activity_state=ActivityState.IDLE,
+        )
+        reader = manager._background_tasks
+        assert reader is not None
+        write_background_task_marker(reader, FIXTURE_AGENT_ID, "build", os.getpid(), "Rebuild the worker image")
+        write_background_task_marker(reader, FIXTURE_AGENT_ID, "migrate", os.getpid(), "Migrate the schema")
+        manager._background_tasks_poller.start()
+        _open_fixture_chat(page, server)
+
+        row = _chat_root(page).locator(f'.chat-rail-row[data-chat-id="{FIXTURE_AGENT_ID}"]')
+        expect(row).to_have_attribute("data-status", "background", timeout=15000)
+        ring = row.locator(".chat-rail-dot")
+        expect(ring).to_have_class(re.compile(r"chat-rail-dot--dashed"))
+        assert ring.evaluate("e => getComputedStyle(e).animationName") == "chat-rail-spin"
+        assert ring.evaluate("e => getComputedStyle(e).borderTopStyle") == "dashed"
+
+        wait_line = _chat(page).locator(".background-tasks-line__summary")
+        expect(wait_line).to_contain_text("Waiting on 2 background tasks", timeout=15000)
+        expect(_chat(page).locator(".background-tasks-line__task")).to_have_count(0)
+        wait_line.click()
+        expect(_chat(page).locator(".background-tasks-line__description")).to_have_text(
+            ["Rebuild the worker image", "Migrate the schema"]
+        )
+        page.screenshot(path=str(tmp_path / "background-wait.png"))
+
+        page.emulate_media(reduced_motion="reduce")
+        assert ring.evaluate("e => getComputedStyle(e).animationName") == "none"
+
+        remove_background_task_marker(reader, FIXTURE_AGENT_ID, "build")
+        remove_background_task_marker(reader, FIXTURE_AGENT_ID, "migrate")
+        expect(row).to_have_attribute("data-status", "idle", timeout=15000)
+        expect(_chat(page).locator(".background-tasks-line")).to_have_count(0)
+
+
 @pytest.mark.timeout(60, func_only=False)
 def test_conversation_and_composer_render(e2e_server: RunningWorkspace, page: Page) -> None:
-    """The opened chat shows both sides of its conversation and a composer whose send button follows the text."""
+    """The opened chat shows both sides of its conversation and a composer whose send button lights up with the text."""
     _open_fixture_chat(page, e2e_server)
 
     expect(_chat(page).locator(".message-user").first).to_contain_text("Hello agent!")
@@ -348,9 +400,9 @@ def test_conversation_and_composer_render(e2e_server: RunningWorkspace, page: Pa
     textarea = _chat(page).locator(".message-input-textbox")
     expect(textarea).to_be_visible(timeout=15000)
     send_button = _chat(page).locator(".message-input-send-button")
-    expect(send_button).to_have_count(0)
+    expect(send_button).to_be_disabled()
     textarea.fill("test message")
-    expect(send_button).to_be_visible()
+    expect(send_button).to_be_enabled()
 
 
 @pytest.mark.timeout(60, func_only=False)
@@ -389,9 +441,10 @@ def _box(locator: Locator) -> dict[str, float]:
 
 @pytest.mark.timeout(60, func_only=False)
 def test_composer_buttons_move_under_text_that_wraps(e2e_server: RunningWorkspace, page: Page) -> None:
-    """Text that fits on one line keeps the composer's buttons beside it. Text that needs a second line, by
-    wrapping or by a line break, gets the composer's full width, with the buttons in a row at the bottom
-    right under it, and they come back beside it once the text fits on one line again."""
+    """Text that fits on one line sits between the composer's attach button and its send button. Text that
+    needs a second line, by wrapping or by a line break, gets the composer's full width, with attach at the
+    bottom left and send at the bottom right under it, and they come back beside it once the text fits on
+    one line again."""
     page.set_viewport_size({"width": 1200, "height": 900})
     _open_fixture_chat(page, e2e_server)
     chat = _chat(page)
@@ -399,20 +452,26 @@ def test_composer_buttons_move_under_text_that_wraps(e2e_server: RunningWorkspac
     expect(textarea).to_be_visible(timeout=15000)
     row = chat.locator(".message-input-row")
     toolbar = chat.locator(".message-input-toolbar")
+    attach = chat.locator(".message-input-attach-button")
 
     def assert_buttons_beside_text() -> None:
         expect(row).not_to_have_attribute("data-stacked", "")
-        text_box, toolbar_box = _box(textarea), _box(toolbar)
+        text_box, toolbar_box, attach_box = _box(textarea), _box(toolbar), _box(attach)
         assert toolbar_box["left"] >= text_box["right"] - 1
+        assert attach_box["right"] <= text_box["left"] + 1
         assert toolbar_box["top"] < text_box["bottom"]
+        assert attach_box["top"] < text_box["bottom"]
 
     def assert_buttons_under_text() -> None:
         expect(row).to_have_attribute("data-stacked", "")
-        row_box, text_box, toolbar_box = _box(row), _box(textarea), _box(toolbar)
+        row_box, text_box = _box(row), _box(textarea)
+        toolbar_box, attach_box = _box(toolbar), _box(attach)
         assert text_box["right"] - text_box["left"] >= row_box["right"] - row_box["left"] - 1
-        assert toolbar_box["top"] >= text_box["bottom"] - 1
-        assert abs(toolbar_box["bottom"] - row_box["bottom"]) <= 1
+        for button_box in (toolbar_box, attach_box):
+            assert button_box["top"] >= text_box["bottom"] - 1
+            assert abs(button_box["bottom"] - row_box["bottom"]) <= 1
         assert abs(toolbar_box["right"] - row_box["right"]) <= 1
+        assert abs(attach_box["left"] - row_box["left"]) <= 1
 
     textarea.fill("short message")
     assert_buttons_beside_text()
@@ -713,6 +772,79 @@ def test_a_minimized_chat_preserves_its_scroll_window(tmp_path: Path, page: Page
         )
 
 
+_TRANSCRIPT_AT_BOTTOM_JS = (
+    "() => { const el = document.querySelector('.transcript-scroll'); "
+    "return el.scrollHeight - el.scrollTop - el.clientHeight <= 1; }"
+)
+
+# The transcript's largest distance from its bottom over a run of animation frames: one reading can land
+# between a frame that pulls the transcript up and the pin that puts it back.
+_MAX_TRANSCRIPT_BOTTOM_GAP_JS = """
+async () => {
+  const el = document.querySelector('.transcript-scroll');
+  let maxGapPx = 0;
+  for (let frame = 0; frame < 30; frame++) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    maxGapPx = Math.max(maxGapPx, el.scrollHeight - el.scrollTop - el.clientHeight);
+  }
+  return maxGapPx;
+}
+"""
+
+
+@pytest.mark.timeout(120, func_only=False)
+def test_the_transcript_reaches_its_bottom_whatever_the_composer_height(tmp_path: Path, page: Page) -> None:
+    """A draft that grows the composer leaves the transcript at its bottom, the wheel can still reach that
+    bottom, and when the composer shrinks back the transcript keeps following new messages."""
+    events = _make_long_conversation_events(150)
+    with _running_e2e_server(tmp_path, session_events=events) as server:
+        page.set_viewport_size({"width": 1200, "height": 900})
+        _open_fixture_chat(page, server)
+        chat = _chat(page)
+        frame = _chat_frame(page)
+        frame.wait_for_function(
+            "() => { const el = document.querySelector('.transcript-scroll'); "
+            "return el && el.scrollHeight > el.clientHeight * 2 "
+            "&& el.scrollHeight - el.scrollTop - el.clientHeight <= 1; }",
+            timeout=15000,
+        )
+        textarea = chat.locator(".message-input-textbox")
+        transcript = chat.locator(".transcript-scroll")
+
+        textarea.fill("\n".join(f"draft line {line}" for line in range(12)))
+        expect(chat.locator(".message-input-row")).to_have_attribute("data-stacked", "")
+        frame.wait_for_function(_TRANSCRIPT_AT_BOTTOM_JS, timeout=5000)
+        assert frame.evaluate(_MAX_TRANSCRIPT_BOTTOM_GAP_JS) <= 1, "a tall composer pulled the transcript off its bottom"
+        last_reply_box = _box(chat.locator(".message-assistant", has_text="reply-149"))
+        assert last_reply_box["bottom"] <= _box(chat.locator(".message-input-box"))["top"]
+
+        transcript.hover()
+        page.mouse.wheel(0, -600)
+        page.wait_for_timeout(300)
+        page.mouse.wheel(0, 5000)
+        frame.wait_for_function(_TRANSCRIPT_AT_BOTTOM_JS, timeout=5000)
+        assert frame.evaluate(_MAX_TRANSCRIPT_BOTTOM_GAP_JS) <= 1, "the transcript would not stay at its bottom"
+
+        textarea.fill("")
+        expect(chat.locator(".message-input-row")).not_to_have_attribute("data-stacked", "")
+        with open(server.session_file, "a") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "uuid": "long-u-after-shrink",
+                        "timestamp": "2026-01-01T00:02:00Z",
+                        "message": {"role": "user", "content": "arrived-after-the-composer-shrank"},
+                    }
+                )
+                + "\n"
+            )
+        expect(chat.locator(".message-user", has_text="arrived-after-the-composer-shrank")).to_be_attached(
+            timeout=_TRIGGER_TIMEOUT_MS
+        )
+        frame.wait_for_function(_TRANSCRIPT_AT_BOTTOM_JS, timeout=5000)
+
+
 # watching
 
 
@@ -725,7 +857,7 @@ def test_a_chat_page_watches_its_chat_only_while_shown_and_focused(e2e_server: R
 
     def wait_for_watcher_count(count: int, described: str) -> None:
         wait_for(
-            lambda: len(_get_json(watchers_url)["watched_by"]) == count,
+            lambda: len(get_json(watchers_url)["watched_by"]) == count,
             timeout=15.0,
             poll_interval=0.1,
             error_message=f"the watchers route never showed {described}",
@@ -1563,7 +1695,7 @@ def _question_and_reply_events(uuid_prefix: str, question: str, reply: str) -> l
 
 
 # A reply that links a file of the workspace and a service running in it (the workspace link routing plan), served
-# with the real File Viewer (dufs over a folder of the test's own) and a stand-in for the app that opens URLs.
+# with the real Files (its server over a folder of the test's own) and a stand-in for the app that opens URLs.
 _LINKED_FILE_HREF = "/notes/plan%201.md"
 _LINKED_SERVICE_URL = "http://localhost:3000/preview"
 _OPEN_URL_HANDLER_PATH = "/api/open-url"
@@ -1599,12 +1731,11 @@ def _bring_the_chat_over(page: Page, server: RunningWorkspace, client_id: str, c
     )
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(120, func_only=False)
-def test_a_replys_file_link_opens_in_the_file_viewer_and_its_local_link_goes_to_the_app_that_opens_urls(
+def test_a_replys_file_link_opens_in_files_and_its_local_link_goes_to_the_app_that_opens_urls(
     tmp_path: Path, page: Page
 ) -> None:
-    """Clicking a reply's file link opens the file on its view page in a File Viewer window, and clicking it again
+    """Clicking a reply's file link opens the file on its view page in a Files window, and clicking it again
     (with a modifier) raises that window rather than opening another; a middle click on a local address sends it,
     with the client, to the app registered for ``open:url``. The chat never navigates and no browser window
     opens."""
@@ -1613,11 +1744,11 @@ def test_a_replys_file_link_opens_in_the_file_viewer_and_its_local_link_goes_to_
     (root / "notes" / "plan 1.md").write_text("# The plan\n")
     opened_urls: list[dict[str, Any]] = []
     with (
-        running_file_viewer(root) as viewer_url,
+        running_files(root) as files_url,
         serve_app(message_handling_app(opened_urls, _OPEN_URL_HANDLER_PATH, 200)) as url_opener,
     ):
         rows = (
-            file_viewer_registry_row(viewer_url),
+            files_registry_row(files_url),
             registry_row_toml("browser", url_opener.http_url, message_handlers=[("open:url", _OPEN_URL_HANDLER_PATH)]),
         )
         with _running_e2e_server(tmp_path, session_events=_LINKING_SESSION_EVENTS, extra_rows=rows) as server:
@@ -1632,7 +1763,7 @@ def test_a_replys_file_link_opens_in_the_file_viewer_and_its_local_link_goes_to_
                 lambda: [window["path"] for window in _app_windows(server, "files")] == ["/notes/plan%201.md?view"],
                 timeout=15.0,
                 poll_interval=0.1,
-                error_message="no File Viewer window opened on the linked file's view page",
+                error_message="no Files window opened on the linked file's view page",
             )
             (viewer,) = _app_windows(server, "files")
             client_id = _client_id(page)
@@ -1705,18 +1836,17 @@ _FOLDER_LINK_SESSION_EVENTS = _question_and_reply_events(
 )
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(120, func_only=False)
-def test_a_folder_link_raises_the_file_viewer_window_that_reached_the_folder_through_its_own_listing(
+def test_a_folder_link_raises_the_files_window_that_reached_the_folder_through_its_own_listing(
     tmp_path: Path, page: Page
 ) -> None:
-    """A File Viewer window that walked into a folder through dufs's own listing is at the path as dufs spells it;
-    a chat link to that folder spells it the shell's way, and the two must agree so the link raises that window
-    rather than opening a second one."""
+    """A Files window that walked into a folder through its own listing is at the path as Files spells it; a chat link
+    to that folder spells it the shell's way, and the two must agree so the link raises that window rather than
+    opening a second one."""
     root = tmp_path / "viewer-root"
     (root / _ODD_FOLDER_NAME).mkdir(parents=True)
-    with running_file_viewer(root) as viewer_url:
-        rows = (file_viewer_registry_row(viewer_url),)
+    with running_files(root) as files_url:
+        rows = (files_registry_row(files_url),)
         with _running_e2e_server(tmp_path, session_events=_FOLDER_LINK_SESSION_EVENTS, extra_rows=rows) as server:
             _open_fixture_chat_with_shell(page, server)
             client_id = _client_id(page)
@@ -1726,16 +1856,16 @@ def test_a_folder_link_raises_the_file_viewer_window_that_reached_the_folder_thr
                 lambda: len(_app_windows(server, "files")) == 1,
                 timeout=15.0,
                 poll_interval=0.1,
-                error_message="the File Viewer window never opened",
+                error_message="the Files window never opened",
             )
             (viewer,) = _app_windows(server, "files")
             listing = page.frame_locator(f'iframe[data-live-page="{viewer["id"]}"]')
-            listing.get_by_role("link", name=_ODD_FOLDER_NAME, exact=True).click()
+            listing.locator(f'[data-entry-path="/{_ODD_FOLDER_NAME}/"]').dblclick()
             wait_for(
                 lambda: _app_windows(server, "files")[0]["path"] != "/",
                 timeout=15.0,
                 poll_interval=0.1,
-                error_message="the File Viewer window never reported the folder it walked into",
+                error_message="the Files window never reported the folder it walked into",
             )
             listed_path = _app_windows(server, "files")[0]["path"]
 
