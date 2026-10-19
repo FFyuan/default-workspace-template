@@ -66,8 +66,8 @@ _TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"<title>(.*?)</title>", re.
 # A model that leaves off the closing tag has still put the title after the opening one, which starts a line:
 # inside a line, an unclosed "<title>" is the HTML element a title names ("HTML <title> tag: fix the tab text").
 _UNCLOSED_TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"(?:^|\n)[ \t]*<title>(.*)", re.IGNORECASE | re.DOTALL)
-# One that leaves off the opening one has still put the title before the closing one.
-_CLOSING_TITLE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"</title>", re.IGNORECASE)
+# One that leaves off the opening one has still put the title before the closing one, which ends a line.
+_CLOSING_TITLE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"</title>(?=[ \t]*(?:\n|$))", re.IGNORECASE)
 # The name of the form standing in for the subject ("Short name: Wiki contributions system").
 _FORM_LABEL_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?:short name|chat name|name|chat title|title|subject)\s*:\s*", re.IGNORECASE
@@ -164,8 +164,8 @@ def parse_generated_chat_name(answer: str) -> str | None:
     prompt asks and models do not always.
 
     An answer a model wraps in ``<title>`` tags unasked is read from between them; with no closing tag, from an
-    opening one that starts a line; and with no opening tag, up to a closing one. A leading name of the form itself
-    ("Short name: ", "Title: ") is not the subject and is dropped.
+    opening one that starts a line; and with no opening tag, up to a closing one that ends a line. A leading name of
+    the form itself ("Short name: ", "Title: ") is not the subject and is dropped.
     """
     title_match = _TITLE_PATTERN.search(answer) or _UNCLOSED_TITLE_PATTERN.search(answer)
     title = (
