@@ -60,7 +60,7 @@ _MAX_PROMPT_CHARACTERS: Final[int] = 3000
 # How long a chat created with its first message may take to come up before naming gives up on it.
 _AGENT_WAIT_SECONDS: Final[float] = 600.0
 _AGENT_POLL_SECONDS: Final[float] = 2.0
-_MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message\b[^>]*>", re.IGNORECASE)
+_MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message(?:\s[^<>]*)?/?>", re.IGNORECASE)
 # What dropping accents leaves whole: Latin letters that are not a base letter plus an accent, and the
 # typographic quotes and dashes models write for ASCII ones.
 _ASCII_SPELLINGS: Final[dict[int, str]] = str.maketrans(

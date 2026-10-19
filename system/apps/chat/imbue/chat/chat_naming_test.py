@@ -281,6 +281,12 @@ def test_a_message_cannot_close_its_own_frame_and_speak_as_the_instructions(tmp_
     assert "<message" not in after_frame.lower() and "/message" not in after_frame.lower()
 
 
+def test_code_comparing_against_a_message_is_kept_whole_in_the_naming_prompt() -> None:
+    code = "why does while (i < message.length && j > 0) never stop"
+
+    assert chat_naming_prompt(code).startswith(f"<message>\n{code}\n</message>")
+
+
 def test_a_stopped_namer_takes_no_more_messages(tmp_path: Path) -> None:
     harness = _NamingHarness(tmp_path, "Chat 3", ["Rome trip: plan five days in May"])
 
