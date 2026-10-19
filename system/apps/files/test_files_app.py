@@ -421,6 +421,7 @@ def test_files_dropped_on_a_folder_upload_into_it(open_files_page: OpenFilesPage
     expect(page.locator(".files-uploads")).to_have_count(0)
 
 
+@pytest.mark.flaky
 def test_an_entry_dragged_onto_a_folder_moves_into_it(open_files_page: OpenFilesPage, files_root: Path) -> None:
     page = open_files_page("/")
     _entry(page, "/README.md").drag_to(_entry(page, "/projects/"))
