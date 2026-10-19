@@ -2101,7 +2101,7 @@ def test_a_drawer_row_kebab_stops_that_chat(tmp_path: Path, page: Page) -> None:
         page.locator("[data-chat-header-list]").click()
         page.locator(f'[data-chat-row-menu="{_SECOND_AGENT_ID}"]').click()
         menu = page.locator(".chat-rail-menu")
-        expect(menu.locator("[data-menu-row]")).to_have_text(["Rename", "Stop chat", "Delete chat"])
+        expect(menu.locator("[data-menu-row]")).to_have_text(["Rename", "Make default chat", "Stop chat", "Delete chat"])
 
         with page.expect_response(
             lambda response: response.request.method == "POST" and "/stop" in response.url
