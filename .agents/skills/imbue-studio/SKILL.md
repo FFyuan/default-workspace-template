@@ -122,9 +122,10 @@ Ask for the smallest set of verbs the task needs, with a rationale that names th
 A workspace is addressed by its agent id; your own is usually `$MNGR_AGENT_ID`.
 
 **Creating a workspace.** `POST /api/v1/workspaces` answers `202`; poll `/api/v1/workspaces/operations/create/<op>` until `is_done`.
-Always send `branch`, read from `GET /api/v1/app/version` (its `workspace_template_ref`): the release this app was built against.
+When `git_url` is the workspace template, always send `branch`, read from `GET /api/v1/app/version` (its `workspace_template_ref`): the release this app was built against.
 Omitted, the new workspace takes the template's default branch, unreleased code; never send the newest upstream tag, which may be a release this app does not support.
 If the read fails, say so and create nothing.
+From any other repository, send a ref that repository has, or omit `branch` for its default branch.
 
 ```bash
 REF=$(latchkey curl http://latchkey-self.invalid/minds-api-proxy/api/v1/app/version | jq -er .workspace_template_ref) || exit 1
