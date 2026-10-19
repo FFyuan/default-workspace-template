@@ -2054,6 +2054,17 @@ def _rename_chat(chat_id: str) -> Response:
     return model_response(RenameChatResponse(status="ok"))
 
 
+def _make_default_chat(chat_id: str) -> Response:
+    """Star a chat as the workspace's default chat (``default_chat.py``); 409 for one that cannot be the default."""
+    agent_manager: AgentManager = get_state().agent_manager
+    parsed = parse_chat_ref(chat_id)
+    if parsed is None or not agent_manager.knows_chat(parsed):
+        return _chat_not_found_response(chat_id)
+    if not agent_manager.make_default_chat(parsed):
+        return error_response("Only a chat you started can be the default chat", 409)
+    return model_response(OkResponse())
+
+
 def _stop_chat(chat_id: str) -> Response:
     """Stop a chat's agent with ``mngr stop``, the reversible counterpart to a destroy."""
     agent_manager: AgentManager = get_state().agent_manager
@@ -2308,6 +2319,7 @@ def _run_ws_broadcast_loop(websocket: Any, agent_manager: AgentManager) -> None:
 _PER_CHAT_ROUTES: Final[tuple[tuple[str, Callable[..., Response], tuple[str, ...]], ...]] = (
     ("destroy", _destroy_chat, ("POST",)),
     ("rename", _rename_chat, ("POST",)),
+    ("default", _make_default_chat, ("POST",)),
     ("start", _start_chat, ("POST",)),
     ("stop", _stop_chat, ("POST",)),
     ("events", _get_events, ("GET",)),
@@ -2389,6 +2401,7 @@ _ROUTE_TABLE: Final[RouteTable] = {
     ("POST", "/api/chats/{chat_id}/rename"): RouteModels(
         request_model=RenameChatRequest, response_model=RenameChatResponse
     ),
+    ("POST", "/api/chats/{chat_id}/default"): RouteModels(response_model=OkResponse),
     ("POST", "/api/chats/{chat_id}/start"): RouteModels(
         response_model=StartAgentResponse, alternate_responses=(_CONVERGING,)
     ),

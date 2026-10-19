@@ -4317,6 +4317,27 @@ def test_intake_current_chat_falls_back_to_the_most_recently_messaged_chat(
     assert response.get_json()["path"].startswith("/?chat=agent-00000000000000000000000000000002&intake=")
 
 
+def test_making_a_chat_the_default_stars_it_and_refuses_a_helper_or_an_unknown_chat(
+    app: Flask, client: FlaskClient
+) -> None:
+    agent_manager = state_of(app).agent_manager
+    seed_agent_state(agent_manager, "agent-00000000000000000000000000000001", name="first")
+    seed_agent_state(agent_manager, "agent-00000000000000000000000000000002", name="second")
+    seed_agent_state(
+        agent_manager, "agent-00000000000000000000000000000003", name="helper", labels={"agent_created": "true"}
+    )
+
+    starred = client.post("/api/chats/agent-00000000000000000000000000000002/default")
+    helper = client.post("/api/chats/agent-00000000000000000000000000000003/default")
+    unknown = client.post("/api/chats/agent-00000000000000000000000000000009/default")
+
+    assert starred.status_code == 200
+    assert client.get("/api/chats").get_json()["default_chat_id"] == "agent-00000000000000000000000000000002"
+    assert helper.status_code == 409
+    assert unknown.status_code == 404
+    assert agent_manager.get_default_chat_id() == ChatId("agent-00000000000000000000000000000002")
+
+
 def test_intake_current_chat_falls_back_to_the_default_chat_over_a_more_recently_messaged_one(
     app: Flask, client: FlaskClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

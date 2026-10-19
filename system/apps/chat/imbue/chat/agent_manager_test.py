@@ -1054,6 +1054,35 @@ def test_the_default_chat_is_kept_across_a_restart_and_left_alone_until_the_agen
         manager.stop()
 
 
+def test_making_a_chat_the_default_moves_the_star_to_it_and_keeps_it_there(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    """The user stars a chat by hand: it stays the default however recently another was messaged; a helper another
+    agent started cannot take the star."""
+    stamps = MessageStampStore(path=None)
+    stamps.record(ChatId("agent-busy"), at=900.0)
+    default_chat_path = tmp_path / DEFAULT_CHAT_FILENAME
+    manager = AgentManager.build(
+        broadcaster, message_stamps=stamps, default_chat=DefaultChatStore(path=default_chat_path)
+    )
+    try:
+        seed_agent_state(manager, "agent-busy", name="Chat-1")
+        seed_agent_state(manager, "agent-quiet", name="Chat-2")
+        seed_agent_state(manager, "agent-helper", name="Chat-3", labels={"agent_created": "true"})
+        manager.note_agent_list_known()
+        assert manager.get_default_chat_id() == ChatId("agent-busy")
+        q = broadcaster.register()
+
+        assert manager.make_default_chat(ChatId("agent-quiet")) is True
+        assert manager.make_default_chat(ChatId("agent-helper")) is False
+
+        assert _next_chat_listing(q)["default_chat_id"] == "agent-quiet"
+        assert manager.get_default_chat_id() == ChatId("agent-quiet")
+        assert DefaultChatStore(path=default_chat_path).read() == ChatId("agent-quiet")
+    finally:
+        manager.stop()
+
+
 def test_with_no_chat_left_the_chat_the_list_opens_takes_the_default(broadcaster: WebSocketBroadcaster) -> None:
     manager = AgentManager.build(broadcaster)
     manager.note_agent_list_known()

@@ -19,7 +19,7 @@ observe`, its own supervised service) writes, and serves:
 
 - `GET /`: the chat root, the built `root.html`: the chat list down the left
   (`frontend/src/root/`, grouped by the chat that started each helper and
-  ordered by recency under the default chat, with rename, stop and restart, and delete) beside an inner
+  ordered by recency under the default chat, with rename, make default, stop and restart, and delete) beside an inner
   frame of the selected chat's page. The selection is the `chat` query parameter,
   so the root's path is `/?chat=<chat-id>`, which it reports to the shell with the
   chat's title. Loading the page sends and writes nothing. With nothing selected
@@ -66,7 +66,7 @@ observe`, its own supervised service) writes, and serves:
   no pty is registered) in meta tags. Every chat page reports its path and the
   chat's title to the shell.
 - Every `/api/chats/<chat-id>/...` route (events, streams, sends, model choice,
-  the queue actions, presence and watchers, destroy, rename, start, stop; the subagent reads under
+  the queue actions, presence and watchers, destroy, rename, default, start, stop; the subagent reads under
   `/api/chats/<chat-id>/agents/<agent-id>/subagents/<session-id>/`),
   `/api/chats/create`, `/api/chats/awaiting` (the chat an empty chat list opens on), `/api/chats`,
   `/api/harnesses`, `/api/uploads`,
@@ -407,7 +407,9 @@ The workspace has one **default chat**, where a text with no chat of its own goe
 (`default_chat.py`). It is a pointer, like a star on one chat, kept in
 `data/.apps/chat/default_chat.json`; no chat is special in itself, so a handoff, a
 crash, or a relaunch leaves it where it is. The seeded chat (the Mind app's "Welcome")
-takes it first. When the chat it names is deleted, another takes it at once: the chat
+takes it first, and a chat's "Make default chat" menu row (`POST
+/api/chats/<chat-id>/default`, 409 for a helper another agent started) moves it there.
+When the chat it names is deleted, another takes it at once: the chat
 messaged most recently, never a helper another agent started; with no chat left, the
 chat the list opens (one awaiting its first send) takes it. Every `chats_updated` push
 and `GET /api/chats` carry its id as `default_chat_id`. The chat list leads with it (its

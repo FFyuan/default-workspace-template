@@ -28,7 +28,7 @@ import { describeElement, type ReferenceClick, type ReferenceScope } from "@imbu
 import { anchorForPoint } from "@imbue/workspace-ui/src/menu-position";
 import { kebabGlyph, plusGlyph } from "../glyphs";
 import { isUnread } from "./chatUnread";
-import { destroyChat, renameChat, startChat, stopChat } from "./verbs";
+import { destroyChat, makeDefaultChat, renameChat, startChat, stopChat } from "./verbs";
 import { defaultGroupSize, isAgentStarted } from "./rows";
 import {
   DEFAULT_RAIL_WIDTH_PX,
@@ -151,6 +151,14 @@ function setRunningFromMenu(row: ChatRow, isRunning: boolean): void {
   });
 }
 
+function makeDefaultFromMenu(row: ChatRow): void {
+  makeDefaultChat(row.chatId).catch((error: unknown) => {
+    alert(
+      `Could not make "${row.title}" the default chat.\n\n${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
+}
+
 /** What a row's menu needs of the root: the rows, the one shown, and how to show another. */
 export type RowMenuContext = Pick<ChatRailAttrs, "rows" | "selectedChatId" | "onPick">;
 
@@ -192,6 +200,17 @@ export function rowMenuRows(attrs: RowMenuContext, row: ChatRow, referenceRows: 
   const isStopped = row.status === "stopped";
   return [
     { kind: "action", key: "rename", label: "Rename", onSelect: () => beginRename(row) },
+    // A helper another agent started cannot be the default, and the default needs no offer to become it.
+    ...(row.isDefault || isAgentStarted(row)
+      ? []
+      : [
+          {
+            kind: "action",
+            key: "make-default",
+            label: "Make default chat",
+            onSelect: () => makeDefaultFromMenu(row),
+          } as MenuRow,
+        ]),
     {
       kind: "action",
       key: isStopped ? "start" : "stop",

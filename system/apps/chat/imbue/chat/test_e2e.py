@@ -1065,6 +1065,29 @@ def test_the_chat_list_leads_with_the_default_chat_and_lands_on_the_next_default
         expect(rows.nth(0)).to_have_attribute("data-default", "true")
 
 
+def test_making_a_chat_the_default_from_its_menu_moves_it_to_the_head_of_the_list(tmp_path: Path, page: Page) -> None:
+    """A chat's right-click menu stars it as the default: it takes the welcome chat's place at the head of the list,
+    marked, and the welcome chat drops back among the rest."""
+    with _running_e2e_server(tmp_path) as server:
+        agent_manager = server.chat_state.agent_manager
+        welcome = agent_manager.seed_chat(
+            "Welcome",
+            (SeedTurn(role=SeedRole.ASSISTANT, text="Your workspace is ready! How would you like to start?"),),
+        )
+        page.goto(f"{server.chat_url}/")
+        rows = page.locator(".chat-rail-row")
+        expect(rows).to_have_count(2, timeout=15000)
+        expect(rows.nth(0)).to_have_attribute("data-chat-id", welcome.chat_id)
+
+        page.locator(f'.chat-rail-row[data-chat-id="{FIXTURE_AGENT_ID}"]').click(button="right")
+        page.locator('.chat-rail-menu [data-menu-row="make-default"]').click()
+
+        expect(rows.nth(0)).to_have_attribute("data-chat-id", FIXTURE_AGENT_ID)
+        expect(rows.nth(0)).to_have_attribute("data-default", "true")
+        expect(page.locator(".chat-rail-row[data-default]")).to_have_count(1)
+        assert agent_manager.get_default_chat_id() == ChatId(FIXTURE_AGENT_ID)
+
+
 @pytest.mark.timeout(120, func_only=False)
 def test_a_new_chat_with_nothing_signed_in_offers_the_provider_chooser_in_its_own_window(
     tmp_path: Path, page: Page

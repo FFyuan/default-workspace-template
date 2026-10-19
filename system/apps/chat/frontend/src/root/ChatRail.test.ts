@@ -6,15 +6,17 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./verbs", () => ({
+const verbs = vi.hoisted(() => ({
   stopChat: vi.fn(async (_chatId: string) => undefined),
   startChat: vi.fn(async (_chatId: string) => undefined),
   renameChat: vi.fn(async (_chatId: string, _title: string) => undefined),
+  makeDefaultChat: vi.fn(async (_chatId: string) => undefined),
   destroyChat: vi.fn(async (_chatId: string) => undefined),
 }));
+vi.mock("./verbs", () => verbs);
 
 import m from "mithril";
-import { ChatRail } from "./ChatRail";
+import { ChatRail, rowMenuRows } from "./ChatRail";
 import { chatRailAttrsFixture } from "./chatRailAttrsFixture";
 import { chatRowFixture } from "./chatRowFixture";
 import type { ChatRow } from "./rows";
@@ -81,5 +83,24 @@ describe("ChatRail default chat", () => {
 
     expect(rail.querySelector(".chat-rail-default-group")).toBeNull();
     expect(chatIdsIn(rail)).toEqual(["agent-a", "agent-b"]);
+  });
+
+  it("offers to make a chat the default, except the default itself and a helper another agent started", () => {
+    const welcome = chatRowFixture("agent-welcome", { isDefault: true });
+    const other = chatRowFixture("agent-other");
+    const helper = chatRowFixture("agent-helper", { labels: { agent_created: "true", lead_agent: "agent-welcome" } });
+    const context = chatRailAttrsFixture({ rows: [welcome, helper, other] });
+    const labelsOf = (row: ChatRow): string[] =>
+      rowMenuRows(context, row).flatMap((menuRow) => (menuRow.kind === "action" ? [menuRow.label] : []));
+
+    expect(labelsOf(welcome)).not.toContain("Make default chat");
+    expect(labelsOf(helper)).not.toContain("Make default chat");
+    const makeDefault = rowMenuRows(context, other).find(
+      (menuRow) => menuRow.kind === "action" && menuRow.key === "make-default",
+    );
+    if (makeDefault?.kind !== "action") throw new Error("no Make default chat row");
+    makeDefault.onSelect();
+
+    expect(verbs.makeDefaultChat).toHaveBeenCalledWith("agent-other");
   });
 });

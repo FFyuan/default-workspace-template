@@ -1456,6 +1456,16 @@ class AgentManager:
             self._default_chat.write(resolved)
         return resolved
 
+    def make_default_chat(self, chat_id: ChatId) -> bool:
+        """Star ``chat_id`` as the workspace's default chat, and push the list that shows it; False when the chat
+        cannot be the default (a helper another agent started, or no chat this app lists)."""
+        with self._lock:
+            if not any(candidate.chat_id == chat_id for candidate in self._default_chat_candidates_locked()):
+                return False
+            self._default_chat.write(chat_id)
+        self._broadcast_chats_updated()
+        return True
+
     def _default_chat_candidates_locked(self) -> list[DefaultChatCandidate]:
         """The chats that can be the default: every listed chat a user started, and every chat still provisional.
         Lock held."""

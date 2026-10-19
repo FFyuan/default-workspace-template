@@ -12,6 +12,7 @@ const verbs = vi.hoisted(() => ({
   stopChat: vi.fn(async (_chatId: string) => undefined),
   startChat: vi.fn(async (_chatId: string) => undefined),
   renameChat: vi.fn(async (_chatId: string, _title: string) => undefined),
+  makeDefaultChat: vi.fn(async (_chatId: string) => undefined),
   destroyChat: vi.fn(async (_chatId: string) => undefined),
 }));
 vi.mock("./verbs", () => verbs);
@@ -116,7 +117,12 @@ describe("ChatDrawer", () => {
     expect(onPick).not.toHaveBeenCalled();
     const menuRows = [...document.querySelectorAll<HTMLElement>(".chat-rail-menu [data-menu-row]")];
     // The stopped chat offers to restart rather than stop.
-    expect(menuRows.map((menuRow) => menuRow.textContent)).toEqual(["Rename", "Restart chat", "Delete chat"]);
+    expect(menuRows.map((menuRow) => menuRow.textContent)).toEqual([
+      "Rename",
+      "Make default chat",
+      "Restart chat",
+      "Delete chat",
+    ]);
 
     document.querySelector<HTMLElement>('.chat-rail-menu [data-menu-row="start"]')?.click();
     expect(verbs.startChat).toHaveBeenCalledWith("agent-2");
