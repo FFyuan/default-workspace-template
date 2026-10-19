@@ -54,6 +54,8 @@ const EXIT_VERIFICATION_FAILED = 70;
 // with Retry-After until it is up: a second or two, never minutes.
 const GET_MAX_RETRIES = 5;
 const GET_MAX_RETRY_DELAY_MS = 5000;
+const GET_MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const EXIT_REVOKED = 77;
 const EXIT_USAGE = 64;
 
@@ -754,14 +756,33 @@ function retryDelayMs(status, retryAfterHeader) {
   return Math.min(seconds * 1000, GET_MAX_RETRY_DELAY_MS);
 }
 
-async function fetchWaitingForTheApp(url, init, timeoutMs, maxRetries = GET_MAX_RETRIES) {
-  let response = await fetchWithTimeout(url, init, timeoutMs);
+// Redirects are followed by hand, each hop checked against `origins` before
+// the request (and the bearer in it) goes there: fetch's own following would
+// take it wherever Location points.
+async function fetchWithinOrigins(url, init, timeoutMs, origins) {
+  let current = new URL(url);
+  for (let hop = 0; ; hop += 1) {
+    const response = await fetchWithTimeout(current, { ...init, redirect: "manual" }, timeoutMs);
+    const location = response.headers.get("location");
+    if (!REDIRECT_STATUSES.has(response.status) || !location) return response;
+    await response.arrayBuffer();
+    if (hop >= GET_MAX_REDIRECTS) throw new HelperError(`GET ${url} redirected more than ${GET_MAX_REDIRECTS} times`);
+    const next = new URL(location, current);
+    if (!origins.has(next.origin)) {
+      throw new HelperError(`GET ${current} redirects to ${next.origin}, which is not one of this workspace's origins, so your access is not sent there`);
+    }
+    current = next;
+  }
+}
+
+async function fetchWaitingForTheApp(url, init, timeoutMs, origins, maxRetries = GET_MAX_RETRIES) {
+  let response = await fetchWithinOrigins(url, init, timeoutMs, origins);
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     const delay = retryDelayMs(response.status, response.headers.get("retry-after"));
     if (delay === null) break;
     await response.arrayBuffer();
     await new Promise((resolve) => setTimeout(resolve, delay));
-    response = await fetchWithTimeout(url, init, timeoutMs);
+    response = await fetchWithinOrigins(url, init, timeoutMs, origins);
   }
   return response;
 }
@@ -772,6 +793,7 @@ async function commandGet(config, positional) {
     url,
     { method: "GET", headers: { Authorization: `Bearer ${config.token}`, Accept: "application/json, text/*;q=0.9, */*;q=0.8" } },
     REQUEST_TIMEOUT_MS,
+    workspaceOrigins(config),
   );
   const body = Buffer.from(await response.arrayBuffer());
   if (response.status === 403) throw new HelperError("the workspace refused this access (revoked, or the workspace moved)", EXIT_REVOKED);
@@ -894,6 +916,7 @@ module.exports = {
   resolveGetUrl,
   retryDelayMs,
   fetchWaitingForTheApp,
+  fetchWithinOrigins,
   runTimeoutSeconds,
   signRequest,
   streamTrailerBase,
