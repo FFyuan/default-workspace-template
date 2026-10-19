@@ -61,6 +61,28 @@ _MAX_PROMPT_CHARACTERS: Final[int] = 3000
 _AGENT_WAIT_SECONDS: Final[float] = 600.0
 _AGENT_POLL_SECONDS: Final[float] = 2.0
 _MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message\b[^>]*>", re.IGNORECASE)
+# Latin letters that are not a base letter plus an accent, so dropping accents leaves them whole.
+_LATIN_LETTER_SPELLINGS: Final[dict[int, str]] = str.maketrans(
+    {
+        "ß": "ss",
+        "ẞ": "SS",
+        "æ": "ae",
+        "Æ": "AE",
+        "œ": "oe",
+        "Œ": "OE",
+        "ø": "o",
+        "Ø": "O",
+        "ł": "l",
+        "Ł": "L",
+        "đ": "d",
+        "Đ": "D",
+        "ð": "d",
+        "Ð": "D",
+        "þ": "th",
+        "Þ": "Th",
+        "ı": "i",
+    }
+)
 
 # Small models answer a bare message ("what's 2+2?" -> "4") or obey it, so the message goes in tags the
 # prompt calls data, the instruction is repeated after it, and the examples show requests being titled.
@@ -127,8 +149,10 @@ def chat_naming_prompt(message: str) -> str:
 
 
 @pure
-def _without_accents(text: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+def _spelled_in_ascii(text: str) -> str:
+    """``text`` with accents dropped and the Latin letters that carry none spelled as their languages do."""
+    unaccented = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    return unaccented.translate(_LATIN_LETTER_SPELLINGS)
 
 
 @pure
@@ -136,10 +160,11 @@ def parse_generated_chat_name(answer: str) -> str | None:
     """The chat name in a model's answer, or None when it gave none or broke the "Short name: description" form.
 
     Only an ASCII name is taken: the chat's true name is the ASCII part of its name, so a name in another script
-    would leave it a fragment of the name ("React 待办应用" -> "React") or nothing at all. Accents are dropped
-    first ("Orçamento" -> "Orcamento"), as the prompt asks and models do not always.
+    would leave it a fragment of the name ("React 待办应用" -> "React") or nothing at all. A Latin-alphabet name is
+    spelled in ASCII first ("Orçamento" -> "Orcamento", "Fußball" -> "Fussball"), as the prompt asks and models
+    do not always.
     """
-    line = _without_accents(answer.strip().strip("\"'").strip())
+    line = _spelled_in_ascii(answer.strip().strip("\"'").strip())
     if line == _NO_NAME_ANSWER or "\n" in line or not line.isascii():
         return None
     short_name, separator, description = line.partition(": ")

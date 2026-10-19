@@ -110,6 +110,8 @@ class _NamingHarness:
         ('"Nginx 502: fix websockets behind proxy."', "Nginx 502: fix websockets behind proxy"),
         ("  Stripe MRR: spreadsheet by customer\n", "Stripe MRR: spreadsheet by customer"),
         ("Orçamento da cozinha: calcular a reforma", "Orcamento da cozinha: calcular a reforma"),
+        ("Fußball Training: Übungen planen", "Fussball Training: Ubungen planen"),
+        ("Błąd logowania: naprawić formularz", "Blad logowania: naprawic formularz"),
     ],
 )
 def test_parse_generated_chat_name_keeps_a_short_name_and_description(answer: str, expected: str) -> None:
