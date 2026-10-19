@@ -421,7 +421,8 @@ directive** (`script-src`, `style-src` and `font-src`, `img-src`,
 `inline_script_source` in `script-src`; never `'unsafe-inline'` or `*` for
 scripts. The browser reports every block to the starter's `/_csp-report` route,
 which logs it to stderr as `ERROR Content-Security-Policy blocked <url> on <page>
-(<directive>)`, so when something on a page does not show up, read the app's
+(<directive>)` (a blocked inline script adds its line and first characters), so
+when something on a page does not show up, read the app's
 stderr log (`/var/log/supervisor/<name>-stderr.log`; `check-app-errors` finds
 these lines too) rather than guessing.
 

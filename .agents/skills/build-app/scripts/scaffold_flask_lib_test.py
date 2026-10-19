@@ -504,7 +504,7 @@ def test_the_runner_serves_the_shell_modules_and_nothing_else(
     body = page.get_data(as_text=True).split('<script type="module">', 1)[1].split("</script>", 1)[0]
     digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
     policy = page.headers["Content-Security-Policy"]
-    assert f"script-src 'self' 'sha256-{digest}';" in policy
+    assert f"script-src 'self' 'report-sample' 'sha256-{digest}';" in policy
     assert policy.startswith("default-src 'self'; ")
     assert "; img-src 'self' data: blob:; " in policy
     assert policy.endswith("; report-uri /_csp-report")
@@ -518,6 +518,8 @@ def test_the_runner_logs_what_its_policy_blocked(
 
     That line is how an agent learns a page pulled in something the policy does not admit: the
     page itself shows nothing server-side, and the supervisor log is what check-app-errors reads.
+    A blocked inline script is reported only as "inline", so the line adds where it is and how it
+    starts (the sample the policy's 'report-sample' asks the browser for) and names the hash remedy.
     A block caused by a browser extension is the policy working and stays out of the log, and a
     body that is not a report is answered without a trace.
     """
@@ -542,6 +544,24 @@ def test_the_runner_logs_what_its_policy_blocked(
         "ERROR Content-Security-Policy blocked 'https://cdn.jsdelivr.net/npm/chart.js' on "
         "'http://127.0.0.1:8081/' (script-src-elem); "
         "add its origin to CONTENT_SECURITY_POLICY if the page needs it"
+    ]
+
+    inline = {
+        "csp-report": {
+            "document-uri": "http://127.0.0.1:8081/stats",
+            "blocked-uri": "inline",
+            "effective-directive": "script-src-elem",
+            "source-file": "http://127.0.0.1:8081/stats",
+            "line-number": 42,
+            "column-number": 3,
+            "script-sample": "const chart = new Chart(document.getElemen",
+        }
+    }
+    assert client.post("/_csp-report", json=inline).status_code == 204
+    assert capsys.readouterr().err.splitlines() == [
+        "ERROR Content-Security-Policy blocked 'inline' on 'http://127.0.0.1:8081/stats' (script-src-elem) "
+        "at http://127.0.0.1:8081/stats:42 starting 'const chart = new Chart(document.getElemen'; "
+        "add its inline_script_source to CONTENT_SECURITY_POLICY if the page needs it"
     ]
 
     from_extension = {

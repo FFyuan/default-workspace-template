@@ -384,10 +384,12 @@ def inline_script_source(body: str) -> str:
 # to the matching directive; a new inline <script> needs its
 # ``inline_script_source`` added.
 # The browser posts every block to ``/_csp-report`` below, which logs it on
-# stderr (the supervisor log), so a blocked resource is never silent.
+# stderr (the supervisor log), so a blocked resource is never silent; the
+# ``'report-sample'`` makes the browser include where a blocked inline script
+# is and how it starts, since the report otherwise names it only as "inline".
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
-    f"script-src 'self' {{inline_script_source(SHELL_PAGE_SCRIPT_BODY)}}; "
+    f"script-src 'self' 'report-sample' {{inline_script_source(SHELL_PAGE_SCRIPT_BODY)}}; "
     "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src http: https:; "
     "object-src 'none'; base-uri 'self'; form-action 'self'; "
     "report-uri /_csp-report"
@@ -424,17 +426,25 @@ def content_security_policy_report() -> Response:
     report = body.get("csp-report") if isinstance(body, dict) else None
     if not isinstance(report, dict):
         return Response(status=204)
-    blocked, page, source, directive = (
+    blocked, page, source, directive, line, sample = (
         str(report.get(key, ""))[:500]
-        for key in ("blocked-uri", "document-uri", "source-file", "effective-directive")
+        for key in ("blocked-uri", "document-uri", "source-file", "effective-directive", "line-number", "script-sample")
     )
-    if not (blocked.startswith(BROWSER_EXTENSION_SCHEMES) or source.startswith(BROWSER_EXTENSION_SCHEMES)):
-        print(
-            f"ERROR Content-Security-Policy blocked {{blocked!r}} on {{page!r}} ({{directive}}); "
-            "add its origin to CONTENT_SECURITY_POLICY if the page needs it",
-            file=sys.stderr,
-            flush=True,
-        )
+    if blocked.startswith(BROWSER_EXTENSION_SCHEMES) or source.startswith(BROWSER_EXTENSION_SCHEMES):
+        return Response(status=204)
+    # An inline script or style is reported as "inline": say where it is and how it starts instead.
+    where = f" at {{source}}:{{line}}" if source and line else ""
+    starting = f" starting {{sample!r}}" if sample else ""
+    remedy = (
+        "add its inline_script_source to CONTENT_SECURITY_POLICY if the page needs it"
+        if blocked == "inline"
+        else "add its origin to CONTENT_SECURITY_POLICY if the page needs it"
+    )
+    print(
+        f"ERROR Content-Security-Policy blocked {{blocked!r}} on {{page!r}} ({{directive}}){{where}}{{starting}}; {{remedy}}",
+        file=sys.stderr,
+        flush=True,
+    )
     return Response(status=204)
 
 
