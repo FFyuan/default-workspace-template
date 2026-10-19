@@ -29,6 +29,7 @@ from imbue.chat.accounts import UnknownAccountError
 from imbue.chat.accounts import account_dir
 from imbue.chat.accounts import account_label_for
 from imbue.chat.accounts import harness_for
+from imbue.chat.accounts import index_path
 from imbue.chat.accounts import resolve_account
 from imbue.chat.accounts import set_mru
 from imbue.chat.activity_state import ActivityState
@@ -1085,6 +1086,9 @@ class AgentManager:
     # re-reads a chat's tasks whenever its directory's entries change, and after every pass rechecks
     # the pids of every chat with markers, since a marker going stale touches no file.
     _background_tasks_poller: AgentFilePoller
+    # The poller over the account index, whichever process writes it: every page is told the account list changed, so
+    # a chat whose account was removed elsewhere shows it at once rather than on its next send.
+    _accounts_index_poller: AgentFilePoller
     # Reads each chat's background-task markers; None (tests that need none) reads no tasks.
     _background_tasks: BackgroundTaskReader | None
     # Per chat, its live background tasks as the poller last read them; a chat with none has no
@@ -1249,6 +1253,11 @@ class AgentManager:
             thread_name="background-tasks-poll",
             on_pass_complete=manager._recheck_busy_chats,
         )
+        manager._accounts_index_poller = AgentFilePoller.build(
+            list_paths=lambda: {"accounts": index_path()},
+            on_file_changed=lambda _key: manager._broadcaster.broadcast_accounts_updated(),
+            thread_name="accounts-index-poll",
+        )
         manager._model_state_poller = AgentFilePoller.build(
             list_paths=manager._list_model_state_paths,
             on_file_changed=manager._on_model_state_changed,
@@ -1348,6 +1357,7 @@ class AgentManager:
         self._seed_oom_prioritizer()
         self._oom_prioritizer.start()
         self._background_tasks_poller.start()
+        self._accounts_index_poller.start()
         self._model_state_poller.start()
         self._compacting_marker_poller.start()
         if not self._is_secondary:
@@ -1369,6 +1379,7 @@ class AgentManager:
         self._autocompactor.stop()
         self._auto_open.stop()
         self._background_tasks_poller.stop()
+        self._accounts_index_poller.stop()
         self._model_state_poller.stop()
         self._compacting_marker_poller.stop()
 

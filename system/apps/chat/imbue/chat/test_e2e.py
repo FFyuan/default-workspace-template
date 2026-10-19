@@ -1103,6 +1103,25 @@ def test_the_new_chat_button_starts_on_a_signed_in_account_once_the_most_recent_
 
 
 @pytest.mark.timeout(120, func_only=False)
+def test_a_chat_shows_its_account_was_removed_elsewhere_without_a_send(tmp_path: Path, page: Page) -> None:
+    """Removing a chat's account outside its page (another chat, another window) is pushed to the page, which shows
+    the signed-out notice in place of the composer straight away, before anything is typed."""
+    with _running_e2e_server(tmp_path) as server:
+        _open_fixture_chat(page, server)
+        chat = _chat(page)
+        expect(chat.locator(".message-input-textbox")).to_be_editable(timeout=15000)
+        expect(chat.locator(".message-input-signed-out")).to_have_count(0)
+
+        delete_account(server.account_ids[0])
+        server.chat_state.agent_manager._accounts_index_poller.poll_once()
+
+        expect(chat.locator(".message-input-signed-out")).to_contain_text(
+            "You signed out of the account this chat runs on.", timeout=15000
+        )
+        expect(chat.locator(".message-input-textbox")).to_be_disabled()
+
+
+@pytest.mark.timeout(120, func_only=False)
 def test_a_send_refused_for_a_removed_account_offers_a_provider_instead_of_retry(tmp_path: Path, page: Page) -> None:
     """A message sent into a chat whose account was removed after the page read the account list is refused, and
     the notice leads to the provider chooser rather than a Retry that would be refused the same way; the message

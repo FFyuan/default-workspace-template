@@ -4,6 +4,8 @@
 
 - "Try again" on a chat that could not be started now starts it on a signed-in account when the one it was made for has been removed, and opens the provider chooser when nothing is signed in, rather than repeating the same refusal.
 
+- A chat whose account is removed in another chat or window now shows "You signed out of the account this chat runs on." with "Choose a provider" right away, instead of only after a message to it is refused. The chat app tells every open page when the account list changes, and a page re-reads the list then and whenever its connection comes back.
+
 - A message refused because the chat's account was signed out now offers "Choose a provider" instead of Retry and Force, which only sent it into the same refusal again. The message stays in the message box and goes out on the chosen provider.
 
 - A model change the chat refuses (for example while it is switching providers) now shows its reason in the chat, and the model chip goes straight back to the model the chat is running, instead of a console line reading "Error: [object Object]" and a chip stuck on the refused pick.

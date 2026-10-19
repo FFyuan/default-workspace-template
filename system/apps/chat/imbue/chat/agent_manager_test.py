@@ -342,6 +342,27 @@ def test_create_chat_broadcasts_provisional_chat_created(
     assert proto_msg["phase"] == "creating"
 
 
+def test_a_change_to_the_account_index_tells_every_page_to_read_the_account_list_again(
+    agent_manager: AgentManager, broadcaster: WebSocketBroadcaster
+) -> None:
+    """Removing an account (from any page or process) is pushed at once, so a chat on it shows it before its next send."""
+    account_id, _ = mint_account_dir()
+    commit_account(account_id, "anthropic", "Anthropic")
+    agent_manager._accounts_index_poller.poll_once()
+    q = broadcaster.register()
+
+    agent_manager._accounts_index_poller.poll_once()
+    assert q.empty()
+
+    delete_account(account_id)
+    agent_manager._accounts_index_poller.poll_once()
+
+    raw = q.get_nowait()
+    assert raw is not None
+    assert json.loads(raw) == {"type": "accounts_updated"}
+    assert q.empty()
+
+
 def test_create_codex_chat_broadcasts_provisional_chat_created_with_its_account(
     agent_manager: AgentManager,
     broadcaster: WebSocketBroadcaster,

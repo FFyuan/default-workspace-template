@@ -12,6 +12,7 @@ import { ReconnectBackoff } from "@imbue/workspace-ui/src/models/backoff";
 import type { ModelChoice, ModelIdentity } from "./ModelSettings";
 import type { CompactionCause, UserMessageEvent } from "./Response";
 import { parseJsonMessage } from "@imbue/workspace-ui/src/models/ws-json";
+import { loadAccounts } from "./Providers";
 
 /** The agent-level facts about a chat's active agent that the pages render (the backend's
  *  ``ActiveAgentSnapshot``). */
@@ -177,7 +178,8 @@ export interface ProvisionalChat {
 type WsEvent =
   | { type: "chats_updated"; chats: ChatSnapshot[] }
   | ({ type: "provisional_chat_created" } & ProvisionalChat)
-  | { type: "provisional_chat_completed"; chat_id: string; success: boolean; error: string | null };
+  | { type: "provisional_chat_completed"; chat_id: string; success: boolean; error: string | null }
+  | { type: "accounts_updated" };
 
 export type ChatsUpdatedListener = (chats: ChatSnapshot[]) => void;
 /**
@@ -209,6 +211,8 @@ let chatsUpdatedListeners: ChatsUpdatedListener[] = [];
 let chatActivityListeners: ChatActivityListener[] = [];
 let chatActiveAgentListeners: ChatActiveAgentListener[] = [];
 let ws: WebSocket | null = null;
+// Whether the socket has opened before, so an open is a reconnect.
+let hasConnectedBefore = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let connected = false;
 
@@ -224,6 +228,9 @@ function connect(): void {
     connected = true;
     console.info("[chat-ws] connected");
     reconnectBackoff.reset();
+    // A change to the account list while the socket was down was pushed to no one.
+    if (hasConnectedBefore) rereadAccounts();
+    hasConnectedBefore = true;
     // The app replays what it holds (its provisional chats, then its chat list) on every
     // connection; the list ends the replay and must be handled even when nothing changed.
     replayedProvisionalIds = new Set();
@@ -264,8 +271,20 @@ function scheduleReconnect(): void {
   }, delayMs);
 }
 
+/** Read the account list again because it changed outside this page (a sign-in or a removal in another chat or
+ *  window), so a chat whose account was removed shows it at once; a failed read keeps the list read before. */
+function rereadAccounts(): void {
+  loadAccounts().then(
+    () => m.redraw(),
+    (error: unknown) => console.warn("[chat-ws] could not re-read the account list", error),
+  );
+}
+
 function handleEvent(event: WsEvent): void {
   switch (event.type) {
+    case "accounts_updated":
+      rereadAccounts();
+      break;
     case "chats_updated": {
       isChatListReceived = true;
       // The backend can broadcast the same snapshot many times during a turn (transcript
