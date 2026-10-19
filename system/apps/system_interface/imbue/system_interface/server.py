@@ -12,6 +12,10 @@ from app_manifest.registry import APP_CONTRACT_ROUTE
 from app_manifest.registry import CONTEXT_MENU_ROUTE
 from app_manifest.registry import SHELL_APP_CONTRACT_PATH
 from app_manifest.registry import SHELL_CONTEXT_MENU_PATH
+from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
+from app_schema.api_schema import register_api_schema_route
+from app_schema.routes import error_response
+from app_schema.routes import model_response
 from flask import Flask
 from flask import Response
 from flask import request
@@ -24,6 +28,10 @@ from simple_websocket import ConnectionClosed
 from werkzeug.exceptions import NotFound
 from workspace_layout.errors import InvalidLayoutValueError
 
+from imbue.system_interface.api_models import HeartbeatResponse
+from imbue.system_interface.api_models import PresenceListing
+from imbue.system_interface.api_models import PresentUserView
+from imbue.system_interface.api_models import ShellHealthResponse
 from imbue.system_interface.app_context import SystemInterfaceState
 from imbue.system_interface.app_context import attach_state
 from imbue.system_interface.app_context import get_state
@@ -44,9 +52,10 @@ from imbue.system_interface.presence import PresenceOutcome
 from imbue.system_interface.presence import PresentUser
 from imbue.system_interface.presence import present_users_wire_json
 from imbue.system_interface.presence import utc_now
-from imbue.system_interface.request_helpers import error_response
 from imbue.system_interface.request_helpers import handle_unhandled_exception
-from imbue.system_interface.request_helpers import json_response
+from imbue.system_interface.route_table import PRESENCE_HEARTBEAT_PATH
+from imbue.system_interface.route_table import PRESENCE_PATH
+from imbue.system_interface.route_table import SHELL_ROUTE_TABLE
 from imbue.system_interface.shell.data_types import ClientStateReport
 from imbue.system_interface.shell.data_types import PopOutStateReport
 from imbue.system_interface.shell.errors import ClientNotFoundError
@@ -367,6 +376,7 @@ def _root_path() -> str:
 
 
 def _index() -> Response:
+    """The workspace's page: the desktop its windows render in, or a placeholder while the frontend is not built."""
     state = get_state()
     index_path = state.static_directory / "index.html"
     if index_path.exists():
@@ -432,25 +442,22 @@ def _frontend_not_built_response() -> Response:
 
 
 def _index_catch_all(path: str) -> Response:
+    """The workspace's page again, for every path the page routes on its own; an unknown API path is a 404."""
     # Every other path is a client-side route and renders the app shell -- except an
     # unknown API path, whose caller wants an answer it can parse, not a page.
     if path == API_PREFIX.strip("/") or path.startswith(API_PREFIX):
-        return json_response({"detail": f"No such API route: /{path}"}, status_code=HTTP_NOT_FOUND)
+        return error_response(f"No such API route: /{path}", HTTP_NOT_FOUND)
     return _index()
 
 
 def _health_endpoint() -> Response:
     """The probe route of contracts.md section 5: alive, and whether the built frontend is being served."""
     is_frontend_built = (get_state().static_directory / "index.html").exists()
-    return json_response({"status": "ok", "is_frontend_built": is_frontend_built})
+    return model_response(ShellHealthResponse(status="ok", is_frontend_built=is_frontend_built))
 
 
 # Every route the shell answers as JSON lives under it; an unknown path under it is a JSON 404.
 API_PREFIX: Final[str] = "api/"
-
-
-PRESENCE_PATH: Final[str] = "/api/presence"
-PRESENCE_HEARTBEAT_PATH: Final[str] = "/api/presence/heartbeat"
 
 
 def _present_users_wire_json(users: Sequence[PresentUser]) -> list[dict[str, Any]]:
@@ -460,7 +467,9 @@ def _present_users_wire_json(users: Sequence[PresentUser]) -> list[dict[str, Any
 def _presence_endpoint() -> Response:
     """The connected users right now (one entry per user), for backends and tests that prefer HTTP to the files."""
     users = get_state().presence.connected_users(utc_now())
-    return json_response({"users": _present_users_wire_json(users)})
+    return model_response(
+        PresenceListing(users=tuple(PresentUserView.model_validate(user) for user in _present_users_wire_json(users)))
+    )
 
 
 def _broadcast_presence_if_changed(outcome: PresenceOutcome) -> None:
@@ -483,7 +492,7 @@ def _presence_heartbeat_endpoint() -> Response:
     except (InvalidShellValueError, InvalidLayoutValueError) as e:
         return error_response(str(e), 400)
     _broadcast_presence_if_changed(outcome)
-    return json_response({"identity": identity.model_dump(exclude_none=True)})
+    return model_response(HeartbeatResponse(identity=identity))
 
 
 # The icon sizes the manifest offers: the touch icon's, and the two an installing browser asks a manifest for.
@@ -541,14 +550,17 @@ def _serve_shell_module(basename: str) -> Response:
 
 
 def _serve_app_contract() -> Response:
+    """The app contract module: how an app's page talks to the shell framing it."""
     return _serve_shell_module(SHELL_APP_CONTRACT_PATH.name)
 
 
 def _serve_context_menu() -> Response:
+    """The element context menu module: the right-click menu that hands an element on a page to a chat."""
     return _serve_shell_module(SHELL_CONTEXT_MENU_PATH.name)
 
 
 def _favicon() -> Response:
+    """The page's icon."""
     favicon_path = get_state().static_directory / "favicon.ico"
     if favicon_path.exists():
         return send_file(favicon_path, mimetype="image/x-icon")
@@ -556,6 +568,7 @@ def _favicon() -> Response:
 
 
 def _serve_asset(filename: str) -> Response:
+    """One file of the page's built bundle, by name."""
     assets_directory = get_state().static_directory / "assets"
     # A missing asset is a plain 404, as for the favicon above, rather than the
     # HTML error page ``send_from_directory`` would raise. Existence and safety
@@ -783,6 +796,10 @@ def _run_ws_broadcast_loop(websocket: Any, shell: ShellState, initial_presence: 
         ws_broadcaster.unregister(client_queue)
 
 
+APP_DISPLAY_NAME: Final[str] = "Workspace"
+APP_DESCRIPTION: Final[str] = "The workspace's shell: its windows, desktops and apps, and who is here."
+
+
 def create_application(state: SystemInterfaceState) -> Flask:
     """Assemble the Flask app around an already-built ``SystemInterfaceState``.
 
@@ -804,6 +821,13 @@ def create_application(state: SystemInterfaceState) -> Flask:
     application.add_url_rule(TOUCH_ICON_PATH, view_func=_touch_icon, methods=["GET"])
     application.add_url_rule(MANIFEST_PATH, view_func=_web_manifest, methods=["GET"])
     application.add_url_rule("/api/health", view_func=_health_endpoint, methods=["GET"])
+    register_api_schema_route(
+        application,
+        DEFAULT_API_SCHEMA_PATH,
+        title=APP_DISPLAY_NAME,
+        description=APP_DESCRIPTION,
+        route_table=SHELL_ROUTE_TABLE,
+    )
     application.add_url_rule(APP_CONTRACT_ROUTE, view_func=_serve_app_contract, methods=["GET"])
     application.add_url_rule(CONTEXT_MENU_ROUTE, view_func=_serve_context_menu, methods=["GET"])
     application.add_url_rule(PRESENCE_PATH, view_func=_presence_endpoint, methods=["GET"])
