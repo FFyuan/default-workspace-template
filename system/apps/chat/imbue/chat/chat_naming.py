@@ -61,10 +61,12 @@ _MAX_PROMPT_CHARACTERS: Final[int] = 3000
 _AGENT_WAIT_SECONDS: Final[float] = 600.0
 _AGENT_POLL_SECONDS: Final[float] = 2.0
 _MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message(?:\s[^<>]*)?/?>", re.IGNORECASE)
-# Tags a model wraps its title in unasked.
-_TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"<title>(.*?)</title>", re.IGNORECASE | re.DOTALL)
-# A model that leaves off the closing tag has still put the title after the opening one, which starts a line:
-# inside a line, an unclosed "<title>" is the HTML element a title names ("HTML <title> tag: fix the tab text").
+# Tags a model wraps its title in unasked, the closing one ending a line: elsewhere in a line, a tag is the HTML
+# element a title names ("HTML <title> tag: fix the tab text", "HTML <title></title> tags: set the page title").
+_TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"<title>(.*?)</title>(?=[ \t]*(?:\n|$))", re.IGNORECASE | re.DOTALL
+)
+# A model that leaves off the closing tag has still put the title after the opening one, which starts a line.
 _UNCLOSED_TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"(?:^|\n)[ \t]*<title>(.*)", re.IGNORECASE | re.DOTALL)
 # One that leaves off the opening one has still put the title before the closing one, which ends a line.
 _CLOSING_TITLE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"</title>(?=[ \t]*(?:\n|$))", re.IGNORECASE)
@@ -163,8 +165,9 @@ def parse_generated_chat_name(answer: str) -> str | None:
     and typographic quotes and dashes straightened first ("Orçamento" -> "Orcamento", "Kid’s" -> "Kid's"), as the
     prompt asks and models do not always.
 
-    An answer a model wraps in ``<title>`` tags unasked is read from between them; with no closing tag, from an
-    opening one that starts a line; and with no opening tag, up to a closing one that ends a line. A leading name of
+    An answer a model wraps in ``<title>`` tags unasked is read from between them, the closing one ending a line;
+    with no closing tag, from an opening one that starts a line; and with no opening tag, up to a closing one that
+    ends a line. A leading name of
     the form itself ("Short name: ", "Title: ") is not the subject and is dropped.
     """
     title_match = _TITLE_PATTERN.search(answer) or _UNCLOSED_TITLE_PATTERN.search(answer)

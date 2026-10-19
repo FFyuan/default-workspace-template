@@ -118,6 +118,8 @@ class _NamingHarness:
         ("Here it is: <title>Rome trip: plan five days</title>", "Rome trip: plan five days"),
         ("HTML <title> tag: fix the browser tab text", "HTML <title> tag: fix the browser tab text"),
         ("HTML </title> tag: close the head element", "HTML </title> tag: close the head element"),
+        ("HTML <title></title> tags: set the page title", "HTML <title></title> tags: set the page title"),
+        ("HTML <title> and </title> tags: wrap the page name", "HTML <title> and </title> tags: wrap the page name"),
         ("<title>HTML <title> tag: fix the browser tab text</title>", "HTML <title> tag: fix the browser tab text"),
         ("Short name: Wiki contributions: design a review flow", "Wiki contributions: design a review flow"),
         ("<title>Title: Rome trip: plan five days</title>", "Rome trip: plan five days"),
