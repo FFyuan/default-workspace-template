@@ -111,6 +111,12 @@ class _NamingHarness:
         ("  Stripe MRR: spreadsheet by customer\n", "Stripe MRR: spreadsheet by customer"),
         ("Orçamento da cozinha: calcular a reforma", "Orcamento da cozinha: calcular a reforma"),
         ("“Kid’s party: plan a birthday – at home”", "Kid's party: plan a birthday - at home"),
+        ("<title>Rome trip: plan five days in May</title>", "Rome trip: plan five days in May"),
+        ("The message asks about Rome.\n<title>Rome trip: plan five days</title>\n", "Rome trip: plan five days"),
+        ("<title>Rome trip: plan five days", "Rome trip: plan five days"),
+        ("Short name: Wiki contributions: design a review flow", "Wiki contributions: design a review flow"),
+        ("<title>Title: Rome trip: plan five days</title>", "Rome trip: plan five days"),
+        ("Essay title: brainstorm remote work titles", "Essay title: brainstorm remote work titles"),
     ],
 )
 def test_parse_generated_chat_name_keeps_a_short_name_and_description(answer: str, expected: str) -> None:
@@ -129,6 +135,9 @@ def test_parse_generated_chat_name_keeps_a_short_name_and_description(answer: st
         "!!!: ???",
         "確定申告: 申告の手順を説明",
         "React 待办应用: 学习做待办事项",
+        "<title>NONE</title>",
+        "<title>Rome trip</title>",
+        "Short name: Wiki contributions system",
     ],
 )
 def test_parse_generated_chat_name_refuses_an_answer_that_is_not_a_usable_name(answer: str) -> None:
