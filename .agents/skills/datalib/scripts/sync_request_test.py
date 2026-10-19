@@ -61,11 +61,12 @@ def fake() -> Iterator[tuple[_FakeDatalib, str]]:
             self._answer(200, listing)
 
         def do_POST(self) -> None:
+            # Read the body before any answer: closing with it unread resets the connection,
+            # and the client then reports a reset instead of the refusal.
+            posted = self.rfile.read(int(self.headers["Content-Length"]))
             if not self._authorized():
                 return
-            state.posted_bodies.append(
-                json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            )
+            state.posted_bodies.append(json.loads(posted))
             self._answer(200, state.opened)
 
         def log_message(self, format: str, *args: Any) -> None:
@@ -200,7 +201,7 @@ def test_a_missing_token_file_says_to_start_the_app(
 
     assert _run(origin, tmp_path / "no-root", "wait", "r1") == 1
 
-    assert "supervisorctl start datalib" in capsys.readouterr().err
+    assert "install_datalib.sh" in capsys.readouterr().err
 
 
 def test_a_refused_token_is_an_error_at_once_for_open(
