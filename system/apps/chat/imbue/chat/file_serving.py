@@ -125,7 +125,8 @@ def try_serve_file(url_path: str, is_download: bool) -> Response | None:
 
     if image_mime_type is not None:
         if not file_path.is_file():
-            return Response(status=404)
+            # In plain words, so the lightbox's Download can say why; an empty 404 fires no load in Firefox's frame.
+            return Response(f"There's nothing at {file_path}.", status=404, mimetype="text/plain")
         return _serve_image(file_path, image_mime_type, is_download)
 
     if file_path.is_file():

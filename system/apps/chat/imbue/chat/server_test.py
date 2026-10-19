@@ -3595,7 +3595,7 @@ def test_ignores_requested_at_cache_busting_query(client: FlaskClient, tmp_path:
 
 def test_serves_image_as_an_attachment_for_the_lightbox_download(client: FlaskClient, tmp_path: Path) -> None:
     """The lightbox's Download asks for the image with ``download``, beside its message's cache key: the image comes
-    as an attachment under its own name, and a missing one stays a plain not-found."""
+    as an attachment under its own name, and a missing one is a not-found in plain words the lightbox can show."""
     image_path = tmp_path / "chart.png"
     image_path.write_bytes(b"fake-png-bytes")
 
@@ -3608,6 +3608,8 @@ def test_serves_image_as_an_attachment_for_the_lightbox_download(client: FlaskCl
 
     missing = client.get(f"{tmp_path / 'gone.png'}?download=")
     assert missing.status_code == 404
+    assert missing.content_type.startswith("text/plain")
+    assert missing.get_data(as_text=True) == f"There's nothing at {tmp_path / 'gone.png'}."
     assert "Content-Disposition" not in missing.headers
 
 
