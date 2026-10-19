@@ -174,9 +174,9 @@ Before relying on a workspace, find out whether it is shared:
 - **Ownership.** `GET /api/v1/workspaces` reports `is_owned` on every workspace; one that is not the user's own is shared, whatever its grants say.
 - **Your own workspace, from inside.** It is published while `data/.secrets/share.env` exists; test for the file, do not read it.
   While published, people hold access when `data/.secrets/share_grants.toml` has a non-empty `users`, `emails`, or `email_domains` list under its `[workspace]` table.
-  Visiting agents hold access when `agent-access list --json` (run from the workspace root) lists an agent whose `scope` is `workspace`.
+  Visiting agents hold access when `uv run --no-sync agent-access list --json` (run from the workspace root) lists an agent whose `scope` is `workspace`.
 - **Any workspace, from the user's machine.** `GET /api/v1/workspace-sharing/<id>` answers `enabled` and the grants document in force, and `GET /api/v1/workspace-sharing/<id>/agents` the visiting agents; a null grants document means unknown.
-- **Another workspace, from inside one.** The sharing routes are not reachable through the gateway, so read the same two files, and run the same `agent-access list --json`, over the SSH session you hold into it.
+- **Another workspace, from inside one.** The sharing routes are not reachable through the gateway, so read the same two files, and run the same `agent-access` listing, over the SSH session you hold into it.
 
 A grant on a single app only (a `[services.<app>]` table, or a visiting agent whose scope names apps) admits its holder to that app and nothing else, and does not make the workspace shared.
 A published workspace whose grant lists are all empty is not shared.
