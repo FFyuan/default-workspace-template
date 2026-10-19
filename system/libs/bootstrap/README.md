@@ -39,8 +39,10 @@ the boot, so the step ids are a contract: reword a label freely, but keep a step
 id once shipped. A step that raises is never reported completed. The file is
 appended to on every boot of the workspace and never cleared, so an adopted pool
 host's opens with the bake's own boot ahead of the user's; a reader interested in
-the boot in progress follows from the latest event (the desktop passes `--tail 1`)
-rather than replaying the file. Writing the events is best effort and never fails
+the boot in progress follows the whole file and keeps only the events whose
+`timestamp` falls after it began waiting (the desktop filters against the moment
+its create started, with an allowance for clock skew), so the stamp on every event
+is part of the contract too. Writing the events is best effort and never fails
 the boot; without `MNGR_AGENT_STATE_DIR` (a bare dev run) nothing is written.
 
 ## Services (supervisord)
