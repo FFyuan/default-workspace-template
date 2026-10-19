@@ -124,7 +124,13 @@ export interface UserMessageEvent extends BaseTranscriptEvent {
   // traffic, framework injections). Read by the backend's own activity derivation;
   // carried on the wire for completeness.
   non_turn_tail?: boolean;
+  // status (a compaction) only: who started it -- the chat's idle sweep, the user's /compact, or
+  // the harness itself. Null or absent when the chat app could not tell.
+  compaction_cause?: CompactionCause | null;
 }
+
+/** Who started a compaction (the backend's ``CompactionCause``). */
+export type CompactionCause = "idle" | "manual" | "native";
 
 /**
  * A model turn: prose text and/or tool calls. Every field below is always
@@ -589,6 +595,9 @@ const loadStateByChat = new Map<string, TranscriptLoadState>();
 let loadAttemptCounter = 0;
 const newestLoadAttemptByChat = new Map<string, number>();
 
+// When the newest snapshot attempt settles, once its outcome is recorded; never rejects.
+const newestLoadByChat = new Map<string, Promise<void>>();
+
 /** Whether this attempt is still the chat's newest, i.e. whether its outcome still counts. */
 function isNewestLoadAttempt(chatId: string, attempt: number): boolean {
   return newestLoadAttemptByChat.get(chatId) === attempt;
@@ -769,7 +778,32 @@ function placeWindow(chatId: string, result: EventsResponse): void {
   store.reset(result.events, offset, total);
 }
 
-export async function fetchEvents(chatId: string): Promise<TranscriptEvent[]> {
+export function fetchEvents(chatId: string): Promise<TranscriptEvent[]> {
+  const load = loadSnapshot(chatId);
+  newestLoadByChat.set(
+    chatId,
+    load.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return load;
+}
+
+/** Wait out the chat's transcript snapshot loads, including any a newer attempt starts meanwhile:
+ *  true once one has landed, false when the newest failed or none was ever made. */
+export async function whenTranscriptLoadSettles(chatId: string): Promise<boolean> {
+  let awaited: Promise<void> | undefined;
+  while (!isTranscriptLoaded(chatId)) {
+    const newest = newestLoadByChat.get(chatId);
+    if (newest === undefined || newest === awaited) return false;
+    awaited = newest;
+    await newest;
+  }
+  return true;
+}
+
+async function loadSnapshot(chatId: string): Promise<TranscriptEvent[]> {
   notFoundChatIds.delete(chatId);
   // Moved on the attempt, not on its outcome: whoever is about to learn the
   // outcome must not be shown the previous one. Only the snapshot tracks this --
@@ -1019,19 +1053,25 @@ export function announceMessageSent(chatId: string): void {
   }
 }
 
-export async function sendMessage(chatId: string, message: string, messageId?: string): Promise<string> {
+/** How the message route took a send: delivered ("ok"), held while the chat switches agents ("held"),
+ *  or run as a compaction instead of being sent ("compaction_requested", a `/compact` no transcript
+ *  turn will echo). */
+export type SendStatus = "ok" | "held" | "compaction_requested";
+
+/** Send a message to a chat; resolves with how the route took it, or null when there was nothing to send. */
+export async function sendMessage(chatId: string, message: string, messageId?: string): Promise<SendStatus | null> {
   const trimmed = message.trim();
   const id = messageId ?? mintMessageId();
   if (!trimmed) {
-    return id;
+    return null;
   }
   announceMessageSent(chatId);
 
   // The client identity rides along so the server can record which browser
   // (and which named layout) the message came from -- that is how agents
-  // attribute a request to a client via `layout.py context`. The message_id is
+  // attribute a request to a client via `workspace-layout context`. The message_id is
   // the stable send-time id the backend reconciles delivery against (A4).
-  await m.request({
+  const response = await m.request<{ status: SendStatus }>({
     method: "POST",
     url: apiUrl("/api/chats/:chatId/message"),
     params: { chatId },
@@ -1042,7 +1082,7 @@ export async function sendMessage(chatId: string, message: string, messageId?: s
       desktop_id: getActiveDesktopId(),
     },
   });
-  return id;
+  return response.status;
 }
 
 export async function interruptAgent(chatId: string): Promise<void> {

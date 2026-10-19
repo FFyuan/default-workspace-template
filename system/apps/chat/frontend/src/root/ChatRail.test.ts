@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The chat list's default chat: it leads in its own group, set off from the rest, and its row is marked.
+ * The rail's status marks: a chat waiting on a background task wears the dashed ring, a working one the breathing
+ * dot (pending tasks or not, since the backend reports it working), and an idle one the hollow ring. And the
+ * default chat: it leads in its own group, set off from the rest, and its row is marked.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,46 +14,56 @@ vi.mock("./verbs", () => ({
 }));
 
 import m from "mithril";
-import { scopeOfHandshake } from "@imbue/workspace-ui/src/element_reference";
 import { ChatRail } from "./ChatRail";
+import { chatRailAttrsFixture } from "./chatRailAttrsFixture";
 import { chatRowFixture } from "./chatRowFixture";
 import type { ChatRow } from "./rows";
 
 let root: HTMLElement | null = null;
 
+afterEach(() => {
+  if (root === null) return;
+  m.mount(root, null);
+  root.remove();
+  root = null;
+});
+
 function mount(rows: readonly ChatRow[]): HTMLElement {
   const mounted = document.createElement("div");
   document.body.appendChild(mounted);
   root = mounted;
-  m.mount(mounted, {
-    view: () =>
-      m(ChatRail, {
-        rows,
-        selectedChatId: null,
-        isCompact: false,
-        onPick: () => undefined,
-        onNew: () => undefined,
-        referenceScope: scopeOfHandshake(null),
-        onDraftReference: () => undefined,
-        isReferenceDraftAvailable: false,
-      }),
-  });
+  m.mount(mounted, { view: () => m(ChatRail, chatRailAttrsFixture({ rows })) });
   return mounted;
+}
+
+function dotClassOf(chatId: string): string {
+  const dot = root?.querySelector(`[data-chat-id="${chatId}"] .chat-rail-dot`);
+  if (dot === null || dot === undefined) throw new Error(`no status mark for ${chatId}`);
+  return dot.getAttribute("class") ?? "";
 }
 
 function chatIdsIn(element: Element): string[] {
   return [...element.querySelectorAll<HTMLElement>(".chat-rail-row")].map((rowElement) => rowElement.dataset.chatId!);
 }
 
-afterEach(() => {
-  if (root !== null) {
-    m.mount(root, null);
-    root.remove();
-    root = null;
-  }
+describe("ChatRail status marks", () => {
+  it("draws background as the dashed ring, apart from working and idle", () => {
+    const rail = mount([
+      chatRowFixture("agent-wait", { status: "background" }),
+      chatRowFixture("agent-turn", { status: "working" }),
+      chatRowFixture("agent-idle"),
+    ]);
+
+    expect(dotClassOf("agent-wait")).toContain("chat-rail-dot--dashed");
+    expect(dotClassOf("agent-wait")).not.toContain("chat-rail-dot--pulse");
+    expect(dotClassOf("agent-turn")).toContain("chat-rail-dot--pulse");
+    expect(dotClassOf("agent-turn")).not.toContain("chat-rail-dot--dashed");
+    expect(dotClassOf("agent-idle")).not.toMatch(/chat-rail-dot--(dashed|pulse)/);
+    expect(rail.querySelector('[data-chat-id="agent-wait"]')?.getAttribute("data-status")).toBe("background");
+  });
 });
 
-describe("ChatRail", () => {
+describe("ChatRail default chat", () => {
   it("sets the default chat and its helpers apart from the rest, and marks the default row", () => {
     const helper = chatRowFixture("agent-helper", { labels: { agent_created: "true", lead_agent: "agent-welcome" } });
     const rail = mount([chatRowFixture("agent-welcome", { isDefault: true }), helper, chatRowFixture("agent-other")]);

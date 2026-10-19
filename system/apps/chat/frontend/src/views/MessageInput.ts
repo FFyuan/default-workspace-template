@@ -15,14 +15,22 @@ import type { ComposerAttachment } from "../models/ComposerAttachments";
 import { buildMessageWithAttachments, formatFileSize } from "../models/attachments";
 import { stageElementReferences } from "../models/elementReferences";
 import { drainToComposer, getEventsForChat, interruptAgent, mintMessageId, sendMessage } from "../models/Response";
+import type { SendStatus } from "../models/Response";
 import { cancelHandoff, switchChat } from "../models/Handoffs";
-import { getPendingPick, pendingSwitchTarget, setPendingAccount } from "../models/PendingLane";
+import {
+  getPendingPick,
+  isSwitchSending,
+  nextSendSwitchTarget,
+  setPendingAccount,
+  setSwitchSending,
+} from "../models/PendingLane";
 import type { ProviderAccount } from "../models/Providers";
 import { beginSwitchToAccountId, openSwitchDialog } from "./SwitchDialog";
 import { addOutgoing, clearOutgoing, dropOutgoing, getOutgoingMessages } from "../models/OutgoingMessages";
 import { describeRequestError, describeRequestErrorKind } from "@imbue/workspace-ui/src/models/request-error";
 import {
   accountForFirstSend,
+  areAccountsLoaded,
   isAccountSignedOut,
   loadAccounts,
   openProviderChooser,
@@ -43,14 +51,15 @@ import {
   launchChat,
   whenChatRegistered,
 } from "../models/Chats";
-import { isWorkingActivityState } from "./ActivityIndicator";
+import { COMPACTING_STATE, isWorkingActivityState } from "../models/activityState";
 import { harnessLabel } from "./harness-labels";
 import { handoffComposerPlaceholder } from "./handoff-phase";
 import { hoverTooltipAttrs } from "@imbue/workspace-ui/src/components/hoverTooltip";
-import { icon, stopIcon } from "@imbue/workspace-ui/src/components/icons";
+import { icon, spinnerIcon, stopIcon } from "@imbue/workspace-ui/src/components/icons";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
+import { ATTACHMENT_CHIP_HEIGHT_CLASS, AttachmentStrip } from "./AttachmentStrip";
 
-const MAX_TEXTAREA_HEIGHT_PX = 200;
+const MAX_TEXTAREA_HEIGHT_PX = 240;
 
 /* Styling.
  * Utilities in the markup; the message-input and composer-attachment class
@@ -59,17 +68,53 @@ const MAX_TEXTAREA_HEIGHT_PX = 200;
  * property. */
 
 /** The composer card. No shadow: it sits at the foot of its own pane
- *  rather than floating over the transcript. */
+ *  rather than floating over the transcript. Focus thickens its border to 2px
+ *  in the accent, taking the extra pixel out of the padding so nothing moves.
+ *  Its corners are concentric with the buttons and chips inside: their 6px
+ *  radius plus the padding and the border. */
 const INPUT_BOX_CLASS =
-  "message-input-box flex flex-col rounded-xl border bg-composer " +
-  "[transition:border-color_150ms] focus-within:border-accent";
+  "message-input-box flex flex-col gap-0.5 rounded-[13px] border bg-composer p-1.5 " +
+  "[transition:border-color_150ms] focus-within:border-2 focus-within:border-accent focus-within:p-[5px]";
 
-const ATTACHMENT_DETAIL_BASE = "composer-attachment-detail text-(length:--font-size-helper)";
+/** The text and its buttons: paperclip | text | toolbar. ``fitComposer`` sets ``data-stacked`` on the row once
+ *  the text needs a second line or there are attachments (``data-attachments``); the text then takes the full
+ *  width, with the paperclip and the toolbar on a row under it, and any attachments on a row between the two. */
+const MESSAGE_ROW_CLASS =
+  "message-input-row group/row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-0.5 " +
+  "data-[stacked]:gap-y-0.5";
+
+const ATTACH_BUTTON_CLASS =
+  "message-input-attach-button col-start-1 row-start-1 shrink-0 group-data-[stacked]/row:row-start-2 " +
+  "group-data-[attachments]/row:row-start-3!";
+
+const TOOLBAR_CLASS =
+  "message-input-toolbar col-start-3 row-start-1 flex shrink-0 items-center gap-1 justify-self-end " +
+  "group-data-[stacked]/row:row-start-2 group-data-[attachments]/row:row-start-3!";
+
+const ATTACHMENT_DETAIL_CLASS = "composer-attachment-detail truncate text-[11px] leading-[1.3]";
 
 const MESSAGE_TEXT_KEY_PREFIX = "message-text:";
 
 // The kind of the server's refusal of a send to a chat whose account was signed out.
 const ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND = "account_signed_out";
+// The kinds of the server's refusal of a /compact it declines to run: before the agent has anything
+// to compact, and while it is busy or stopped.
+const DECLINED_COMPACT_SEND_FAILURE_KINDS: ReadonlySet<unknown> = new Set([
+  "nothing_to_compact",
+  "compact_unavailable",
+]);
+
+/** Drop the "Sending…" bubble of a /compact the server ran as a compaction: no transcript turn will
+ *  arrive to retire it, and the compaction's own status and chips show what the send did. */
+function dropOutgoingOfRequestedCompaction(chatId: string, outgoingId: string, status: SendStatus | null): void {
+  if (status === "compaction_requested") {
+    dropOutgoing(chatId, outgoingId);
+  }
+}
+
+function sendFailureKind(sendError: unknown): unknown {
+  return (sendError as { response?: { kind?: unknown } | null } | null)?.response?.kind;
+}
 
 function messageTextKey(chatId: string): string {
   return `${MESSAGE_TEXT_KEY_PREFIX}${chatId}`;
@@ -193,10 +238,28 @@ export function prependToComposer(chatId: string, block: string): void {
   m.redraw();
 }
 
-function autoResizeTextarea(textarea: HTMLTextAreaElement): void {
+/** Lay the composer out for its text: the buttons beside a message that fits on one line, or in a
+ *  row under a longer one, so the text gets the full width. A row holding attachments
+ *  (``data-attachments``) is always stacked, whatever the text's length. Wrapping is measured with the buttons
+ *  beside the text whichever layout is showing, so the stacked layout's extra width cannot unwrap
+ *  the text and flip it back.
+ *
+ *  The row holds its height while the text is measured collapsed to one line. Otherwise the page
+ *  lays out around a one-line composer for that moment, and the browser clamps the transcript's
+ *  scroll position to fit it: a tall composer would pull the transcript off its bottom on every
+ *  redraw. */
+function fitComposer(row: HTMLElement, textarea: HTMLTextAreaElement): void {
+  row.style.height = `${row.getBoundingClientRect().height}px`;
+  row.removeAttribute("data-stacked");
+  textarea.style.overflowY = "hidden";
   textarea.style.height = "auto";
+  row.toggleAttribute(
+    "data-stacked",
+    row.hasAttribute("data-attachments") || textarea.scrollHeight > textarea.clientHeight,
+  );
   textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
   textarea.style.overflowY = textarea.scrollHeight > MAX_TEXTAREA_HEIGHT_PX ? "auto" : "hidden";
+  row.style.height = "";
 }
 
 function imageFilesFromClipboard(clipboardData: DataTransfer | null): File[] {
@@ -221,13 +284,34 @@ export interface MessageInputAttrs {
   leading?: m.Children;
 }
 
+/** A notice that stands in for the composer while the chat has no provider to run on: why, and a button that opens
+ *  the provider chooser. ``markerClass`` names which notice it is. */
+function providerNotice(markerClass: string, sentence: string, onChoose: () => void, onShown?: () => void): m.Vnode {
+  return m(
+    "div",
+    {
+      oncreate: onShown,
+      class:
+        `${markerClass} mb-2 flex flex-row items-center justify-between gap-3 rounded-[13px] border ` +
+        "border-default bg-surface-secondary py-3 pr-3 pl-5 text-(length:--font-size-body) text-secondary",
+    },
+    [
+      m("span", sentence),
+      m(
+        Button,
+        { variant: "primary", sm: true, extra: "message-input-choose-provider shrink-0", onclick: onChoose },
+        "Choose a provider",
+      ),
+    ],
+  );
+}
+
 /** The composer's box, beside ``leading`` when there is one. The row is there either way, so the box (and the
- *  textarea in it, with its focus and the soft keyboard) is kept when ``leading`` comes or goes. With no box (a
- *  chat whose account was signed out) the row holds ``leading`` alone, so the phone keeps its settings button. */
-function composeRow(leading: m.Children | undefined, boxChildren: m.Children[] | null): m.Vnode {
+ *  textarea in it, with its focus and the soft keyboard) is kept when ``leading`` comes or goes. */
+function composeRow(leading: m.Children | undefined, boxChildren: m.Children[]): m.Vnode {
   return m("div", { class: "message-input-compose-row flex items-end gap-1.5" }, [
     leading ?? null,
-    boxChildren === null ? null : m("div", { class: `${INPUT_BOX_CLASS} min-w-0 flex-1` }, boxChildren),
+    m("div", { class: `${INPUT_BOX_CLASS} min-w-0 flex-1` }, boxChildren),
   ]);
 }
 
@@ -238,8 +322,7 @@ function composeRow(leading: m.Children | undefined, boxChildren: m.Children[] |
  * actions refresh: a removal made in another window leaves it listing the account until then.
  */
 function catchUpOnSignedOutAccount(sendError: unknown): void {
-  const kind = (sendError as { response?: { kind?: unknown } | null } | null)?.response?.kind;
-  if (kind !== ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND) {
+  if (sendFailureKind(sendError) !== ACCOUNT_SIGNED_OUT_SEND_FAILURE_KIND) {
     return;
   }
   loadAccounts().then(
@@ -252,14 +335,21 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
   let messageText = "";
   let currentChatId: string | null = null;
   let messageTextareaElement: HTMLTextAreaElement | null = null;
+  // Whether the composer was disabled at the last render, so it takes focus the moment a provider makes it usable.
+  let wasComposerDisabled = false;
+  let messageRowElement: HTMLElement | null = null;
+  // Refits the composer when its width changes, since that changes where the text wraps.
+  let messageRowResizeObserver: ResizeObserver | null = null;
+  let messageRowWidthPx = 0;
   // Set instead of sending when the user types one of the harness's declared
   // auth commands (the `open_auth` composer popup). Delivered raw, /login or
   // /logout would run the harness's own auth flow inside the agent's terminal
   // (or reach the model as prose), bypassing the managed agent-auth surface.
   let interceptedAuthCommand: string | null = null;
-  // A slash command the chat declines to deliver, because it would change the agent's terminal
-  // rather than start a turn. It still works from that terminal, which the notice says.
-  let declinedSlashCommand: { command: string; body: string | null } | null = null;
+  // A message the chat declines to deliver: a slash command that would change the agent's terminal
+  // rather than start a turn (it still works from that terminal, which the notice says), or a
+  // /compact the server declined to run (nothing to compact yet, or the agent is busy or stopped).
+  let declinedSend: { title: string; body: string } | null = null;
   // Why the last send or interrupt failed, in the harness's own words, shown as a notice.
   // Component state like the notices above, NOT module state: every open chat panel mounts its
   // own MessageInput, and a module-level value would raise the notice in all of them at once.
@@ -295,93 +385,150 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
   let externalRetry: (() => Promise<void>) | null = null;
   let fileInputElement: HTMLInputElement | null = null;
   let isInterruptInFlight = false;
-  // The switch to the pending lane (spec 5.1): the handoff request is out, or the cancel of a
-  // running switch is out.
-  let isSwitchInFlight = false;
+  // The cancel of a running switch is out.
   let isCancelSwitchInFlight = false;
+  // The chat whose switch-and-send message is still being prepared (uploads, the composer guard):
+  // not sent yet, so the switch is still the next send's.
+  let switchPreparingChatId: string | null = null;
 
   function focusMessageTextarea(): void {
     messageTextareaElement?.focus();
   }
 
-  // Its own handler rather than the one above: each notice clears only its own state, and
-  // registering one shared function reference from two overlays would be de-duplicated by
-  // addEventListener and then torn down by whichever overlay closed first.
+  function refitComposer(): void {
+    if (messageRowElement !== null && messageTextareaElement !== null) {
+      fitComposer(messageRowElement, messageTextareaElement);
+    }
+  }
+
+  function attachMessageRow(rowVnode: m.VnodeDOM): void {
+    const rowElement = rowVnode.dom as HTMLElement;
+    messageRowElement = rowElement;
+    messageRowWidthPx = rowElement.clientWidth;
+    messageRowResizeObserver = new ResizeObserver(() => {
+      if (rowElement.clientWidth !== messageRowWidthPx) {
+        messageRowWidthPx = rowElement.clientWidth;
+        refitComposer();
+      }
+    });
+    messageRowResizeObserver.observe(rowElement);
+    refitComposer();
+  }
+
+  function detachMessageRow(): void {
+    messageRowResizeObserver?.disconnect();
+    messageRowResizeObserver = null;
+    messageRowElement = null;
+  }
+
+  /**
+   * One attachment chip, 40px tall: an image is its thumbnail alone; anything else is an icon beside
+   * its name and its size, or what it points at for a file the chat made for the user (an element
+   * reference). While uploading, a spinner sits over the thumbnail on a dark wash, or where the icon
+   * would be. The remove button rides the top-right corner, shown on hover.
+   */
   function renderComposerAttachment(chatId: string, attachment: ComposerAttachment): m.Vnode {
-    const isReadyImage = attachment.status === "ready" && attachment.isImage && attachment.uploaded !== undefined;
-    // A file the chat made for the user (an element reference) wears the pointer and says what it points at
-    // where a user's own file says its size.
+    const isUploading = attachment.status === "uploading";
+    const isError = attachment.status === "error";
+    // The local pixels while uploading, then the uploaded copy.
+    const thumbnailUrl = attachment.previewUrl ?? attachment.uploaded?.url;
+    const isThumbnail = attachment.isImage && !isError && thumbnailUrl !== undefined;
+    const size = attachment.uploaded?.size ?? attachment.localSize;
+    const spinner = m.trust(spinnerIcon(16));
     const isDescribed = attachment.summary !== undefined;
-    const thumbnail = isReadyImage
-      ? m("img", {
-          class: "composer-attachment-thumb h-9 w-9 shrink-0 rounded-md object-cover",
-          src: attachment.uploaded?.url,
-          alt: attachment.fileName,
-        })
+    const remove = isUploading
+      ? null
       : m(
-          "span",
+          "button",
           {
-            class: "composer-attachment-icon inline-flex h-9 w-9 shrink-0 items-center justify-center text-secondary",
+            type: "button",
+            // z-10: above the strip's end fades, so a half-hidden chip's remove button stays usable.
+            // Centred on the corner inside the chip's 1px border, not on the border's outer edge.
+            class:
+              "composer-attachment-remove absolute -top-[9px] -right-[9px] z-10 inline-flex h-5 w-5 cursor-pointer " +
+              "items-center justify-center rounded-full bg-inverse text-on-accent opacity-0 shadow-sm " +
+              "transition-opacity group-hover/chip:opacity-100 focus-visible:opacity-100",
+            "aria-label": "Remove attachment",
+            ...hoverTooltipAttrs("Remove attachment", "above"),
+            onclick: () => removeComposerAttachment(chatId, attachment.localId),
           },
-          attachment.status === "uploading"
-            ? m("span", { class: "spinner" })
-            : m.trust(icon(isDescribed ? "pointer" : "file", { size: 18, strokeWidth: 1.8 })),
+          m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
         );
+    // The status modifier is an interpolated marker; the one status the look distinguishes (a
+    // failed upload's red border) rides beside it.
+    const chipMarker = `composer-attachment composer-attachment--${attachment.status}`;
+    if (isThumbnail) {
+      return m(
+        "div",
+        {
+          key: attachment.localId,
+          class: `${chipMarker} group/chip relative flex-none`,
+        },
+        [
+          // The image fills the whole 40px; its border is drawn over it rather than taking its edge.
+          m("img", {
+            class: `composer-attachment-thumb block ${ATTACHMENT_CHIP_HEIGHT_CLASS} w-10 rounded-md object-cover`,
+            src: thumbnailUrl,
+            alt: attachment.fileName,
+          }),
+          m("span", { class: "pointer-events-none absolute inset-0 rounded-md border border-subtle" }),
+          isUploading
+            ? m(
+                "span",
+                {
+                  class:
+                    "composer-attachment-uploading absolute inset-0 flex items-center justify-center rounded-md " +
+                    "bg-black/40 text-white",
+                  "aria-label": "Uploading",
+                  role: "img",
+                },
+                spinner,
+              )
+            : null,
+          remove,
+        ],
+      );
+    }
+    const summary = attachment.summary ?? (size === undefined ? undefined : formatFileSize(size));
+    const detail = isError
+      ? m(
+          "span",
+          { class: `${ATTACHMENT_DETAIL_CLASS} composer-attachment-detail--error text-danger` },
+          "Upload failed",
+        )
+      : summary === undefined
+        ? null
+        : m("span", { class: `${ATTACHMENT_DETAIL_CLASS} composer-attachment-summary text-secondary` }, summary);
     return m(
       "div",
       {
         key: attachment.localId,
-        // The status modifier is an interpolated marker; the one status the
-        // look distinguishes (a failed upload's red border) rides beside it.
         class:
-          `composer-attachment composer-attachment--${attachment.status} ` +
-          "inline-flex max-w-[240px] items-center gap-2 rounded-lg border bg-sidebar py-1.5 pr-2 pl-1.5 " +
-          (attachment.status === "error" ? "border-danger-border" : ""),
+          `${chipMarker} group/chip relative flex ${ATTACHMENT_CHIP_HEIGHT_CLASS} max-w-[160px] flex-none items-center ` +
+          "gap-1 rounded-md border bg-surface-secondary pr-1.5 pl-1 " +
+          (isError ? "border-danger-border" : "border-subtle"),
       },
       [
-        thumbnail,
+        m(
+          "span",
+          {
+            class: "composer-attachment-icon inline-flex h-4 w-4 flex-none items-center justify-center text-secondary",
+          },
+          isUploading
+            ? m("span", { class: "composer-attachment-uploading", "aria-label": "Uploading", role: "img" }, spinner)
+            : m.trust(icon(isDescribed ? "pointer" : "file", { size: 16, strokeWidth: 1.8 })),
+        ),
         m("span", { class: "composer-attachment-info flex min-w-0 flex-col" }, [
           m(
             "span",
             {
-              class: "composer-attachment-name truncate text-(length:--font-size-body) text-primary",
-              ...hoverTooltipAttrs(attachment.summary ?? attachment.fileName, "above"),
+              class: "composer-attachment-name truncate text-(length:--font-size-helper) leading-[1.3] text-primary",
             },
             attachment.fileName,
           ),
-          attachment.status === "ready" && attachment.uploaded !== undefined
-            ? m(
-                "span",
-                { class: `${ATTACHMENT_DETAIL_BASE} composer-attachment-summary truncate text-secondary` },
-                attachment.summary ?? formatFileSize(attachment.uploaded.size),
-              )
-            : null,
-          attachment.status === "uploading"
-            ? m("span", { class: `${ATTACHMENT_DETAIL_BASE} text-secondary` }, "Uploading…")
-            : null,
-          attachment.status === "error"
-            ? m(
-                "span",
-                { class: `${ATTACHMENT_DETAIL_BASE} composer-attachment-detail--error text-danger` },
-                "Upload failed",
-              )
-            : null,
+          detail,
         ]),
-        attachment.status === "uploading"
-          ? null
-          : m(
-              Button,
-              {
-                variant: "ghost",
-                icon: true,
-                xs: true,
-                extra: "composer-attachment-remove shrink-0",
-                "aria-label": "Remove attachment",
-                ...hoverTooltipAttrs("Remove attachment", "above"),
-                onclick: () => removeComposerAttachment(chatId, attachment.localId),
-              },
-              m.trust(icon("close", { size: 12, strokeWidth: 2.5 })),
-            ),
+        remove,
       ],
     );
   }
@@ -398,11 +545,10 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         currentChatId = chatId;
         messageText = localStorage.getItem(messageTextKey(chatId)) ?? "";
         isInterruptInFlight = false;
-        isSwitchInFlight = false;
         isCancelSwitchInFlight = false;
         // The notices name a command typed for the previous agent, so they must not follow the
         // user to the next one.
-        declinedSlashCommand = null;
+        declinedSend = null;
         interceptedAuthCommand = null;
         // Safe to drop: the failed message was put back in that agent's composer when the send
         // failed, so nothing is lost by closing its notice unanswered.
@@ -483,7 +629,10 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
             if (match.popup.action === "open_auth") {
               interceptedAuthCommand = match.command;
             } else {
-              declinedSlashCommand = { command: match.command, body: match.popup.notice_body ?? null };
+              declinedSend = {
+                title: `${match.command} can't be sent from chat`,
+                body: match.popup.notice_body ?? "You can still send it from the agent's terminal.",
+              };
             }
             m.redraw();
             return null;
@@ -589,31 +738,37 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           // "Sending…" until the create lands, and the send goes out then. A create that
           // fails rejects here and the message goes back to the composer like any failed send.
           await whenChatRegistered(chatId);
-          await sendMessage(chatId, finalText, messageId);
+          const status = await sendMessage(chatId, finalText, messageId);
           // The send resolved: the message is now real (committed, queued, or held for the
           // agent the chat is switching to), so its "Sending…" bubble is removed by the arriving
-          // transcript turn, queued snapshot, or held-send snapshot (see
-          // OutgoingMessages) -- nothing to do here.
+          // transcript turn, queued snapshot, or held-send snapshot (see OutgoingMessages).
+          dropOutgoingOfRequestedCompaction(chatId, outgoingId, status);
         } catch (err) {
-          // The send genuinely failed (the backend confirms delivery before
-          // resolving, so a rejection means the message was NOT accepted). Drop the
-          // optimistic bubble and handle failure the original way: restore the
-          // text/attachments to the composer, then surface a popup.
+          // The backend confirms delivery before resolving, so a rejection means the message was
+          // NOT accepted. A /compact the server declined to run gets the declined-command notice
+          // rather than the failure notice, since retrying at once cannot change it.
           const detail = describeRequestError(err);
-          console.error(`Failed to send message to chat ${chatId}: ${detail}`);
+          const isDeclined = DECLINED_COMPACT_SEND_FAILURE_KINDS.has(sendFailureKind(err));
+          if (!isDeclined) {
+            console.error(`Failed to send message to chat ${chatId}: ${detail}`);
+          }
           dropOutgoing(chatId, outgoingId);
           // Back in the composer immediately: the recovery record is closure state, so a reload
           // would take the message with it (contract A1a). A repeat send removes that copy once
           // it has landed.
           restoreFailedMessageToComposer(chatId, sentText, sentAttachments);
           catchUpOnSignedOutAccount(err);
-          // Actions only if they are still on the agent that failed -- this catch runs after an
+          // Notices only if they are still on the agent that failed -- this catch runs after an
           // await, so they may have switched and the switch-clear has already gone by.
           if (currentChatId === chatId) {
-            actionFailureTitle = "Couldn't send your message";
-            actionFailureDetail = detail;
-            actionFailureKind = describeRequestErrorKind(err);
-            actionFailureRecovery = { chatId, text: sentText, sentText: finalText, attachments: sentAttachments };
+            if (isDeclined) {
+              declinedSend = { title: "/compact wasn't sent", body: detail };
+            } else {
+              actionFailureTitle = "Couldn't send your message";
+              actionFailureDetail = detail;
+              actionFailureKind = describeRequestErrorKind(err);
+              actionFailureRecovery = { chatId, text: sentText, sentText: finalText, attachments: sentAttachments };
+            }
           }
           m.redraw();
         }
@@ -644,25 +799,37 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
        * the held-send rendering the next snapshot brings replaces it exactly; the queued text
        * draining took off the old agent comes back for the composer.
        */
-      async function handleSwitchAndSend(target: ProviderAccount): Promise<void> {
-        if (!chatId || isSwitchInFlight) {
+      async function handleSwitchAndSend(): Promise<void> {
+        if (!chatId || isSwitchSending(chatId) || switchPreparingChatId === chatId) {
           return;
         }
-        isSwitchInFlight = true;
-        m.redraw();
-        const prepared = await prepareSend();
+        switchPreparingChatId = chatId;
+        let prepared: PreparedSend | null;
+        try {
+          prepared = await prepareSend();
+        } finally {
+          if (switchPreparingChatId === chatId) switchPreparingChatId = null;
+        }
         if (prepared === null) {
-          isSwitchInFlight = false;
           m.redraw();
           return;
         }
         const { text: sentText, finalText, attachments: sentAttachments } = prepared;
+        // Read once the message is ready, not at the press: until then the choice could still be
+        // changed or taken back, and the account and its pick must go out as one.
+        const target = nextSendSwitchTarget(chatId);
+        if (target === null) {
+          restoreFailedMessageToComposer(chatId, sentText, sentAttachments);
+          m.redraw();
+          return;
+        }
+        const pick = getPendingPick(chatId)?.identity ?? null;
+        setSwitchSending(chatId, true);
         const messageId = mintMessageId();
         const outgoingId = addOutgoing(chatId, sentText, messageId);
         m.redraw();
         try {
           await whenChatRegistered(chatId);
-          const pick = getPendingPick(chatId)?.identity ?? null;
           const { returned_block } = await switchChat(chatId, target.id, finalText, messageId, pick);
           prependToComposer(chatId, returned_block);
         } catch (err) {
@@ -676,7 +843,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
             actionFailureDetail = detail;
           }
         } finally {
-          isSwitchInFlight = false;
+          setSwitchSending(chatId, false);
           m.redraw();
         }
         refocusAfterSend();
@@ -710,7 +877,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           // Not while a notice is open: this rAF lands after mithril has mounted the notice and
           // focused its OK button, so refocusing the composer would steal it -- leaving a modal
           // the keyboard cannot dismiss, and an Enter that re-sends the just-restored text.
-          if (actionFailureDetail === null) {
+          if (actionFailureDetail === null && declinedSend === null) {
             focusMessageTextarea();
           }
         });
@@ -768,8 +935,11 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
 
       /** Enter and the send button do the same thing: send, or carry the armed switch out. */
       function handleSubmit(): Promise<void> {
+        if (chatId && isSwitchSending(chatId)) {
+          return Promise.resolve();
+        }
         if (switchTarget !== null) {
-          return chatId && canSend ? handleSwitchAndSend(switchTarget) : Promise.resolve();
+          return chatId && canSend ? handleSwitchAndSend() : Promise.resolve();
         }
         return handleSend();
       }
@@ -806,7 +976,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
       }
 
       function dismissDeclinedCommandNotice(): void {
-        declinedSlashCommand = null;
+        declinedSend = null;
         m.redraw();
       }
 
@@ -945,7 +1115,8 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         const outgoingId = addOutgoing(recovery.chatId, recovery.text, messageId);
         try {
           await whenChatRegistered(recovery.chatId);
-          await sendMessage(recovery.chatId, recovery.sentText, messageId);
+          const status = await sendMessage(recovery.chatId, recovery.sentText, messageId);
+          dropOutgoingOfRequestedCompaction(recovery.chatId, outgoingId, status);
           // Landed, so take the restored copy back out of the composer.
           clearRestoredMessage(recovery.chatId, recovery.text, recovery.attachments);
           clearActionFailureNotice();
@@ -1110,10 +1281,10 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         );
       }
 
-      function renderDeclinedCommandNotice(declined: { command: string; body: string | null }): m.Children {
+      function renderDeclinedCommandNotice(declined: { title: string; body: string }): m.Children {
         return m(declinedCommandNotice, {
-          title: `${declined.command} can't be sent from chat`,
-          body: [declined.body ?? "You can still send it from the agent's terminal."],
+          title: declined.title,
+          body: [declined.body],
           dismissLabel: "OK",
           onDismiss: dismissDeclinedCommandNotice,
         });
@@ -1143,27 +1314,21 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
 
       /** In place of the composer while the chat's account is signed out: nothing more goes to it. */
       function renderSignedOutAccountNotice(signedOutChatId: string): m.Children {
-        return m(
-          "div",
-          {
-            class:
-              "message-input-signed-out flex flex-row items-center justify-between gap-3 rounded-xl border " +
-              "border-default bg-surface-secondary py-3 pr-3 pl-5 text-(length:--font-size-body) text-secondary",
-          },
-          [
-            m("span", "You signed out of the account this chat runs on. Choose a provider to continue it on."),
-            m(
-              Button,
-              {
-                variant: "primary",
-                sm: true,
-                extra: "message-input-choose-provider shrink-0",
-                onclick: () =>
-                  openProviderChooser({ onSignedIn: (chosen) => beginSwitchToAccountId(signedOutChatId, chosen) }),
-              },
-              "Choose a provider",
-            ),
-          ],
+        return providerNotice(
+          "message-input-signed-out",
+          "You signed out of the account this chat runs on. Choose a provider to continue it on.",
+          () => openProviderChooser({ onSignedIn: (chosen) => beginSwitchToAccountId(signedOutChatId, chosen) }),
+        );
+      }
+
+      /** In place of the composer while nothing is signed in that a new chat could start on. The chooser opens as the
+       *  notice appears, and its button opens it again once dismissed. */
+      function renderNoProviderNotice(): m.Children {
+        return providerNotice(
+          "message-input-no-provider",
+          "Connect an AI provider to start chatting.",
+          () => openProviderChooser(),
+          () => openProviderChooser(),
         );
       }
 
@@ -1173,21 +1338,44 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
 
       const chat = getChatById(chatId);
       // The switch the chat is in the middle of, if any, and the one the next send would start.
-      // Nothing is pending once a switch is running: the lane was applied by confirming it.
       const handoff = chat?.handoff ?? null;
-      const switchTarget = handoff === null ? pendingSwitchTarget(chatId) : null;
+      const switchTarget = nextSendSwitchTarget(chatId);
+      // A draft typed while the switch request is out waits for it: sent now, it would reach the
+      // agent the chat is leaving, ahead of the switch.
+      const isSendHeldForSwitch = isSwitchSending(chatId);
       // A chosen provider arms a switch, and the next send carries the chat to it, so the composer
-      // comes back as soon as one is armed.
+      // comes back as soon as one is armed, and stays while that switch is sent.
       const isBlockedBySignedOutAccount =
-        handoff === null && switchTarget === null && isAccountSignedOut(chat?.active_agent.account_id);
+        handoff === null &&
+        switchTarget === null &&
+        !isSendHeldForSwitch &&
+        isAccountSignedOut(chat?.active_agent.account_id);
+      // Until the account list has loaded the composer shows as usual: most pages have an account.
+      const awaitingFirstSend = chat === undefined ? getProvisionalChat(chatId) : undefined;
+      const isBlockedByNoProvider =
+        awaitingFirstSend?.phase === "awaiting_first_send" &&
+        areAccountsLoaded() &&
+        accountForFirstSend(awaitingFirstSend.account_id) === null;
+      const isComposerDisabled = isBlockedBySignedOutAccount || isBlockedByNoProvider;
+      const canSendNow = canSend && !isComposerDisabled;
+      const blockingNotice = isBlockedBySignedOutAccount
+        ? renderSignedOutAccountNotice(chatId)
+        : isBlockedByNoProvider
+          ? renderNoProviderNotice()
+          : null;
 
       // The stop button is only meaningful while the agent has an interruptible
       // turn in progress -- the same condition that drives the activity indicator
       // above the input, read straight off the backend-derived activity state. While the
       // chat switches harness the turn in progress is the switch's own (the summary it asked
       // for), so the button is the switch's cancel instead, for as long as that is possible.
-      const isAgentWorking = isWorkingActivityState(chat?.active_agent.activity_state ?? null);
-      const isStopButtonVisible = isAgentWorking && !isInterruptInFlight && handoff === null;
+      const activityState = chat?.active_agent.activity_state ?? null;
+      const isAgentWorking = isWorkingActivityState(activityState);
+      const isUninterruptibleCompaction =
+        activityState === COMPACTING_STATE &&
+        getHarnessCatalog(chat?.active_agent.harness)?.can_interrupt_compaction === false;
+      const isStopButtonVisible =
+        isAgentWorking && !isInterruptInFlight && handoff === null && !isUninterruptibleCompaction;
       const isCancelSwitchVisible = handoff !== null && isHandoffCancellable(handoff);
       // Read straight off the backend's queue snapshot -- the frontend holds no queued state.
       const hasQueuedMessages = (chat?.active_agent.queued_messages ?? []).length > 0;
@@ -1195,173 +1383,193 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         ? "Interrupt agent and bring queued messages to draft area"
         : "Interrupt agent";
 
-      return m(
-        "div",
-        { class: "message-input mx-auto w-full max-w-[calc(var(--width-message-column)+2*var(--radius-xl))]" },
-        [
-          interceptedAuthCommand !== null ? renderAuthCommandNotice(interceptedAuthCommand) : null,
-          declinedSlashCommand !== null ? renderDeclinedCommandNotice(declinedSlashCommand) : null,
-          actionFailureDetail !== null ? renderActionFailureNotice(actionFailureDetail) : null,
-          switchTarget !== null ? renderSwitchStrip(switchTarget) : null,
-          isBlockedBySignedOutAccount && chatId !== null ? renderSignedOutAccountNotice(chatId) : null,
-          m("input", {
-            type: "file",
-            multiple: true,
-            class: "message-input-file-input hidden",
-            oncreate: (inputVnode: m.VnodeDOM) => {
-              fileInputElement = inputVnode.dom as HTMLInputElement;
-            },
-            onremove: () => {
-              fileInputElement = null;
-            },
-            onchange: (event: Event) => {
-              const input = event.target as HTMLInputElement;
-              uploadFilesToComposer(chatId, input.files);
-              input.value = "";
-            },
-          }),
-          composeRow(
-            vnode.attrs.leading,
-            isBlockedBySignedOutAccount
-              ? null
-              : [
-                  attachments.length > 0
+      return m("div", { class: "message-input mx-auto w-full max-w-(--width-message-column)" }, [
+        interceptedAuthCommand !== null ? renderAuthCommandNotice(interceptedAuthCommand) : null,
+        declinedSend !== null ? renderDeclinedCommandNotice(declinedSend) : null,
+        actionFailureDetail !== null ? renderActionFailureNotice(actionFailureDetail) : null,
+        switchTarget !== null ? renderSwitchStrip(switchTarget) : null,
+        blockingNotice,
+        m("input", {
+          type: "file",
+          multiple: true,
+          class: "message-input-file-input hidden",
+          oncreate: (inputVnode: m.VnodeDOM) => {
+            fileInputElement = inputVnode.dom as HTMLInputElement;
+          },
+          onremove: () => {
+            fileInputElement = null;
+          },
+          onchange: (event: Event) => {
+            const input = event.target as HTMLInputElement;
+            uploadFilesToComposer(chatId, input.files);
+            input.value = "";
+          },
+        }),
+        composeRow(
+          vnode.attrs.leading,
+          // With no provider to send to, the composer stays in view, holding any draft, but takes nothing.
+          [
+            m(
+              "div",
+              {
+                class: MESSAGE_ROW_CLASS,
+                "data-attachments": attachments.length > 0 ? "" : undefined,
+                oncreate: attachMessageRow,
+                onremove: detachMessageRow,
+              },
+              [
+                m("textarea", {
+                  class:
+                    "message-input-textbox col-start-2 row-start-1 w-full resize-none border-none bg-transparent " +
+                    "px-1 py-1 font-sans text-(length:--font-size-body) leading-[1.4] text-primary focus:outline-none " +
+                    "placeholder:text-faint group-data-[stacked]/row:col-span-3 group-data-[stacked]/row:col-start-1 " +
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  placeholder:
+                    handoff !== null
+                      ? handoffComposerPlaceholder(handoff)
+                      : isAgentWorking
+                        ? "Type to queue more messages..."
+                        : "Type a message...",
+                  rows: 1,
+                  disabled: isComposerDisabled,
+                  value: messageText,
+                  oncreate: (textareaVnode: m.VnodeDOM) => {
+                    messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
+                    wasComposerDisabled = isComposerDisabled;
+                    refitComposer();
+                    focusMessageTextarea();
+                  },
+                  onupdate: (textareaVnode: m.VnodeDOM) => {
+                    messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
+                    refitComposer();
+                    if (wasComposerDisabled && !isComposerDisabled) focusMessageTextarea();
+                    wasComposerDisabled = isComposerDisabled;
+                  },
+                  onremove: () => {
+                    messageTextareaElement = null;
+                  },
+                  oninput: (event: Event) => {
+                    const textarea = event.target as HTMLTextAreaElement;
+                    messageText = textarea.value;
+                    localStorage.setItem(messageTextKey(chatId), messageText);
+                    refitComposer();
+                  },
+                  onkeydown: handleKeydown,
+                  onpaste: handlePaste,
+                }),
+                m(
+                  Button,
+                  {
+                    variant: "ghost",
+                    icon: true,
+                    sm: true,
+                    extra: ATTACH_BUTTON_CLASS,
+                    ...hoverTooltipAttrs("Attach files", "above"),
+                    "aria-label": "Attach files",
+                    disabled: isComposerDisabled,
+                    onclick: openFilePicker,
+                  },
+                  m.trust(icon("attach", { size: 16, strokeWidth: 1.5 })),
+                ),
+                attachments.length > 0
+                  ? m(
+                      "div",
+                      { class: "col-span-3 col-start-1 row-start-2 min-w-0 pt-1" },
+                      m(AttachmentStrip, {
+                        children: attachments.map((attachment) => renderComposerAttachment(chatId, attachment)),
+                      }),
+                    )
+                  : null,
+                m("div", { class: TOOLBAR_CLASS }, [
+                  isCancelSwitchVisible
                     ? m(
-                        "div",
-                        { class: "message-input-attachments flex flex-wrap gap-2 pt-3 pr-3 pl-4" },
-                        attachments.map((attachment) => renderComposerAttachment(chatId, attachment)),
-                      )
-                    : null,
-                  m("div", { class: "message-input-row flex flex-row items-center" }, [
-                    m("textarea", {
-                      class:
-                        "message-input-textbox flex-1 resize-none border-none bg-transparent pt-3.5 pr-2 pb-3.5 pl-5 " +
-                        "font-sans text-(length:--font-size-body) leading-normal text-primary focus:outline-none " +
-                        "placeholder:text-faint",
-                      placeholder:
-                        handoff !== null
-                          ? handoffComposerPlaceholder(handoff)
-                          : isAgentWorking
-                            ? "Type to queue more messages..."
-                            : "Type a message...",
-                      rows: 1,
-                      value: messageText,
-                      oncreate: (textareaVnode: m.VnodeDOM) => {
-                        messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
-                        autoResizeTextarea(messageTextareaElement);
-                        focusMessageTextarea();
-                      },
-                      onupdate: (textareaVnode: m.VnodeDOM) => {
-                        messageTextareaElement = textareaVnode.dom as HTMLTextAreaElement;
-                        autoResizeTextarea(messageTextareaElement);
-                      },
-                      onremove: () => {
-                        messageTextareaElement = null;
-                      },
-                      oninput: (event: Event) => {
-                        const textarea = event.target as HTMLTextAreaElement;
-                        messageText = textarea.value;
-                        localStorage.setItem(messageTextKey(chatId), messageText);
-                        autoResizeTextarea(textarea);
-                      },
-                      onkeydown: handleKeydown,
-                      onpaste: handlePaste,
-                    }),
-                    m("div", { class: "message-input-toolbar flex shrink-0 items-center gap-2 pr-3" }, [
-                      m(
                         Button,
                         {
-                          variant: "ghost",
-                          icon: true,
-                          round: true,
-                          extra: "message-input-attach-button shrink-0",
-                          ...hoverTooltipAttrs("Attach files", "above"),
-                          "aria-label": "Attach files",
-                          onclick: openFilePicker,
+                          variant: "secondary",
+                          sm: true,
+                          extra: "message-input-cancel-switch-button shrink-0",
+                          readonly: isCancelSwitchInFlight,
+                          ...hoverTooltipAttrs(
+                            "Keep this chat on its current agent; your message comes back here",
+                            "above",
+                          ),
+                          "aria-label": "Cancel switch",
+                          onclick: () => void handleCancelSwitch(),
                         },
-                        m.trust(icon("attach", { size: 18 })),
+                        isCancelSwitchInFlight ? "Cancelling…" : "Cancel switch",
+                      )
+                    : null,
+                  isStopButtonVisible
+                    ? m(
+                        Button,
+                        {
+                          variant: "stop",
+                          icon: true,
+                          sm: true,
+                          extra: "message-input-stop-button shrink-0",
+                          // The label states what THIS press will do. The button always interrupts;
+                          // it only hands messages back when there are some parked in the harness,
+                          // so promising that unconditionally described a case that usually is not
+                          // the one in front of the user.
+                          ...hoverTooltipAttrs(stopButtonLabel, "above"),
+                          "aria-label": stopButtonLabel,
+                          onclick: handleStopToComposer,
+                        },
+                        m.trust(stopIcon(14)),
+                      )
+                    : null,
+                  // The send button reads "Switch and send" while a pending lane differs from the
+                  // chat's harness (spec 5.1): the next send moves the chat, so the button says so.
+                  // Otherwise it stays in place: the green send button, or with nothing it can send a
+                  // disabled ghost -- the bare arrow, faded.
+                  canSendNow && switchTarget !== null
+                    ? m(
+                        Button,
+                        {
+                          variant: "primary",
+                          sm: true,
+                          extra: "message-input-send-button message-input-send-button--switch shrink-0",
+                          ...hoverTooltipAttrs(`Switch this chat to ${switchTarget.label} and send`, "above"),
+                          "aria-label": "Switch and send",
+                          onclick: handleSubmit,
+                        },
+                        [
+                          m("span", "Switch and send"),
+                          m(
+                            "span",
+                            { class: "ml-1.5 inline-flex items-center" },
+                            m.trust(icon("send", { size: 14, strokeWidth: 2.5 })),
+                          ),
+                        ],
+                      )
+                    : m(
+                        Button,
+                        {
+                          variant: canSendNow ? "primary" : "ghost",
+                          icon: true,
+                          sm: true,
+                          extra: "message-input-send-button shrink-0",
+                          disabled: !canSendNow,
+                          readonly: isSendHeldForSwitch,
+                          ...hoverTooltipAttrs(
+                            !canSendNow
+                              ? null
+                              : isSendHeldForSwitch
+                                ? "Sending is paused until the switch starts"
+                                : "Send message",
+                            "above",
+                          ),
+                          "aria-label": "Send message",
+                          onclick: handleSubmit,
+                        },
+                        m.trust(icon("send", { size: 16, strokeWidth: 2 })),
                       ),
-                      isCancelSwitchVisible
-                        ? m(
-                            Button,
-                            {
-                              variant: "secondary",
-                              sm: true,
-                              extra: "message-input-cancel-switch-button shrink-0",
-                              readonly: isCancelSwitchInFlight,
-                              ...hoverTooltipAttrs(
-                                "Keep this chat on its current agent; your message comes back here",
-                                "above",
-                              ),
-                              "aria-label": "Cancel switch",
-                              onclick: () => void handleCancelSwitch(),
-                            },
-                            isCancelSwitchInFlight ? "Cancelling…" : "Cancel switch",
-                          )
-                        : null,
-                      isStopButtonVisible
-                        ? m(
-                            Button,
-                            {
-                              variant: "stop",
-                              icon: true,
-                              round: true,
-                              sm: true,
-                              extra: "message-input-stop-button shrink-0",
-                              // The label states what THIS press will do. The button always interrupts;
-                              // it only hands messages back when there are some parked in the harness,
-                              // so promising that unconditionally described a case that usually is not
-                              // the one in front of the user.
-                              ...hoverTooltipAttrs(stopButtonLabel, "above"),
-                              "aria-label": stopButtonLabel,
-                              onclick: handleStopToComposer,
-                            },
-                            m.trust(stopIcon(14)),
-                          )
-                        : null,
-                      // The send button reads "Switch and send" while a pending lane differs from the
-                      // chat's harness (spec 5.1): the next send moves the chat, so the button says so.
-                      canSend && switchTarget !== null
-                        ? m(
-                            Button,
-                            {
-                              variant: "primary",
-                              sm: true,
-                              extra: "message-input-send-button message-input-send-button--switch shrink-0",
-                              ...hoverTooltipAttrs(`Switch this chat to ${switchTarget.label} and send`, "above"),
-                              "aria-label": "Switch and send",
-                              onclick: handleSubmit,
-                            },
-                            [
-                              m("span", "Switch and send"),
-                              m(
-                                "span",
-                                { class: "ml-1.5 inline-flex items-center" },
-                                m.trust(icon("send", { size: 14, strokeWidth: 2.5 })),
-                              ),
-                            ],
-                          )
-                        : canSend
-                          ? m(
-                              Button,
-                              {
-                                variant: "primary",
-                                icon: true,
-                                round: true,
-                                extra: "message-input-send-button shrink-0",
-                                ...hoverTooltipAttrs("Send message", "above"),
-                                "aria-label": "Send message",
-                                onclick: handleSubmit,
-                              },
-                              m.trust(icon("send", { size: 16, strokeWidth: 2.5 })),
-                            )
-                          : null,
-                    ]),
-                  ]),
-                ],
-          ),
-        ],
-      );
+                ]),
+              ],
+            ),
+          ],
+        ),
+      ]);
     },
   };
 }
