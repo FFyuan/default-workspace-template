@@ -26,6 +26,20 @@ function filenameFromUrl(imageUrl: string): string {
   }
 }
 
+/** The ``?download`` URL of the workspace's own image, or null for another site's (or an unparsable) one. */
+function ownDownloadUrl(imageUrl: string): string | null {
+  try {
+    const url = new URL(imageUrl, window.location.href);
+    if (url.origin !== window.location.origin) {
+      return null;
+    }
+    url.searchParams.set("download", "");
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 let activeOverlay: HTMLElement | null = null;
 
 function onKeydown(event: KeyboardEvent): void {
@@ -87,13 +101,12 @@ export function openImageLightbox(imageUrl: string, altText: string): void {
   downloadLink.rel = "noopener noreferrer";
   downloadLink.setAttribute("aria-label", "Download image");
   downloadLink.innerHTML = icon("download", { size: 20 });
-  const ownImageUrl = new URL(imageUrl, window.location.href);
-  if (ownImageUrl.origin === window.location.origin) {
-    ownImageUrl.searchParams.set("download", "");
+  const downloadUrl = ownDownloadUrl(imageUrl);
+  if (downloadUrl !== null) {
     downloadLink.addEventListener("click", (event) => {
       event.preventDefault();
       title.textContent = titleText;
-      startDownload(document, ownImageUrl.href, filename, (note) => {
+      startDownload(document, downloadUrl, filename, (note) => {
         title.textContent = note;
       });
     });

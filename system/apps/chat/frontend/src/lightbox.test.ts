@@ -42,4 +42,10 @@ describe("the lightbox's Download", () => {
     expect(downloadButton().hasAttribute("download")).toBe(true);
     expect(document.querySelector("iframe")).toBeNull();
   });
+
+  it("still opens for an image whose address does not parse, offering the link", () => {
+    openImageLightbox("http://[broken/pic.png", "Broken");
+    expect(downloadButton().hasAttribute("download")).toBe(true);
+    expect(document.querySelector("iframe")).toBeNull();
+  });
 });
