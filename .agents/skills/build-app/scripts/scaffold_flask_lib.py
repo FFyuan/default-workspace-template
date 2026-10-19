@@ -377,17 +377,18 @@ def inline_script_source(body: str) -> str:
 
 # Every HTML page is served under this policy (the app is reachable from the
 # internet once the workspace is shared): scripts only from this origin plus the
-# inline blocks listed here by hash, fetches and sockets only to this origin,
-# inline styles, images from anywhere, frames of any http(s) page, no plugins.
-# Anything else a page pulls in (a CDN script, Google Fonts, a third-party API
-# called from the browser) is blocked until its origin is added to the matching
-# directive; a new inline <script> needs its ``inline_script_source`` added.
+# inline blocks listed here by hash, fetches, sockets and images only from this
+# origin, inline styles, frames of any http(s) page, no plugins. Anything else a
+# page pulls in (a CDN script, Google Fonts, an image hosted elsewhere, a
+# third-party API called from the browser) is blocked until its origin is added
+# to the matching directive; a new inline <script> needs its
+# ``inline_script_source`` added.
 # The browser posts every block to ``/_csp-report`` below, which logs it on
 # stderr (the supervisor log), so a blocked resource is never silent.
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     f"script-src 'self' {{inline_script_source(SHELL_PAGE_SCRIPT_BODY)}}; "
-    "style-src 'self' 'unsafe-inline'; img-src * data: blob:; frame-src http: https:; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src http: https:; "
     "object-src 'none'; base-uri 'self'; form-action 'self'; "
     "report-uri /_csp-report"
 )

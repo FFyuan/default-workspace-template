@@ -52,6 +52,16 @@ def test_the_page_says_it_is_not_built_until_the_bundle_exists_and_then_serves_i
     assert client.get("/assets/../index.html").status_code == 404
 
 
+def test_the_page_admits_images_from_the_catalogs_origin_and_only_its_own_without_a_catalog(tmp_path: Path) -> None:
+    """A template's drawing is fetched from where the catalog is, so the page's policy names that origin; an
+    app with no catalog configured names only itself."""
+    policy = _client(tmp_path).get("/").headers["Content-Security-Policy"]
+    assert "img-src 'self' data: blob: https://example.test;" in policy
+
+    policy_without_catalog = _client(tmp_path / "no-catalog", catalog_url="").get("/").headers["Content-Security-Policy"]
+    assert "img-src 'self' data: blob:;" in policy_without_catalog
+
+
 def test_the_catalog_route_answers_the_catalog_with_resolved_thumbnails(tmp_path: Path) -> None:
     fetcher = FakeTemplateCatalogFetcher(
         body_by_url={

@@ -77,10 +77,12 @@ The models behind a workspace app's two descriptions:
   overrides=None)` stamps a `Content-Security-Policy` on every HTML response that
   does not set one itself: scripts from the page's own origin plus the page's own
   inline `<script>` blocks (admitted by hash, computed from each response), inline
-  styles, images from anywhere, frames of any http(s) page, same-origin fetches
+  styles, images from the page's own origin (plus `data:` and `blob:`), frames of any
+  http(s) page, same-origin fetches
   and sockets, no plugins, no `<base>` retargeting, no cross-origin form posts.
   `overrides` replace whole directives for an app that needs more (the browser
-  app's `blob:` worklet). `frame-ancestors` is left to the proxy in front of the
+  app's `blob:` worklet, the chat's images and media from anywhere, Getting
+  Started's thumbnails from the catalog's origin, which `url_origin(url)` gives). `frame-ancestors` is left to the proxy in front of the
   workspace, which appends its own policy. `build_document_policy(html,
   overrides)`, `inline_script_hashes(html)` and `inline_source(text)` (the
   `'sha256-...'` source for one inline script or stylesheet, which the shell's

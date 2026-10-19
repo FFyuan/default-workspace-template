@@ -12,10 +12,14 @@ sockets reach only the page's origin (``'self'`` covers a same-host ``ws(s):``
 socket in every browser since Safari 16; WebKit matched the spec in April
 2022), and plugins and ``<base>`` retargeting are off.
 Styles may be inline, since the workspace's frontends set style attributes
-from script; images may come from anywhere, since a chat renders markdown
-that embeds them (an image request is thus the one cross-origin fetch left
-open); and frames may hold any http(s) page, since the shell and
-the chat frame sibling apps whose origins only the browser knows. The
+from script; images come from the page's own origin, or are ``data:`` and
+``blob:`` URLs the page itself holds; and frames may hold any http(s) page,
+since the shell and the chat frame sibling apps whose origins only the
+browser knows. So the defaults admit no cross-origin fetch at all, and an
+app that renders content from elsewhere opens exactly the directives that
+content needs, with the reason beside the override: the chat its markdown's
+images and media from anywhere, Getting Started its catalog's thumbnails
+from the catalog's origin (``url_origin`` gives the source for one). The
 ``frame-ancestors`` directive is deliberately absent: the proxy in front of
 the workspace (the share gateway, or ``mngr forward`` locally) owns who may
 embed a page, and appends its own policy, which composes with this one.
@@ -32,6 +36,7 @@ import hashlib
 import re
 from collections.abc import Mapping
 from typing import Final
+from urllib.parse import urlsplit
 
 from flask import Blueprint, Flask, Response
 
@@ -41,7 +46,7 @@ DOCUMENT_POLICY_DIRECTIVES: Final[Mapping[str, str]] = {
     "default-src": "'self'",
     "script-src": "'self'",
     "style-src": "'self' 'unsafe-inline'",
-    "img-src": "* data: blob:",
+    "img-src": "'self' data: blob:",
     "frame-src": "http: https:",
     "object-src": "'none'",
     "base-uri": "'self'",
@@ -56,6 +61,14 @@ _SCRIPT_ELEMENT: Final[re.Pattern[str]] = re.compile(
 )
 # Not preceded by a word character or a hyphen, so ``data-src=`` is not taken for ``src=``.
 _SRC_ATTRIBUTE: Final[re.Pattern[str]] = re.compile(r"(?<![\w-])src\s*=", re.IGNORECASE)
+
+
+def url_origin(url: str) -> str:
+    """The policy source admitting one origin: the scheme and host (and explicit port) of ``url``, nothing of its path."""
+    parts = urlsplit(url)
+    if not parts.scheme or not parts.netloc:
+        raise ValueError(f"not an absolute http(s) URL: {url!r}")
+    return f"{parts.scheme}://{parts.netloc}"
 
 
 def inline_source(text: str) -> str:

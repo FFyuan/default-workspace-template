@@ -2,6 +2,7 @@ import base64
 import hashlib
 from pathlib import Path
 
+import pytest
 from flask import Blueprint, Flask, Response, send_file
 
 from app_manifest.content_security_policy import (
@@ -9,6 +10,7 @@ from app_manifest.content_security_policy import (
     build_document_policy,
     inline_script_hashes,
     inline_source,
+    url_origin,
 )
 from app_manifest.testing import assert_document_policy_admits_page
 
@@ -43,6 +45,13 @@ def test_inline_script_hashes_cover_each_inline_body_once_and_skip_external_and_
     assert inline_source("console.log(1)") == _sha256_source("console.log(1)")
 
 
+def test_url_origin_keeps_the_scheme_host_and_port_and_refuses_a_relative_url() -> None:
+    assert url_origin("https://raw.githubusercontent.com/imbue-ai/x/main/catalog.json") == "https://raw.githubusercontent.com"
+    assert url_origin("http://localhost:8030/api?x=1") == "http://localhost:8030"
+    with pytest.raises(ValueError):
+        url_origin("catalog/new-tab-templates.json")
+
+
 def test_build_document_policy_appends_hashes_to_script_src_and_applies_overrides() -> (
     None
 ):
@@ -61,6 +70,9 @@ def test_build_document_policy_appends_hashes_to_script_src_and_applies_override
     )
     assert directives["worker-src"] == "blob:"
     assert directives["default-src"] == "'self'"
+    # No cross-origin fetch by default: an app that renders content from elsewhere overrides the directive.
+    assert directives["img-src"] == "'self' data: blob:"
+    assert "media-src" not in directives
     assert directives["object-src"] == "'none'"
     assert "frame-ancestors" not in directives
     assert build_document_policy("<p>plain</p>").startswith(

@@ -506,6 +506,7 @@ def test_the_runner_serves_the_shell_modules_and_nothing_else(
     policy = page.headers["Content-Security-Policy"]
     assert f"script-src 'self' 'sha256-{digest}';" in policy
     assert policy.startswith("default-src 'self'; ")
+    assert "; img-src 'self' data: blob:; " in policy
     assert policy.endswith("; report-uri /_csp-report")
     assert "Content-Security-Policy" not in client.get("/health").headers
 

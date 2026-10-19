@@ -414,9 +414,10 @@ Every page is served under the starter's `Content-Security-Policy`
 (`CONTENT_SECURITY_POLICY` and the `after_request` that sets it; keep it, the app
 is reachable from the internet once the workspace is shared), and it admits only
 the app's own origin. **Anything a page pulls from elsewhere -- a CDN script,
-Google Fonts, a third-party API called from the browser -- is blocked by the
-browser until its origin is added to the matching directive** (`script-src`,
-`style-src` and `font-src`, `connect-src`); an inline `<script>` needs its
+Google Fonts, an image hosted elsewhere, a third-party API called from the
+browser -- is blocked by the browser until its origin is added to the matching
+directive** (`script-src`, `style-src` and `font-src`, `img-src`,
+`connect-src`); an inline `<script>` needs its
 `inline_script_source` in `script-src`; never `'unsafe-inline'` or `*` for
 scripts. The browser reports every block to the starter's `/_csp-report` route,
 which logs it to stderr as `ERROR Content-Security-Policy blocked <url> on <page>

@@ -169,8 +169,9 @@ def client(app: Flask) -> FlaskClient:
 
 def test_the_chat_documents_are_served_under_the_document_policy(client: FlaskClient) -> None:
     """The chats document carries a policy a browser would run it under; the terminal frame and the markdown's
-    images, video and audio from anywhere stay admitted (the sanitizer admits all three tags, see the frontend's
-    markdown test), and a non-page answer carries none."""
+    images, video and audio from anywhere are admitted (the shared default admits images from the chat's own
+    origin only; the sanitizer admits all three tags, see the frontend's markdown test), and a non-page answer
+    carries none."""
     page = client.get("/")
 
     assert page.status_code == 200
