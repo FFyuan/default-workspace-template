@@ -11,3 +11,5 @@
 - A model change the chat refuses (for example while it is switching providers) now shows its reason in the chat, and the model chip goes straight back to the model the chat is running, instead of a console line reading "Error: [object Object]" and a chip stuck on the refused pick.
 
 - Moving a chat that has nothing said in it to another provider no longer shows "Handing off to …" while the new agent starts: with no conversation there is nothing to hand off, so only "Starting …" shows.
+
+- A chat restarting on another account says "Restarting …" once, by the message box, instead of also at the top of the conversation.
