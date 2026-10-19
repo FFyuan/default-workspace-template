@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AvatarChooserDialog, NO_DRAFT_TARGET_REASON } from "./AvatarChooserDialog";
 import type { AvatarChooserDialogAttrs } from "./AvatarChooserDialog";
 
-afterEach(unmountViews);
+afterEach(() => {
+  unmountViews();
+  document.querySelectorAll("iframe").forEach((frame) => frame.remove());
+});
 
 function render(overrides: Partial<AvatarChooserDialogAttrs> = {}): HTMLElement {
   const attrs: AvatarChooserDialogAttrs = {
