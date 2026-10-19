@@ -92,7 +92,7 @@ These are the verbs:
 
 | Verb permission | Covers | Targeted? |
 |---|---|---|
-| `minds-workspaces-read` | list, detail, version, backups (read) | no (all workspaces) |
+| `minds-workspaces-read` | list, detail, version, backups (read), operation status and logs | no (all workspaces) |
 | `minds-workspaces-create` | create a new workspace | no |
 | `minds-workspaces-ssh` | establish SSH access | yes |
 | `minds-workspaces-backups-export` | export a backup snapshot | yes |
@@ -122,6 +122,7 @@ Ask for the smallest set of verbs the task needs, with a rationale that names th
 A workspace is addressed by its agent id; your own is usually `$MNGR_AGENT_ID`.
 
 **Creating a workspace.** `POST /api/v1/workspaces` answers `202`; poll `/api/v1/workspaces/operations/create/<op>` until `is_done`.
+The poll is a read, so ask for `minds-workspaces-read` together with `minds-workspaces-create`.
 When `git_url` is the workspace template, always send `branch`, read from `GET /api/v1/app/version` (its `workspace_template_ref`): the release this app was built against.
 Omitted, the new workspace takes the template's default branch, unreleased code; never send the newest upstream tag, which may be a release this app does not support.
 If the read fails, say so and create nothing.
