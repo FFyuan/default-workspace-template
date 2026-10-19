@@ -79,7 +79,7 @@ def read_skill_from_checkout(mngr_repo: Path) -> SkillReader:
                 ["git", "-C", str(mngr_repo), "show", f"{pin.rev}:{SKILL_SOURCE_PATH}"],
                 check=True,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
                 timeout=_GIT_TIMEOUT_SECONDS,
             ).stdout
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
