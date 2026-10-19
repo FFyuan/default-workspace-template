@@ -24,6 +24,9 @@ describe("the lightbox's Download", () => {
     frame.dispatchEvent(new Event("load"));
     expect(document.querySelector(".image-lightbox-title")?.textContent).toBe("Couldn't download chart.png.");
     expect(document.querySelector("iframe")).toBeNull();
+
+    downloadButton().click();
+    expect(document.querySelector(".image-lightbox-title")?.textContent).toBe("A chart");
   });
 
   it("opens another site's image in a new tab", () => {

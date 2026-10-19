@@ -69,10 +69,11 @@ export function openImageLightbox(imageUrl: string, altText: string): void {
   const header = document.createElement("div");
   header.className = "image-lightbox-header relative flex min-h-[44px] items-center justify-center px-4 py-2.5";
 
+  const titleText = altText || filename;
   const title = document.createElement("div");
   title.className =
     "image-lightbox-title max-w-[60%] truncate text-center text-(length:--font-size-body) font-medium text-white/90";
-  title.textContent = altText || filename;
+  title.textContent = titleText;
 
   const actions = document.createElement("div");
   actions.className = "image-lightbox-actions absolute top-1/2 right-3 flex -translate-y-1/2 gap-1";
@@ -91,6 +92,7 @@ export function openImageLightbox(imageUrl: string, altText: string): void {
     ownImageUrl.searchParams.set("download", "");
     downloadLink.addEventListener("click", (event) => {
       event.preventDefault();
+      title.textContent = titleText;
       startDownload(document, ownImageUrl.href, filename, (note) => {
         title.textContent = note;
       });
