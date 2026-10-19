@@ -330,8 +330,8 @@ def test_delete_from_the_entry_menu_asks_first_and_removes_the_file(
 def test_download_loads_in_a_frame_and_saves_a_folder_as_a_zip_and_a_file_under_its_name(
     open_files_page: OpenFilesPage,
 ) -> None:
-    """A download is a frame's load, the one kind of request that carries the workspace's session when Imbue Studio
-    frames Files from another site (a ``download`` link's request goes without it), and the server names the file."""
+    """A download is a frame's load, whose request carries the workspace's session when Imbue Studio frames Files from
+    another site (a ``download`` link's request goes without it), and the server names the file."""
     page = open_files_page("/")
     download_destinations: list[str] = []
     page.on(
