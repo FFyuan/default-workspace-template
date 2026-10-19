@@ -150,6 +150,7 @@ def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(liv
     assert (live_repo_root / "data" / ".apps" / "browser" / "instances.json").read_text() == _LIVE_FLEET
 
 
+@pytest.mark.browser
 @pytest.mark.timeout(6 * _STEP_TIMEOUT_SECONDS)
 def test_taking_a_preview_down_unloads_the_audio_sinks_of_its_browsers(live_repo_root: Path) -> None:
     with _preview_beside_the_live_service(live_repo_root) as ports:
