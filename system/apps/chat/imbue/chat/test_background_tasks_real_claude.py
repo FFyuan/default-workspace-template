@@ -72,14 +72,17 @@ def _pinned_claude_or_skip() -> str:
 
 
 def _signed_in_claude_account_or_skip() -> Path:
-    """The folder of the Claude account a chat would launch on, read before the served workspace points the account
-    store at the test's own."""
-    index = read_index()
+    """The folder of the Claude account a chat would launch on.
+
+    Named by home: the conftest points ``MINDS_ACCOUNTS_ROOT`` at an empty store of the test's own, and the default
+    lookup follows it."""
+    home = Path.home()
+    index = read_index(home)
     claude_accounts = tuple(account for account in index.accounts if harness_for(account) is HarnessType.CLAUDE)
     account = choose_default_account(index.model_copy(update={"accounts": claude_accounts}))
     if account is None:
         pytest.skip("no Claude account in this workspace's account store")
-    folder = account_dir(account.id)
+    folder = account_dir(account.id, home)
     if is_signed_in(HarnessType.CLAUDE, folder) is not SignedIn.YES:
         pytest.skip(f"the Claude account in {folder} is not signed in")
     return folder
