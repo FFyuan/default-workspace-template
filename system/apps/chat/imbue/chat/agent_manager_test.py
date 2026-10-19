@@ -645,9 +645,7 @@ def test_seed_chat_opens_a_provisional_chat_awaiting_its_first_send_on_the_seede
         assert broadcast["type"] == "provisional_chat_created"
         assert broadcast["chat_id"] == created.chat_id
         # The welcome chat is the workspace's default chat before its first send, and the list says so.
-        listing = json.loads(q.get_nowait())
-        assert listing["type"] == "chats_updated"
-        assert listing["default_chat_id"] == created.chat_id
+        assert _next_chat_listing(q)["default_chat_id"] == created.chat_id
     finally:
         manager.stop()
 
@@ -992,13 +990,14 @@ def test_discarding_a_seeded_chat_drops_its_record_with_it(broadcaster: WebSocke
 
 
 def _next_chat_listing(q: queue.Queue[str | None]) -> dict[str, Any]:
-    """The next ``chats_updated`` message on ``q``, skipping any other kind."""
-    while True:
+    """The next ``chats_updated`` message waiting on ``q``, skipping any other kind."""
+    while not q.empty():
         raw = q.get_nowait()
         assert raw is not None
         message = json.loads(raw)
         if message["type"] == "chats_updated":
             return message
+    pytest.fail("no chats_updated message was broadcast")
 
 
 def test_deleting_the_default_chat_moves_the_default_to_the_chat_messaged_most_recently(
