@@ -4,6 +4,7 @@ so no test touches GitHub."""
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,27 @@ from list_mngr_plugins import GitPin
 
 _PUBLIC_SHA = "a" * 40
 _INTERNAL_SHA = "b" * 40
+_PUBLIC_REPO = "https://github.com/imbue-ai/mngr"
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def _mngr_checkout_with_skill(path: Path, text: str) -> tuple[Path, str]:
+    """A git checkout holding the skill at its mngr path in one commit; returns it with that commit."""
+    path.mkdir()
+    _git(path, "init", "-q")
+    skill = path / vendor_mngr_skill.SKILL_SOURCE_PATH
+    skill.parent.mkdir(parents=True)
+    skill.write_text(text)
+    _git(path, "add", "-A")
+    _git(
+        path, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "the skill"
+    )
+    return path, _git(path, "rev-parse", "HEAD")
 
 
 def _write_pin(root: Path, repo_url: str, rev: str) -> None:
@@ -110,3 +132,46 @@ def test_a_private_pin_without_a_token_asks_for_a_local_checkout(
 
     with pytest.raises(vendor_mngr_skill.VendoredSkillError, match="--mngr-repo"):
         vendor_mngr_skill.read_skill_from_github(pin)
+
+
+def test_the_checkout_reader_reads_the_skill_at_the_commit(tmp_path: Path) -> None:
+    checkout, sha = _mngr_checkout_with_skill(tmp_path / "mngr", "the skill\n")
+    (checkout / vendor_mngr_skill.SKILL_SOURCE_PATH).write_text("edited since\n")
+
+    read = vendor_mngr_skill.read_skill_from_checkout(checkout)
+
+    assert read(GitPin(git_url=_PUBLIC_REPO, rev=sha)) == "the skill\n"
+
+
+def test_the_checkout_reader_names_the_commit_it_cannot_read(tmp_path: Path) -> None:
+    checkout, _ = _mngr_checkout_with_skill(tmp_path / "mngr", "the skill\n")
+
+    read = vendor_mngr_skill.read_skill_from_checkout(checkout)
+
+    with pytest.raises(vendor_mngr_skill.VendoredSkillError, match=_PUBLIC_SHA[:12]):
+        read(GitPin(git_url=_PUBLIC_REPO, rev=_PUBLIC_SHA))
+
+
+def test_writing_from_the_command_line_copies_the_skill_and_prints_the_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    checkout, sha = _mngr_checkout_with_skill(tmp_path / "mngr", "the skill\n")
+    root = tmp_path / "template"
+    root.mkdir()
+    _write_pin(root, _PUBLIC_REPO, _PUBLIC_SHA)
+    argv = [
+        "--write",
+        "--mngr-repo",
+        str(checkout),
+        "--rev",
+        sha,
+        "--repo-root",
+        str(root),
+    ]
+
+    assert vendor_mngr_skill.main(argv) == 0
+
+    assert (root / vendor_mngr_skill.SKILL_VENDORED_PATH).read_text() == "the skill\n"
+    assert capsys.readouterr().out == f"{vendor_mngr_skill.SKILL_VENDORED_PATH}\n"
+    assert vendor_mngr_skill.main(argv) == 0
+    assert capsys.readouterr().out == ""
