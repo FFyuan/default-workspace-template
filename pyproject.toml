@@ -162,7 +162,8 @@ norecursedirs = [
     "venv",
     "{arch}",
 ]
-# Without it a test sees the environment of the agent running the suite; each app's pyproject requires it too.
+# Without it a test sees the environment of the agent running the suite; the chat and system interface pyprojects,
+# the other pytest roots, require it too.
 required_plugins = ["pytest-workspace-env"]
 timeout_func_only = true
 # Each app's pyproject declares the same markers for its own run.
