@@ -9,8 +9,10 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import json
+import os
 import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -41,6 +43,7 @@ _LIVE_PORTS = (8081, 8083)
 _DISK_TEMP_ROOT = Path("/var/tmp")
 
 _LIVE_PROFILE = "browser-use-user-data-dir-browser-1"
+_LIVE_FLEET = '{"version": 2, "browsers": []}'
 
 # The shared script's health probe makes up to 60 one-second attempts, for the instance and again for its preview
 # frame; the restore and the teardown each get as long.
@@ -71,10 +74,9 @@ def repo_root_on_disk() -> Iterator[Path]:
         yield Path(directory)
 
 
-@pytest.mark.timeout(5 * _STEP_TIMEOUT_SECONDS)
-def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(
-    repo_root_on_disk: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.fixture
+def live_repo_root(repo_root_on_disk: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A live repo with an empty saved fleet, and a live host dir holding one profile, beside it on disk."""
     repo_root = repo_root_on_disk / "workspace"
     # The shared script registers the preview's services by running the live repo's registration script.
     (repo_root / "system" / "scripts").mkdir(parents=True)
@@ -83,8 +85,7 @@ def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(
     live_data = repo_root / "data" / ".apps" / "browser"
     live_data.mkdir(parents=True)
     # An empty saved fleet: a restore over it sweeps every profile under its root that it does not name.
-    live_fleet = '{"version": 2, "browsers": []}'
-    (live_data / "instances.json").write_text(live_fleet)
+    (live_data / "instances.json").write_text(_LIVE_FLEET)
     live_host_dir = repo_root_on_disk / "host"
     live_profile = live_host_dir / "browser-profiles" / _LIVE_PROFILE
     live_profile.mkdir(parents=True)
@@ -95,7 +96,13 @@ def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(
     monkeypatch.setenv("BROWSER_SKIP_INSTALL_CHECK", "1")
     # A port nothing listens on, so the preview's window sweep reaches no shell.
     monkeypatch.setenv("MINDS_WORKSPACE_SERVER_URL", "http://127.0.0.1:1")
+    return repo_root
 
+
+@contextlib.contextmanager
+def _preview_beside_the_live_service(repo_root: Path) -> Iterator[dict[str, int]]:
+    """Boot the browser's preview while the live service's ports are taken, yield its ports once its restore has
+    finished, and take it down on the way out."""
     health_path = load_manifest(_APP_DIR / "app.toml").preview.health_path
     instance_state = (
         repo_root / preview_app.INSTANCES_ROOT / preview_app.instance_name(_APP_NAME) / preview_app.INSTANCE_STATE_FILENAME
@@ -105,22 +112,70 @@ def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(
         try:
             assert preview_app.main(["up", "--app", _APP_NAME, "--worktree", str(_CHECKOUT), *repo_args]) == 0
             ports = json.loads(instance_state.read_text())["ports"]
-            assert set(ports.values()).isdisjoint(_LIVE_PORTS), ports
-            # The CDP proxy moves to an ephemeral port when its own is taken, so only a listener on the cdp port
-            # shows the preview was given that port.
-            socket.create_connection(("127.0.0.1", ports["cdp"]), timeout=5).close()
-            url = preview_app.live_preview_url(repo_root, _APP_NAME)
-            assert url is not None
             wait_for(
-                lambda: not _get_json(f"{url}{health_path}")["initializing"],
+                lambda: not _get_json(f"http://127.0.0.1:{ports['main']}{health_path}")["initializing"],
                 timeout=_STEP_TIMEOUT_SECONDS,
                 poll_interval=0.5,
                 error_message="the preview's restore never finished",
             )
+            yield ports
         finally:
             down_code = preview_app.main(["down", "--app", _APP_NAME, *repo_args])
-
     assert down_code == 0
     assert preview_app.live_preview_url(repo_root, _APP_NAME) is None
+
+
+def _pulse_sinks() -> list[str]:
+    # The one PulseAudio daemon every browser daemon in the workspace loads its sinks into (session.py).
+    listed = subprocess.run(
+        ["pactl", "list", "short", "sinks"],
+        env={**os.environ, "PULSE_SERVER": "unix:/var/run/pulse/native"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [line.split("\t")[1] for line in listed.stdout.splitlines() if line.strip()]
+
+
+@pytest.mark.timeout(5 * _STEP_TIMEOUT_SECONDS)
+def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(live_repo_root: Path) -> None:
+    with _preview_beside_the_live_service(live_repo_root) as ports:
+        assert set(ports.values()).isdisjoint(_LIVE_PORTS), ports
+        # The CDP proxy moves to an ephemeral port when its own is taken, so only a listener on the cdp port
+        # shows the preview was given that port.
+        socket.create_connection(("127.0.0.1", ports["cdp"]), timeout=5).close()
+
+    live_profile = live_repo_root.parent / "host" / "browser-profiles" / _LIVE_PROFILE
     assert (live_profile / "Cookies").read_text() == "the user's logins"
-    assert (live_data / "instances.json").read_text() == live_fleet
+    assert (live_repo_root / "data" / ".apps" / "browser" / "instances.json").read_text() == _LIVE_FLEET
+
+
+@pytest.mark.timeout(6 * _STEP_TIMEOUT_SECONDS)
+def test_taking_a_preview_down_unloads_the_audio_sinks_of_its_browsers(live_repo_root: Path) -> None:
+    with _preview_beside_the_live_service(live_repo_root) as ports:
+        preview_url = f"http://127.0.0.1:{ports['main']}"
+        request = urllib.request.Request(
+            f"{preview_url}/browsers",
+            data=json.dumps({"name": "preview-audio"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            name = json.loads(response.read())["name"]
+        wait_for(
+            lambda: _lifecycle_of(preview_url, name) != "init",
+            timeout=_STEP_TIMEOUT_SECONDS,
+            poll_interval=0.5,
+            error_message=f"the preview's browser {name} never left init",
+        )
+        if _lifecycle_of(preview_url, name) != "running":
+            pytest.skip("Chromium did not come up in this environment (Fortress not installed?)")
+        sink_prefix = f"browserpreview{ports['main']}_"
+        assert [sink for sink in _pulse_sinks() if sink.startswith(sink_prefix)], _pulse_sinks()
+
+    assert not [sink for sink in _pulse_sinks() if sink.startswith(sink_prefix)], _pulse_sinks()
+
+
+def _lifecycle_of(preview_url: str, name: str) -> str:
+    browsers = _get_json(f"{preview_url}/browsers")["browsers"]
+    assert isinstance(browsers, list)
+    return next(str(browser["lifecycle"]) for browser in browsers if browser["id"] == name)

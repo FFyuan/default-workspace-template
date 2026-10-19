@@ -1109,6 +1109,10 @@ def _shutdown() -> None:
 
 
 def _exit_on_signal(_signum: int, _frame: FrameType | None) -> None:
+    # A stop can arrive twice: stopping a preview signals its process group, and `uv run`, which launched the daemon,
+    # forwards the same SIGTERM. A repeat raised here would cut _shutdown short before it unloads the audio sinks.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     raise SystemExit(0)
 
 
