@@ -112,6 +112,12 @@ def test_a_file_asked_for_as_a_download_is_an_attachment_under_its_name_and_a_re
     assert local.status_code == 200 and local.data == b"PK"
     assert local.headers["Content-Disposition"].startswith('attachment; filename="report.zip"')
 
+    # Downloading it again revalidates the browser's saved copy, which takes the 304's headers over: an inline one
+    # would show a text file in the hidden frame instead of saving it.
+    again = client.get("/report.zip?download", headers={"If-None-Match": local.headers["ETag"]})
+    assert again.status_code == 304
+    assert again.headers["Content-Disposition"].startswith('attachment; filename="report.zip"')
+
     shared = client.get(f"/__remote/{DEVICE}/Users/kim/photo.png?download")
     assert shared.status_code == 200 and shared.data == b"\x89PNG"
     assert shared.headers["Content-Disposition"].startswith('attachment; filename="photo.png"')

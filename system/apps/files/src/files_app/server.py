@@ -115,8 +115,9 @@ def create_app(
                 read = source.read(path, request.headers)
                 if read is None:
                     return page(source.describe(path))
-                # Only a file's bytes become a download: a computer's refusal stays a page the frontend can read.
-                if "download" in query and 200 <= read.status_code < 300:
+                # Only a file's bytes become a download: a computer's refusal stays a page the frontend can read. A
+                # 304 carries it too, since the browser takes its headers over onto the copy it saved before.
+                if "download" in query and (200 <= read.status_code < 300 or read.status_code == 304):
                     read.headers["Content-Disposition"] = content_disposition("attachment", PurePosixPath(path).name)
                 return read
             if request.method == "PUT":
