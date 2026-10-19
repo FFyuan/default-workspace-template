@@ -446,7 +446,10 @@ call to the new model instead of breaking it:
 
 The message goes to the model inside `<message>` tags, with the instruction
 repeated after it, and the system prompt says it is text to title: a small model
-handed a bare "what's 2+2?" answers "4" rather than naming the chat.
+handed a bare "what's 2+2?" answers "4" rather than naming the chat. The model
+answers between `<title>` tags; the name is read from inside them (from the
+whole answer when it has none), and a leading label naming the form itself
+("Short name: ", "Title: ") is dropped.
 
 Names are ASCII. A chat's true name is the ASCII part of its name, so a name in
 another script would leave it a fragment ("React 待办应用" -> "React") or nothing,
