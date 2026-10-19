@@ -430,8 +430,8 @@ call to the new model instead of breaking it:
   "luna" model in the account's own model list (the sidecar a model probe keeps
   in the account folder, probed once when there is none) at its lowest reasoning
   effort; the account's default model when it offers no luna, or refuses it.
-- Pi: `pi -p` with no tools, extensions, skills or context files and thinking
-  off, on the newest Haiku, Luna or Flash model `pi --list-models` offers on the
+- Pi: `pi -p` with no tools, extensions, skills, prompt templates or context
+  files and thinking off, on the newest Haiku, Luna or Flash model `pi --list-models` offers on the
   provider the account holds a key for; pi's own default model for the account
   when it offers none of them, or refuses the one chosen. The server's
   own provider keys are dropped from the call's environment, so it is paid for by
