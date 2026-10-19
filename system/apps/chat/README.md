@@ -428,8 +428,8 @@ description", renames the chat the way the rail's rename does. Models are named
 by family rather than by id, so a change to a provider's model list moves the
 call to the new model instead of breaking it:
 
-- Claude: `claude -p` with no tools and thinking off, trying the `haiku` alias,
-  then `sonnet`, then the account's default model.
+- Claude: `claude -p` with no tools and thinking off, on the `haiku` alias; the
+  account's default model when it refuses that.
 - Codex: `codex exec`, read-only and ignoring the account's config, on the newest
   "luna" model in the account's own model list (the sidecar a model probe keeps
   in the account folder, probed once when there is none) at its lowest reasoning

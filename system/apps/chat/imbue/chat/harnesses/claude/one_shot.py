@@ -26,10 +26,9 @@ from imbue.imbue_common.pure import pure
 
 logger = _loguru_logger
 
-# Cheapest first, as aliases the pinned Claude Code resolves rather than dated ids, so each follows
-# the CLI's own idea of the current model of its family. None is the account's default model, for an
-# account that answers on neither.
-ONE_SHOT_MODEL_PREFERENCE: Final[tuple[str | None, ...]] = ("haiku", "sonnet", None)
+# The haiku alias the pinned Claude Code resolves rather than a dated id, so it follows the CLI's own
+# idea of the current Haiku; then None, the account's default model, for an account that refuses it.
+ONE_SHOT_MODEL_PREFERENCE: Final[tuple[str | None, ...]] = ("haiku", None)
 _TIMEOUT_SECONDS: Final = 60.0
 _SLOW_WARNING_SECONDS: Final = 15.0
 
