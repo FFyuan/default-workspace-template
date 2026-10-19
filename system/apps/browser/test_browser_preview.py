@@ -9,7 +9,6 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import json
-import os
 import shutil
 import socket
 import subprocess
@@ -21,6 +20,7 @@ from pathlib import Path
 
 import pytest
 from app_manifest.manifest import load_manifest
+from browser import session as bsession
 from imbue.mngr.utils.polling import wait_for
 
 _APP_DIR = Path(__file__).parent
@@ -126,10 +126,10 @@ def _preview_beside_the_live_service(repo_root: Path) -> Iterator[dict[str, int]
 
 
 def _pulse_sinks() -> list[str]:
-    # The one PulseAudio daemon every browser daemon in the workspace loads its sinks into (session.py).
+    # The one PulseAudio daemon every browser daemon in the workspace loads its sinks into.
     listed = subprocess.run(
         ["pactl", "list", "short", "sinks"],
-        env={**os.environ, "PULSE_SERVER": "unix:/var/run/pulse/native"},
+        env=bsession._pulse_env(),
         capture_output=True,
         text=True,
         check=True,
