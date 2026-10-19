@@ -86,7 +86,7 @@ They may change without notice; use the versioned routes the schema lists whenev
 
 Over the socket there is no permission step; you act as the user.
 Over the gateway, no grant is needed for `GET /api/schema`, `GET /api/v1/app/version`, `GET /api/v1/timezone`, or your own agent's notification and report routes.
-Every workspace route is gated by the `minds-workspaces` detent scope, one permission per verb, and the user approves each grant.
+Every workspace route is gated per verb, one `minds-workspaces-*` permission each, and the user approves each grant.
 A `403` saying the request was not permitted means you need a grant, not that the route is wrong.
 These are the verbs:
 
