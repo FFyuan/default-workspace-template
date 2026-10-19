@@ -32,4 +32,11 @@ describe("the lightbox's Download", () => {
     expect(downloadButton().target).toBe("_blank");
     expect(document.querySelector("iframe")).toBeNull();
   });
+
+  it("downloads a data: image through the link, which the browser would not open in a tab", () => {
+    openImageLightbox("data:image/png;base64,iVBORw0KGgo=", "Inline");
+    expect(downloadButton().dispatchEvent(new MouseEvent("click", { cancelable: true }))).toBe(true);
+    expect(downloadButton().hasAttribute("download")).toBe(true);
+    expect(document.querySelector("iframe")).toBeNull();
+  });
 });

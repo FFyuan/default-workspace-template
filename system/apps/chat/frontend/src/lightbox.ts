@@ -81,7 +81,7 @@ export function openImageLightbox(imageUrl: string, altText: string): void {
   downloadLink.className = buttonClass("ghost-inverse", { icon: true, extra: "image-lightbox-iconbtn no-underline" });
   downloadLink.href = imageUrl;
   // A public-URL image, which the browser will not download from another site, opens in a new tab rather than
-  // navigating away; the workspace's own image downloads in place.
+  // navigating away; a data: image downloads through the link, and the workspace's own image in place.
   downloadLink.target = "_blank";
   downloadLink.rel = "noopener noreferrer";
   downloadLink.setAttribute("aria-label", "Download image");
@@ -95,6 +95,8 @@ export function openImageLightbox(imageUrl: string, altText: string): void {
         title.textContent = note;
       });
     });
+  } else {
+    downloadLink.download = filename;
   }
 
   const closeButton = document.createElement("button");
