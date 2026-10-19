@@ -788,18 +788,21 @@ async function fetchWaitingForTheApp(url, init, timeoutMs, origins, maxRetries =
 }
 
 async function commandGet(config, positional) {
-  const url = resolveGetUrl(config, positional[0]);
-  const response = await fetchWaitingForTheApp(
-    url,
-    { method: "GET", headers: { Authorization: `Bearer ${config.token}`, Accept: "application/json, text/*;q=0.9, */*;q=0.8" } },
-    REQUEST_TIMEOUT_MS,
-    workspaceOrigins(config),
-  );
-  const body = Buffer.from(await response.arrayBuffer());
-  if (response.status === 403) throw new HelperError("the workspace refused this access (revoked, or the workspace moved)", EXIT_REVOKED);
-  if (!response.ok) throw new HelperError(`GET ${url} answered ${response.status}: ${body.toString("utf8").slice(0, 300)}`);
-  process.stdout.write(body);
-  return 0;
+  resolveGetUrl(config, positional[0]);
+  return withRecovery(config, async (current) => {
+    const url = resolveGetUrl(current, positional[0]);
+    const response = await fetchWaitingForTheApp(
+      url,
+      { method: "GET", headers: { Authorization: `Bearer ${current.token}`, Accept: "application/json, text/*;q=0.9, */*;q=0.8" } },
+      REQUEST_TIMEOUT_MS,
+      workspaceOrigins(current),
+    );
+    const body = Buffer.from(await response.arrayBuffer());
+    if (response.status === 403) throw new HelperError("the workspace refused this access (revoked, or the workspace moved)", EXIT_REVOKED);
+    if (!response.ok) throw new HelperError(`GET ${url} answered ${response.status}: ${body.toString("utf8").slice(0, 300)}`);
+    process.stdout.write(body);
+    return 0;
+  });
 }
 
 async function commandMe(config) {
