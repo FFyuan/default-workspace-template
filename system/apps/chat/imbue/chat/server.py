@@ -2224,7 +2224,7 @@ def _serve_file_or_document(path: str) -> Response:
     any other existing file as a download). A single path segment that is no file is a chat
     page's key; anything else is not found.
     """
-    file_response = try_serve_file(path)
+    file_response = try_serve_file(path, is_download="download" in request.args)
     if file_response is not None:
         return file_response
     if "/" in path:

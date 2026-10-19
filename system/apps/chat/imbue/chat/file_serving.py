@@ -12,7 +12,8 @@ server.
 
 This hangs off the chat app's path route (see ``server._serve_file_or_document``):
 
-- An image file is served inline so it renders in the chat.
+- An image file is served inline so it renders in the chat, or as an
+  attachment for the lightbox's Download (``?download``).
 - Any other existing file is served as an attachment, so a request for it
   downloads it rather than rendering/executing it in the chat's own origin.
 - A path carrying an image extension with no file behind it 404s, so a typo'd
@@ -67,9 +68,9 @@ def image_mime_type_for_path(url_path: str) -> str | None:
     return _IMAGE_EXTENSION_TO_MIME_TYPE.get(suffix)
 
 
-def _serve_inline_image(file_path: Path, mime_type: str) -> Response:
-    """Stream an image so it renders inline in the chat."""
-    response = send_file(file_path, mimetype=mime_type)
+def _serve_image(file_path: Path, mime_type: str, is_download: bool) -> Response:
+    """Stream an image so it renders inline in the chat, or as an attachment when it is being downloaded."""
+    response = send_file(file_path, mimetype=mime_type, as_attachment=is_download)
     # send_file's default cache policy is conservative; override it so the
     # browser caches aggressively (each message's URL is unique -- see the
     # module comment on _IMMUTABLE_CACHE_CONTROL).
@@ -97,14 +98,15 @@ def _serve_download(file_path: Path) -> Response:
     return response
 
 
-def try_serve_file(url_path: str) -> Response | None:
+def try_serve_file(url_path: str, is_download: bool) -> Response | None:
     """Serve the on-disk file addressed by a chat markdown URL.
 
     ``url_path`` is the path route's component (the request path with its
     leading slash stripped and percent-escapes already decoded). The leading
     slash is restored to recover the absolute on-disk path the agent emitted.
 
-    An image file is streamed inline so it renders; any other existing file is
+    An image file is streamed inline so it renders (as an attachment when
+    ``is_download``, the lightbox's Download); any other existing file is
     streamed as an attachment (a download). A path carrying an image extension
     but no file yields a 404, so a typo'd image renders a broken image rather
     than a chat page. A path with no image extension that matches no file
@@ -112,7 +114,7 @@ def try_serve_file(url_path: str) -> Response | None:
     segment) and not found.
 
     ``url_path`` never includes the query string (Flask splits it off before
-    routing), so the frontend's per-message ``?requested_at=<post time>`` cache
+    routing, and the caller reads ``?download`` into ``is_download``), so the frontend's per-message ``?requested_at=<post time>`` cache
     key is ignored here: it only makes the browser treat each message's image URL
     as distinct, so a new message never renders a stale copy cached under a path
     an earlier message reused. The served bytes are the file's current content.
@@ -123,7 +125,7 @@ def try_serve_file(url_path: str) -> Response | None:
     if image_mime_type is not None:
         if not file_path.is_file():
             return Response(status=404)
-        return _serve_inline_image(file_path, image_mime_type)
+        return _serve_image(file_path, image_mime_type, is_download)
 
     if file_path.is_file():
         return _serve_download(file_path)

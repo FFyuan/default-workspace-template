@@ -3,7 +3,8 @@
 - ``/<path>`` is the workspace's own file or folder (``local_files``), ``/__remote/<device>/<path>`` one read live from
   the computer it is on (``device_files``). Either way a folder or a file's ``?view`` / ``?edit`` page is the
   frontend's ``index.html`` with the path's page data filled in, ``?json`` is that data alone, a file's plain GET is
-  its bytes, ``?zip`` a folder as a zip, and PUT, MKCOL, MOVE, and DELETE change it.
+  its bytes (``?download`` to save them under the file's name), ``?zip`` a folder as a zip, and PUT, MKCOL, MOVE, and
+  DELETE change it.
 - ``/__files/assets/`` is the frontend's build, ``/__files/api/connections`` what the user has shared with the
   workspace from their computers.
 """
@@ -14,6 +15,7 @@ import re
 import urllib.parse
 from collections.abc import Iterator
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Final
 
 import httpx
@@ -28,6 +30,7 @@ from files_app.connections import list_connections
 from files_app.device_files import DeviceFiles
 from files_app.gateway import Gateway
 from files_app.local_files import LocalFiles
+from files_app.local_files import content_disposition
 from files_app.sources import FileSource
 from files_app.sources import FilesError
 from files_app.sources import PageData
@@ -42,6 +45,8 @@ _CHUNK: Final[int] = 64 * 1024
 _HASHED_ASSET: Final[re.Pattern[str]] = re.compile(r"-[A-Za-z0-9_-]{8}\.(js|css)$")
 _A_YEAR_IN_SECONDS: Final[int] = 365 * 24 * 60 * 60
 _NO_MOVE_TO_COMPUTER: Final[str] = "Moving isn't supported on files shared from your computer."
+# Queries that ask for data or a download rather than a page, so a failure is answered in plain words.
+_NON_PAGE_QUERIES: Final[frozenset[str]] = frozenset({"json", "zip", "download"})
 
 
 def _json(content: object, status: int = 200) -> Response:
@@ -86,7 +91,7 @@ def create_app(
 
     def failure(error: FilesError) -> Response:
         """The error in plain words; a page asked for that isn't there is Files' own "not found" page."""
-        is_page_asked = "text/html" in request.headers.get("Accept", "") and "json" not in request.args
+        is_page_asked = "text/html" in request.headers.get("Accept", "") and not _NON_PAGE_QUERIES & request.args.keys()
         if error.status == 404 and is_page_asked:
             response = send_from_directory(static_directory, "404.html", max_age=None)
             response.status_code = 404
@@ -108,7 +113,12 @@ def create_app(
                 if "view" in query or "edit" in query or path.endswith("/"):
                     return page(source.describe(path))
                 read = source.read(path, request.headers)
-                return read if read is not None else page(source.describe(path))
+                if read is None:
+                    return page(source.describe(path))
+                # Only a file's bytes become a download: a computer's refusal stays a page the frontend can read.
+                if "download" in query and 200 <= read.status_code < 300:
+                    read.headers["Content-Disposition"] = content_disposition("attachment", PurePosixPath(path).name)
+                return read
             if request.method == "PUT":
                 source.write(path, _request_body(), request.content_length)
                 return _text("", 201)

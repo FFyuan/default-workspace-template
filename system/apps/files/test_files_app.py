@@ -327,6 +327,52 @@ def test_delete_from_the_entry_menu_asks_first_and_removes_the_file(
     assert not (files_root / "README.md").exists()
 
 
+def test_download_loads_in_a_frame_and_saves_a_folder_as_a_zip_and_a_file_under_its_name(
+    open_files_page: OpenFilesPage,
+) -> None:
+    """A download is a frame's load, the one kind of request that carries the workspace's session when Imbue Studio
+    frames Files from another site (a ``download`` link's request goes without it), and the server names the file."""
+    page = open_files_page("/")
+    download_destinations: list[str] = []
+    page.on(
+        "request",
+        lambda request: download_destinations.append(request.all_headers()["sec-fetch-dest"])
+        if "?zip" in request.url or "?download" in request.url
+        else None,
+    )
+    _entry(page, "/projects/").click(button="right")
+    with page.expect_download() as folder:
+        page.locator('[data-menu-row="download"]').click()
+    assert folder.value.suggested_filename == "projects.zip"
+
+    _entry(page, "/notes.txt").click(button="right")
+    with page.expect_download() as file:
+        page.locator('[data-menu-row="download"]').click()
+    assert file.value.suggested_filename == "notes.txt"
+    assert file.value.path().read_text() == "first line\nsecond line\n"
+
+    file_page = open_files_page("/README.md?view")
+    file_page.on(
+        "request",
+        lambda request: download_destinations.append(request.all_headers()["sec-fetch-dest"])
+        if "?download" in request.url
+        else None,
+    )
+    with file_page.expect_download() as from_its_page:
+        file_page.locator('[data-action="download"]').click()
+    assert from_its_page.value.suggested_filename == "README.md"
+    assert download_destinations == ["iframe", "iframe", "iframe"]
+
+
+def test_a_download_the_server_refuses_says_why_in_a_toast(open_files_page: OpenFilesPage, files_root: Path) -> None:
+    page = open_files_page("/")
+    expect(_entry(page, "/notes.txt")).to_be_visible()
+    (files_root / "notes.txt").unlink()
+    _entry(page, "/notes.txt").click(button="right")
+    page.locator('[data-menu-row="download"]').click()
+    expect(page.locator("[data-toast]")).to_have_text("Couldn't download notes.txt: There's nothing at /notes.txt.")
+
+
 def test_add_makes_a_new_folder_and_names_it(open_files_page: OpenFilesPage, files_root: Path) -> None:
     page = open_files_page("/")
     page.locator('[data-action="add"]').click()

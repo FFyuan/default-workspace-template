@@ -2,7 +2,8 @@
  * A full-screen image viewer ("lightbox") opened by clicking an inline chat
  * image. It shows the image enlarged over a dimmed backdrop with a header:
  * the image's title (alt text, or the filename) centered, and Download and
- * close (X) icon buttons at the top right. It closes on a backdrop click, the X
+ * close (X) icon buttons at the top right. A download that fails says so in
+ * the title's place. It closes on a backdrop click, the X
  * button, or the Escape key.
  *
  * This is imperative (plain DOM) rather than a mithril component because chat
@@ -13,6 +14,7 @@
 import { setHoverTooltip } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import { icon } from "@imbue/workspace-ui/src/components/icons";
 import { buttonClass } from "@imbue/workspace-ui/src/components/Button";
+import { startDownload } from "@imbue/workspace-ui/src/download";
 
 function filenameFromUrl(imageUrl: string): string {
   try {
@@ -78,13 +80,22 @@ export function openImageLightbox(imageUrl: string, altText: string): void {
   const downloadLink = document.createElement("a");
   downloadLink.className = buttonClass("ghost-inverse", { icon: true, extra: "image-lightbox-iconbtn no-underline" });
   downloadLink.href = imageUrl;
-  downloadLink.download = filename;
-  // Same-origin images download in place; a cross-origin (public-URL) image the
-  // browser refuses to download opens in a new tab rather than navigating away.
+  // A public-URL image, which the browser will not download from another site, opens in a new tab rather than
+  // navigating away; the workspace's own image downloads in place.
   downloadLink.target = "_blank";
   downloadLink.rel = "noopener noreferrer";
   downloadLink.setAttribute("aria-label", "Download image");
   downloadLink.innerHTML = icon("download", { size: 20 });
+  const ownImageUrl = new URL(imageUrl, window.location.href);
+  if (ownImageUrl.origin === window.location.origin) {
+    ownImageUrl.searchParams.set("download", "");
+    downloadLink.addEventListener("click", (event) => {
+      event.preventDefault();
+      startDownload(document, ownImageUrl.href, filename, (note) => {
+        title.textContent = note;
+      });
+    });
+  }
 
   const closeButton = document.createElement("button");
   closeButton.className = buttonClass("ghost-inverse", { icon: true, extra: "image-lightbox-iconbtn" });
