@@ -67,7 +67,14 @@ def test_pi_one_shot_argv_runs_one_print_turn_with_nothing_loaded_and_thinking_o
     argv = pi_one_shot_argv("Name this chat.", "anthropic/claude-haiku-5-5")
 
     assert argv[:2] == ["pi", "-p"]
-    assert {"--no-session", "--no-tools", "--no-extensions", "--no-skills", "--no-context-files"} <= set(argv)
+    assert {
+        "--no-session",
+        "--no-tools",
+        "--no-extensions",
+        "--no-skills",
+        "--no-prompt-templates",
+        "--no-context-files",
+    } <= set(argv)
     assert argv[argv.index("--thinking") + 1] == "off"
     assert argv[argv.index("--model") + 1] == "anthropic/claude-haiku-5-5"
     assert argv[-2:] == ["--system-prompt", "Name this chat."]
