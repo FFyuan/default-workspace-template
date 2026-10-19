@@ -151,6 +151,59 @@ test("the helper says when it is not the one the workspace publishes, and stays 
   assert.equal(helper.helperMismatchNotice({ version: "v0.3.0" }, own), null);
 });
 
+test("get names an app by its name or takes a URL on one of the workspace's origins, and refuses any other", () => {
+  const config = {
+    token: "t",
+    gateway_origin: "https://auth-x.alpha.example.com",
+    workspace: { auth_origin: "https://auth-x.alpha.example.com" },
+    apps: [{ name: "files", origin: "https://files-f1.alpha.example.com" }],
+  };
+  assert.equal(String(helper.resolveGetUrl(config, "files/__files/api/schema")), "https://files-f1.alpha.example.com/__files/api/schema");
+  assert.equal(String(helper.resolveGetUrl(config, "files")), "https://files-f1.alpha.example.com/");
+  assert.equal(String(helper.resolveGetUrl(config, "https://files-f1.alpha.example.com/x?json")), "https://files-f1.alpha.example.com/x?json");
+  assert.equal(String(helper.resolveGetUrl(config, "https://auth-x.alpha.example.com/_agent/me")), "https://auth-x.alpha.example.com/_agent/me");
+  assert.throws(() => helper.resolveGetUrl(config, "https://evil.example.com/"), /not one of this workspace's origins/);
+  assert.throws(() => helper.resolveGetUrl(config, "chat/api/x"), /no app named chat.*files/);
+  assert.throws(() => helper.resolveGetUrl(config, ""), /usage: wsvisit get/);
+});
+
+test("a 503 is waited out for as long as Retry-After asks, bounded, and nothing else is retried", () => {
+  assert.equal(helper.retryDelayMs(503, "2"), 2000);
+  assert.equal(helper.retryDelayMs(503, "600"), 5000);
+  assert.equal(helper.retryDelayMs(503, null), 1000);
+  assert.equal(helper.retryDelayMs(503, "soon"), 1000);
+  assert.equal(helper.retryDelayMs(200, "2"), null);
+  assert.equal(helper.retryDelayMs(502, "2"), null);
+  assert.equal(helper.retryDelayMs(404, null), null);
+});
+
+test("get waits for an app that answers 503 while it starts, then returns its answer", async () => {
+  const http = require("node:http");
+  let calls = 0;
+  const server = http.createServer((request, response) => {
+    calls += 1;
+    if (calls < 3) {
+      response.writeHead(503, { "Retry-After": "0", "Content-Type": "text/html" });
+      response.end("<p>starting</p>");
+      return;
+    }
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ seen: request.headers.authorization }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/schema`;
+    const response = await helper.fetchWaitingForTheApp(url, { headers: { Authorization: "Bearer t" } }, 5000);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { seen: "Bearer t" });
+    assert.equal(calls, 3);
+    const stillDown = await helper.fetchWaitingForTheApp(url, { headers: {} }, 5000, 0);
+    assert.equal(stillDown.status, 200);
+  } finally {
+    server.close();
+  }
+});
+
 test("a joined workspace's state is refused unless its directory is private", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wsvisit-state-"));
   process.env.WSVISIT_STATE_DIR = root;
