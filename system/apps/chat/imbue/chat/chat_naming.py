@@ -66,8 +66,11 @@ _MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message(?:\
 _TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"<title>(.*?)</title>(?=[ \t]*(?:\n|$))", re.IGNORECASE | re.DOTALL
 )
-# A model that leaves off the closing tag has still put the title after the opening one, which starts a line.
-_UNCLOSED_TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"(?:^|\n)[ \t]*<title>(.*)", re.IGNORECASE | re.DOTALL)
+# An opening tag that starts a line is a wrapper: its title runs to the next closing tag, or to the end of an answer
+# that leaves that off.
+_LINE_START_TITLE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"(?:^|\n)[ \t]*<title>(.*?)(?:</title>|$)", re.IGNORECASE | re.DOTALL
+)
 # One that leaves off the opening one has still put the title before the closing one, which ends a line.
 _CLOSING_TITLE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"</title>(?=[ \t]*(?:\n|$))", re.IGNORECASE)
 # The name of the form standing in for the subject ("Short name: Wiki contributions system").
@@ -166,11 +169,11 @@ def parse_generated_chat_name(answer: str) -> str | None:
     prompt asks and models do not always.
 
     An answer a model wraps in ``<title>`` tags unasked is read from between them, the closing one ending a line;
-    with no closing tag, from an opening one that starts a line; and with no opening tag, up to a closing one that
-    ends a line. A leading name of
-    the form itself ("Short name: ", "Title: ") is not the subject and is dropped.
+    otherwise from an opening one that starts a line up to the next closing tag, if any; and with no such opening
+    tag, up to a closing one that ends a line. A leading name of the form itself ("Short name: ", "Title: ") is not
+    the subject and is dropped.
     """
-    title_match = _TITLE_PATTERN.search(answer) or _UNCLOSED_TITLE_PATTERN.search(answer)
+    title_match = _TITLE_PATTERN.search(answer) or _LINE_START_TITLE_PATTERN.search(answer)
     title = (
         title_match.group(1) if title_match is not None else _CLOSING_TITLE_TAG_PATTERN.split(answer, maxsplit=1)[0]
     )

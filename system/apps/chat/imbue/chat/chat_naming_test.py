@@ -114,6 +114,8 @@ class _NamingHarness:
         ("<title>Rome trip: plan five days in May</title>", "Rome trip: plan five days in May"),
         ("The message asks about Rome.\n<title>Rome trip: plan five days</title>\n", "Rome trip: plan five days"),
         ("<title>Rome trip: plan five days", "Rome trip: plan five days"),
+        ("<title>Rome trip: plan five days</title>.", "Rome trip: plan five days"),
+        ("<title>Rome trip: plan five days</title> (25 characters)", "Rome trip: plan five days"),
         ("Rome trip: plan five days</title>", "Rome trip: plan five days"),
         ("Here it is: <title>Rome trip: plan five days</title>", "Rome trip: plan five days"),
         ("HTML <title> tag: fix the browser tab text", "HTML <title> tag: fix the browser tab text"),
