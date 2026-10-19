@@ -95,8 +95,9 @@ export function openImageLightbox(imageUrl: string, altText: string): void {
   const downloadLink = document.createElement("a");
   downloadLink.className = buttonClass("ghost-inverse", { icon: true, extra: "image-lightbox-iconbtn no-underline" });
   downloadLink.href = imageUrl;
-  // A public-URL image, which the browser will not download from another site, opens in a new tab rather than
-  // navigating away; a data: image downloads through the link, and the workspace's own image in place.
+  // The workspace's own image downloads through startDownload below. Otherwise the link itself acts: a public-URL
+  // image, which the browser will not download from another site, opens in a new tab rather than navigating away,
+  // and a data: (or unparsable) one downloads through the link's download attribute.
   downloadLink.target = "_blank";
   downloadLink.rel = "noopener noreferrer";
   downloadLink.setAttribute("aria-label", "Download image");
