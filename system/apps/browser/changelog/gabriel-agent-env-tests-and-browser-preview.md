@@ -5,3 +5,5 @@
 - A preview runs headful through `BROWSER_HEADLESS=0` rather than borrowing the live service's `DISPLAY`, and the manifest now says that a preview still talks to the live shell: its window sweep reads the live browser windows, and its open-url route shows a page in a live browser window.
 
 - Stopping the browser service no longer skips its orderly close when the stop signal arrives twice. Taking a preview down signals its whole process group, and `uv run`, which launched the daemon, forwards the same SIGTERM; the second one cut the close short, so each preview browser's audio sink stayed loaded in the shared PulseAudio daemon. The first SIGTERM or SIGINT now ignores any repeat while the close runs.
+
+- The shared PulseAudio daemon now runs in a session of its own rather than in the process group of the browser daemon that started it. When a preview's browser was the first to need audio, taking the preview down signalled that group and killed the daemon the live browsers were also playing through.
