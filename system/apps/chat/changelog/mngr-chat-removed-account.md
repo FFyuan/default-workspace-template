@@ -13,3 +13,5 @@
 - Moving a chat that has nothing said in it to another provider no longer shows "Handing off to …" while the new agent starts: with no conversation there is nothing to hand off, so only "Starting …" shows.
 
 - A chat restarting on another account says "Restarting …" once, by the message box, instead of also at the top of the conversation.
+
+- Moving a chat to another account of the same provider without typing a message (picking the account from the provider menu or the chooser) no longer leaves the chat waiting about a minute and a half before it is ready: it used to send the restarted agent an empty message and wait for a delivery that could never be confirmed.

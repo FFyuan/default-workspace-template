@@ -5699,6 +5699,30 @@ def test_a_switch_to_an_account_on_the_chats_own_lane_rebinds_the_agent_in_place
         manager.stop()
 
 
+def test_a_rebind_made_with_nothing_to_say_sends_nothing_once_the_agent_is_back(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A switch picked from the provider menu carries no message: the restarted agent is sent nothing, rather than
+    an empty message whose delivery could never be confirmed."""
+    sent: list[tuple[str, str, str]] = []
+    manager, _store, _argv_log, agent_id, _first_account, second_account = _rebind_manager(
+        broadcaster, tmp_path, monkeypatch, sent
+    )
+    chat_id = ChatId(agent_id)
+    try:
+        kind, _phase, _block = manager.begin_switch(chat_id, second_account, "", "m-1", HeldSendOrigin.CLIENT)
+        assert kind is TransitionKind.REBIND
+        state = manager.get_handoff_state(chat_id)
+        assert state is None or state.held_sends == ()
+        wait_for(lambda: manager.get_handoff_state(chat_id) is None, timeout=15.0)
+
+        snapshot = manager.get_chat_snapshot(agent_id)
+        assert snapshot is not None and snapshot.active_agent.account_id == second_account
+        assert sent == []
+    finally:
+        manager.stop()
+
+
 def test_the_switch_target_rule_keeps_the_agent_only_for_its_own_harness_and_lane() -> None:
     claude = AgentStateItem(id="agent-1", name="c", state="RUNNING", labels={"account": "acct-a"}, work_dir=None)
     anthropic_2 = Account(id="acct-a2", lane="anthropic", seq=2, display="Anthropic")
