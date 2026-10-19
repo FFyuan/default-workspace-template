@@ -175,7 +175,8 @@ def test_taking_a_preview_down_unloads_the_audio_sinks_of_its_browsers(live_repo
     assert not [sink for sink in _pulse_sinks() if sink.startswith(sink_prefix)], _pulse_sinks()
 
 
-def _lifecycle_of(preview_url: str, name: str) -> str:
+def _lifecycle_of(preview_url: str, name: str) -> str | None:
+    """The browser's lifecycle, or None once the service no longer lists it, which is what a failed launch does."""
     browsers = _get_json(f"{preview_url}/browsers")["browsers"]
     assert isinstance(browsers, list)
-    return next(str(browser["lifecycle"]) for browser in browsers if browser["id"] == name)
+    return next((str(browser["lifecycle"]) for browser in browsers if browser["id"] == name), None)
