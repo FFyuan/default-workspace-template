@@ -12,6 +12,7 @@ from share_gateway.agent_orientation import build_skills_index
 from share_gateway.agent_orientation import cached_skills_index
 from share_gateway.agent_orientation import helper_source_url
 from share_gateway.agent_orientation import render_instruction_block
+from share_gateway.agent_orientation import template_commit
 from share_gateway.agent_orientation import render_primer
 from share_gateway.agent_orientation import summarize_connected_accounts
 from share_gateway.agent_orientation import template_ref
@@ -131,7 +132,7 @@ def test_a_failing_git_is_logged_and_the_orientation_degrades(
     assert template_ref(not_a_checkout) == "unknown"
     assert build_changes_feed(not_a_checkout, datetime.now(timezone.utc) - timedelta(days=1))["commits"] == []
     logged = capsys.readouterr().err
-    assert f"git describe --tags --always in {not_a_checkout} exited 128" in logged
+    assert f"git log --first-parent --format=%H%x09%P%x09%s HEAD in {not_a_checkout} exited 128" in logged
     assert "git log" in logged
 
 
@@ -234,10 +235,41 @@ def test_the_helper_source_is_the_template_repository_at_the_exact_tag_or_else_t
     git_output(repo, "tag", "v9.9.9")
     assert template_source_ref(repo) == "v9.9.9"
     assert helper_source_url(repo).startswith("https://raw.githubusercontent.com/imbue-ai/default-workspace-template/v9.9.9/")
+    # Work the workspace does after its initial commit does not move the template commit.
     (repo / "later.txt").write_text("x\n")
     commit_all(repo, "A commit after the tag")
-    assert len(template_source_ref(repo)) == 40
+    assert template_source_ref(repo) == "v9.9.9"
     assert template_source_ref(tmp_path / "not-a-repo") == "main"
+
+
+def test_the_template_commit_is_the_one_the_workspace_was_created_from_or_last_updated_to(tmp_path: Path) -> None:
+    repo = make_workspace_repo(tmp_path, _PRIMER_TEMPLATE, _INVITE_TEMPLATE)
+    # The fixture's only commit is the initial one, so with no template beneath it, it is the template.
+    first = git_output(repo, "rev-parse", "HEAD")
+    assert template_commit(repo) == first
+    # A workspace made from a template: bootstrap's initial commit sits on the template's commit.
+    (repo / "template.txt").write_text("from the template\n")
+    commit_all(repo, "Template work")
+    template = git_output(repo, "rev-parse", "HEAD")
+    git_output(repo, "tag", "v2.0.0")
+    (repo / "data.txt").write_text("the workspace's own\n")
+    commit_all(repo, "Initial workspace commit")
+    (repo / "more.txt").write_text("later work\n")
+    commit_all(repo, "Later work in the workspace")
+    assert template_commit(repo) == template
+    assert template_source_ref(repo) == "v2.0.0"
+    assert template_ref(repo) == "v2.0.0"
+    assert helper_source_url(repo).startswith("https://raw.githubusercontent.com/imbue-ai/default-workspace-template/v2.0.0/")
+    # An update-self merge names the upstream commit it merged as its second parent.
+    git_output(repo, "checkout", "-q", "-b", "upstream", template)
+    (repo / "upstream.txt").write_text("newer template\n")
+    commit_all(repo, "Newer template work")
+    upstream = git_output(repo, "rev-parse", "HEAD")
+    git_output(repo, "checkout", "-q", "main")
+    git_output(repo, "merge", "-q", "--no-ff", "-m", "update-self: merge upstream template", "upstream")
+    assert template_commit(repo) == upstream
+    assert template_source_ref(repo) == upstream
+    assert template_ref(repo).startswith("v2.0.0-1-g")
 
 
 def test_summarize_connected_accounts_without_a_gateway_says_so() -> None:

@@ -49,6 +49,8 @@ Never run `latchkey auth` yourself.
 
 Every app runs on a loopback port inside the workspace and has its own origin over the share.
 Each will describe its own API at a well-known path on its origin (a follow-up; until then, its README under `system/apps/<name>/` is the description).
+Reach an app from your side with `wsvisit get <app>/<path>` (or `wsvisit get <url>` on one of the origins below): the helper sends your admission token as a bearer with the request, and the token stays on your machine.
+An app the shell stopped while nothing showed it starts on its first request and answers 503 with a `Retry-After` header for a second or two until it is up; `wsvisit get` waits that out for you, and anything else you reach an app with should treat such a 503 as "starting", not as a failure.
 
 {{apps_table}}
 

@@ -15,9 +15,13 @@
 //   wsvisit run [--cwd <dir>] [--timeout <seconds>] -- <argv...>
 //   wsvisit read <path>
 //   wsvisit write <path> [--from <file>] [--mode <octal>]
+//   wsvisit get <app>/<path> | <url>           an app's answer over the share, with your access attached
 //   wsvisit primer | skills [--json] | changes [--since <iso>] | me
 //   wsvisit invite [--scope workspace|<app,app>] [--expires-in-days <n>] [--name-hint <text>]
 //   --workspace <domain> selects a workspace when several are joined.
+//
+// `get` sends the admission token as a bearer to an origin of this workspace
+// only, and waits out an app that answers 503 with Retry-After while it starts.
 //
 // Two behaviours are the helper's own contract with the agent: it refreshes the
 // skills index when its copy is older than a day and prints what changed to
@@ -46,6 +50,10 @@ const DEFAULT_RUN_TIMEOUT_SECONDS = 600;
 const MAX_RUN_TIMEOUT_SECONDS = 3600;
 const REQUEST_TIMEOUT_MS = 60 * 1000;
 const EXIT_VERIFICATION_FAILED = 70;
+// An idle app the shell stopped starts on its first request and answers 503
+// with Retry-After until it is up: a second or two, never minutes.
+const GET_MAX_RETRIES = 5;
+const GET_MAX_RETRY_DELAY_MS = 5000;
 const EXIT_REVOKED = 77;
 const EXIT_USAGE = 64;
 
@@ -704,6 +712,74 @@ async function commandChanges(config, options) {
   return 0;
 }
 
+// Apps over the share
+
+// The origins the admission token may be sent to: the workspace's own.
+function workspaceOrigins(config) {
+  const origins = new Set([gatewayOrigin(config)]);
+  if (config.workspace && config.workspace.auth_origin) origins.add(config.workspace.auth_origin);
+  for (const app of config.apps || []) if (app.origin) origins.add(app.origin);
+  return origins;
+}
+
+// `<app>/<path>` names a registered app by its name; a full URL must be on one
+// of the workspace's origins, since the token goes with the request.
+function resolveGetUrl(config, target) {
+  if (!target) throw new HelperError("usage: wsvisit get <app>/<path> | <url>", EXIT_USAGE);
+  if (/^https?:\/\//.test(target)) {
+    const url = new URL(target);
+    if (!workspaceOrigins(config).has(url.origin)) {
+      throw new HelperError(`${url.origin} is not one of this workspace's origins, so your access is not sent there`, EXIT_USAGE);
+    }
+    return url;
+  }
+  const slash = target.indexOf("/");
+  const appName = slash === -1 ? target : target.slice(0, slash);
+  const routePath = slash === -1 ? "/" : target.slice(slash);
+  const app = (config.apps || []).find((entry) => entry.name === appName);
+  if (!app) {
+    const names = (config.apps || []).map((entry) => entry.name).join(", ") || "(none)";
+    throw new HelperError(`no app named ${appName} in your access; the apps are: ${names}`, EXIT_USAGE);
+  }
+  return new URL(routePath, app.origin);
+}
+
+// How long a 503 asks to be waited out, bounded; null when the answer is not
+// one to retry.
+function retryDelayMs(status, retryAfterHeader) {
+  if (status !== 503) return null;
+  const header = retryAfterHeader === null || retryAfterHeader === undefined ? "" : String(retryAfterHeader).trim();
+  const seconds = header === "" ? NaN : Number(header);
+  if (!Number.isFinite(seconds) || seconds < 0) return 1000;
+  return Math.min(seconds * 1000, GET_MAX_RETRY_DELAY_MS);
+}
+
+async function fetchWaitingForTheApp(url, init, timeoutMs, maxRetries = GET_MAX_RETRIES) {
+  let response = await fetchWithTimeout(url, init, timeoutMs);
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    const delay = retryDelayMs(response.status, response.headers.get("retry-after"));
+    if (delay === null) break;
+    await response.arrayBuffer();
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    response = await fetchWithTimeout(url, init, timeoutMs);
+  }
+  return response;
+}
+
+async function commandGet(config, positional) {
+  const url = resolveGetUrl(config, positional[0]);
+  const response = await fetchWaitingForTheApp(
+    url,
+    { method: "GET", headers: { Authorization: `Bearer ${config.token}`, Accept: "application/json, text/*;q=0.9, */*;q=0.8" } },
+    REQUEST_TIMEOUT_MS,
+  );
+  const body = Buffer.from(await response.arrayBuffer());
+  if (response.status === 403) throw new HelperError("the workspace refused this access (revoked, or the workspace moved)", EXIT_REVOKED);
+  if (!response.ok) throw new HelperError(`GET ${url} answered ${response.status}: ${body.toString("utf8").slice(0, 300)}`);
+  process.stdout.write(body);
+  return 0;
+}
+
 async function commandMe(config) {
   const me = JSON.parse(await gatewayJson(config, "GET", "/_agent/me"));
   Object.assign(config, { exec: me.exec, apps: me.apps, scope: me.scope, workspace: { ...config.workspace, ...me.workspace } });
@@ -763,6 +839,8 @@ async function main(argv) {
       return commandSkills(config, options);
     case "changes":
       return commandChanges(config, options);
+    case "get":
+      return commandGet(config, commandPositional);
     case "me":
       return commandMe(config);
     case "invite":
@@ -813,6 +891,9 @@ module.exports = {
   publicKeyLineFromRaw,
   publicKeyObjectFromLine,
   requestSignatureBase,
+  resolveGetUrl,
+  retryDelayMs,
+  fetchWaitingForTheApp,
   runTimeoutSeconds,
   signRequest,
   streamTrailerBase,
