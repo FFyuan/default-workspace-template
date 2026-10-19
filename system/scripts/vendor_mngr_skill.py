@@ -138,6 +138,10 @@ def main(argv: list[str] | None = None) -> int:
         "--rev", help="the mngr commit to copy the skill from (required with --write)"
     )
     args = parser.parse_args(argv)
+    if args.rev and not args.write:
+        parser.error(
+            "--rev only applies to --write; --check compares against the pinned commit"
+        )
     root = Path(args.repo_root).resolve()
     try:
         if args.write:

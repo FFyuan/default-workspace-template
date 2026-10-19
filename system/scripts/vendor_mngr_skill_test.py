@@ -175,3 +175,12 @@ def test_writing_from_the_command_line_copies_the_skill_and_prints_the_path(
     assert capsys.readouterr().out == f"{vendor_mngr_skill.SKILL_VENDORED_PATH}\n"
     assert vendor_mngr_skill.main(argv) == 0
     assert capsys.readouterr().out == ""
+
+
+def test_the_check_refuses_a_commit_argument(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        vendor_mngr_skill.main(
+            ["--check", "--rev", _PUBLIC_SHA, "--repo-root", str(tmp_path)]
+        )
+
+    assert exit_info.value.code == 2
