@@ -179,7 +179,8 @@ export function renderHandoffNode(
  *  or when nothing is converging. */
 export function renderHandoffTailNode(chatId: string, hasOpenRequest: boolean): m.Vnode | null {
   const chat = getChatById(chatId);
-  if (chat === undefined || chat.handoff === null || hasOpenRequest) return null;
+  // A fresh start has nothing to hand off; the activity line's "Starting …" is all it shows.
+  if (chat === undefined || chat.handoff === null || chat.handoff.is_fresh_start || hasOpenRequest) return null;
   const node: HandoffNode = { key: `live-${chatId}`, request: null, events: [], switch: null, prompt: null };
   // Keyed like its siblings in the message list: a keyed list refuses an unkeyed member.
   return m(

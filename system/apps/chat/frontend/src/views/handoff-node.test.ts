@@ -183,4 +183,10 @@ describe("the handoff node", () => {
     state.chat = chatWith(null);
     expect(renderHandoffTailNode("agent-a", false)).toBeNull();
   });
+
+  it("stands in for nothing while a chat with no user turn starts on another provider: there is nothing to hand off", () => {
+    state.chat = chatWith(handoffStateFixture({ phase: "switching", is_fresh_start: true, held_sends: [] }));
+
+    expect(renderHandoffTailNode("agent-a", false)).toBeNull();
+  });
 });

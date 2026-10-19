@@ -5135,6 +5135,31 @@ def test_a_handoff_moves_a_chat_to_a_new_agent_on_another_harness(
         manager.stop()
 
 
+def test_a_fresh_start_switch_is_pushed_as_one_so_the_page_shows_no_handoff(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    """Every snapshot pushed while a chat with no user turn moves to another provider says it is a fresh start."""
+    sent: list[tuple[str, str, str]] = []
+    manager, store, _argv_log = _handoff_manager(broadcaster, tmp_path, sent, has_user_turn=False)
+    first = f"agent-{uuid4().hex}"
+    seed_agent_state(manager, first, name="Chat-1", labels={"display_name": "Chat 1", "account": "acct-anthropic"})
+    pushes = broadcaster.register()
+    try:
+        manager.begin_handoff(ChatId(first), _openai_account(), "", "m-1", HeldSendOrigin.CLIENT)
+        _wait_until_settled(store, ChatId(first))
+    finally:
+        manager.stop()
+    switching = []
+    while not pushes.empty():
+        raw = pushes.get_nowait()
+        assert raw is not None
+        message = json.loads(raw)
+        if message["type"] == "chats_updated":
+            switching.extend(chat["handoff"] for chat in message["chats"] if chat["handoff"] is not None)
+    assert switching
+    assert all(handoff["is_fresh_start"] for handoff in switching)
+
+
 def test_a_handoff_off_an_agent_with_no_user_turn_is_a_fresh_start(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:

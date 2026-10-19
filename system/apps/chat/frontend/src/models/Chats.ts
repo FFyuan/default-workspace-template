@@ -107,6 +107,8 @@ export interface HandoffState {
   error: string | null;
   // Which step failed, in the failed phase: the agent's start, or the model picked for it.
   failed_step: "start" | "model" | null;
+  // Whether the chat had no user turn to carry over, so the switch only starts it on the target: no handoff to show.
+  is_fresh_start: boolean;
 }
 
 /** Whether the switch can still be called off: a handoff only until the old agent is stopped (spec 5.6);
