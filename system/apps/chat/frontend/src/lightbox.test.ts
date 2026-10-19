@@ -21,8 +21,14 @@ describe("the lightbox's Download", () => {
     expect(new URL(frame.src).pathname + new URL(frame.src).search).toBe(
       "/home/user/workspace/data/images/chart.png?requested_at=ts-1&download=",
     );
+    // jsdom does not navigate frames, so the frame is handed the page a refusal would have loaded.
+    Object.defineProperty(frame, "contentDocument", {
+      value: { URL: frame.src, contentType: "text/plain", body: { textContent: "Not authenticated" } },
+    });
     frame.dispatchEvent(new Event("load"));
-    expect(document.querySelector(".image-lightbox-title")?.textContent).toBe("Couldn't download chart.png.");
+    expect(document.querySelector(".image-lightbox-title")?.textContent).toBe(
+      "Couldn't download chart.png: Not authenticated",
+    );
     expect(document.querySelector("iframe")).toBeNull();
 
     downloadButton().click();
