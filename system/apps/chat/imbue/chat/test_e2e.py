@@ -1436,8 +1436,9 @@ _WELCOME_ONLY_SESSION_EVENTS: list[dict[str, Any]] = [
 @pytest.mark.timeout(90, func_only=False)
 def test_a_chat_with_no_user_turn_switches_at_once_and_leaves_no_handoff_node(tmp_path: Path, page: Page) -> None:
     """A fresh start through the browser: with only the welcome behind it, pressing another account asks nothing
-    and switches at once, the live node stands in while the switch runs, and once it has landed nothing stands
-    between the two agents' turns."""
+    and switches at once. With nothing to hand off, the conversation shows no handoff node while the switch runs,
+    only the line by the composer saying the new agent is starting, and once it has landed nothing stands between
+    the two agents' turns."""
     with _switched_workspace(tmp_path, session_events=_WELCOME_ONLY_SESSION_EVENTS) as server:
         _open_fixture_chat(page, server)
         chat = _chat(page)
@@ -1446,9 +1447,10 @@ def test_a_chat_with_no_user_turn_switches_at_once_and_leaves_no_handoff_node(tm
         _open_provider_menu(chat)
         chat.locator('[data-menu-part="submenu"] button', has_text="OpenAI").first.click()
 
-        # Nothing to hand over, so nothing asks and nothing is armed: the switch runs at once, and the
-        # live node reports it while it does.
-        expect(chat.locator('[data-handoff-status="active"]')).to_contain_text("Handing off to Codex")
+        # Nothing to hand over, so nothing asks and nothing is armed: the switch runs at once, and only the
+        # line by the composer reports it while it does.
+        expect(chat.locator('.agent-activity-indicator[data-state^="HANDOFF_"]')).to_contain_text("Starting Codex")
+        expect(chat.locator("[data-handoff-status]")).to_have_count(0)
         expect(chat.locator(".modal-card")).to_have_count(0)
         expect(chat.locator(".message-input-switch-strip")).to_have_count(0)
 
