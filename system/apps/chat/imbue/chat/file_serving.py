@@ -38,7 +38,7 @@ from flask import send_file
 _FILE_CACHE_MAX_AGE_SECONDS = 31_536_000
 _IMMUTABLE_CACHE_CONTROL = f"public, max-age={_FILE_CACHE_MAX_AGE_SECONDS}, immutable"
 
-# Image extensions served inline, each mapped to an explicit Content-Type so the
+# Image extensions, each mapped to an explicit Content-Type so the
 # wire result does not depend on the host's mimetypes registry (macOS and Linux
 # disagree on, e.g., webp). Suffixes are matched case-insensitively.
 _IMAGE_EXTENSION_TO_MIME_TYPE = {
