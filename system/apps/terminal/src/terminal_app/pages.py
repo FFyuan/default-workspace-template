@@ -17,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
+from app_manifest.content_security_policy import attach_document_policy
 from app_manifest.primitives import AppName
 from app_manifest.registry import APP_CONTRACT_ROUTE, read_origin_label
 from app_schema.api_schema import (
@@ -420,6 +421,7 @@ def build_pages_blueprint(
         description=APP_DESCRIPTION,
         route_table=ROUTE_TABLE,
     )
+    attach_document_policy(blueprint)
 
     def session_page(name: TmuxSessionName) -> SessionPage:
         listed = next((terminal for terminal in source.list_terminals() if terminal.name == name), None)

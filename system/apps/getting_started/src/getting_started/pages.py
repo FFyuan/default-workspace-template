@@ -18,6 +18,8 @@ from flask.typing import ResponseReturnValue
 from pydantic import Field
 from werkzeug.exceptions import NotFound
 
+from app_manifest.content_security_policy import attach_document_policy
+from app_manifest.content_security_policy import url_origin
 from app_manifest.registry import APP_CONTRACT_ROUTE
 from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
 from app_schema.api_schema import RouteModels
@@ -81,6 +83,12 @@ def build_pages_blueprint(static_directory: Path, catalog: TemplateCatalogStore,
     register_api_schema_route(
         blueprint, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION, route_table=ROUTE_TABLE
     )
+    # The template drawings live beside the catalog (catalog/README.md), so the page admits images from the
+    # catalog's origin besides its own; with no catalog there is no templates section and nothing to admit.
+    image_sources = "'self' data: blob:"
+    if catalog.catalog_url != "":
+        image_sources = f"{image_sources} {url_origin(catalog.catalog_url)}"
+    attach_document_policy(blueprint, {"img-src": image_sources})
 
     @blueprint.get("/")
     def page() -> ResponseReturnValue:

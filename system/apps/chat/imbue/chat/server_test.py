@@ -22,6 +22,7 @@ from uuid import uuid4
 
 import pytest
 from app_schema.testing import assert_api_schema_describes_app
+from app_manifest.testing import assert_document_policy_admits_page
 from chat_background_tasks.listing import chats_from_agents_payload
 from flask import Flask
 from flask.testing import FlaskClient
@@ -168,6 +169,22 @@ def app(config: Config, signed_in_account: str, tmp_path: Path, messenger: Recor
 @pytest.fixture
 def client(app: Flask) -> FlaskClient:
     return app.test_client()
+
+
+def test_the_chat_documents_are_served_under_the_document_policy(client: FlaskClient) -> None:
+    """The chats document carries a policy a browser would run it under; the terminal frame and the markdown's
+    images, video and audio from anywhere are admitted (the shared default admits images from the chat's own
+    origin only; the sanitizer admits all three tags, see the frontend's markdown test), and a non-page answer
+    carries none."""
+    page = client.get("/")
+
+    assert page.status_code == 200
+    assert_document_policy_admits_page(page)
+    policy = page.headers["Content-Security-Policy"]
+    assert "frame-src http: https:" in policy
+    assert "img-src * data: blob:" in policy
+    assert "media-src * data: blob:" in policy
+    assert "Content-Security-Policy" not in client.get("/api/health").headers
 
 
 def test_list_agents_endpoint(client: FlaskClient) -> None:
