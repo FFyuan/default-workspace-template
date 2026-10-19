@@ -114,10 +114,11 @@ def try_serve_file(url_path: str, is_download: bool) -> Response | None:
     segment) and not found.
 
     ``url_path`` never includes the query string (Flask splits it off before
-    routing, and the caller reads ``?download`` into ``is_download``), so the frontend's per-message ``?requested_at=<post time>`` cache
-    key is ignored here: it only makes the browser treat each message's image URL
-    as distinct, so a new message never renders a stale copy cached under a path
-    an earlier message reused. The served bytes are the file's current content.
+    routing, and the caller reads ``?download`` into ``is_download``), so the
+    frontend's per-message ``?requested_at=<post time>`` cache key is ignored
+    here: it only makes the browser treat each message's image URL as distinct,
+    so a new message never renders a stale copy cached under a path an earlier
+    message reused. The served bytes are the file's current content.
     """
     image_mime_type = image_mime_type_for_path(url_path)
     file_path = Path("/" + url_path)
