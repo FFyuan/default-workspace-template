@@ -788,7 +788,6 @@ async function fetchWaitingForTheApp(url, init, timeoutMs, origins, maxRetries =
 }
 
 async function commandGet(config, positional) {
-  resolveGetUrl(config, positional[0]);
   return withRecovery(config, async (current) => {
     const url = resolveGetUrl(current, positional[0]);
     const response = await fetchWaitingForTheApp(
