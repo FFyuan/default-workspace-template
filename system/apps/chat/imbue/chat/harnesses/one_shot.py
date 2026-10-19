@@ -16,6 +16,8 @@ from typing import TypeVar
 
 from loguru import logger as _loguru_logger
 
+from imbue.imbue_common.pure import pure
+
 logger = _loguru_logger
 
 
@@ -30,6 +32,7 @@ class OneShotCompletionTimeoutError(OneShotCompletionError):
 _ModelT = TypeVar("_ModelT")
 
 
+@pure
 def describe_model_name(model: str | None) -> str:
     """A model named by its id, None meaning the account's default, as a failure names it."""
     return model or "default model"
