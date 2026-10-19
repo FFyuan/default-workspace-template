@@ -2,7 +2,7 @@
 
 The agent harness UI: live conversations with mngr-managed agents, one page per
 chat, rendered inside a window's iframe at the chat's own registered origin. It
-is an app of the workspace like the terminal or the file viewer (the desktop
+is an app of the workspace like the terminal or Files (the desktop
 interface, `docs/system/blueprint/desktop-interface/`): the shell knows it only
 through its manifest (`app.toml`), its registry row, and the browser-side
 contract; everything about chats lives in this app's own pages and routes.
@@ -64,7 +64,9 @@ observe`, its own supervised service) writes, and serves:
   (`frontend/src/embedApi.ts`), and through `frontend/src/root/relay.ts`, the
   one module the embed ratchet allows, hands them the shell's handshake and
   forwards their `minds:`, `shell:focused`, `shell:open`, `shell:draft-text`,
-  `shell:message`, and `shell:open-link` messages.
+  `shell:message`, and `shell:open-link` messages, and passes the desktop
+  app's answers to them (`minds:provider-sign-in-ack`,
+  `minds:permission-resolutions`) back down.
 - `GET /<chat-id>` (and `/<chat-id>.<agent-id>.<session-id>` for a subagent view): the
   chat document, the built `chat.html` with the chat's ids, the workspace
   hostname, and the origin label of the terminal's pty (the terminal app's while
@@ -100,6 +102,10 @@ observe`, its own supervised service) writes, and serves:
   after the restart. `agent_events` (`{"is_stream_healthy", "detail"}`) says
   whether lifecycle events are actually reaching this instance; `status` stays
   `ok` either way.
+- `GET /api/schema`: the OpenAPI document of these routes, built from the app's url map
+  (`system/libs/app_schema`), with the request and response models of the routes that
+  validate with pydantic published as schemas; the manifest's `api_schema_path`, which the
+  visiting-agent primer links.
 - Agent-authored files by their absolute on-disk path (`file_serving.py`), so a
   chat's markdown can show an image the agent wrote.
 
@@ -123,7 +129,7 @@ messages its manifest registers for (`minds:focus-chat`).
 The chat has no link code of its own: a click on a message's link follows the
 app contract's link rule, as a click in any app does. Rendering a message
 (`frontend/src/markdown.ts`) only says what each link names: an absolute path
-becomes the file's `file:` URL, which the shell opens in the File Viewer
+becomes the file's `file:` URL, which the shell opens in Files
 (`open:file`); a local address (`localhost`, `127.0.0.1`, `[::1]`,
 `*.localhost`) the shell opens as the window of the app on whose
 `<label>.localhost` host or registered port it is, or else in the workspace's

@@ -60,11 +60,10 @@ from imbue.mngr.utils.polling import wait_for
 from imbue.system_interface.app_context import DEFAULT_STATIC_DIRECTORY as SHELL_STATIC_DIRECTORY
 from imbue.system_interface.shell.desktops import DEFAULT_DESKTOP_NAME
 from imbue.system_interface.shell.desktops import slugify_desktop_name
-from imbue.system_interface.shell.testing import DUFS_BINARY
-from imbue.system_interface.shell.testing import file_viewer_registry_row
+from imbue.system_interface.shell.testing import files_registry_row
 from imbue.system_interface.shell.testing import message_handling_app
 from imbue.system_interface.shell.testing import registry_row_toml
-from imbue.system_interface.shell.testing import running_file_viewer
+from imbue.system_interface.shell.testing import running_files
 from imbue.system_interface.testing import find_free_port
 from imbue.system_interface.testing import serve_app
 
@@ -393,7 +392,7 @@ def test_a_chat_waiting_on_background_tasks_shows_the_wait_in_the_list_and_the_s
 
 @pytest.mark.timeout(60, func_only=False)
 def test_conversation_and_composer_render(e2e_server: RunningWorkspace, page: Page) -> None:
-    """The opened chat shows both sides of its conversation and a composer whose send button follows the text."""
+    """The opened chat shows both sides of its conversation and a composer whose send button lights up with the text."""
     _open_fixture_chat(page, e2e_server)
 
     expect(_chat(page).locator(".message-user").first).to_contain_text("Hello agent!")
@@ -402,9 +401,9 @@ def test_conversation_and_composer_render(e2e_server: RunningWorkspace, page: Pa
     textarea = _chat(page).locator(".message-input-textbox")
     expect(textarea).to_be_visible(timeout=15000)
     send_button = _chat(page).locator(".message-input-send-button")
-    expect(send_button).to_have_count(0)
+    expect(send_button).to_be_disabled()
     textarea.fill("test message")
-    expect(send_button).to_be_visible()
+    expect(send_button).to_be_enabled()
 
 
 @pytest.mark.timeout(60, func_only=False)
@@ -443,9 +442,10 @@ def _box(locator: Locator) -> dict[str, float]:
 
 @pytest.mark.timeout(60, func_only=False)
 def test_composer_buttons_move_under_text_that_wraps(e2e_server: RunningWorkspace, page: Page) -> None:
-    """Text that fits on one line keeps the composer's buttons beside it. Text that needs a second line, by
-    wrapping or by a line break, gets the composer's full width, with the buttons in a row at the bottom
-    right under it, and they come back beside it once the text fits on one line again."""
+    """Text that fits on one line sits between the composer's attach button and its send button. Text that
+    needs a second line, by wrapping or by a line break, gets the composer's full width, with attach at the
+    bottom left and send at the bottom right under it, and they come back beside it once the text fits on
+    one line again."""
     page.set_viewport_size({"width": 1200, "height": 900})
     _open_fixture_chat(page, e2e_server)
     chat = _chat(page)
@@ -453,20 +453,26 @@ def test_composer_buttons_move_under_text_that_wraps(e2e_server: RunningWorkspac
     expect(textarea).to_be_visible(timeout=15000)
     row = chat.locator(".message-input-row")
     toolbar = chat.locator(".message-input-toolbar")
+    attach = chat.locator(".message-input-attach-button")
 
     def assert_buttons_beside_text() -> None:
         expect(row).not_to_have_attribute("data-stacked", "")
-        text_box, toolbar_box = _box(textarea), _box(toolbar)
+        text_box, toolbar_box, attach_box = _box(textarea), _box(toolbar), _box(attach)
         assert toolbar_box["left"] >= text_box["right"] - 1
+        assert attach_box["right"] <= text_box["left"] + 1
         assert toolbar_box["top"] < text_box["bottom"]
+        assert attach_box["top"] < text_box["bottom"]
 
     def assert_buttons_under_text() -> None:
         expect(row).to_have_attribute("data-stacked", "")
-        row_box, text_box, toolbar_box = _box(row), _box(textarea), _box(toolbar)
+        row_box, text_box = _box(row), _box(textarea)
+        toolbar_box, attach_box = _box(toolbar), _box(attach)
         assert text_box["right"] - text_box["left"] >= row_box["right"] - row_box["left"] - 1
-        assert toolbar_box["top"] >= text_box["bottom"] - 1
-        assert abs(toolbar_box["bottom"] - row_box["bottom"]) <= 1
+        for button_box in (toolbar_box, attach_box):
+            assert button_box["top"] >= text_box["bottom"] - 1
+            assert abs(button_box["bottom"] - row_box["bottom"]) <= 1
         assert abs(toolbar_box["right"] - row_box["right"]) <= 1
+        assert abs(attach_box["left"] - row_box["left"]) <= 1
 
     textarea.fill("short message")
     assert_buttons_beside_text()
@@ -1765,7 +1771,7 @@ def _question_and_reply_events(uuid_prefix: str, question: str, reply: str) -> l
 
 
 # A reply that links a file of the workspace and a service running in it (the workspace link routing plan), served
-# with the real File Viewer (dufs over a folder of the test's own) and a stand-in for the app that opens URLs.
+# with the real Files (its server over a folder of the test's own) and a stand-in for the app that opens URLs.
 _LINKED_FILE_HREF = "/notes/plan%201.md"
 _LINKED_SERVICE_URL = "http://localhost:3000/preview"
 _OPEN_URL_HANDLER_PATH = "/api/open-url"
@@ -1801,12 +1807,11 @@ def _bring_the_chat_over(page: Page, server: RunningWorkspace, client_id: str, c
     )
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(120, func_only=False)
-def test_a_replys_file_link_opens_in_the_file_viewer_and_its_local_link_goes_to_the_app_that_opens_urls(
+def test_a_replys_file_link_opens_in_files_and_its_local_link_goes_to_the_app_that_opens_urls(
     tmp_path: Path, page: Page
 ) -> None:
-    """Clicking a reply's file link opens the file on its view page in a File Viewer window, and clicking it again
+    """Clicking a reply's file link opens the file on its view page in a Files window, and clicking it again
     (with a modifier) raises that window rather than opening another; a middle click on a local address sends it,
     with the client, to the app registered for ``open:url``. The chat never navigates and no browser window
     opens."""
@@ -1815,11 +1820,11 @@ def test_a_replys_file_link_opens_in_the_file_viewer_and_its_local_link_goes_to_
     (root / "notes" / "plan 1.md").write_text("# The plan\n")
     opened_urls: list[dict[str, Any]] = []
     with (
-        running_file_viewer(root) as viewer_url,
+        running_files(root) as files_url,
         serve_app(message_handling_app(opened_urls, _OPEN_URL_HANDLER_PATH, 200)) as url_opener,
     ):
         rows = (
-            file_viewer_registry_row(viewer_url),
+            files_registry_row(files_url),
             registry_row_toml("browser", url_opener.http_url, message_handlers=[("open:url", _OPEN_URL_HANDLER_PATH)]),
         )
         with _running_e2e_server(tmp_path, session_events=_LINKING_SESSION_EVENTS, extra_rows=rows) as server:
@@ -1834,7 +1839,7 @@ def test_a_replys_file_link_opens_in_the_file_viewer_and_its_local_link_goes_to_
                 lambda: [window["path"] for window in _app_windows(server, "files")] == ["/notes/plan%201.md?view"],
                 timeout=15.0,
                 poll_interval=0.1,
-                error_message="no File Viewer window opened on the linked file's view page",
+                error_message="no Files window opened on the linked file's view page",
             )
             (viewer,) = _app_windows(server, "files")
             client_id = _client_id(page)
@@ -1907,18 +1912,17 @@ _FOLDER_LINK_SESSION_EVENTS = _question_and_reply_events(
 )
 
 
-@pytest.mark.skipif(DUFS_BINARY is None, reason="dufs is not installed (the workspace image installs it)")
 @pytest.mark.timeout(120, func_only=False)
-def test_a_folder_link_raises_the_file_viewer_window_that_reached_the_folder_through_its_own_listing(
+def test_a_folder_link_raises_the_files_window_that_reached_the_folder_through_its_own_listing(
     tmp_path: Path, page: Page
 ) -> None:
-    """A File Viewer window that walked into a folder through dufs's own listing is at the path as dufs spells it;
-    a chat link to that folder spells it the shell's way, and the two must agree so the link raises that window
-    rather than opening a second one."""
+    """A Files window that walked into a folder through its own listing is at the path as Files spells it; a chat link
+    to that folder spells it the shell's way, and the two must agree so the link raises that window rather than
+    opening a second one."""
     root = tmp_path / "viewer-root"
     (root / _ODD_FOLDER_NAME).mkdir(parents=True)
-    with running_file_viewer(root) as viewer_url:
-        rows = (file_viewer_registry_row(viewer_url),)
+    with running_files(root) as files_url:
+        rows = (files_registry_row(files_url),)
         with _running_e2e_server(tmp_path, session_events=_FOLDER_LINK_SESSION_EVENTS, extra_rows=rows) as server:
             _open_fixture_chat_with_shell(page, server)
             client_id = _client_id(page)
@@ -1928,16 +1932,16 @@ def test_a_folder_link_raises_the_file_viewer_window_that_reached_the_folder_thr
                 lambda: len(_app_windows(server, "files")) == 1,
                 timeout=15.0,
                 poll_interval=0.1,
-                error_message="the File Viewer window never opened",
+                error_message="the Files window never opened",
             )
             (viewer,) = _app_windows(server, "files")
             listing = page.frame_locator(f'iframe[data-live-page="{viewer["id"]}"]')
-            listing.get_by_role("link", name=_ODD_FOLDER_NAME, exact=True).click()
+            listing.locator(f'[data-entry-path="/{_ODD_FOLDER_NAME}/"]').dblclick()
             wait_for(
                 lambda: _app_windows(server, "files")[0]["path"] != "/",
                 timeout=15.0,
                 poll_interval=0.1,
-                error_message="the File Viewer window never reported the folder it walked into",
+                error_message="the Files window never reported the folder it walked into",
             )
             listed_path = _app_windows(server, "files")[0]["path"]
 
