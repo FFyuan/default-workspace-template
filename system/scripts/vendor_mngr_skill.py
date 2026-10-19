@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--mngr-repo",
-        help="a local mngr checkout to read the skill from (required with --write)",
+        help="a local mngr checkout to read the skill from: required with --write; with --check, compared against instead of GitHub",
     )
     parser.add_argument(
         "--rev", help="the mngr commit to copy the skill from (required with --write)"
