@@ -48,6 +48,7 @@ from imbue.chat.harnesses.signed_in import is_signed_in
 from imbue.chat.testing import FIXTURE_AGENT_ID
 from imbue.chat.testing import running_workspace
 from imbue.chat.testing import seed_agent_state
+from imbue.imbue_common.model_update import to_update
 from imbue.mngr.utils.polling import wait_for
 from imbue.system_interface.testing import find_free_port
 
@@ -79,7 +80,7 @@ def _signed_in_claude_account_or_skip() -> Path:
     home = Path.home()
     index = read_index(home)
     claude_accounts = tuple(account for account in index.accounts if harness_for(account) is HarnessType.CLAUDE)
-    account = choose_default_account(index.model_copy(update={"accounts": claude_accounts}))
+    account = choose_default_account(index.model_copy_update(to_update(index.field_ref().accounts, claude_accounts)))
     if account is None:
         pytest.skip("no Claude account in this workspace's account store")
     folder = account_dir(account.id, home)
