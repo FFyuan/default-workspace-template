@@ -200,23 +200,48 @@ def build_changes_feed(repo_root: Path, since: datetime) -> dict[str, object]:
     }
 
 
+_INITIAL_WORKSPACE_COMMIT_SUBJECT = "Initial workspace commit"
+_UPDATE_SELF_SUBJECT_PREFIX = "update-self:"
+
+
+def template_commit(repo_root: Path) -> str:
+    """The upstream template commit this workspace runs: the one it was created from or last updated to.
+
+    A workspace's HEAD is never a template commit: bootstrap writes an ``Initial workspace commit`` on top of the
+    cloned template, and later work sits on that. The newest marker on the first-parent history says where the
+    template is (the markers ``.agents/shared/scripts/resolve_template_base.py`` reads): an ``update-self:`` merge
+    names the upstream commit as its second parent, and the initial commit's first parent is the template it was
+    written on. '' when git cannot read the history; HEAD when no marker names an upstream commit.
+    """
+    lines = _run_git(repo_root, ["log", "--first-parent", "--format=%H%x09%P%x09%s", "HEAD"]).splitlines()
+    for line in lines:
+        sha, _, rest = line.partition("\t")
+        parents, _, subject = rest.partition("\t")
+        parent_shas = parents.split()
+        if subject.startswith(_UPDATE_SELF_SUBJECT_PREFIX) and len(parent_shas) == 2:
+            return parent_shas[1]
+        if subject == _INITIAL_WORKSPACE_COMMIT_SUBJECT:
+            return parent_shas[0] if parent_shas else sha
+    return lines[0].split("\t", 1)[0] if lines else ""
+
+
 def template_ref(repo_root: Path) -> str:
     """The template ref this workspace runs: the nearest tag when there is one, else the short commit."""
-    described = _run_git(repo_root, ["describe", "--tags", "--always"]).strip()
+    commit = template_commit(repo_root)
+    described = _run_git(repo_root, ["describe", "--tags", "--always", commit]).strip() if commit else ""
     return described or "unknown"
 
 
 def template_source_ref(repo_root: Path) -> str:
-    """A ref the template repository serves this workspace's files at: the tag when the commit is tagged, else the
-    full commit. ``main`` when git cannot say, which is logged, since the helper fetched then is not pinned."""
-    tags = _run_git(repo_root, ["tag", "--points-at", "HEAD", "--sort=-v:refname"]).split()
-    if tags:
-        return tags[0]
-    commit = _run_git(repo_root, ["rev-parse", "HEAD"]).strip()
-    if commit:
-        return commit
-    log(f"Could not resolve the template commit of {repo_root}; the helper's source points at main")
-    return "main"
+    """A ref the template repository serves this workspace's files at: the tag when the template commit is tagged,
+    else that full commit. ``main`` when git cannot say, which is logged, since the helper fetched then is not
+    pinned."""
+    commit = template_commit(repo_root)
+    if not commit:
+        log(f"Could not resolve the template commit of {repo_root}; the helper's source points at main")
+        return "main"
+    tags = _run_git(repo_root, ["tag", "--points-at", commit, "--sort=-v:refname"]).split()
+    return tags[0] if tags else commit
 
 
 def helper_source_url(repo_root: Path) -> str:

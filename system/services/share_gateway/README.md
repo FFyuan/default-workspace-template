@@ -283,14 +283,20 @@ the same gateway:
   minus the token, so a helper can heal moved coordinates.
 - **The helper.** `helper/wsvisit.cjs` is a single Node 18+ script with no
   dependencies. The instruction block installs it from this repository on
-  GitHub at the workspace's exact ref (`agent_orientation.helper_source_url`)
+  GitHub at the workspace's template commit (`agent_orientation.template_commit`:
+  the commit the workspace was created from or last updated to, never its own
+  HEAD, which bootstrap's initial commit puts past anything published; its tag when
+  it has one)
   with its SHA-256 to check; `GET /_agent/helper` serves the same file (with
   `X-Helper-Version` and `X-Helper-SHA256` headers) as the fallback for an
   unpublished commit, and the join and `me` answers carry a `helper` object
   the script compares its own hash against. It joins, signs owner-exec requests
   per the profile (its tests run against the owner-exec vectors vendored
   beside it), verifies responses and stream trailers against the pinned host
-  key, refreshes the skills index when its copy is a day old and prints what
+  key, reaches an app over the share with `get <app>/<path>` (the admission
+  token as a bearer, sent to the workspace's origins only, waiting out an app
+  that answers 503 with `Retry-After` while it starts), refreshes the skills
+  index when its copy is a day old and prints what
   changed, and re-reads `me` and retries once on a 403 or a verification
   failure, except for a `run` whose output already streamed: that is reported
   rather than run again, and the refreshed addresses serve the next command.

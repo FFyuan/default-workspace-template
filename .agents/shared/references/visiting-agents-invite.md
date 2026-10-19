@@ -12,6 +12,7 @@ The workspace is an isolated Linux machine. Nothing runs on your own machine exc
    wsvisit read <path>                            # a file from the workspace
    wsvisit write <path> --from <local file>       # a file into the workspace
 <!-- exec-only:end -->
+   wsvisit get <app>/<path>                       # an app's answer over the share, with your access attached
    wsvisit skills                                 # the skills index; read a skill before doing the work it covers
    wsvisit changes                                # what changed since you last connected
    wsvisit me                                     # your access and the workspace's current addresses
