@@ -1,4 +1,5 @@
-"""The browser's preview boots beside the live service without touching its ports or its profiles.
+"""The browser's preview boots beside the live service without touching its ports or its profiles, and taking it
+down leaves none of its browsers' audio sinks in the shared pulse daemon.
 
 This checkout's ``browser-service`` is booted by update-app's ``preview_app.py`` from the manifest's
 ``[preview]`` table, while the live service's ports are taken and a live profile sits under the live host dir.
