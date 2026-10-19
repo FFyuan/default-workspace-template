@@ -60,10 +60,14 @@ def read_skill_from_github(pin: GitPin) -> str:
             )
         request.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(
+            request, timeout=_FETCH_TIMEOUT_SECONDS
+        ) as response:
             return response.read().decode("utf-8")
     except urllib.error.URLError as exc:
-        raise VendoredSkillError(f"could not fetch {SKILL_SOURCE_PATH} at {pin.rev[:12]}: {exc}") from exc
+        raise VendoredSkillError(
+            f"could not fetch {SKILL_SOURCE_PATH} at {pin.rev[:12]}: {exc}"
+        ) from exc
 
 
 def read_skill_from_checkout(mngr_repo: Path) -> SkillReader:
@@ -79,7 +83,9 @@ def read_skill_from_checkout(mngr_repo: Path) -> SkillReader:
                 timeout=_GIT_TIMEOUT_SECONDS,
             ).stdout
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-            raise VendoredSkillError(f"could not read {SKILL_SOURCE_PATH} at {pin.rev[:12]} from {mngr_repo}: {exc}") from exc
+            raise VendoredSkillError(
+                f"could not read {SKILL_SOURCE_PATH} at {pin.rev[:12]} from {mngr_repo}: {exc}"
+            ) from exc
 
     return read
 
@@ -111,11 +117,26 @@ def check_vendored_skill(root: Path, read_skill: SkillReader) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     what = parser.add_mutually_exclusive_group(required=True)
-    what.add_argument("--write", action="store_true", help="copy the skill at --rev from --mngr-repo over the vendored copy")
-    what.add_argument("--check", action="store_true", help="fail unless the vendored copy matches the pinned commit")
-    parser.add_argument("--repo-root", default=".", help="the workspace root (default: cwd)")
-    parser.add_argument("--mngr-repo", help="a local mngr checkout to read the skill from (required with --write)")
-    parser.add_argument("--rev", help="the mngr commit to copy the skill from (required with --write)")
+    what.add_argument(
+        "--write",
+        action="store_true",
+        help="copy the skill at --rev from --mngr-repo over the vendored copy",
+    )
+    what.add_argument(
+        "--check",
+        action="store_true",
+        help="fail unless the vendored copy matches the pinned commit",
+    )
+    parser.add_argument(
+        "--repo-root", default=".", help="the workspace root (default: cwd)"
+    )
+    parser.add_argument(
+        "--mngr-repo",
+        help="a local mngr checkout to read the skill from (required with --write)",
+    )
+    parser.add_argument(
+        "--rev", help="the mngr commit to copy the skill from (required with --write)"
+    )
     args = parser.parse_args(argv)
     root = Path(args.repo_root).resolve()
     try:
@@ -124,11 +145,17 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("--write needs --mngr-repo and --rev")
             pin = read_mngr_source((root / PYPROJECT_PATH).read_text())
             local_pin = GitPin(git_url=pin.git_url, rev=args.rev)
-            if write_vendored_skill(root, local_pin, read_skill_from_checkout(Path(args.mngr_repo).resolve())):
+            if write_vendored_skill(
+                root,
+                local_pin,
+                read_skill_from_checkout(Path(args.mngr_repo).resolve()),
+            ):
                 print(SKILL_VENDORED_PATH)
         else:
             read_skill = (
-                read_skill_from_checkout(Path(args.mngr_repo).resolve()) if args.mngr_repo else read_skill_from_github
+                read_skill_from_checkout(Path(args.mngr_repo).resolve())
+                if args.mngr_repo
+                else read_skill_from_github
             )
             check_vendored_skill(root, read_skill)
             print(f"{SKILL_VENDORED_PATH} matches the pinned mngr commit")
