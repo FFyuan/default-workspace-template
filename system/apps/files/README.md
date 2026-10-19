@@ -24,8 +24,9 @@ both offer the verbs `sources.py` names. For either:
   entries, or whether the file is small and reads as text), and `?json` is that
   data alone;
 - a file's plain GET is its bytes (a `Range` honoured), `?download` the same
-  bytes saved under the file's name, and `?zip` a folder as a zip, written as it is sent (linked folders are not followed, and what can't be
-  read is left out);
+  bytes saved under the file's name, and `?zip` a folder as a zip, written as
+  it is sent (linked folders are not followed, and what can't be read is left
+  out);
 - PUT writes a file (creating the folders above it, writing through a symlink to
   its file, and keeping a written-over file's mode), swapped in whole so an upload
   cut short leaves the old file; MKCOL makes a folder; MOVE renames, never over
