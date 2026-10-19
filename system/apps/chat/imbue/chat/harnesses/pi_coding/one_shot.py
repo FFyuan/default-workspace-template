@@ -132,7 +132,9 @@ class PiOneShotCompletion(OneShotCompletion):
             raise OneShotCompletionError(f"pi could not list the models of the account at {account_dir}")
         models = choose_pi_one_shot_models(offered_tags, _account_providers(account_dir))
         if not models:
-            raise OneShotCompletionError(f"pi offers no model that runs only on the account at {account_dir}")
+            raise OneShotCompletionError(
+                f"pi offers the account at {account_dir} no small model, nor a default sure to be its own"
+            )
         return answer_on_first_model(
             models, lambda model: self._complete_on(model, env, system_prompt, prompt), describe_model_name
         )

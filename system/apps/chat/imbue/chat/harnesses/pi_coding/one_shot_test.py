@@ -149,7 +149,7 @@ def test_complete_raises_with_every_models_failure_when_none_answers(
 @pytest.mark.parametrize(
     ("list_models_body", "error_match"),
     [
-        pytest.param('echo "No models available. Use /login to authenticate."', "no model", id="pi-offers-none"),
+        pytest.param('echo "No models available. Use /login to authenticate."', "no small model", id="pi-offers-none"),
         pytest.param('echo "auth.json is unreadable" >&2; exit 1', "could not list", id="pi-cannot-list"),
     ],
 )
