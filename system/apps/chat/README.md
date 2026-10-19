@@ -448,8 +448,8 @@ Names are ASCII. A chat's true name is the ASCII part of its name, so a name in
 another script would leave it a fragment ("React 待办应用" -> "React") or nothing,
 and the rename would be refused. The model is asked to title a message in a
 Latin-alphabet language in that language without accents, and any other message
-in English; the parser spells whatever Latin letters and typographic quotes and
-dashes remain in ASCII ("é" -> "e", "ß" -> "ss", "’" -> "'") and refuses the rest.
+in English; the parser drops whatever accents remain, spells typographic quotes
+and dashes in ASCII ("é" -> "e", "’" -> "'"), and refuses the rest.
 
 The question goes out alongside the send, not after it: the account is known
 from the moment a create starts (`resolve_chat_account_binding`), so a chat still

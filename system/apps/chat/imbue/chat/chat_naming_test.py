@@ -110,8 +110,6 @@ class _NamingHarness:
         ('"Nginx 502: fix websockets behind proxy."', "Nginx 502: fix websockets behind proxy"),
         ("  Stripe MRR: spreadsheet by customer\n", "Stripe MRR: spreadsheet by customer"),
         ("Orçamento da cozinha: calcular a reforma", "Orcamento da cozinha: calcular a reforma"),
-        ("Fußball Training: Übungen planen", "Fussball Training: Ubungen planen"),
-        ("Błąd logowania: naprawić formularz", "Blad logowania: naprawic formularz"),
         ("“Kid’s party: plan a birthday – at home”", "Kid's party: plan a birthday - at home"),
     ],
 )

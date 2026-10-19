@@ -61,27 +61,9 @@ _MAX_PROMPT_CHARACTERS: Final[int] = 3000
 _AGENT_WAIT_SECONDS: Final[float] = 600.0
 _AGENT_POLL_SECONDS: Final[float] = 2.0
 _MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message(?:\s[^<>]*)?/?>", re.IGNORECASE)
-# What dropping accents leaves whole: Latin letters that are not a base letter plus an accent, and the
-# typographic quotes and dashes models write for ASCII ones.
-_ASCII_SPELLINGS: Final[dict[int, str]] = str.maketrans(
+# Typographic quotes and dashes models write for ASCII ones, which dropping accents leaves whole.
+_TYPOGRAPHIC_SPELLINGS: Final[dict[int, str]] = str.maketrans(
     {
-        "ß": "ss",
-        "ẞ": "SS",
-        "æ": "ae",
-        "Æ": "AE",
-        "œ": "oe",
-        "Œ": "OE",
-        "ø": "o",
-        "Ø": "O",
-        "ł": "l",
-        "Ł": "L",
-        "đ": "d",
-        "Đ": "D",
-        "ð": "d",
-        "Ð": "D",
-        "þ": "th",
-        "Þ": "Th",
-        "ı": "i",
         "‘": "'",
         "’": "'",
         "“": '"',
@@ -156,9 +138,9 @@ def chat_naming_prompt(message: str) -> str:
 
 @pure
 def _spelled_in_ascii(text: str) -> str:
-    """``text`` without accents, its Latin letters and typographic quotes and dashes spelled in ASCII."""
+    """``text`` without accents, its typographic quotes and dashes spelled in ASCII."""
     unaccented = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
-    return unaccented.translate(_ASCII_SPELLINGS)
+    return unaccented.translate(_TYPOGRAPHIC_SPELLINGS)
 
 
 @pure
@@ -166,9 +148,9 @@ def parse_generated_chat_name(answer: str) -> str | None:
     """The chat name in a model's answer, or None when it gave none or broke the "Short name: description" form.
 
     Only an ASCII name is taken: the chat's true name is the ASCII part of its name, so a name in another script
-    would leave it a fragment of the name ("React 待办应用" -> "React") or nothing at all. A Latin-alphabet name is
-    spelled in ASCII first ("Orçamento" -> "Orcamento", "Fußball" -> "Fussball"), as the prompt asks and models
-    do not always.
+    would leave it a fragment of the name ("React 待办应用" -> "React") or nothing at all. Accents are dropped
+    and typographic quotes and dashes straightened first ("Orçamento" -> "Orcamento", "Kid’s" -> "Kid's"), as the
+    prompt asks and models do not always.
     """
     line = _spelled_in_ascii(answer).strip().strip("\"'").strip()
     if line == _NO_NAME_ANSWER or "\n" in line or not line.isascii():
