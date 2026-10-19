@@ -211,7 +211,8 @@ def template_commit(repo_root: Path) -> str:
     cloned template, and later work sits on that. The newest marker on the first-parent history says where the
     template is (the markers ``.agents/shared/scripts/resolve_template_base.py`` reads): an ``update-self:`` merge
     names the upstream commit as its second parent, and the initial commit's first parent is the template it was
-    written on. '' when git cannot read the history; HEAD when no marker names an upstream commit.
+    written on (the initial commit itself when it has no parent). HEAD when the history has no marker; '' when git
+    cannot read it.
     """
     lines = _run_git(repo_root, ["log", "--first-parent", "--format=%H%x09%P%x09%s", "HEAD"]).splitlines()
     for line in lines:
