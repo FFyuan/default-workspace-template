@@ -32,6 +32,7 @@ _AGENT_ENV = {
     "CLAUDE_CONFIG_DIR": "/agent/claude-config",
     "CLAUDECODE": "1",
     "CLAUDE_CODE_ENTRYPOINT": "cli",
+    "MAIN_CLAUDE_SESSION_ID": "agent-session-0000",
     "TMUX": "/tmp/tmux-0/default,7,0",
     "TMUX_PANE": "%3",
 }

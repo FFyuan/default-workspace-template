@@ -25,6 +25,7 @@ _AGENT_ENV_PREFIXES: Final[tuple[str, ...]] = (
 _AGENT_ENV_NAMES: Final[frozenset[str]] = frozenset(
     {
         "CLAUDECODE",
+        "MAIN_CLAUDE_SESSION_ID",
         "TMUX",
         "TMUX_PANE",
         "LLM_USER_PATH",
