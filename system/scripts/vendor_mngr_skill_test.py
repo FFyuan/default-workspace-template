@@ -137,7 +137,7 @@ def test_the_checkout_reader_reads_the_skill_at_the_commit(tmp_path: Path) -> No
     checkout, sha = _mngr_checkout_with_skill(tmp_path / "mngr", "the skill\n")
     (checkout / vendor_mngr_skill.SKILL_SOURCE_PATH).write_text("edited since\n")
 
-    read = vendor_mngr_skill.read_skill_from_checkout(checkout)
+    read = vendor_mngr_skill.checkout_skill_reader(checkout)
 
     assert read(GitPin(git_url=_PUBLIC_REPO, rev=sha)) == "the skill\n"
 
@@ -145,7 +145,7 @@ def test_the_checkout_reader_reads_the_skill_at_the_commit(tmp_path: Path) -> No
 def test_the_checkout_reader_names_the_commit_it_cannot_read(tmp_path: Path) -> None:
     checkout, _ = _mngr_checkout_with_skill(tmp_path / "mngr", "the skill\n")
 
-    read = vendor_mngr_skill.read_skill_from_checkout(checkout)
+    read = vendor_mngr_skill.checkout_skill_reader(checkout)
 
     with pytest.raises(vendor_mngr_skill.VendoredSkillError, match=_PUBLIC_SHA[:12]):
         read(GitPin(git_url=_PUBLIC_REPO, rev=_PUBLIC_SHA))

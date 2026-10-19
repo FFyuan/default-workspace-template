@@ -70,7 +70,7 @@ def read_skill_from_github(pin: GitPin) -> str:
         ) from exc
 
 
-def read_skill_from_checkout(mngr_repo: Path) -> SkillReader:
+def checkout_skill_reader(mngr_repo: Path) -> SkillReader:
     """A reader that takes the skill from a local mngr checkout at the pinned commit."""
 
     def read(pin: GitPin) -> str:
@@ -152,12 +152,12 @@ def main(argv: list[str] | None = None) -> int:
             if write_vendored_skill(
                 root,
                 local_pin,
-                read_skill_from_checkout(Path(args.mngr_repo).resolve()),
+                checkout_skill_reader(Path(args.mngr_repo).resolve()),
             ):
                 print(SKILL_VENDORED_PATH)
         else:
             read_skill = (
-                read_skill_from_checkout(Path(args.mngr_repo).resolve())
+                checkout_skill_reader(Path(args.mngr_repo).resolve())
                 if args.mngr_repo
                 else read_skill_from_github
             )
