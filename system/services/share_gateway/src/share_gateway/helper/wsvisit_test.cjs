@@ -193,14 +193,75 @@ test("get waits for an app that answers 503 while it starts, then returns its an
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const url = `http://127.0.0.1:${server.address().port}/api/schema`;
-    const response = await helper.fetchWaitingForTheApp(url, { headers: { Authorization: "Bearer t" } }, 5000);
+    const origins = new Set([`http://127.0.0.1:${server.address().port}`]);
+    const response = await helper.fetchWaitingForTheApp(url, { headers: { Authorization: "Bearer t" } }, 5000, origins);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { seen: "Bearer t" });
     assert.equal(calls, 3);
-    const stillDown = await helper.fetchWaitingForTheApp(url, { headers: {} }, 5000, 0);
-    assert.equal(stillDown.status, 200);
   } finally {
     server.close();
+  }
+});
+
+test("get gives up on an app that keeps answering 503 after the bounded retries", async () => {
+  const http = require("node:http");
+  let calls = 0;
+  const server = http.createServer((request, response) => {
+    calls += 1;
+    response.writeHead(503, { "Retry-After": "0" });
+    response.end("still starting");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/schema`;
+    const origins = new Set([`http://127.0.0.1:${server.address().port}`]);
+    assert.equal((await helper.fetchWaitingForTheApp(url, { headers: {} }, 5000, origins, 0)).status, 503);
+    assert.equal(calls, 1);
+    assert.equal((await helper.fetchWaitingForTheApp(url, { headers: {} }, 5000, origins, 2)).status, 503);
+    assert.equal(calls, 4);
+  } finally {
+    server.close();
+  }
+});
+
+test("get follows a redirect within the workspace's origins and refuses one that leaves them, before the bearer is sent", async () => {
+  const http = require("node:http");
+  const elsewhereSaw = [];
+  const elsewhere = http.createServer((request, response) => {
+    elsewhereSaw.push(request.headers.authorization || "(no bearer)");
+    response.writeHead(200);
+    response.end("elsewhere");
+  });
+  await new Promise((resolve) => elsewhere.listen(0, "127.0.0.1", resolve));
+  const elsewhereOrigin = `http://127.0.0.1:${elsewhere.address().port}`;
+  const app = http.createServer((request, response) => {
+    if (request.url === "/old") {
+      response.writeHead(302, { Location: "/new" });
+    } else if (request.url === "/away") {
+      response.writeHead(302, { Location: `${elsewhereOrigin}/landing` });
+    } else if (request.url === "/loop") {
+      response.writeHead(302, { Location: "/loop" });
+    } else {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ path: request.url, seen: request.headers.authorization }));
+      return;
+    }
+    response.end();
+  });
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  const appOrigin = `http://127.0.0.1:${app.address().port}`;
+  const origins = new Set([appOrigin]);
+  const init = { headers: { Authorization: "Bearer t" } };
+  try {
+    const followed = await helper.fetchWithinOrigins(`${appOrigin}/old`, init, 5000, origins);
+    assert.equal(followed.status, 200);
+    assert.deepEqual(await followed.json(), { path: "/new", seen: "Bearer t" });
+    await assert.rejects(helper.fetchWithinOrigins(`${appOrigin}/away`, init, 5000, origins), /not one of this workspace's origins/);
+    assert.deepEqual(elsewhereSaw, []);
+    await assert.rejects(helper.fetchWithinOrigins(`${appOrigin}/loop`, init, 5000, origins), /redirected more than/);
+  } finally {
+    app.close();
+    elsewhere.close();
   }
 });
 
