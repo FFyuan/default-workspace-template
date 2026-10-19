@@ -144,8 +144,8 @@ under `system/apps/<your-package>/` so they get an isolated window and origin.
   `system/supervisord.conf.d/*.conf`, and `data/.state/apps.toml`, so running
   manual port checks (`ss -tln`) is unnecessary. If you are picking a port
   manually for the wrap-existing escape hatch, check `ss -tln` and avoid `8000`
-  (system_interface), `8010` (the chat app), `8030` (the Getting Started app) and
-  `8081` (the browser service).
+  (system_interface), `8010` (the chat app), `8030` (the Getting Started app),
+  `8040` (the Memory & disk app) and `8081` (the browser service).
   Two things do not show up there: the `agent-observer` program binds no port at
   all, and a preview of any app (`update-app`'s `preview_app.py`) takes free
   ports at boot, so nothing to avoid is written down for it.
@@ -409,6 +409,22 @@ the thorough testing and review gates happen in the background (Step 5), not her
 The starter `runner.py` has just `GET /` (a placeholder HTML page)
 and `GET /health` (returns `{"status": "ok"}`). Replace the
 placeholder with your real routes.
+
+Every page is served under the starter's `Content-Security-Policy`
+(`CONTENT_SECURITY_POLICY` and the `after_request` that sets it; keep it, the app
+is reachable from the internet once the workspace is shared), and it admits only
+the app's own origin. **Anything a page pulls from elsewhere -- a CDN script,
+Google Fonts, an image hosted elsewhere, a third-party API called from the
+browser -- is blocked by the browser until its origin is added to the matching
+directive** (`script-src`, `style-src` and `font-src`, `img-src`,
+`connect-src`); an inline `<script>` needs its
+`inline_script_source` in `script-src`; never `'unsafe-inline'` or `*` for
+scripts. The browser reports every block to the starter's `/_csp-report` route,
+which logs it to stderr as `ERROR Content-Security-Policy blocked <url> on <page>
+(<directive>)` (a blocked inline script adds its line and first characters), so
+when something on a page does not show up, read the app's
+stderr log (`/var/log/supervisor/<name>-stderr.log`; `check-app-errors` finds
+these lines too) rather than guessing.
 
 Use **sync handlers** (`def`, not `async def`). Flask handlers are
 sync `def`, and the starter runs on the threaded Werkzeug server
