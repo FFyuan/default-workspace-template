@@ -169,7 +169,8 @@ def client(app: Flask) -> FlaskClient:
 
 def test_the_chat_documents_are_served_under_the_document_policy(client: FlaskClient) -> None:
     """The chats document carries a policy a browser would run it under; the terminal frame and the markdown's
-    images from anywhere stay admitted, and a non-page answer carries none."""
+    images, video and audio from anywhere stay admitted (the sanitizer admits all three tags, see the frontend's
+    markdown test), and a non-page answer carries none."""
     page = client.get("/")
 
     assert page.status_code == 200
@@ -177,6 +178,7 @@ def test_the_chat_documents_are_served_under_the_document_policy(client: FlaskCl
     policy = page.headers["Content-Security-Policy"]
     assert "frame-src http: https:" in policy
     assert "img-src * data: blob:" in policy
+    assert "media-src * data: blob:" in policy
     assert "Content-Security-Policy" not in client.get("/api/health").headers
 
 

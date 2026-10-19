@@ -2303,7 +2303,10 @@ def create_application(state: ChatAppState) -> Flask:
     # No static folder: Flask would otherwise add a /static/<path> route beside the document route.
     application = Flask(__name__, static_folder=None)
     attach_state(application, state)
-    attach_document_policy(application)
+    # A message's markdown passes raw HTML through the sanitizer, whose default tag list admits
+    # <video> and <audio> as it does <img>, so media is admitted from anywhere as images are:
+    # the two are the same cross-origin fetch, and the sanitizer is what decides which tags render.
+    attach_document_policy(application, {"media-src": "* data: blob:"})
     # The handoff borrows the watchers and the send path from here; wired where the routes
     # are, so a manager built by a test that never assembles the app refuses to hand off.
     state.agent_manager.set_handoff_capabilities(_build_handoff_capabilities(state))
