@@ -46,7 +46,11 @@ describe("startDownload", () => {
   it("says only that it failed when the answer is a page it cannot quote", () => {
     const onFailure = vi.fn();
     startDownload(document, "/notes.txt?download", "notes.txt", onFailure);
-    answerWith({ URL: "http://localhost/notes.txt?download", contentType: "text/html", body: { textContent: "Gone" } });
+    answerWith({
+      URL: "http://localhost/notes.txt?download",
+      contentType: "text/html",
+      body: { textContent: "Gone" },
+    });
     startDownload(document, "/report?zip", "report", onFailure);
     answerWith(null);
 
