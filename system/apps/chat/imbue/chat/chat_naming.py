@@ -183,7 +183,7 @@ def parse_generated_chat_name(answer: str) -> str | None:
     line = _spelled_in_ascii(title).strip().strip("\"'").strip()
     form_label = _FORM_LABEL_PATTERN.match(line)
     if form_label is not None:
-        line = line[form_label.end() :]
+        line = line[form_label.end() :].strip("\"'").strip()
     if line == _NO_NAME_ANSWER or "\n" in line or not line.isascii():
         return None
     short_name, separator, description = line.partition(": ")

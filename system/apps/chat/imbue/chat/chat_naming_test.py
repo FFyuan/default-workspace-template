@@ -116,6 +116,7 @@ class _NamingHarness:
         ("<title>Rome trip: plan five days", "Rome trip: plan five days"),
         ("Short name: Wiki contributions: design a review flow", "Wiki contributions: design a review flow"),
         ("<title>Title: Rome trip: plan five days</title>", "Rome trip: plan five days"),
+        ('Title: "Rome trip: plan five days"', "Rome trip: plan five days"),
         ("Essay title: brainstorm remote work titles", "Essay title: brainstorm remote work titles"),
     ],
 )
