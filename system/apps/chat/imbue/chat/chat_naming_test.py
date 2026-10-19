@@ -112,6 +112,7 @@ class _NamingHarness:
         ("Orçamento da cozinha: calcular a reforma", "Orcamento da cozinha: calcular a reforma"),
         ("Fußball Training: Übungen planen", "Fussball Training: Ubungen planen"),
         ("Błąd logowania: naprawić formularz", "Blad logowania: naprawic formularz"),
+        ("“Kid’s party: plan a birthday – at home”", "Kid's party: plan a birthday - at home"),
     ],
 )
 def test_parse_generated_chat_name_keeps_a_short_name_and_description(answer: str, expected: str) -> None:

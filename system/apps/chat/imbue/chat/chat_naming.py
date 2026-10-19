@@ -61,8 +61,9 @@ _MAX_PROMPT_CHARACTERS: Final[int] = 3000
 _AGENT_WAIT_SECONDS: Final[float] = 600.0
 _AGENT_POLL_SECONDS: Final[float] = 2.0
 _MESSAGE_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"<\s*/?\s*message\b[^>]*>", re.IGNORECASE)
-# Latin letters that are not a base letter plus an accent, so dropping accents leaves them whole.
-_LATIN_LETTER_SPELLINGS: Final[dict[int, str]] = str.maketrans(
+# What dropping accents leaves whole: Latin letters that are not a base letter plus an accent, and the
+# typographic quotes and dashes models write for ASCII ones.
+_ASCII_SPELLINGS: Final[dict[int, str]] = str.maketrans(
     {
         "ß": "ss",
         "ẞ": "SS",
@@ -81,6 +82,12 @@ _LATIN_LETTER_SPELLINGS: Final[dict[int, str]] = str.maketrans(
         "þ": "th",
         "Þ": "Th",
         "ı": "i",
+        "‘": "'",
+        "’": "'",
+        "“": '"',
+        "”": '"',
+        "–": "-",
+        "—": "-",
     }
 )
 
@@ -150,9 +157,9 @@ def chat_naming_prompt(message: str) -> str:
 
 @pure
 def _spelled_in_ascii(text: str) -> str:
-    """``text`` with accents dropped and the Latin letters that carry none spelled as their languages do."""
+    """``text`` without accents, its Latin letters and typographic quotes and dashes spelled in ASCII."""
     unaccented = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
-    return unaccented.translate(_LATIN_LETTER_SPELLINGS)
+    return unaccented.translate(_ASCII_SPELLINGS)
 
 
 @pure
@@ -164,7 +171,7 @@ def parse_generated_chat_name(answer: str) -> str | None:
     spelled in ASCII first ("Orçamento" -> "Orcamento", "Fußball" -> "Fussball"), as the prompt asks and models
     do not always.
     """
-    line = _spelled_in_ascii(answer.strip().strip("\"'").strip())
+    line = _spelled_in_ascii(answer).strip().strip("\"'").strip()
     if line == _NO_NAME_ANSWER or "\n" in line or not line.isascii():
         return None
     short_name, separator, description = line.partition(": ")
