@@ -320,9 +320,10 @@ WebSockets.
 import base64
 import hashlib
 import os
+import sys
 from pathlib import Path
 
-from flask import Flask, Response, abort, send_file
+from flask import Flask, Response, abort, request, send_file
 from werkzeug.serving import run_simple
 
 # Persistent state for this app lives under DATA_DIR. It defaults to
@@ -378,14 +379,19 @@ def inline_script_source(body: str) -> str:
 # internet once the workspace is shared): scripts only from this origin plus the
 # inline blocks listed here by hash, fetches and sockets only to this origin,
 # inline styles, images from anywhere, frames of any http(s) page, no plugins.
-# A new inline <script> needs its ``inline_script_source`` added; a third-party
-# script, font or API needs its origin added to the matching directive.
+# Anything else a page pulls in (a CDN script, Google Fonts, a third-party API
+# called from the browser) is blocked until its origin is added to the matching
+# directive; a new inline <script> needs its ``inline_script_source`` added.
+# The browser posts every block to ``/_csp-report`` below, which logs it on
+# stderr (the supervisor log), so a blocked resource is never silent.
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     f"script-src 'self' {{inline_script_source(SHELL_PAGE_SCRIPT_BODY)}}; "
     "style-src 'self' 'unsafe-inline'; img-src * data: blob:; frame-src http: https:; "
-    "object-src 'none'; base-uri 'self'; form-action 'self'"
+    "object-src 'none'; base-uri 'self'; form-action 'self'; "
+    "report-uri /_csp-report"
 )
+BROWSER_EXTENSION_SCHEMES = ("chrome-extension:", "moz-extension:", "safari-web-extension:")
 
 app = Flask("{package}", static_folder=None)
 
@@ -407,6 +413,28 @@ def index() -> Response:
         + "</body></html>",
         mimetype="text/html",
     )
+
+
+@app.route("/_csp-report", methods=["POST"])
+def content_security_policy_report() -> Response:
+    # The browser's report of one thing the policy blocked on a page. A block
+    # caused by a browser extension is the policy doing its job and is not logged.
+    body = request.get_json(force=True, silent=True)
+    report = body.get("csp-report") if isinstance(body, dict) else None
+    if not isinstance(report, dict):
+        return Response(status=204)
+    blocked, page, source, directive = (
+        str(report.get(key, ""))[:500]
+        for key in ("blocked-uri", "document-uri", "source-file", "effective-directive")
+    )
+    if not (blocked.startswith(BROWSER_EXTENSION_SCHEMES) or source.startswith(BROWSER_EXTENSION_SCHEMES)):
+        print(
+            f"ERROR Content-Security-Policy blocked {{blocked!r}} on {{page!r}} ({{directive}}); "
+            "add its origin to CONTENT_SECURITY_POLICY if the page needs it",
+            file=sys.stderr,
+            flush=True,
+        )
+    return Response(status=204)
 
 
 @app.route("/_static/<basename>")

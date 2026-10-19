@@ -410,12 +410,19 @@ The starter `runner.py` has just `GET /` (a placeholder HTML page)
 and `GET /health` (returns `{"status": "ok"}`). Replace the
 placeholder with your real routes.
 
-Keep the starter's `Content-Security-Policy` (`CONTENT_SECURITY_POLICY` and the
-`after_request` that sets it) on every page: the app is reachable from the
-internet once the workspace is shared. Put scripts in files the app serves rather
-than inline; an inline `<script>` you do keep needs its `inline_script_source`
-added to `script-src`, and a third-party script, font or API needs its origin
-added to the matching directive, never `'unsafe-inline'` or `*` for scripts.
+Every page is served under the starter's `Content-Security-Policy`
+(`CONTENT_SECURITY_POLICY` and the `after_request` that sets it; keep it, the app
+is reachable from the internet once the workspace is shared), and it admits only
+the app's own origin. **Anything a page pulls from elsewhere -- a CDN script,
+Google Fonts, a third-party API called from the browser -- is blocked by the
+browser until its origin is added to the matching directive** (`script-src`,
+`style-src` and `font-src`, `connect-src`); an inline `<script>` needs its
+`inline_script_source` in `script-src`; never `'unsafe-inline'` or `*` for
+scripts. The browser reports every block to the starter's `/_csp-report` route,
+which logs it to stderr as `ERROR Content-Security-Policy blocked <url> on <page>
+(<directive>)`, so when something on a page does not show up, read the app's
+stderr log (`/var/log/supervisor/<name>-stderr.log`; `check-app-errors` finds
+these lines too) rather than guessing.
 
 Use **sync handlers** (`def`, not `async def`). Flask handlers are
 sync `def`, and the starter runs on the threaded Werkzeug server
