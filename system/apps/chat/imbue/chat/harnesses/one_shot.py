@@ -14,6 +14,10 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TypeVar
 
+from loguru import logger as _loguru_logger
+
+logger = _loguru_logger
+
 
 class OneShotCompletionError(RuntimeError):
     """A one-shot completion could not be run or gave no usable answer."""
@@ -47,6 +51,7 @@ def answer_on_first_model(
         except OneShotCompletionTimeoutError:
             raise
         except OneShotCompletionError as e:
+            logger.info("One-shot completion on {} failed: {}", describe(model), e)
             failures.append(f"{describe(model)}: {e}")
     raise OneShotCompletionError("; ".join(failures))
 
