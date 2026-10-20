@@ -117,6 +117,10 @@ export interface RunStartReceipt {
   run_id: string;
 }
 
+export interface FixChatResponse {
+  chat_id: string;
+}
+
 const encode = encodeURIComponent;
 
 export function fetchListing(): Promise<RoutineListing> {
@@ -143,7 +147,7 @@ export function setSchedule(routineId: string, change: ScheduleChange): Promise<
   return requestJson("PUT", `/api/routines/${encode(routineId)}/schedule`, change);
 }
 
-export function openFixChat(routineId: string): Promise<{ chat_id: string }> {
+export function openFixChat(routineId: string): Promise<FixChatResponse> {
   return requestJson("POST", `/api/routines/${encode(routineId)}/fix`, {});
 }
 
