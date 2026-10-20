@@ -212,12 +212,21 @@ def parse_agent_listing(stdout: str) -> list[ListedAgent]:
 
 
 def list_agents(run: CommandRunner) -> list[ListedAgent]:
+    """The agents ``mngr list`` rendered. With ``--on-error continue`` it lists every agent it
+    could and exits non-zero for the rest, so a non-zero exit is an error only when it listed
+    none, as is output none of whose lines is an agent."""
     completed = run(MNGR_LIST_ARGV, MNGR_LIST_TIMEOUT_SECONDS)
-    if completed.returncode != 0:
+    agents = parse_agent_listing(completed.stdout)
+    failure = (
+        f"`mngr list` exited {completed.returncode}: {(completed.stderr or '').strip()}"
+    )
+    if not agents and (completed.returncode != 0 or completed.stdout.strip()):
         raise AgentListingError(
-            f"`mngr list` exited {completed.returncode}: {(completed.stderr or '').strip()}"
+            failure if completed.returncode != 0 else "`mngr list` printed no agent"
         )
-    return parse_agent_listing(completed.stdout)
+    if completed.returncode != 0:
+        print(f"warning: {failure}; pausing from what it listed", file=sys.stderr)
+    return agents
 
 
 def parse_runner_cmdline(argv: Sequence[str]) -> tuple[str, str] | None:

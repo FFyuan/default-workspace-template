@@ -30,7 +30,7 @@ if argv[0] == "list":
         return agent[name]
     for agent in agents:
         print(re.sub(r"{{([^}}]+)}}", lambda match: field(agent, match.group(1)), template))
-    sys.exit(0)
+    sys.exit(1 if "list" in failures else 0)
 if argv[0] in ("stop", "start"):
     target = argv[1]
     if target in failures.get(argv[0], []):
@@ -103,7 +103,8 @@ class FakeAgents:
 
     def fail(self, failures: dict[str, list[str]]) -> None:
         """Make ``mngr stop``/``start`` fail for these agent ids, or a note to these chat ids
-        (``{"stop": [...], "start": [...], "message": [...]}``)."""
+        (``{"stop": [...], "start": [...], "message": [...]}``); a ``list`` key makes the
+        listing exit non-zero after printing every agent, as one provider's failure does."""
         self._failures.write_text(json.dumps(failures))
 
     def states(self) -> dict[str, str]:

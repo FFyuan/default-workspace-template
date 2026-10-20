@@ -132,6 +132,21 @@ def test_a_start_the_lead_records_again_keeps_the_chats_it_has_not_resumed(
     assert set(fake_agents.notes()) == {"agent-a"}
 
 
+def test_stop_chats_pauses_from_a_listing_that_exited_non_zero(
+    tmp_path: Path, fake_agents: FakeAgents
+) -> None:
+    """``--on-error continue`` exits non-zero for one provider's failure, still listing the rest."""
+    fake_agents.set_agents(
+        [chat("agent-lead", _LEAD, "RUNNING"), chat("agent-a", "Chat-A", "RUNNING")]
+    )
+    fake_agents.fail({"list": []})
+    assert _main(tmp_path, "run-status", "start") == 0
+
+    assert _main(tmp_path, "run-status", "stop-chats") == 0
+
+    assert fake_agents.states()["Chat-A"] == "STOPPED"
+
+
 def test_resume_chats_finishes_only_what_an_earlier_run_left_undone(
     tmp_path: Path, fake_agents: FakeAgents
 ) -> None:
