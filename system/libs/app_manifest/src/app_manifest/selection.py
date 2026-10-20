@@ -776,7 +776,7 @@ def _select_for_reach(
         lockfile=lockfile,
     )
 
-    def is_creations(directory: str) -> bool:
+    def is_under_a_creation(directory: str) -> bool:
         return any(is_path_covered_by(creation, directory) for creation in reach.creation_directories)
 
     on_root_project = [
@@ -791,9 +791,9 @@ def _select_for_reach(
         if is_docs_path(path):
             continue
         outcome = _select_for_path(reach_context, path)
-        pytest_requests.extend(request for request in outcome.pytest_requests if is_creations(request.group))
+        pytest_requests.extend(request for request in outcome.pytest_requests if is_under_a_creation(request.group))
         frontend_requests.extend(
-            request for request in outcome.frontend_requests if is_creations(request.package_directory)
+            request for request in outcome.frontend_requests if is_under_a_creation(request.package_directory)
         )
         if outcome.is_root_dependency:
             reason = _reason(path, outcome.classes[-1], "the root project depends on it")
