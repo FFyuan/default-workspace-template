@@ -7,3 +7,5 @@ Routines: everything that runs on a schedule is now a routine, one tracked TOML 
 - The Routines app (`system/apps/routines`, port 8050, launcher rank 45, its own memory band) joins the built-ins and the npm workspace; the root `uv.lock` and `system/package-lock.json` follow.
 
 The changelog gate keys a project by its parent and name (`libs/routines`, `apps/routines`), so a library and an app of the same name each owe their own entry; before, both collapsed into one project whose entry was always the library's.
+
+The image's dependency layer copies the two new workspace members' `pyproject.toml`s and the Routines frontend's `package.json` with the other manifests, so the cached install sees them.
