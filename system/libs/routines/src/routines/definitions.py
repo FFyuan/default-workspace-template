@@ -26,7 +26,7 @@ from routines.interfaces import RepositoryInterface
 from routines.paths import DEFINITION_SUFFIX
 from routines.primitives import RoutineId
 
-# The fields in the order a written file lists them, so every definition reads the same way.
+# The fields in the order a fresh file lists them; an edit keeps the file's own order and appends what is new.
 _FIELD_ORDER: Final[tuple[str, ...]] = (
     "title",
     "what",
