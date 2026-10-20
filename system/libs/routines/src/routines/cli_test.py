@@ -111,6 +111,17 @@ def test_show_of_a_missing_routine_says_so(git_paths: RoutinesPaths) -> None:
     assert "There is no routine called 'nothing'" in result.output
 
 
+def test_log_of_a_missing_routine_or_a_mistyped_run_id_says_so(git_paths: RoutinesPaths) -> None:
+    missing = _invoke(git_paths, "log", "nothing")
+    assert missing.exit_code == 1
+    assert "There is no routine called 'nothing'" in missing.output
+
+    _invoke(git_paths, "add", "hello", "--title", "Hello", "--what", "Says hello.", "--every", "1d", "--", "true")
+    mistyped = _invoke(git_paths, "log", "hello", "not-a-run")
+    assert mistyped.exit_code == 1
+    assert "There is no run called 'not-a-run'" in mistyped.output
+
+
 def test_a_wake_takes_its_title_and_timeout_from_the_routine_unless_told_otherwise() -> None:
     definition = RoutineDefinition.model_validate(
         {"title": "Weekly check-up", "what": "Checks.", "every": "1w", "command": ["true"], "timeout": "2h"}

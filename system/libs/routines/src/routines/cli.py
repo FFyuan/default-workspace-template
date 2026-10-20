@@ -15,6 +15,7 @@ from pydantic import Field
 from pydantic import ValidationError
 
 from imbue.imbue_common.frozen_model import FrozenModel
+from imbue.imbue_common.ids import InvalidRandomIdError
 from imbue.imbue_common.logging import setup_logging
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineRow
@@ -25,6 +26,7 @@ from routines.definitions import describe_validation_error
 from routines.definitions import once_moment_from_text
 from routines.errors import RoutineNotFoundError
 from routines.errors import RoutinesError
+from routines.errors import RunNotFoundError
 from routines.errors import RunInFlightError
 from routines.migrate import migrate_cron_entries
 from routines.paths import RESULT_FILENAME
@@ -87,6 +89,15 @@ _FORMAT_OPTION = click.option(
 
 def _service() -> RoutinesService:
     return build_service(paths_from_environment(), dict(os.environ))
+
+
+def _run_id_of(text: str) -> RunId:
+    """The run id a user or the environment named; a string that is not one is a RunNotFoundError, in the
+    library's words, rather than the id type's own error."""
+    try:
+        return RunId(text)
+    except InvalidRandomIdError as e:
+        raise RunNotFoundError(text) from e
 
 
 def _print_json(model: BaseModel | Sequence[BaseModel]) -> None:
@@ -391,7 +402,8 @@ def log_command(routine_id: str, run_id: str | None) -> None:
     """A run's log, the latest run's by default."""
     service = _service()
     try:
-        wanted = RunId(run_id) if run_id else service.last_run_id(RoutineId(routine_id))
+        service.definitions.load(RoutineId(routine_id))
+        wanted = _run_id_of(run_id) if run_id else service.last_run_id(RoutineId(routine_id))
         if wanted is None:
             click.echo("No runs yet.")
             return
@@ -442,7 +454,7 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
         defaults = wake_defaults(_definition_if_any(service, wanted_id), wanted_id, title, timeout)
         outcome = service.runner.wake(
             wanted_id,
-            RunId(raw_run_id) if raw_run_id else None,
+            _run_id_of(raw_run_id) if raw_run_id else None,
             defaults.title,
             skill,
             defaults.timeout.timedelta,
