@@ -166,8 +166,8 @@ auto_allow_permissions = true
 auto_disable_questions = true
 cli_args = """--dangerously-skip-permissions --disallowed-tools ExitPlanMode,TodoWrite,TaskCreate,TaskList,TaskUpdate"""
 # fastMode defaults OFF here so every NON-interactive agent runs at standard
-# speed -- every claude role (caretaker, automation, worker) resolves to this
-# type, so they all inherit it. Fast mode buys latency at a higher per-token
+# speed -- every claude role (automation, worker) resolves to this type, so
+# they all inherit it. Fast mode buys latency at a higher per-token
 # price, which is worth it only when a human is waiting on the reply.
 # A chat launches fast through the `agent_types.claude.settings_overrides.fastMode=true`
 # setting that `[create_templates.fast]` (below) stacks on its create when the
