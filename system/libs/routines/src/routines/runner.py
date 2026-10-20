@@ -620,10 +620,11 @@ def read_result(path: Path) -> RunResult:
 
 
 def _stop_process_group(process: subprocess.Popen[bytes]) -> None:
-    """Ask the process group to stop, then kill what is left; returns once no process of the group remains.
+    """Ask the process group to stop, then kill what is left, each drained for a bounded time; a member that
+    outlives the kill is logged, not waited for.
 
     The direct child is reaped here; its descendants are reaped by whoever inherits them, so the group is
-    polled until every member is gone (a run is closed only once nothing of it still runs).
+    polled for every member to be gone (a run is closed only once nothing of it still runs).
     """
     if _signal_group_and_drain(process, signal.SIGTERM):
         return
