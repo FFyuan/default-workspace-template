@@ -59,6 +59,25 @@ function unitOf(form: ScheduleForm): { value: CadenceUnit; label: string; one: s
   return CADENCE_UNITS.find((unit) => unit.value === form.unit) ?? CADENCE_UNITS[2];
 }
 
+/** Whether the form offers a time of day: only a cadence of a day or more has one. */
+export function offersTimeOfDay(form: ScheduleForm): boolean {
+  const count = Number(form.count);
+  return form.mode === "every" && /^\d+$/.test(form.count.trim()) && count * unitOf(form).seconds >= 86400;
+}
+
+/** The form as the dialog shows it: a time of day under a day's cadence, a day of the month off a monthly
+ *  one and weekdays on a monthly one are hidden, and what is not shown is not part of the change (a value
+ *  typed before the unit changed must not block the save or ride into the definition). */
+export function shownFieldsOf(form: ScheduleForm): ScheduleForm {
+  if (form.mode === "once") return form;
+  return {
+    ...form,
+    at: offersTimeOfDay(form) ? form.at : "",
+    dayOfMonth: form.unit === "mo" ? form.dayOfMonth : "",
+    days: form.unit === "mo" ? [] : form.days,
+  };
+}
+
 /** Why the form cannot be saved as it is, or null when it can. */
 export function problemOf(form: ScheduleForm): string | null {
   if (form.mode === "once") {
@@ -68,32 +87,23 @@ export function problemOf(form: ScheduleForm): string | null {
   if (!/^\d+$/.test(form.count.trim()) || count < 1) return "How often has to be a whole number, at least 1.";
   const seconds = count * unitOf(form).seconds;
   if (seconds > 366 * 86400) return "A gap longer than a year is too long to schedule.";
-  if (form.at !== "" && seconds < 86400) return "A time of day only applies to routines that run daily or less.";
-  if (form.dayOfMonth !== "" && form.unit !== "mo") return "A day of the month only applies to monthly routines.";
-  if (
-    form.dayOfMonth !== "" &&
-    !(/^\d+$/.test(form.dayOfMonth) && Number(form.dayOfMonth) >= 1 && Number(form.dayOfMonth) <= 31)
-  ) {
+  const { dayOfMonth } = shownFieldsOf(form);
+  if (dayOfMonth !== "" && !(/^\d+$/.test(dayOfMonth) && Number(dayOfMonth) >= 1 && Number(dayOfMonth) <= 31)) {
     return "The day of the month has to be between 1 and 31.";
   }
   return null;
-}
-
-/** Whether the form offers a time of day: only a cadence of a day or more has one. */
-export function offersTimeOfDay(form: ScheduleForm): boolean {
-  const count = Number(form.count);
-  return form.mode === "every" && /^\d+$/.test(form.count.trim()) && count * unitOf(form).seconds >= 86400;
 }
 
 export function changeOf(form: ScheduleForm): ScheduleChange {
   if (form.mode === "once") {
     return { every: null, at: null, days: [], day_of_month: null, once: form.once };
   }
+  const shown = shownFieldsOf(form);
   return {
-    every: `${Number(form.count)}${form.unit}`,
-    at: form.at === "" ? null : form.at,
-    days: form.days,
-    day_of_month: form.dayOfMonth === "" ? null : Number(form.dayOfMonth),
+    every: `${Number(shown.count)}${shown.unit}`,
+    at: shown.at === "" ? null : shown.at,
+    days: shown.days,
+    day_of_month: shown.dayOfMonth === "" ? null : Number(shown.dayOfMonth),
     once: null,
   };
 }
@@ -126,13 +136,14 @@ function daysText(days: Weekday[]): string {
 }
 
 /** The sentence the schedule will read as, in the words the list uses. */
-export function sentenceOf(form: ScheduleForm): string {
-  if (form.mode === "once") {
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(form.once)) return "";
-    const date = new Date(form.once);
+export function sentenceOf(typed: ScheduleForm): string {
+  if (typed.mode === "once") {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(typed.once)) return "";
+    const date = new Date(typed.once);
     const month = date.toLocaleString("en-US", { month: "short" });
-    return `Once, ${month} ${date.getDate()} at ${timeText(form.once.slice(11, 16))}`;
+    return `Once, ${month} ${date.getDate()} at ${timeText(typed.once.slice(11, 16))}`;
   }
+  const form = shownFieldsOf(typed);
   const count = Number(form.count);
   const unit = unitOf(form);
   let head: string;
@@ -147,5 +158,5 @@ export function sentenceOf(form: ScheduleForm): string {
     head = count === 1 ? `Every ${unit.one}` : `Every ${count} ${unit.label}`;
     if (form.days.length > 0) head = `${head} on ${daysText(form.days)}`;
   }
-  return form.at === "" || !offersTimeOfDay(form) ? head : `${head} at ${timeText(form.at)}`;
+  return form.at === "" ? head : `${head} at ${timeText(form.at)}`;
 }

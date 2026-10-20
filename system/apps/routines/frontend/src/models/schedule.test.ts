@@ -66,11 +66,27 @@ describe("problemOf", () => {
   it("names what cannot be saved", () => {
     expect(problemOf(form({ count: "0" }))).toMatch(/at least 1/);
     expect(problemOf(form({ count: "x" }))).toMatch(/whole number/);
-    expect(problemOf(form({ count: "2", unit: "h", at: "07:00" }))).toMatch(/daily or less/);
     expect(problemOf(form({ count: "400", unit: "d" }))).toMatch(/longer than a year/);
-    expect(problemOf(form({ unit: "d", dayOfMonth: "3" }))).toMatch(/monthly/);
+    expect(problemOf(form({ unit: "mo", dayOfMonth: "32" }))).toMatch(/between 1 and 31/);
     expect(problemOf(form({ mode: "once", once: "" }))).toMatch(/date and a time/);
     expect(problemOf(form({ count: "1", unit: "d", at: "07:30" }))).toBeNull();
+  });
+
+  it("ignores a field the dialog hides, so a unit change never strands a value the user cannot clear", () => {
+    // A daily-at-07:30 routine switched to hours: the time input is gone, and so is the time.
+    const hourly = form({ count: "2", unit: "h", at: "07:30" });
+    expect(problemOf(hourly)).toBeNull();
+    expect(changeOf(hourly).at).toBeNull();
+    expect(sentenceOf(hourly)).toBe("Every 2 hours");
+    // A monthly-on-the-3rd routine switched to daily: the day input is gone, and so is the day.
+    const daily = form({ unit: "d", dayOfMonth: "3", days: ["mon"] });
+    expect(problemOf(daily)).toBeNull();
+    expect(changeOf(daily).day_of_month).toBeNull();
+    expect(changeOf(daily).days).toEqual(["mon"]);
+    // A weekday routine switched to monthly: the weekday picker is gone, and so are the weekdays.
+    const monthly = form({ unit: "mo", days: ["mon"], dayOfMonth: "40" });
+    expect(changeOf(monthly).days).toEqual([]);
+    expect(problemOf(monthly)).toMatch(/between 1 and 31/);
   });
 
   it("offers a time of day only from a day up", () => {
