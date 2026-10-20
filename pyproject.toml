@@ -22,6 +22,10 @@ dependencies = [
     # Agents run `uv run --no-sync workspace-layout` from the repo root, so its console script
     # must survive a sync of the root closure.
     "workspace-layout",
+    # The cron tick, the boot migration, the Caretaker's check and the skills run
+    # `uv run --no-sync routines ...` from the repo root, so its console script must
+    # survive a sync of the root closure too.
+    "routines",
     "imbue-common",
     "tomlkit>=0.12",
     "playwright==1.58.0",
