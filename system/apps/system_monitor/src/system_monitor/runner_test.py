@@ -111,20 +111,25 @@ def test_the_disk_endpoint_answers_the_figures_the_backups_and_an_idle_walk(
     client: FlaskClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(stats, "WORKSPACE_DIR", tmp_path)
+    # No state dir means no backup events to read, so the backups are not configured.
+    monkeypatch.delenv("MNGR_AGENT_STATE_DIR", raising=False)
 
     response = client.get("/api/disk")
 
     assert response.status_code == 200
     body = response.get_json()
     assert set(body["disk"]) == {"total", "used", "free"}
-    assert body["backups"]["state"] in {
-        "not_configured",
-        "running",
-        "up_to_date",
-        "stale",
-        "failing",
+    assert body["disk"]["total"] > 0
+    assert body["backups"]["state"] == "not_configured"
+    assert body["backups"]["last_success_at"] is None
+    assert body["backups"]["readme_path"].endswith("host_backup/README.md")
+    # Nothing has asked for a walk of the disk.
+    assert body["scan"] == {
+        "state": "idle",
+        "scanned_at": None,
+        "rows": [],
+        "missing": [],
     }
-    assert body["scan"]["state"] in {"idle", "scanning", "done", "failed"}
 
 
 def test_only_the_two_shell_modules_are_served(client: FlaskClient) -> None:
