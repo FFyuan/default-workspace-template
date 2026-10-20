@@ -123,6 +123,13 @@ def test_a_failed_run_with_wait_exits_one(git_paths: RoutinesPaths) -> None:
     assert _invoke(git_paths, "run", "x", "--wait").exit_code == 1
 
 
+def test_run_with_a_mistyped_run_id_says_so(git_paths: RoutinesPaths) -> None:
+    _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1h", "--", "true")
+    result = _invoke(git_paths, "run", "x", "--wait", "--run-id", "not-a-run")
+    assert result.exit_code == 1
+    assert "There is no run called 'not-a-run'" in result.output
+
+
 def test_show_of_a_missing_routine_says_so(git_paths: RoutinesPaths) -> None:
     result = _invoke(git_paths, "show", "nothing")
     assert result.exit_code == 1

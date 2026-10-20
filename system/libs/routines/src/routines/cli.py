@@ -380,7 +380,7 @@ def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | No
         click.echo(receipt.model_dump_json())
         return
     try:
-        event = service.runner.run(RoutineId(routine_id), run_trigger, RunId(run_id) if run_id else None)
+        event = service.runner.run(RoutineId(routine_id), run_trigger, _run_id_of(run_id) if run_id else None)
     except RunInFlightError as e:
         # The tick found the lock free a moment ago; a run that started since is the one that counts.
         if run_trigger is RunTrigger.SCHEDULED:
