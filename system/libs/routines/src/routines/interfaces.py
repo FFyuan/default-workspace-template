@@ -147,6 +147,10 @@ class ChatAppInterface(MutableModel, ABC):
         """The text of the newest agent message after the cursor (the whole transcript for None); None if none."""
 
     @abstractmethod
+    def find_chat(self, routine_id: RoutineId) -> str | None:
+        """The id of an agent already carrying the routine (its label, or the retired runner's); None for none."""
+
+    @abstractmethod
     def create_chat(self, name: str, routine_id: RoutineId, first_message: str) -> str:
         """Create the routine's chat with the message as its first; answers the chat id or raises ChatCreateError."""
 

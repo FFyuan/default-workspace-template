@@ -31,6 +31,10 @@ SEND_READ_TIMEOUT_SECONDS: Final[float] = 300.0
 NOT_READY_RETRY_WINDOW_SECONDS: Final[float] = 30.0
 NOT_READY_RETRY_PAUSE_SECONDS: Final[float] = 1.0
 CREATE_TIMEOUT_SECONDS: Final[float] = 300.0
+LIST_TIMEOUT_SECONDS: Final[float] = 60.0
+# The label a routine's chat carries, and the one the retired automation runner gave its agent.
+ROUTINE_LABEL: Final[str] = "routine"
+LEGACY_AUTOMATION_LABEL: Final[str] = "automation"
 _EVENTS_PAGE_LIMIT: Final[int] = 200
 _ASSISTANT_MESSAGE_TYPE: Final[str] = "assistant_message"
 
@@ -199,12 +203,40 @@ class HttpChatApp(ChatAppInterface):
             cursor = None if is_last_page else last_event_id
         return newest
 
+    def _run_mngr(self, argv: list[str], timeout_seconds: float) -> subprocess.CompletedProcess[str]:
+        """Run ``uv run --no-sync mngr <argv>`` from the repo root; raises OSError or TimeoutExpired as they come."""
+        return subprocess.run(
+            ["uv", "run", "--no-sync", "mngr", *argv],
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+            env={**os.environ, **self.environ},
+        )
+
+    def find_chat(self, routine_id: RoutineId) -> str | None:
+        """An agent labelled for the routine, or the retired runner's for the same skill, so a chat that outlived
+        its state (a migrated automation, a routine removed and added again) is taken up rather than created
+        under a name mngr would refuse as taken."""
+        condition = f'labels.{ROUTINE_LABEL} == "{routine_id}" || labels.{LEGACY_AUTOMATION_LABEL} == "{routine_id}"'
+        try:
+            completed = self._run_mngr(
+                ["list", "--include", condition, "--ids", "--on-error", "continue"], LIST_TIMEOUT_SECONDS
+            )
+        except (OSError, subprocess.TimeoutExpired) as e:
+            logger.warning("Could not look for an agent of the routine {}: {}", routine_id, e)
+            return None
+        if completed.returncode != 0:
+            logger.warning(
+                "Could not look for an agent of the routine {}: mngr list exited {}", routine_id, completed.returncode
+            )
+            return None
+        ids = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+        return ids[0] if ids else None
+
     def create_chat(self, name: str, routine_id: RoutineId, first_message: str) -> str:
         argv = [
-            "uv",
-            "run",
-            "--no-sync",
-            "mngr",
             "create",
             str(routine_id),
             "--template",
@@ -213,7 +245,7 @@ class HttpChatApp(ChatAppInterface):
             "--format",
             "jsonl",
             "--label",
-            f"routine={routine_id}",
+            f"{ROUTINE_LABEL}={routine_id}",
             "--label",
             f"display_name={name}",
         ]
@@ -222,15 +254,7 @@ class HttpChatApp(ChatAppInterface):
             argv += ["--label", f"workspace={workspace}"]
         argv += ["--message", first_message]
         try:
-            completed = subprocess.run(
-                argv,
-                cwd=self.repo_root,
-                capture_output=True,
-                text=True,
-                timeout=CREATE_TIMEOUT_SECONDS,
-                check=False,
-                env={**os.environ, **self.environ},
-            )
+            completed = self._run_mngr(argv, CREATE_TIMEOUT_SECONDS)
         except (OSError, subprocess.TimeoutExpired) as e:
             raise ChatCreateError(f"The chat could not be created ({e}).") from e
         if completed.returncode != 0:

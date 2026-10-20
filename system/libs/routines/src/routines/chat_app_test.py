@@ -149,6 +149,28 @@ def test_the_chat_is_created_through_mngr_and_named_by_its_created_event(tmp_pat
     assert argv[-2:] == ["--message", "/digest"]
 
 
+def test_an_agent_of_the_routine_is_found_through_mngr_list_by_either_label(tmp_path: Path, clock: FakeClock) -> None:
+    chat_app, argv_file = _chat_app_with_fake_uv(
+        tmp_path,
+        clock,
+        'printf "%s\\n" "$@" > "$ARGV_FILE"\necho "agent-old"\necho "agent-older"\n',
+    )
+
+    assert chat_app.find_chat(RoutineId("digest")) == "agent-old"
+    argv = argv_file.read_text().splitlines()
+    assert argv[:5] == ["run", "--no-sync", "mngr", "list", "--include"]
+    assert argv[5] == 'labels.routine == "digest" || labels.automation == "digest"'
+    assert argv[6:] == ["--ids", "--on-error", "continue"]
+
+
+def test_no_agent_of_the_routine_is_none_as_is_a_listing_that_fails(tmp_path: Path, clock: FakeClock) -> None:
+    chat_app, _ = _chat_app_with_fake_uv(tmp_path, clock, "")
+    assert chat_app.find_chat(RoutineId("digest")) is None
+    (tmp_path / "failing").mkdir()
+    failing, _ = _chat_app_with_fake_uv(tmp_path / "failing", clock, "exit 2\n")
+    assert failing.find_chat(RoutineId("digest")) is None
+
+
 def test_a_create_that_fails_is_refused_with_its_last_line(tmp_path: Path, clock: FakeClock) -> None:
     chat_app, _ = _chat_app_with_fake_uv(
         tmp_path, clock, 'echo "Signing in first." >&2\necho "No provider account is signed in." >&2\nexit 3\n'

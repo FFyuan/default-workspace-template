@@ -26,6 +26,9 @@ class ScriptedChatApp(ChatAppInterface):
     next_created_id: str = Field(default="agent-created", description="The id the next create answers")
     is_create_refused: bool = Field(default=False, description="Whether creates fail")
     event_ids: dict[str, str] = Field(default_factory=dict, description="The latest event id per chat")
+    findable: dict[RoutineId, str] = Field(
+        default_factory=dict, description="The agent a routine's label finds, as mngr would list it"
+    )
     unlisted_polls_by_chat: dict[str, int] = Field(
         default_factory=dict, description="How many status polls a chat is left out of the list for, as a fresh one is"
     )
@@ -65,6 +68,9 @@ class ScriptedChatApp(ChatAppInterface):
     def assistant_text_after(self, chat_id: str, cursor_event_id: str | None) -> str | None:
         chat = self.chats.get(chat_id)
         return chat.reply if chat is not None else None
+
+    def find_chat(self, routine_id: RoutineId) -> str | None:
+        return self.findable.get(routine_id)
 
     def create_chat(self, name: str, routine_id: RoutineId, first_message: str) -> str:
         if self.is_create_refused:

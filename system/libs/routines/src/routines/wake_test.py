@@ -75,6 +75,31 @@ def test_a_chat_the_app_no_longer_knows_is_made_again(chat_app: ScriptedChatApp,
     assert known == ["agent-created"]
 
 
+def test_a_chat_whose_agent_still_carries_the_routine_is_taken_up_instead_of_made_again(
+    chat_app: ScriptedChatApp, clock: FakeClock
+) -> None:
+    """A migrated automation's agent, or the chat of a routine removed and added again, is named after the
+    routine: mngr would refuse a second create under that name, so the wake adopts it."""
+    chat_app.script("agent-old", (ChatStatusWord.IDLE, ChatStatusWord.WORKING, ChatStatusWord.IDLE), "Done.")
+    chat_app.findable[DIGEST] = "agent-old"
+
+    outcome, _, known = _wake(chat_app, clock, None)
+
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+    assert outcome.chat_id == "agent-old"
+    assert known == ["agent-old"]
+    assert chat_app.created == []
+    assert chat_app.sent == [("agent-old", "/clear"), ("agent-old", "/digest")]
+
+
+def test_a_found_agent_the_chat_app_does_not_list_is_not_taken_up(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
+    chat_app.script("agent-created", (ChatStatusWord.IDLE,), "ok")
+    chat_app.findable[DIGEST] = "agent-unlisted"
+    outcome, _, known = _wake(chat_app, clock, "agent-gone")
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+    assert known == ["agent-created"]
+
+
 def test_a_later_run_clears_the_chat_and_sends_the_skill(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
     chat_app.script(
         "agent-1", (ChatStatusWord.IDLE, ChatStatusWord.WORKING, ChatStatusWord.IDLE), "Summarized 3 messages."

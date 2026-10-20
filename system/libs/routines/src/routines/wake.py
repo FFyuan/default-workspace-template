@@ -89,11 +89,21 @@ def wake_skill(
     warnings: list[RunWarning] = []
     command = slash_command_of(skill)
 
-    # Find the chat, or make it with the command as its first message.
+    # Find the chat: the one the state names, else one that outlived its state (its agent still carries the
+    # routine's label, and mngr would refuse to create another under the same name), else make it with the
+    # command as its first message.
     chat_id = known_chat_id
     is_fresh_chat = False
     try:
         status = chat_app.chat_status(chat_id) if chat_id is not None else None
+        if status is None:
+            found_chat_id = chat_app.find_chat(routine_id)
+            status = chat_app.chat_status(found_chat_id) if found_chat_id is not None else None
+            if status is not None:
+                assert found_chat_id is not None
+                logger.info("Taking up the chat {} of {}, which its agent still carries", found_chat_id, routine_id)
+                chat_id = found_chat_id
+                on_chat_known(chat_id)
         if status is None:
             chat_id = chat_app.create_chat(title, routine_id, command)
             is_fresh_chat = True
