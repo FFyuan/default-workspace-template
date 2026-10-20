@@ -1,6 +1,7 @@
 import json
 import shutil
 from collections.abc import Callable
+from typing import Final
 
 from loguru import logger
 from pydantic import ValidationError
@@ -10,28 +11,47 @@ from routines.interfaces import StateStoreInterface
 from routines.locks import waited_lock
 from routines.primitives import RoutineId
 
+# Where a state file whose content does not parse is kept once a write replaces it, so the record survives.
+UNREADABLE_STATE_SUFFIX: Final[str] = ".json.bad"
+
 
 class FileStateStore(StateStoreInterface):
-    """One JSON file per routine, rewritten whole under the routine's state lock."""
+    """One JSON file per routine, rewritten whole under the routine's state lock.
+
+    Only a missing file reads as a fresh state. One that cannot be opened raises, since a reset is the user's
+    to ask for; one whose content does not parse reads as fresh so a listing goes on, and a write over it sets
+    the old file aside first rather than discarding it.
+    """
 
     def read(self, routine_id: RoutineId) -> RoutineState:
+        state, _ = self._read_with_parse_error(routine_id)
+        return state
+
+    def _read_with_parse_error(self, routine_id: RoutineId) -> tuple[RoutineState, Exception | None]:
         path = self.paths.state_path(routine_id)
         if not path.is_file():
-            return RoutineState()
+            return RoutineState(), None
         try:
-            return RoutineState.model_validate_json(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, ValidationError) as e:
+            return RoutineState.model_validate_json(path.read_text(encoding="utf-8")), None
+        except (ValueError, ValidationError) as e:
             logger.warning(
-                "Starting {} from a fresh state: its state file could not be read ({})",
+                "Reading {} as a fresh state: its state file does not parse ({})",
                 routine_id,
                 e,
             )
-            return RoutineState()
+            return RoutineState(), e
 
     def update(self, routine_id: RoutineId, transform: Callable[[RoutineState], RoutineState]) -> RoutineState:
         with waited_lock(self.paths.state_lock_path(routine_id)):
-            updated = transform(self.read(routine_id))
+            current, parse_error = self._read_with_parse_error(routine_id)
             path = self.paths.state_path(routine_id)
+            if parse_error is not None:
+                set_aside = path.with_suffix(UNREADABLE_STATE_SUFFIX)
+                path.replace(set_aside)
+                logger.warning(
+                    "Kept the unreadable state file of {} at {} before writing a fresh one", routine_id, set_aside
+                )
+            updated = transform(current)
             path.parent.mkdir(parents=True, exist_ok=True)
             temporary = path.with_suffix(".json.tmp")
             temporary.write_text(
