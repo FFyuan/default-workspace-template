@@ -102,7 +102,7 @@
     $("summary").innerHTML = `<div class="facts">${p.facts.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>
       <div class="graph"><div class="label">${p.label}</div>${p.series ? `<svg id="sgraph"></svg>` : `<svg></svg>`}<div class="value">${p.value}</div></div>
       <div class="facts">${p.right.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>`;
-    if (p.series) M.drawMiniSpark($("sgraph"), p.series, { windowMs: r === "disk" ? 60 * 60e3 : 10 * 60e3, color: p.color, h: 56 });
+    if (p.series) M.drawMiniSpark($("sgraph"), p.series, { windowMs: r === "disk" ? 60 * 60e3 : 10 * 60e3, gapMs: r === "disk" ? 30000 : 15000, color: p.color, h: 56 });
   }
   $("seg").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     $("seg").querySelectorAll("button").forEach((o) => o.setAttribute("aria-checked", String(o === b)));

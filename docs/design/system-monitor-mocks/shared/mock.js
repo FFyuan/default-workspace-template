@@ -90,8 +90,10 @@
     cpu24: walk(59, 288, 0.25, 0.15, 300e3, { spikes: 0.05 }),
     cores60: cpu.perCore.map((base, i) => walk(70 + i, 360, base / 100, 0.2, 10000, { spikes: 0.03 })),
   };
-  // Leave a gap in the 60-minute line where the machine was paused, as the real app does.
-  for (const key of ["mem60", "cpu60", "disk60"]) history[key] = history[key].filter((p) => !(p.t < now - 38 * 60e3 && p.t > now - 41 * 60e3));
+  // Leave a gap in the 60-minute lines where the machine was paused, as the real app does.
+  const paused = (p) => p.t < now - 38 * 60e3 && p.t > now - 41 * 60e3;
+  for (const key of ["mem60", "cpu60", "disk60"]) history[key] = history[key].filter((p) => !paused(p));
+  history.cores60 = history.cores60.map((samples) => samples.filter((p) => !paused(p)));
 
   function size(bytes) {
     const gb = bytes / GiB;
@@ -175,12 +177,12 @@
   }
 
   // A compact single-series sparkline with no grid: for tiles and widgets.
-  function drawMiniSpark(svg, samples, { windowMs, color, h = 40 } = {}) {
+  function drawMiniSpark(svg, samples, { windowMs, color, h = 40, gapMs = Infinity } = {}) {
     const w = 300;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     svg.setAttribute("preserveAspectRatio", "none");
-    svg.innerHTML = `<path d="${sparkPath(samples, { w, h, windowMs, area: true })}" fill="${color}" opacity="0.1"/>`
-      + `<path d="${sparkPath(samples, { w, h, windowMs })}" fill="none" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    svg.innerHTML = `<path d="${sparkPath(samples, { w, h, windowMs, gapMs, area: true })}" fill="${color}" opacity="0.1"/>`
+      + `<path d="${sparkPath(samples, { w, h, windowMs, gapMs })}" fill="none" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
   }
 
   function bar(el, segments) {

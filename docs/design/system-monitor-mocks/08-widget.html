@@ -61,7 +61,7 @@
   ];
   function strip(id, open) {
     $(id).innerHTML = meters.map((m, i) => `<button type="button" class="m" aria-expanded="${i === open}"><span class="k">${m.k}</span><br><span class="v">${m.v}</span><span class="s">${m.s}</span>${m.warn ? `<span class="dot warn" title="Memory is 64% full"></span>` : ""}<svg id="${id}-${i}"></svg></button>`).join("");
-    meters.forEach((m, i) => M.drawMiniSpark($(`${id}-${i}`), m.series, { windowMs: i === 2 ? 3600e3 : 600e3, color: m.color, h: 26 }));
+    meters.forEach((m, i) => M.drawMiniSpark($(`${id}-${i}`), m.series, { windowMs: i === 2 ? 3600e3 : 600e3, gapMs: i === 2 ? 30000 : 15000, color: m.color, h: 26 }));
   }
   strip("strip-a", -1);
   strip("strip-b", 1);

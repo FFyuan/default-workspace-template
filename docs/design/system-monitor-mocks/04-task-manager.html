@@ -50,7 +50,8 @@
 <script>
 (() => {
   const M = window.MOCK, $ = (id) => document.getElementById(id);
-  const W = 60 * 60e3;
+  // The hour's readings are 10 s apart; a longer silence than three of them is a pause, left blank.
+  const W = 60 * 60e3, GAP = 30000;
   const resources = {
     cpu: { name: "CPU", val: "37%", sub: "4 cores", series: M.history.cpu60, color: "var(--ink-cpu)", title: "% busy", top: "100%",
       kv: [["Usage", "37", "%"], ["Load", "1.48", "1 min"], ["Processes", "142", ""], ["Threads", "611", ""], ["Up time", "2 d 6 h", ""], ["Busiest", "Website redesign", "24%"]],
@@ -69,7 +70,7 @@
     b.innerHTML = `<svg id="thumb-${id}"></svg><span><span class="name">${r.name}</span><br><span class="val">${r.val}${r.sub ? ` · ${r.sub}` : ""}</span></span>`;
     b.addEventListener("click", () => show(id));
     list.appendChild(b);
-    M.drawMiniSpark(b.querySelector("svg"), r.series, { windowMs: W, color: r.color, h: 30 });
+    M.drawMiniSpark(b.querySelector("svg"), r.series, { windowMs: W, color: r.color, h: 30, gapMs: GAP });
   }
   function show(id) {
     const r = resources[id];
@@ -80,8 +81,8 @@
       ${r.cores ? `<div class="cores">${M.cpu.perCore.map((p, i) => `<svg id="core-${i}" aria-label="core ${i + 1}, ${p}%"></svg>`).join("")}</div>` : ""}
       <div class="kv">${r.kv.map(([k, v, u]) => `<div><span class="k">${k}</span><span class="v${/^[\d.]/.test(v) ? "" : " text"}">${v}${u ? ` <small>${u}</small>` : ""}</span></div>`).join("")}</div>
       <div class="specs">${r.specs.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>`;
-    M.drawSpark($("main"), [{ name: r.name, samples: r.series, color: r.color, areaOpacity: 0.12, format: id === "memory" ? (v) => M.size(v * M.memory.total) : id === "disk" ? (v) => M.sizeDecimal(v * M.disk.total) : undefined }], { windowMs: W, h: 100, full: false, gapMs: 30000 });
-    if (r.cores) M.cpu.perCore.forEach((p, i) => M.drawMiniSpark($(`core-${i}`), M.history.cores60[i], { windowMs: W, color: r.color, h: 44 }));
+    M.drawSpark($("main"), [{ name: r.name, samples: r.series, color: r.color, areaOpacity: 0.12, format: id === "memory" ? (v) => M.size(v * M.memory.total) : id === "disk" ? (v) => M.sizeDecimal(v * M.disk.total) : undefined }], { windowMs: W, h: 100, full: false, gapMs: GAP });
+    if (r.cores) M.cpu.perCore.forEach((p, i) => M.drawMiniSpark($(`core-${i}`), M.history.cores60[i], { windowMs: W, color: r.color, h: 44, gapMs: GAP }));
   }
   show("cpu");
 })();
