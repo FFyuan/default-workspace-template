@@ -329,8 +329,11 @@ def create_app(
             service.remove(wanted)
         except RoutineNotFoundError:
             return not_found(routine_id)
-        except (RunInFlightError, DefinitionCommitError) as e:
+        except RunInFlightError as e:
             return error_response(str(e), HTTP_CONFLICT)
+        except DefinitionCommitError as e:
+            # The routine is gone by the time a commit is refused; the next definition write commits the deletion.
+            logger.warning("Removed {} but could not commit the removal: {}", wanted, e)
         return Response(status=HTTP_NO_CONTENT)
 
     return app

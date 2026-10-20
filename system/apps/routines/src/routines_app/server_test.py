@@ -6,12 +6,19 @@ from flask.testing import FlaskClient
 from app_schema.testing import assert_api_schema_describes_app
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
+from routines.data_types import RoutineDefinition
 from routines.locks import held_lock
+from routines.mock_chat_app_test import ScriptedChatApp
+from routines.mock_clock_test import FakeClock
+from routines.mock_notifier_test import RecordingNotifier
+from routines.mock_repository_test import RecordingRepository
+from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.service import RoutinesService
 from routines.testing import TEST_NOW
+from routines.testing import build_test_service
 from routines.testing import wait_for_last_run
 from routines_app.mock_fix_chat_test import RecordingFixChatStarter
 from routines_app.server import create_app
@@ -160,6 +167,27 @@ def test_removing_a_routine_deletes_it_once_no_run_is_going(
     assert client.delete("/api/routines/news-sync").status_code == 204
     assert client.get("/api/routines/news-sync").status_code == 404
     assert client.delete("/api/routines/news-sync").status_code == 404
+
+
+def test_a_removal_whose_commit_is_refused_is_still_a_removal(
+    git_paths: RoutinesPaths,
+    clock: FakeClock,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+    static_directory: Path,
+    fix_chat_starter: RecordingFixChatStarter,
+) -> None:
+    """The service drops the routine before it commits, so a refused commit leaves nothing to retry on."""
+    repository = RecordingRepository(repo_root=git_paths.repo_root)
+    service = build_test_service(git_paths, repository, clock, chat_app, notifier)
+    service.add(
+        SYNC, RoutineDefinition.model_validate({"title": "S", "what": "W", "every": "1h", "command": ["true"]})
+    )
+    client = create_app(service, static_directory, is_preview=False, fix_chat_starter=fix_chat_starter).test_client()
+    repository.is_refusing = True
+
+    assert client.delete("/api/routines/news-sync").status_code == 204
+    assert client.get("/api/routines/news-sync").status_code == 404
 
 
 def test_the_fix_route_opens_a_chat_briefed_on_the_routine_and_answers_its_id(
