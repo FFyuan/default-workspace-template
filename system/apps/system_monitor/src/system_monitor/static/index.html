@@ -577,7 +577,7 @@
       + `<a href="file://${esc(b.readme_path)}">Learn more about backups ›</a>`;
     const scan = r.scan, button = $("scan"), note = $("scan-note");
     button.disabled = scan.state === "scanning";
-    button.textContent = scan.state === "scanning" ? "Measuring…" : scan.state === "done" ? "Measure again" : "See what's using the disk";
+    button.textContent = { scanning: "Measuring…", done: "Measure again", failed: "Try again" }[scan.state] || "See what's using the disk";
     if (scan.state === "done") {
       note.textContent = `As of ${clock(new Date(scan.scanned_at))}.`;
       const shades = { workspace: "#7096b7", uploads: "#8eafcb", apps: "#aac3d9", caches: "#c6d7e5", other: "#cfcdc7" };
@@ -589,6 +589,7 @@
       $("scan-missing").hidden = !scan.missing.length;
       $("scan-missing").textContent = scan.missing.length ? `Could not measure: ${scan.missing.join(", ")}.` : "";
     } else if (scan.state === "scanning") note.textContent = "Measuring what is on the disk…";
+    else if (scan.state === "failed") { note.textContent = `Could not measure what is on the disk (tried at ${clock(new Date(scan.scanned_at))}).`; $("disk-table").hidden = true; $("scan-missing").hidden = true; }
     return scan.state === "scanning";
   }
   $("scan").addEventListener("click", async () => {

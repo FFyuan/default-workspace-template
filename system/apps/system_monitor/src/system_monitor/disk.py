@@ -128,7 +128,7 @@ def scan(
 
 
 class DiskScanner:
-    """Runs at most one walk at a time on a thread, and keeps the last result with its time."""
+    """Runs at most one walk at a time on a thread, and keeps the last result (or failure) with its time."""
 
     def __init__(
         self,
@@ -159,10 +159,17 @@ class DiskScanner:
             return True
 
     def _walk(self) -> None:
-        rows, missing = self._run()
+        try:
+            rows, missing = self._run()
+        except OSError:
+            # The disk could not be read at all (not one row's du, which scan reports as missing):
+            # the walk ends failed rather than staying "scanning" with the button disabled.
+            rows, missing, state = [], [], "failed"
+        else:
+            state = "done"
         with self._lock:
             self._state = {
-                "state": "done",
+                "state": state,
                 "scanned_at": self._clock().isoformat(),
                 "rows": rows,
                 "missing": missing,

@@ -225,6 +225,7 @@ Each bucket is one `du -sk` (GNU, the container is Linux), bounded at 120 s:
 
 The result is kept in memory with its time; the app stopping forgets it, which is fine for a figure the user asked for once.
 A `du` that fails or times out leaves its row out and the response says which rows are missing.
+A walk that cannot read the disk at all ends in a `failed` state with no rows, so the button offers to try again rather than staying disabled.
 
 ### 4.5 Backups
 

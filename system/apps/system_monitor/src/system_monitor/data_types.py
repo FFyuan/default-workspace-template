@@ -179,14 +179,14 @@ class DiskRow(FrozenModel):
 class DiskScan(FrozenModel):
     """The state of the on-demand walk of the disk and its last result."""
 
-    state: Literal["idle", "scanning", "done"] = Field(
-        description="idle: never run; scanning: running; done: a result"
+    state: Literal["idle", "scanning", "done", "failed"] = Field(
+        description="idle: never run; scanning: running; done: a result; failed: the last walk could not read the disk"
     )
     scanned_at: str | None = Field(
-        description="When the last walk finished, ISO 8601; null before the first"
+        description="When the last walk ended, ISO 8601; null before the first"
     )
     rows: tuple[DiskRow, ...] = Field(
-        description="The last walk's rows; empty before the first"
+        description="The last walk's rows; empty before the first and after a failed one"
     )
     missing: tuple[str, ...] = Field(
         description="The rows the last walk could not measure"

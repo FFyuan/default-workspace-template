@@ -105,3 +105,25 @@ def test_the_scanner_runs_one_walk_at_a_time_and_keeps_the_result_with_its_time(
     assert result["scanned_at"] == "2026-10-20T15:00:00+00:00"
     assert result["rows"][0]["id"] == "other" and result["missing"] == ["caches"]
     assert started == [1]
+
+
+def test_a_walk_that_cannot_read_the_disk_ends_failed_rather_than_scanning() -> None:
+    def run() -> tuple[list[dict[str, object]], list[str]]:
+        raise OSError("no such disk")
+
+    scanner = disk.DiskScanner(
+        run=run, clock=lambda: datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
+    )
+
+    assert scanner.start() is True
+    scanner.wait(5.0)
+
+    assert scanner.snapshot() == {
+        "state": "failed",
+        "scanned_at": "2026-10-20T15:00:00+00:00",
+        "rows": [],
+        "missing": [],
+    }
+    # A failed walk does not block the next one.
+    assert scanner.start() is True
+    scanner.wait(5.0)

@@ -124,7 +124,7 @@ def test_the_disk_endpoint_answers_the_figures_the_backups_and_an_idle_walk(
         "stale",
         "failing",
     }
-    assert body["scan"]["state"] in {"idle", "scanning", "done"}
+    assert body["scan"]["state"] in {"idle", "scanning", "done", "failed"}
 
 
 def test_only_the_two_shell_modules_are_served(client: FlaskClient) -> None:
