@@ -304,8 +304,8 @@ class _PathOutcome(FrozenModel):
     )
     is_root_dependency: bool = Field(
         default=False,
-        description="Whether the root project depends on what it changed: a package, directly or "
-        "through a member, or a package the lock upgraded",
+        description="Whether the root project depends on what it changed: its own configuration, a "
+        "package, directly or through a member, or a package the lock upgraded",
     )
 
 
@@ -593,7 +593,9 @@ def _select_for_path(context: _SelectionContext, path: str) -> _PathOutcome:
     """Everything one changed (non-documentation) path calls for."""
     layout = context.layout
     if path in _ROOT_CONFIG_FILES:
-        return _PathOutcome(classes=(ChangedPathClass.ROOT_CONFIG,), is_full_root=True)
+        return _PathOutcome(
+            classes=(ChangedPathClass.ROOT_CONFIG,), is_full_root=True, is_root_dependency=True
+        )
     if path == LOCKFILE:
         return _select_for_lockfile(context, path)
     if (
