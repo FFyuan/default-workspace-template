@@ -34,6 +34,7 @@ from bootstrap.manager import (
     _fetch_user_timezone,
     _initialize_workspace_main_branch,
     _install_runtime_cron_entries,
+    _migrate_cron_entries_to_routines,
     _parse_timezone_response,
     _read_host_name,
     _read_update_marker_dri_agent,
@@ -129,6 +130,7 @@ class _StubSubprocess:
     def __init__(self, returncode: int = 0, stdout: str = "") -> None:
         self.returncode = returncode
         self.stdout = stdout
+        self.stderr = ""
         self.calls: list[list[str]] = []
         self.kwargs: list[dict[str, object]] = []
         self.on_command: Callable[[list[str]], None] | None = None
@@ -143,7 +145,7 @@ class _StubSubprocess:
             if token in cmd:
                 raise error
         return subprocess.CompletedProcess(
-            args=cmd, returncode=self.returncode, stdout=self.stdout, stderr=""
+            args=cmd, returncode=self.returncode, stdout=self.stdout, stderr=self.stderr
         )
 
 
@@ -1011,6 +1013,28 @@ def test_main_boots_when_the_cron_migration_cannot_run(
     assert handed_off == [True]
 
 
+def test_a_cron_migration_that_fails_is_a_warning_in_its_own_words(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The boot goes on without the migration; what the command said is what the boot log keeps.
+    monkeypatch.chdir(tmp_path)
+    stub = _StubSubprocess(returncode=1)
+    stub.stderr = "a definition could not be written"
+    monkeypatch.setattr("bootstrap.manager.subprocess.run", stub.run)
+    warnings: list[str] = []
+    sink = logger.add(lambda message: warnings.append(str(message)), level="WARNING")
+    try:
+        _migrate_cron_entries_to_routines()
+    finally:
+        logger.remove(sink)
+
+    assert stub.calls == [["uv", "run", "--no-sync", "routines", "migrate-cron"]]
+    assert any(
+        "migration failed: a definition could not be written" in line
+        for line in warnings
+    )
+
+
 def test_main_boots_without_an_agent_state_dir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1075,6 +1099,10 @@ def test_routines_tick_cron_entry_runs_through_the_env_wrapper_and_logs_to_the_s
     entry = (target / ROUTINES_TICK_CRON_NAME).read_text()
     assert entry.count("\n") == 1
     assert ">> /var/log/supervisor/routines-tick.log 2>&1" in entry
+    # cron's own PATH is bare: the wrapper is named by its absolute path, and the wrapper sets the rest.
+    wrapper_in_entry = entry.split()[6]
+    assert wrapper_in_entry == str(WORKSPACE_ROOT_DIR / ROUTINES_ENV_WRAPPER)
+    assert Path(wrapper_in_entry).is_absolute()
     # The wrapper the line names has to be in the tree and runnable, or the tick fails at every fire.
     # This file sits at system/libs/bootstrap/src/bootstrap/, five levels under the checkout.
     wrapper = Path(__file__).resolve().parents[5] / ROUTINES_ENV_WRAPPER
