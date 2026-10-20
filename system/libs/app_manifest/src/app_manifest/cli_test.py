@@ -689,10 +689,34 @@ def test_select_tests_needs_a_diff_or_paths(tmp_path: Path) -> None:
 
     neither = _run_cli(["select-tests", "--repo-root", str(tmp_path)])
     ref_without_base = _run_cli(["select-tests", "--repo-root", str(tmp_path), "--diff-ref", "HEAD"])
+    scope_file_and_base = _run_cli(
+        [
+            "select-tests",
+            "--repo-root",
+            str(tmp_path),
+            "--scope-file",
+            str(tmp_path / "scope.json"),
+            "--diff-base",
+            "HEAD",
+        ]
+    )
 
     assert neither.exit_code != 0
     assert "--diff-base" in neither.output
     assert ref_without_base.exit_code != 0
+    assert scope_file_and_base.exit_code != 0
+    assert "--scope-file names the change on its own" in scope_file_and_base.output
+
+
+def test_pass_scope_needs_a_diff_base_for_a_lead_ref(tmp_path: Path) -> None:
+    build_news_workspace(tmp_path)
+
+    result = _run_cli(
+        ["pass-scope", "--creation", "app:news", "--repo-root", str(tmp_path), "--lead-ref", "HEAD"]
+    )
+
+    assert result.exit_code != 0
+    assert "--lead-ref" in result.output
 
 
 def test_pass_scope_judges_the_diff_against_every_creation_in_the_pass(tmp_path: Path) -> None:
