@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import pytest
 from flask.testing import FlaskClient
 
 from app_schema.testing import assert_api_schema_describes_app
@@ -113,6 +114,7 @@ def test_a_run_and_its_log_are_read_back(
     assert detail["row"]["last_run_text"].startswith("Worked")
 
 
+@pytest.mark.timeout(30)
 def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_holds_the_lock(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
