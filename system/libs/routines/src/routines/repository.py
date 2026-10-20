@@ -19,6 +19,9 @@ _UNKNOWN_PATH_MARKER: Final[str] = "did not match any files"
 COULD_NOT_SAVE_MESSAGE: Final[str] = (
     "Couldn't save that change because something else is saving right now. Try again in a moment."
 )
+# What git says when the index is locked by another writer or a merge is in progress: the transient cases the
+# message above is for; anything else is reported with git's own words.
+_ANOTHER_WRITER_MARKERS: Final[tuple[str, ...]] = ("index.lock", "MERGE_HEAD", "merge in progress", "merging")
 
 
 class GitRepository(RepositoryInterface):
@@ -37,7 +40,9 @@ class GitRepository(RepositoryInterface):
         if second is None:
             return
         logger.warning("Could not commit {}: {}", relative, second)
-        raise DefinitionCommitError(COULD_NOT_SAVE_MESSAGE)
+        if any(marker in second for marker in _ANOTHER_WRITER_MARKERS):
+            raise DefinitionCommitError(COULD_NOT_SAVE_MESSAGE)
+        raise DefinitionCommitError(f"Couldn't save that change: {second}")
 
     def _try_commit(self, relative: Path, message: str) -> str | None:
         """The failure's text, or None once the path is committed (or has nothing to commit)."""

@@ -78,3 +78,15 @@ def test_a_held_index_lock_is_retried_once_and_then_reported_in_the_users_words(
         repository.commit_path(definition, "routines: add digest")
 
     assert clock.pauses == [1.0]
+
+
+def test_a_failure_that_is_not_another_writer_is_reported_in_gits_words(paths: RoutinesPaths, clock: FakeClock) -> None:
+    """A root that is no repository at all is not a transient collision, and the user should not be told to retry."""
+    repository = GitRepository(repo_root=paths.repo_root, clock=clock)
+    definition = paths.definitions_dir / "digest.toml"
+    definition.write_text('title = "x"\n')
+
+    with pytest.raises(DefinitionCommitError, match="not a git repository") as refused:
+        repository.commit_path(definition, "routines: add digest")
+
+    assert "something else is saving" not in str(refused.value)
