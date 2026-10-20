@@ -115,8 +115,8 @@ uv run --no-sync routines remove <id>               # delete it (refused while a
 health is one word: Working, Failing (its last runs failed; the runner retries
 after `retry_after`), Overdue (it should have run and did not, which means the
 tick is not running), Needs you (its agent waits on the user), Broken (its
-file does not validate; `list` says why), Not run yet, Done (a one-off that
-ran), or Off.
+file does not validate; `show <id>`, or `list --format json`, says why), Not
+run yet, Done (a one-off that ran), or Off.
 
 ## How it runs
 
