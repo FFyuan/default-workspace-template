@@ -89,7 +89,7 @@
   // Each variant: file, name, what it is, and what the real app would need to become it (data
   // source, gathering cost, and whether it stays a read-only page).
   const variants = [
-    ["00-current.html", "Current app", "Memory &amp; disk as shipped today, reproduced with the sample data. No CPU.", "Baseline. Reads /proc, supervisord and the memory guard's records every 4 s; read-only."],
+    ["00-current.html", "Current app", "Memory &amp; disk as shipped today, reproduced with the sample data. No CPU.", "Baseline. One snapshot of /proc, supervisord and the memory guard's records, taken at most every 4 s and polled every 5 s by each window; read-only."],
     ["01-overview.html", "Overview tiles", "The smallest change: three tiles (CPU, memory, disk) with sparklines, then one breakdown table with a CPU column.", "Needs: CPU per process (two /proc/&lt;pid&gt;/stat samples per snapshot) and a CPU history like memory's. Cheap; read-only."],
     ["02-tabs.html", "Tabs", "One resource per tab, chosen in a segmented control that carries each resource's live number; the disk tab gets a what's-on-it breakdown.", "Needs: per-process CPU, plus a disk walk for the what's-on-it rows (slow under gVisor; would have to be cached or sampled) and a backup time from the backup service. Read-only."],
     ["03-activity-monitor.html", "Activity Monitor", "After macOS: toolbar, sortable process table, and a summary pane pinned to the bottom for the chosen resource.", "Needs: per-process CPU and the process list already gathered, shown unaggregated. Cheap; read-only, unless the table gets a Stop action."],

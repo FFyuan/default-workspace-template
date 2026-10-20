@@ -20,7 +20,8 @@ The app has to stay simple and low-resource, so each variant comes with what
 the real app would need to become it:
 
 - `00-current.html` -- the shipped page with sample data (no CPU). Baseline:
-  reads `/proc`, supervisord and the memory guard's records every 4 s; read-only.
+  one snapshot of `/proc`, supervisord and the memory guard's records, taken at
+  most every 4 s and polled every 5 s by each window; read-only.
 - `01-overview.html` -- three tiles with sparklines, one breakdown table with a
   CPU column. Needs CPU per process (two `/proc/<pid>/stat` samples per
   snapshot) and a CPU history like memory's. Cheap; read-only.
