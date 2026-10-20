@@ -81,6 +81,5 @@ class RoutinesPaths(FrozenModel):
 
 def paths_from_environment() -> RoutinesPaths:
     """The paths under the repo root the environment names, else the current directory."""
-    return RoutinesPaths(
-        repo_root=Path(os.environ.get(REPO_ROOT_ENV, "")) if os.environ.get(REPO_ROOT_ENV) else Path.cwd()
-    )
+    named = os.environ.get(REPO_ROOT_ENV)
+    return RoutinesPaths(repo_root=Path(named) if named else Path.cwd())
