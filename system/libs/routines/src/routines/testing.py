@@ -15,6 +15,7 @@ from routines.interfaces import NotifierInterface
 from routines.interfaces import RepositoryInterface
 from routines.ledger import FileLedger
 from routines.paths import RoutinesPaths
+from routines.registry import registry_path_of
 from routines.runner import Runner
 from routines.service import RoutinesService
 from routines.state import FileStateStore
@@ -65,7 +66,7 @@ def build_test_service(
     )
     return RoutinesService(
         paths=paths,
-        registry_path=paths.repo_root / "data" / ".state" / "apps.toml",
+        registry_path=registry_path_of(paths.repo_root, {}),
         definitions=definitions,
         states=states,
         ledger=ledger,
