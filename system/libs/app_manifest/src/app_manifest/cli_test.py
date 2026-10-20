@@ -601,7 +601,7 @@ def test_a_pass_gate_runs_the_full_root_suite_for_an_unowned_path_the_worker_cha
     assert "uv run pytest .agents/skills/refresh" not in commands
 
 
-def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_head(tmp_path: Path) -> None:
+def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_the_tree(tmp_path: Path) -> None:
     repo_root = tmp_path / "workspace"
     build_selection_workspace(repo_root)
     diff_base = run_git(repo_root, ("rev-parse", "HEAD")).strip()
@@ -609,12 +609,16 @@ def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_head(tmp_path
     commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "harden refresh")
     scope_path = tmp_path / "scope.json"
     _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
-    head = commit_changes(repo_root, {"system/libs/midlib/src/midlib/core.py": "VALUE = 2\n"}, "a later fix")
+    write_repo_file(repo_root, "system/libs/midlib/src/midlib/core.py", "VALUE = 2\n")
 
+    uncommitted = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
+    head = commit_everything(repo_root, "a later fix")
     stale = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
     _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
     regenerated = _selected_commands(repo_root, scope_path)
 
+    assert uncommitted.exit_code != 0
+    assert "system/libs/midlib/src/midlib/core.py" in uncommitted.output
     assert stale.exit_code != 0
     assert head in stale.output
     assert "uv run pytest system/libs/midlib" in regenerated
