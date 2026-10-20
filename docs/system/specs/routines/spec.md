@@ -336,7 +336,7 @@ The frontend is a Mithril and Tailwind build in the npm workspace, over `workspa
 One document serves every page; the page routes on its path and reports it through `shell:location`.
 
 - **`/`, the list.** A summary strip (how many routines, how many need attention, the next run), then one row per routine: title and sentence, the schedule and "Next: tomorrow 7:30 am", a health pill, "Last run 3 hours ago, automatic", and the run's summary.
-  Rows needing attention sort first, then by title.
+  Rows sort by health, the ones needing attention first (waiting on the user, failing, overdue, broken), then the rest (not run yet, working, done, off), and by title within a health.
   Routines with an `app` group under that app's display name (the listing carries `app_names`, read from the registry), the rest under "Workspace".
   A text field at the top, "Describe a routine to add", hands "Add a routine: <the text>" to the shell through `startWithText`, so a chat opens on it and the agent, following the `manage-routines` skill, writes the definition.
 - **`/<id>`, the routine.** The definition in plain words, the controls (Run now, On/Off, Change schedule, Fix it, Remove), and the run history: one row per run with when, trigger, outcome, duration, summary, and for a skill run a link to its chat.
