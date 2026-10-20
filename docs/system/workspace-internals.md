@@ -65,7 +65,8 @@ is named `<app>-<role>`.
   services' programs
 - `system/apps/` - Everything tab-openable: `system_interface/` (the workspace
   web UI -- the special app that hosts the other tabs), `chat/` (the agent
-  chats), `terminal/`, `files/`, `browser/`, `system_monitor/` (Memory & disk),
+  chats), `terminal/`, `files/`, `browser/`, `routines/` (Routines),
+  `system_monitor/` (Memory & disk),
   and every user-built app, each with an `app.toml` manifest; every
   Python app with a manifest is installed as its own uv tool and is also a
   member of the uv workspace via the `system/apps/*` glob; an app with no
