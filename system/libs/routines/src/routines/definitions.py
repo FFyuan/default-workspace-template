@@ -186,8 +186,12 @@ class FileDefinitionStore(DefinitionStoreInterface):
             raise RoutineNotFoundError(routine_id)
         try:
             existing = tomlkit.parse(path.read_text(encoding="utf-8"))
-        except ParseError:
-            # A file that no longer parses keeps no comments worth saving; it is rewritten whole.
+        except ParseError as e:
+            logger.warning(
+                "Rewriting the definition of {} whole, comments included: the file no longer parses ({})",
+                routine_id,
+                e,
+            )
             existing = tomlkit.document()
         document = apply_values_to_document(existing, definition_as_toml_values(definition))
         self._write(path, document)
