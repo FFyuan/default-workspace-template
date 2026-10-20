@@ -7,28 +7,16 @@ from routines.errors import RunInFlightError
 
 
 @contextmanager
-def held_lock(path: Path, what_is_held: str) -> Generator[None, None, None]:
-    """Hold the file lock for the block; raises RunInFlightError at once when another process holds it."""
+def _flocked(path: Path, is_waited: bool) -> Generator[bool, None, None]:
+    """Open the lock file and take its flock for the block, waiting for the holder or not; yields whether it is held.
+
+    The handle is closed on the way out, which releases the lock.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+")
     try:
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as e:
-            raise RunInFlightError(f"{what_is_held} is already going.") from e
-        yield
-    finally:
-        handle.close()
-
-
-@contextmanager
-def tried_lock(path: Path) -> Generator[bool, None, None]:
-    """Hold the file lock for the block when it is free; yields whether it was taken, never waiting."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = path.open("a+")
-    try:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX if is_waited else fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             yield False
             return
@@ -38,27 +26,31 @@ def tried_lock(path: Path) -> Generator[bool, None, None]:
 
 
 @contextmanager
+def held_lock(path: Path, what_is_held: str) -> Generator[None, None, None]:
+    """Hold the file lock for the block; raises RunInFlightError at once when another process holds it."""
+    with _flocked(path, is_waited=False) as is_held:
+        if not is_held:
+            raise RunInFlightError(f"{what_is_held} is already going.")
+        yield
+
+
+@contextmanager
+def tried_lock(path: Path) -> Generator[bool, None, None]:
+    """Hold the file lock for the block when it is free; yields whether it was taken, never waiting."""
+    with _flocked(path, is_waited=False) as is_held:
+        yield is_held
+
+
+@contextmanager
 def waited_lock(path: Path) -> Generator[None, None, None]:
     """Hold the file lock for the block, waiting for whoever holds it; for the short state writes."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = path.open("a+")
-    try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    with _flocked(path, is_waited=True):
         yield
-    finally:
-        handle.close()
 
 
 def is_lock_held(path: Path) -> bool:
     """Whether another process holds the lock right now."""
     if not path.exists():
         return False
-    handle = path.open("a+")
-    try:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return True
-        return False
-    finally:
-        handle.close()
+    with _flocked(path, is_waited=False) as is_held:
+        return not is_held
