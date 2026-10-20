@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memory &amp; disk (current)</title>
+<link rel="stylesheet" href="shared/mock.css">
+<style>
+  /* The shipped page, reproduced from system/apps/system_monitor/static/index.html with sample data. */
+  .page { padding-top: 24px; }
+  .page-header { align-items: baseline; margin-bottom: 16px; }
+  .stops .toggle { align-self: start; border: 0; border-radius: var(--radius-sm); background: none; color: var(--c-text-secondary); font-size: var(--font-size-helper); padding: 2px 6px; cursor: pointer; }
+  .stops .toggle:hover { background: var(--c-fill-hover); color: var(--c-text-primary); }
+  .stop-details { grid-column: 2 / -1; margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--c-surface-secondary); }
+  .stop-details .label { margin-bottom: 2px; color: var(--c-text-secondary); font-size: var(--font-size-helper); font-weight: var(--weight-semibold); }
+  .stop-details pre { margin: 0; font-family: var(--font-mono); font-size: var(--font-size-helper); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .hint { color: var(--c-text-faint); font-size: var(--font-size-helper); margin: -4px 0 8px; }
+  .chart { margin-top: 12px; }
+  .axis { height: 96px; }
+  svg.spark { height: 96px; }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="page-header">
+    <h1>Memory &amp; disk</h1>
+  </header>
+
+  <section class="section" id="memory">
+    <h2 class="type-section">Memory</h2>
+    <div class="big"><span id="mem-used"></span> <small>of <span id="mem-total"></span> used</small></div>
+    <div class="bar"><span id="mem-bar" class="ok"></span></div>
+    <div class="row"><span id="mem-pct"></span><span id="mem-free"></span></div>
+    <div class="chart">
+      <p class="chart-title">Memory in use · last 10 minutes</p>
+      <div class="plot">
+        <div class="axis" aria-hidden="true">
+          <span style="top: 0%">100%</span><span style="top: 25%">75%</span><span style="top: 50%">50%</span><span style="top: 75%">25%</span><span style="top: 100%">0%</span>
+        </div>
+        <svg class="spark" id="spark" aria-label="memory in use over the last 10 minutes"></svg>
+      </div>
+      <div class="legend"><span><i style="background: var(--c-text-primary)"></i>In use</span></div>
+    </div>
+    <div class="note warn" id="mem-note"></div>
+  </section>
+
+  <section class="section" id="usage">
+    <h2 class="type-section">What's using memory</h2>
+    <table class="rows" id="usage-table"></table>
+  </section>
+
+  <section class="section" id="disk">
+    <h2 class="type-section">Disk</h2>
+    <div class="big"><span id="disk-used"></span> <small>of <span id="disk-total"></span></small></div>
+    <div class="bar"><span id="disk-bar" class="ok"></span></div>
+    <div class="row"><span id="disk-pct"></span><span id="disk-free"></span></div>
+  </section>
+
+  <section class="section">
+    <h2 class="type-section">Programs stopped to free memory <span class="tag">last 24 hours</span></h2>
+    <ul class="stops" id="stops"></ul>
+  </section>
+</main>
+<script src="shared/mock.js"></script>
+<script>
+(() => {
+  const M = window.MOCK, $ = (id) => document.getElementById(id);
+  const m = M.memory, mp = M.pct(m.used, m.total);
+  $("mem-used").textContent = M.size(m.used); $("mem-total").textContent = M.size(m.total);
+  $("mem-free").textContent = `${M.size(m.available)} free`; $("mem-pct").textContent = `${mp}% used`;
+  $("mem-bar").style.width = `${mp}%`;
+  M.drawSpark($("spark"), [{ name: "In use", samples: M.history.mem10, color: "var(--c-text-primary)", area: false }], { windowMs: 10 * 60e3, h: 100, gapMs: 15000 });
+  $("mem-note").innerHTML = `<strong>Memory is ${mp}% full.</strong> The workspace stopped 1 program in the last 24 hours.`;
+
+  const SCRATCH_INFO = `<button type="button" class="info" aria-label="What are temporary files?"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.2v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="4.9" r="0.95" fill="currentColor"/></svg><span class="tip" role="tooltip">Temporary files are created by programs while they work, such as downloads in progress or screenshots from a test run. They are kept in memory, so they count toward memory use. They are cleared when the workspace restarts.</span></button>`;
+  const tagOf = (g) => g.id === "scratch" ? `of ${M.size(g.limit)} limit` : g.hint ? g.hint : ["chats", "checkers", "apps"].includes(g.id) ? (g.items.length ? `${g.items.length} running` : "none running") : "";
+  $("usage-table").innerHTML = M.groups.map((g) => {
+    const tag = tagOf(g);
+    const rows = g.items.map((i) => `<tr><td class="sub">${M.esc(i.name)}</td><td class="n sub">${M.size(i.mem)}</td></tr>`).join("");
+    return `<tr class="group"><td>${M.esc(g.label)}${g.id === "scratch" ? SCRATCH_INFO : ""}${tag ? ` <span class="tag">${M.esc(tag)}</span>` : ""}</td><td class="n">${M.size(g.mem)}</td></tr>${rows}`;
+  }).join("");
+
+  const d = M.disk, dp = M.pct(d.used, d.total);
+  $("disk-used").textContent = M.sizeDecimal(d.used); $("disk-total").textContent = M.sizeDecimal(d.total);
+  $("disk-free").textContent = `${M.sizeDecimal(d.free)} free`; $("disk-pct").textContent = `${dp}% used`;
+  $("disk-bar").style.width = `${dp}%`;
+
+  $("stops").innerHTML = M.stops.map((x, i) => {
+    const day = x.at.toDateString() === new Date().toDateString() ? "" : " yesterday";
+    return `<li><time>${M.clock(x.at)}${day}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="toggle" aria-expanded="false" data-i="${i}">Details</button><div class="stop-details" id="stop-${i}" hidden><div class="label">Command</div><pre>${M.esc(x.command)}</pre></div></li>`;
+  }).join("");
+  $("stops").querySelectorAll(".toggle").forEach((b) => b.addEventListener("click", () => {
+    const panel = $(`stop-${b.dataset.i}`), isOpen = panel.hidden;
+    panel.hidden = !isOpen; b.textContent = isOpen ? "Hide details" : "Details"; b.setAttribute("aria-expanded", String(isOpen));
+  }));
+})();
+</script>
+</body>
+</html>

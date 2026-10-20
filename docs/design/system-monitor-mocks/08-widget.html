@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System (widget)</title>
+<link rel="stylesheet" href="shared/mock.css">
+<style>
+  /* Built to stay open in a small corner of the desktop: a 300 x 120 strip of three live meters
+     with sparklines, and nothing else until a meter is clicked, which unfolds that resource's
+     detail below it. The page shows the strip at the top and one meter unfolded underneath. */
+  .page { max-width: 340px; padding: 16px; }
+  .widget { border: 1px solid var(--c-border); border-radius: var(--radius-xl); background: var(--c-surface); box-shadow: var(--shadow-raised); overflow: hidden; }
+  .strip { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .m { position: relative; padding: 12px 12px 8px; border: 0; border-right: 1px solid var(--c-border-faint); background: transparent; text-align: left; cursor: pointer; }
+  .m:last-child { border-right: 0; }
+  .m:hover { background: var(--c-fill-hover); }
+  .m[aria-expanded="true"] { background: var(--c-surface-secondary); }
+  .m .k { font-size: var(--font-size-helper); color: var(--c-text-secondary); }
+  .m .v { font-size: 20px; font-weight: var(--weight-semibold); line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .m .s { display: block; font-size: var(--font-size-helper); color: var(--c-text-faint); white-space: nowrap; }
+  .m svg { width: 100%; height: 26px; margin-top: 6px; display: block; }
+  .m .dot { position: absolute; top: 12px; right: 12px; }
+  .unfold { border-top: 1px solid var(--c-border); padding: 12px; background: var(--c-surface-secondary); }
+  .unfold .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-size: var(--font-size-row); }
+  .unfold .head a { color: var(--c-accent); font-size: var(--font-size-helper); text-decoration: none; }
+  .unfold svg.spark { height: 72px; }
+  .unfold table.rows { margin-top: 8px; font-size: var(--font-size-row); }
+  .unfold table.rows td { padding: 4px 0; }
+  .label { margin: 24px 0 8px; font-size: var(--font-size-helper); color: var(--c-text-faint); }
+  .pinned { margin-top: 24px; font-size: var(--font-size-helper); color: var(--c-text-faint); }
+</style>
+</head>
+<body>
+<main class="page">
+  <p class="label">Collapsed (300 x 120)</p>
+  <div class="widget">
+    <div class="strip" id="strip-a"></div>
+  </div>
+
+  <p class="label">One meter unfolded</p>
+  <div class="widget">
+    <div class="strip" id="strip-b"></div>
+    <div class="unfold">
+      <div class="head"><span><b>Memory</b> · 5.1 of 8.0 GB</span><a href="#">Open full page</a></div>
+      <svg class="spark" id="mem-spark" aria-label="memory over the last 10 minutes"></svg>
+      <table class="rows" id="top"></table>
+    </div>
+  </div>
+  <p class="pinned">The widget remembers which meter is unfolded. Its window has no title bar of its own: it is pinned to the desktop like the chat's taskbar entry.</p>
+</main>
+<script src="shared/mock.js"></script>
+<script>
+(() => {
+  const M = window.MOCK, $ = (id) => document.getElementById(id);
+  const mp = M.pct(M.memory.used, M.memory.total), dp = M.pct(M.disk.used, M.disk.total), cp = Math.round(M.cpu.pct);
+  const meters = [
+    { k: "CPU", v: `${cp}%`, s: "4 cores", series: M.history.cpu10, color: "var(--ink-cpu)" },
+    { k: "Memory", v: `${mp}%`, s: "2.9 GB free", series: M.history.mem10, color: "var(--ink-mem)", warn: true },
+    { k: "Disk", v: `${dp}%`, s: "16.6 GB free", series: M.history.disk60, color: "var(--ink-disk)" },
+  ];
+  function strip(id, open) {
+    $(id).innerHTML = meters.map((m, i) => `<button type="button" class="m" aria-expanded="${i === open}"><span class="k">${m.k}</span><br><span class="v">${m.v}</span><span class="s">${m.s}</span>${m.warn ? `<span class="dot warn" title="Memory is 64% full"></span>` : ""}<svg id="${id}-${i}"></svg></button>`).join("");
+    meters.forEach((m, i) => M.drawMiniSpark($(`${id}-${i}`), m.series, { windowMs: i === 2 ? 3600e3 : 600e3, color: m.color, h: 26 }));
+  }
+  strip("strip-a", -1);
+  strip("strip-b", 1);
+  M.drawSpark($("mem-spark"), [{ name: "In use", samples: M.history.mem10, color: "var(--ink-mem)" }], { windowMs: 600e3, h: 100, grid: [50], gapMs: 15000 });
+  const top = [["Website redesign chat", 1.38 * M.GiB], ["Shared", 612 * M.MiB], ["Budget tracker chat", 622 * M.MiB], ["Code checker", 534 * M.MiB]];
+  $("top").innerHTML = top.map(([n, b]) => `<tr><td>${n}</td><td class="n">${M.size(b)}</td></tr>`).join("");
+})();
+</script>
+</body>
+</html>

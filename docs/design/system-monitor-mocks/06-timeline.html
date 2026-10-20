@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System (timeline)</title>
+<link rel="stylesheet" href="shared/mock.css">
+<style>
+  /* Time first: one shared chart of CPU and memory over a chosen span, with the events (stops,
+     high-CPU stretches, chats starting) marked on it, then a log of those events. The numbers for
+     "right now" sit in a compact strip above the chart. */
+  .now { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .now div { display: flex; align-items: baseline; gap: 6px; }
+  .now .k { font-size: var(--font-size-helper); color: var(--c-text-secondary); }
+  .now .v { font-size: var(--font-size-heading); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+  .now .v i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+  .axis { height: 150px; }
+  svg.spark { height: 150px; }
+  .marks { position: relative; height: 18px; margin: 4px 0 0 40px; }
+  .marks button { position: absolute; top: 0; transform: translateX(-50%); width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--c-surface); background: var(--c-warning); color: #fff; font-size: 10px; font-weight: var(--weight-bold); line-height: 1; padding: 0; cursor: pointer; }
+  .marks button.cpu { background: var(--c-accent); }
+  .marks button.chat { background: var(--c-text-faint); }
+  .xaxis { display: flex; justify-content: space-between; margin-left: 40px; font-size: var(--font-size-tag); color: var(--c-text-faint); }
+  .events { list-style: none; margin: 0; padding: 0; }
+  .events li { display: grid; grid-template-columns: 18px 64px 1fr auto; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--c-border-faint); }
+  .events .pin { width: 18px; height: 18px; border-radius: 50%; background: var(--c-warning); color: #fff; font-size: 10px; font-weight: var(--weight-bold); display: grid; place-items: center; }
+  .events .pin.cpu { background: var(--c-accent); }
+  .events .pin.chat { background: var(--c-text-faint); }
+  .events time { color: var(--c-text-secondary); font-variant-numeric: tabular-nums; font-size: var(--font-size-row); }
+  .events .what { font-size: var(--font-size-row); }
+  .events .what small { display: block; color: var(--c-text-faint); font-size: var(--font-size-helper); }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="page-header">
+    <h1>System</h1>
+    <div class="seg" role="radiogroup" aria-label="Span"><button aria-checked="false">10 min</button><button aria-checked="true">1 hour</button><button aria-checked="false">24 hours</button></div>
+  </header>
+
+  <section class="section">
+    <div class="now">
+      <div><span class="v"><i style="background:var(--ink-cpu)"></i>37%</span><span class="k">CPU</span></div>
+      <div><span class="v"><i style="background:var(--ink-mem)"></i>64%</span><span class="k">memory · 5.1 of 8 GB</span></div>
+      <div><span class="v"><i style="background:var(--ink-disk)"></i>41%</span><span class="k">disk · 16.6 GB free</span></div>
+    </div>
+    <div class="chart">
+      <p class="chart-title"><span>Last hour</span><span>hover for exact readings</span></p>
+      <div class="plot">
+        <div class="axis" aria-hidden="true"><span style="top:0%">100%</span><span style="top:25%">75%</span><span style="top:50%">50%</span><span style="top:75%">25%</span><span style="top:100%">0%</span></div>
+        <svg class="spark" id="chart" aria-label="CPU and memory over the last hour"></svg>
+      </div>
+      <div class="marks" id="marks"></div>
+      <div class="xaxis"><span>60 min ago</span><span>45</span><span>30</span><span>15</span><span>now</span></div>
+      <div class="legend"><span><i style="background:var(--ink-cpu)"></i>CPU</span><span><i style="background:var(--ink-mem)"></i>Memory</span><span><i class="dash" style="color:var(--c-danger)"></i>Full</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="type-section">Events <span class="tag">last hour</span></h2>
+    <ul class="events" id="events"></ul>
+  </section>
+</main>
+<script src="shared/mock.js"></script>
+<script>
+(() => {
+  const M = window.MOCK, $ = (id) => document.getElementById(id);
+  const W = 60 * 60e3;
+  M.drawSpark($("chart"), [
+    { name: "Memory", samples: M.history.mem60, color: "var(--ink-mem)", areaOpacity: 0.05 },
+    { name: "CPU", samples: M.history.cpu60, color: "var(--ink-cpu)", areaOpacity: 0.1 },
+  ], { windowMs: W, h: 100, gapMs: 30000 });
+  const events = [
+    { ago: 3, kind: "chat", glyph: "+", what: "Website redesign started running tests", sub: "CPU climbed to 92%" },
+    { ago: 18, kind: "stop", glyph: "!", what: "Stopped the Budget tracker chat's code checker to free memory", sub: "memory was 91% full · freed about 530 MB" },
+    { ago: 27, kind: "cpu", glyph: "C", what: "CPU above 90% for 6 minutes", sub: "mostly Website redesign" },
+    { ago: 39, kind: "chat", glyph: "z", what: "Machine paused for 3 minutes", sub: "no readings" },
+    { ago: 52, kind: "chat", glyph: "+", what: "Fix login bug chat opened", sub: "" },
+  ];
+  $("marks").innerHTML = events.map((e) => `<button type="button" class="${e.kind}" style="left:${100 - (e.ago / 60) * 100}%" title="${M.esc(e.what)}">${e.glyph}</button>`).join("");
+  $("events").innerHTML = events.map((e) => `<li><span class="pin ${e.kind}">${e.glyph}</span><time>${M.clock(new Date(M.now - e.ago * 60e3))}</time><span class="what">${M.esc(e.what)}${e.sub ? `<small>${M.esc(e.sub)}</small>` : ""}</span>${e.kind === "stop" ? `<button type="button" class="btn ghost quiet">Details</button>` : "<span></span>"}</li>`).join("");
+})();
+</script>
+</body>
+</html>

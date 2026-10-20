@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System (health first)</title>
+<link rel="stylesheet" href="shared/mock.css">
+<style>
+  /* Leads with a verdict, not numbers: one sentence about how the workspace is doing, three ring
+     gauges, and then what to do about it. The breakdowns are behind "Show details" so the page is
+     calm when nothing is wrong. */
+  .verdict { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--c-success-bg); color: var(--c-accent); margin-bottom: 16px; }
+  .verdict.tight { background: color-mix(in srgb, var(--c-warning) 12%, var(--c-surface)); color: var(--c-warning); }
+  .verdict .icon { width: 28px; height: 28px; flex: none; }
+  .verdict b { display: block; font-size: var(--font-size-body); }
+  .verdict span { display: block; font-size: var(--font-size-row); opacity: 0.9; }
+  .rings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .ring { text-align: center; padding: 8px 4px; }
+  .ring svg { width: 110px; height: 110px; display: block; margin: 0 auto; }
+  .ring .k { font-size: var(--font-size-row); font-weight: var(--weight-semibold); margin-top: 4px; }
+  .ring .s { font-size: var(--font-size-helper); color: var(--c-text-secondary); font-variant-numeric: tabular-nums; }
+  .todo { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .todo li { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-surface); }
+  .todo b { font-weight: var(--weight-semibold); }
+  .todo small { display: block; color: var(--c-text-secondary); font-size: var(--font-size-helper); }
+  .todo .frees { font-size: var(--font-size-helper); color: var(--c-accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  details { border-top: 1px solid var(--c-border); }
+  details summary { padding: 12px 0; cursor: pointer; color: var(--c-text-secondary); font-size: var(--font-size-row); list-style: none; display: flex; align-items: center; gap: 6px; }
+  details summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform var(--dur-base); margin-right: 2px; }
+  details[open] summary::before { transform: rotate(45deg); }
+  details .body { padding-bottom: 16px; }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="page-header">
+    <h1>Workspace health</h1>
+    <span class="type-helper secondary"><span class="dot live"></span> live</span>
+  </header>
+
+  <section class="section">
+    <div class="verdict tight">
+      <svg class="icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2"><circle cx="14" cy="14" r="11"/><path d="M14 8.5v6.5" stroke-linecap="round"/><circle cx="14" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>
+      <div><b>Running fine, but memory is getting tight.</b><span>64% used. Above 90% the workspace stops programs to make room. CPU and disk have plenty of headroom.</span></div>
+    </div>
+    <div class="rings" id="rings"></div>
+  </section>
+
+  <section class="section">
+    <h2 class="type-section">To make room</h2>
+    <ul class="todo">
+      <li><div><b>Stop the Fix login bug chat</b><small>Idle for 3 hours</small></div><span class="frees">frees about 420 MB</span></li>
+      <li><div><b>Stop the Budget tracker chat</b><small>Idle for 40 minutes</small></div><span class="frees">frees about 620 MB</span></li>
+      <li><div><b>Clear temporary files</b><small>241 MB of downloads and test screenshots, held in memory</small></div><span class="frees">frees 241 MB</span></li>
+      <li><div><b>Give the workspace more memory</b><small>8 GB now; a larger size applies at the next restart</small></div><span class="frees">Resize</span></li>
+    </ul>
+  </section>
+
+  <details>
+    <summary>What's using memory and CPU</summary>
+    <div class="body"><table class="rows" id="usage"><thead><tr><th></th><th class="n">CPU</th><th class="n">Memory</th></tr></thead><tbody></tbody></table></div>
+  </details>
+  <details>
+    <summary>Programs stopped to free memory · 1 in the last 24 hours</summary>
+    <div class="body"><ul class="stops" id="stops"></ul></div>
+  </details>
+  <details>
+    <summary>Disk · 11.4 of 28 GB used</summary>
+    <div class="body"><table class="rows" id="disk"></table></div>
+  </details>
+</main>
+<script src="shared/mock.js"></script>
+<script>
+(() => {
+  const M = window.MOCK, $ = (id) => document.getElementById(id);
+  const mp = M.pct(M.memory.used, M.memory.total), dp = M.pct(M.disk.used, M.disk.total), cp = Math.round(M.cpu.pct);
+  const ring = (p, color, text, sub) => {
+    const r = 46, c = 2 * Math.PI * r;
+    return `<svg viewBox="0 0 110 110" aria-label="${text}"><circle cx="55" cy="55" r="${r}" fill="none" stroke="var(--c-border)" stroke-width="8"/>
+      <circle cx="55" cy="55" r="${r}" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(c * p / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 55 55)"/>
+      <text x="55" y="52" text-anchor="middle" font-size="22" font-weight="600" fill="var(--c-text-primary)" font-family="inherit">${p}%</text>
+      <text x="55" y="70" text-anchor="middle" font-size="11" fill="var(--c-text-secondary)" font-family="inherit">${sub}</text></svg>`;
+  };
+  $("rings").innerHTML = [
+    { k: "CPU", p: cp, color: "var(--c-accent)", s: "4 cores · load 1.48", sub: "busy" },
+    { k: "Memory", p: mp, color: "var(--c-warning)", s: "5.1 of 8.0 GB", sub: "used" },
+    { k: "Disk", p: dp, color: "var(--c-accent)", s: "16.6 GB free", sub: "used" },
+  ].map((g) => `<div class="ring">${ring(g.p, g.color, `${g.k} ${g.p}%`, g.sub)}<div class="k">${g.k}</div><div class="s">${g.s}</div></div>`).join("");
+  $("usage").querySelector("tbody").innerHTML = M.groups.map((g) => {
+    const rows = g.items.map((i) => `<tr><td class="sub">${M.esc(i.name)}</td><td class="n sub">${i.cpu.toFixed(1)}%</td><td class="n sub">${M.size(i.mem)}</td></tr>`).join("");
+    return `<tr class="group"><td>${M.esc(g.label)}${g.hint ? ` <span class="tag">${M.esc(g.hint)}</span>` : ""}</td><td class="n">${g.cpu === null ? "–" : g.cpu.toFixed(1) + "%"}</td><td class="n">${M.size(g.mem)}</td></tr>${rows}`;
+  }).join("");
+  $("stops").innerHTML = M.stops.map((x) => `<li><time>${M.clock(x.at)}${x.at.toDateString() === new Date().toDateString() ? "" : " yesterday"}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="btn ghost quiet">Details</button></li>`).join("");
+  $("disk").innerHTML = M.diskBreakdown.map((d) => `<tr class="group"><td>${M.esc(d.name)}${d.hint ? ` <span class="tag">${M.esc(d.hint)}</span>` : ""}</td><td class="n">${M.sizeDecimal(d.bytes)}</td></tr>`).join("");
+})();
+</script>
+</body>
+</html>

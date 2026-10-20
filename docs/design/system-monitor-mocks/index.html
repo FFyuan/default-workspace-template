@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Monitor Mocks</title>
+<style>
+  /* Layout: a list of the variants down the left, the chosen one framed at the app's usual
+     window size on the right, and a scaled gallery of every variant below. */
+  :root {
+    --bg: #fafaf8; --fg: #202020; --muted: #666666; --faint: #8c8c8c; --line: #e4e3df; --panel: #ffffff; --panel-2: #f3f2ef;
+    --accent: #2f6b4f; --accent-light: #e9f2ee; --frame: #cfcdc7;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1b1b1a; --fg: #ececea; --muted: #a8a8a4; --faint: #7d7d79; --line: #33332f; --panel: #232322; --panel-2: #2a2a28; --accent: #7fc3a3; --accent-light: #243a31; --frame: #4a4a46; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #1b1b1a; --fg: #ececea; --muted: #a8a8a4; --faint: #7d7d79; --line: #33332f; --panel: #232322; --panel-2: #2a2a28; --accent: #7fc3a3; --accent-light: #243a31; --frame: #4a4a46; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); -webkit-font-smoothing: antialiased; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 8px; }
+  p { margin: 0; }
+  .intro { max-width: 70ch; color: var(--muted); margin-bottom: 20px; }
+  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+  .list { display: flex; flex-direction: column; gap: 2px; }
+  .item { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+  .item:hover { background: var(--panel-2); }
+  .item[aria-current="true"] { background: var(--accent-light); }
+  .item .n { font-variant-numeric: tabular-nums; color: var(--faint); font-size: 12px; padding-top: 2px; }
+  .item b { display: block; font-weight: 600; }
+  .item span { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .item.divider { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 12px; border-radius: 0; }
+  .viewer { position: sticky; top: 16px; }
+  .viewer .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .viewer .bar b { font-weight: 600; }
+  .sizes { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  .sizes button { height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+  .sizes button[aria-pressed="true"] { background: var(--panel-2); color: var(--fg); }
+  .open { color: var(--accent); font-size: 13px; text-decoration: none; }
+  .open:hover { text-decoration: underline; }
+  .frame { width: 600px; height: 800px; max-width: 100%; border: 1px solid var(--frame); border-radius: 12px; background: #fff; box-shadow: 0 3px 8px 2px rgba(0, 0, 0, 0.08); overflow: hidden; transition: width 120ms, height 120ms; }
+  .frame iframe { width: 100%; height: 100%; border: 0; display: block; background: #fafaf8; }
+  .gallery { margin-top: 40px; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .thumb { border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+  .thumb .shot { width: 100%; aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid var(--frame); border-radius: 8px; background: #fff; position: relative; }
+  .thumb iframe { width: 600px; height: 800px; border: 0; transform-origin: 0 0; position: absolute; top: 0; left: 0; pointer-events: none; background: #fafaf8; }
+  .thumb .cap { margin-top: 6px; font-size: 13px; }
+  .thumb .cap span { color: var(--faint); margin-right: 6px; font-variant-numeric: tabular-nums; }
+  .notes { margin-top: 40px; max-width: 70ch; color: var(--muted); font-size: 13px; }
+  .notes li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<h1>System Monitor Mocks</h1>
+<p class="intro">Eleven static pages for the workspace's Memory &amp; disk app: the shipped page as it is today, then ten directions that each add CPU and change the layout or the information architecture. Every page uses the workspace's design tokens and the same sample data (an 8 GB machine with three chats open). Pick one on the left; it is framed at the app's usual window size.</p>
+
+<div class="layout">
+  <nav class="list" id="list" aria-label="Variants"></nav>
+  <div class="viewer">
+    <div class="bar">
+      <b id="title"></b>
+      <div class="sizes" id="sizes"><button aria-pressed="true" data-w="600" data-h="800">600 x 800</button><button data-w="480" data-h="640">480 x 640</button><button data-w="360" data-h="560">360 x 560</button><button data-w="820" data-h="700">820 x 700</button></div>
+      <a class="open" id="open" href="#" target="_blank" rel="noopener">Open in its own tab</a>
+    </div>
+    <div class="frame" id="frame"><iframe id="view" title="Variant"></iframe></div>
+  </div>
+</div>
+
+<section class="gallery">
+  <h2>All at once</h2>
+  <div class="thumbs" id="thumbs"></div>
+</section>
+
+<section class="notes">
+  <h2>Notes</h2>
+  <ul>
+    <li>The sample data is shared (<code>shared/mock.js</code>): one working chat, two idle ones, a code checker, two user-built apps, one program stopped this morning. Hover a chart for the reading at that time.</li>
+    <li>Each page is self-contained HTML with no build step, like the shipped page, so whichever direction wins can keep that property.</li>
+    <li>Pages 03, 04 and 08 are "app chrome" layouts that fill their window; the rest are the single scrolling column of the current app.</li>
+  </ul>
+</section>
+
+<script>
+(() => {
+  const variants = [
+    ["00-current.html", "Current app", "Memory &amp; disk as shipped today, reproduced with the sample data. No CPU."],
+    ["01-overview.html", "Overview tiles", "The smallest change: three tiles (CPU, memory, disk) with sparklines, then one breakdown table with a CPU column."],
+    ["02-tabs.html", "Tabs", "One resource per tab, chosen in a segmented control that carries each resource's live number; the disk tab gets a what's-on-it breakdown."],
+    ["03-activity-monitor.html", "Activity Monitor", "After macOS: toolbar, sortable process table, and a summary pane pinned to the bottom for the chosen resource."],
+    ["04-task-manager.html", "Task Manager", "After Windows: resources down the left with thumbnail graphs, a large graph and a details grid for the chosen one."],
+    ["05-usage-and-tokens.html", "Usage and tokens", "Machine meters compacted to three rows, then today's AI usage: cost, turns, tokens, spend by hour, rate-limit windows, and cost per chat."],
+    ["06-timeline.html", "Timeline", "Time first: CPU and memory on one chart over a chosen span, with stops and high-CPU stretches marked on it, and an event log."],
+    ["07-by-chat.html", "By chat", "Organised around what the user can act on: one card per chat, checker and app with its CPU, memory, idle time, and a Stop button."],
+    ["08-widget.html", "Widget", "A 300 px strip of three live meters meant to stay pinned in a corner; clicking a meter unfolds its detail."],
+    ["09-health.html", "Health first", "A verdict sentence, three ring gauges, and a to-do list of what frees the most; the breakdowns fold away."],
+    ["10-terminal.html", "Terminal style", "After htop: monospace, per-core bars, block-character history, a process list with keys along the bottom."],
+  ];
+  const $ = (id) => document.getElementById(id);
+  const list = $("list"), thumbs = $("thumbs");
+  variants.forEach(([file, name, desc], i) => {
+    const b = document.createElement("button");
+    b.className = `item${i === 1 ? " divider" : ""}`; b.type = "button"; b.dataset.i = i;
+    b.innerHTML = `<span class="n">${String(i).padStart(2, "0")}</span><span><b>${name}</b><span>${desc}</span></span>`;
+    b.addEventListener("click", () => show(i));
+    list.appendChild(b);
+    const t = document.createElement("button");
+    t.className = "thumb"; t.type = "button";
+    t.innerHTML = `<div class="shot"><iframe src="${file}" title="${name}" loading="lazy" tabindex="-1"></iframe></div><div class="cap"><span>${String(i).padStart(2, "0")}</span>${name}</div>`;
+    t.addEventListener("click", () => { show(i); window.scrollTo({ top: 0, behavior: "smooth" }); });
+    thumbs.appendChild(t);
+  });
+  function scaleThumbs() {
+    thumbs.querySelectorAll(".shot").forEach((shot) => { shot.querySelector("iframe").style.transform = `scale(${shot.clientWidth / 600})`; });
+  }
+  window.addEventListener("resize", scaleThumbs);
+  function show(i) {
+    const [file, name] = variants[i];
+    list.querySelectorAll(".item").forEach((b) => b.setAttribute("aria-current", String(Number(b.dataset.i) === i)));
+    $("title").innerHTML = `${String(i).padStart(2, "0")} · ${name}`;
+    $("view").src = file;
+    $("open").href = file;
+    try { location.hash = `v${i}`; } catch (e) {}
+  }
+  $("sizes").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    $("sizes").querySelectorAll("button").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+    $("frame").style.width = `${b.dataset.w}px`; $("frame").style.height = `${b.dataset.h}px`;
+  }));
+  const fromHash = Number((location.hash.match(/^#v(\d+)$/) || [])[1]);
+  show(Number.isInteger(fromHash) && fromHash < variants.length ? fromHash : 0);
+  scaleThumbs();
+})();
+</script>
+</body>
+</html>

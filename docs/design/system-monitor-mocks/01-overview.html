@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System (overview tiles)</title>
+<link rel="stylesheet" href="shared/mock.css">
+<style>
+  /* The smallest change from today: three tiles across the top, one per resource, then one
+     breakdown table with a CPU column beside the memory column. */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 4px; }
+  .tile { padding: 12px 12px 8px; border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-surface); }
+  .tile .label { display: flex; justify-content: space-between; align-items: center; color: var(--c-text-secondary); font-size: var(--font-size-helper); margin-bottom: 4px; }
+  .tile .value { font-size: 22px; font-weight: var(--weight-semibold); line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile .value small { font-size: var(--font-size-helper); font-weight: var(--weight-regular); color: var(--c-text-secondary); margin-left: 4px; }
+  .tile .sub { color: var(--c-text-faint); font-size: var(--font-size-helper); margin-top: 2px; white-space: nowrap; }
+  .tile svg { width: 100%; height: 36px; margin-top: 8px; display: block; }
+  .state { display: inline-flex; align-items: center; gap: 6px; }
+  table.rows th.n { width: 64px; }
+  td .dot { margin-right: 6px; vertical-align: 1px; }
+  .cpu-bar { display: inline-block; width: 40px; height: 4px; vertical-align: 2px; margin-right: 6px; border-radius: 2px; background: var(--c-border); overflow: hidden; }
+  .cpu-bar i { display: block; height: 100%; background: var(--ink-cpu); }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="page-header">
+    <h1>System</h1>
+    <span class="type-helper secondary state"><span class="dot live"></span>Updated 3 s ago</span>
+  </header>
+
+  <section class="section">
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="section">
+    <h2 class="type-section">What's using the workspace</h2>
+    <table class="rows" id="usage">
+      <thead><tr><th></th><th class="n">CPU</th><th class="n">Memory</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2 class="type-section">Recent events <span class="tag">last 24 hours</span></h2>
+    <ul class="stops" id="stops"></ul>
+  </section>
+</main>
+<script src="shared/mock.js"></script>
+<script>
+(() => {
+  const M = window.MOCK, $ = (id) => document.getElementById(id);
+  const mp = M.pct(M.memory.used, M.memory.total), dp = M.pct(M.disk.used, M.disk.total), cp = Math.round(M.cpu.pct);
+  const tiles = [
+    { label: "CPU", value: `${cp}%`, unit: `of ${M.cpu.cores} cores`, sub: `load ${M.cpu.load[0].toFixed(2)} · ${M.cpu.processes} processes`, series: M.history.cpu10, color: "var(--ink-cpu)", pct: cp, warn: 85, bad: 95 },
+    { label: "Memory", value: M.size(M.memory.used), unit: `of ${M.size(M.memory.total)}`, sub: `${mp}% used · ${M.size(M.memory.available)} free`, series: M.history.mem10, color: "var(--ink-mem)", pct: mp, warn: 80, bad: 90 },
+    { label: "Disk", value: M.sizeDecimal(M.disk.used), unit: `of ${M.sizeDecimal(M.disk.total)}`, sub: `${dp}% used · ${M.sizeDecimal(M.disk.free)} free`, series: null, color: "var(--ink-disk)", pct: dp, warn: 80, bad: 92 },
+  ];
+  $("tiles").innerHTML = tiles.map((t, i) => `<div class="tile">
+    <div class="label"><span>${t.label}</span><span class="num">${t.pct}%</span></div>
+    <div class="value">${t.value}<small>${t.unit}</small></div>
+    <div class="sub">${t.sub}</div>
+    ${t.series ? `<svg id="tile-${i}" aria-label="${t.label} over the last 10 minutes"></svg>` : `<div class="bar thin" style="margin-top:14px"><span class="${M.level(t.pct, t.warn, t.bad)}" style="width:${t.pct}%"></span></div>`}
+  </div>`).join("");
+  tiles.forEach((t, i) => { if (t.series) M.drawMiniSpark($(`tile-${i}`), t.series, { windowMs: 10 * 60e3, color: t.color }); });
+
+  const cpuCell = (v) => v === null ? `<span class="faint">–</span>` : `<span class="cpu-bar"><i style="width:${Math.min(100, v)}%"></i></span>${v.toFixed(v < 10 ? 1 : 0)}%`;
+  const tagOf = (g) => g.id === "scratch" ? `of ${M.size(g.limit)} limit` : g.hint ? g.hint : ["chats", "checkers", "apps"].includes(g.id) ? `${g.items.length} running` : "";
+  $("usage").querySelector("tbody").innerHTML = M.groups.map((g) => {
+    const tag = tagOf(g);
+    const rows = g.items.map((i) => `<tr><td class="sub">${i.state ? `<span class="dot ${i.state === "working" ? "live" : ""}"></span>` : ""}${M.esc(i.name)}</td><td class="n sub">${cpuCell(i.cpu)}</td><td class="n sub">${M.size(i.mem)}</td></tr>`).join("");
+    return `<tr class="group"><td>${M.esc(g.label)}${tag ? ` <span class="tag">${M.esc(tag)}</span>` : ""}</td><td class="n">${cpuCell(g.cpu)}</td><td class="n">${M.size(g.mem)}</td></tr>${rows}`;
+  }).join("");
+
+  $("stops").innerHTML = M.stops.map((x) => {
+    const day = x.at.toDateString() === new Date().toDateString() ? "" : " yesterday";
+    return `<li><time>${M.clock(x.at)}${day}</time><span>Stopped ${M.esc(x.what)} to free memory</span><button type="button" class="btn ghost quiet">Details</button></li>`;
+  }).join("") + `<li><time>${M.clock(M.todayAt(8, 5))}</time><span>CPU ran above 90% for 6 minutes (Website redesign was running tests)</span><span></span></li>`;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System (terminal style)</title>
+<link rel="stylesheet" href="shared/mock.css">
+<style>
+  /* After htop and btop: everything in the workspace's monospace face on the terminal app's
+     surface, per-core bars, block-character history, and a process list with the keys at the
+     bottom. The same tokens as the other apps, so it still reads as part of the workspace. */
+  body { background: var(--c-bg-code); }
+  .page { max-width: 640px; font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--c-text-primary); padding: 16px 20px; }
+  .head { display: flex; justify-content: space-between; color: var(--c-text-secondary); margin-bottom: 10px; }
+  .box { border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 10px; background: var(--c-surface); position: relative; }
+  .box .t { position: absolute; top: -8px; left: 10px; padding: 0 4px; background: var(--c-surface); color: var(--c-text-secondary); font-size: 11px; }
+  .cores { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 16px; }
+  .line { display: grid; grid-template-columns: 42px 1fr 42px; gap: 8px; white-space: nowrap; }
+  .line .n { text-align: right; color: var(--c-text-secondary); }
+  .blocks { letter-spacing: -1px; overflow: hidden; }
+  .blocks.cpu { color: var(--ink-cpu); }
+  .blocks.mem { color: var(--ink-mem); }
+  .blocks.disk { color: var(--ink-disk); }
+  .blocks .off { color: var(--c-border); }
+  .hist { white-space: pre; line-height: 1; letter-spacing: 0; overflow: hidden; font-size: 20px; margin: 6px 0 2px; opacity: 0.85; }
+  .hist.cpu { color: var(--ink-cpu); }
+  .hist.mem { color: var(--ink-mem); }
+  .meta { display: flex; gap: 18px; color: var(--c-text-secondary); margin-top: 6px; }
+  .meta b { color: var(--c-text-primary); font-weight: var(--weight-regular); }
+  table.proc { width: 100%; border-collapse: collapse; white-space: nowrap; }
+  table.proc th { text-align: left; font-weight: var(--weight-regular); color: var(--c-text-on-accent); background: var(--c-accent); padding: 1px 6px; }
+  table.proc th.n, table.proc td.n { text-align: right; }
+  table.proc td { padding: 1px 6px; }
+  table.proc tr.sel td { background: var(--c-accent-light); }
+  table.proc td.cmd { color: var(--c-text-secondary); overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+  .keys { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 10px; color: var(--c-text-secondary); }
+  .keys b { display: inline-block; padding: 0 4px; margin-right: 4px; background: var(--c-inverse-surface); color: var(--c-text-on-accent); font-weight: var(--weight-regular); border-radius: 2px; }
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="head"><span>system · 4 cores · 8.0G · up 2d 06:14</span><span id="clock"></span></div>
+
+  <div class="box">
+    <span class="t">cpu 37%</span>
+    <div class="cores" id="cores"></div>
+    <div class="hist cpu" id="cpu-hist" aria-label="CPU over the last 10 minutes"></div>
+    <div class="meta"><span>load <b>1.48 0.92 0.71</b></span><span>tasks <b>142</b>, <b>611</b> thr, <b>2</b> running</span></div>
+  </div>
+
+  <div class="box">
+    <span class="t">mem 64%</span>
+    <div class="line"><span class="n">used</span><span class="blocks mem" id="mem-blocks"></span><span class="n">5.1G</span></div>
+    <div class="line"><span class="n">tmp</span><span class="blocks mem" id="tmp-blocks"></span><span class="n">241M</span></div>
+    <div class="hist mem" id="mem-hist" aria-label="memory over the last 10 minutes"></div>
+    <div class="meta"><span>avail <b>2.9G</b></span><span>shared <b>612M</b></span><span>guard <b>stops at &lt;10% free</b></span><span>stopped today <b>1</b></span></div>
+  </div>
+
+  <div class="box">
+    <span class="t">disk 41%</span>
+    <div class="line"><span class="n">/</span><span class="blocks disk" id="disk-blocks"></span><span class="n">11.4G/28G</span></div>
+    <div class="meta"><span>free <b>16.6G</b></span><span>backup <b>14m ago</b></span><span>grows to <b>56G</b> on restart</span></div>
+  </div>
+
+  <table class="proc" id="proc">
+    <thead><tr><th>PID</th><th>OWNER</th><th class="n">CPU%</th><th class="n">MEM</th><th>STATE</th><th>COMMAND</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="keys"><span><b>F2</b>Sort</span><span><b>F3</b>Search</span><span><b>F4</b>Filter</span><span><b>F5</b>Tree</span><span><b>F9</b>Stop</span><span><b>F10</b>Quit</span></div>
+</main>
+<script src="shared/mock.js"></script>
+<script>
+(() => {
+  const M = window.MOCK, $ = (id) => document.getElementById(id);
+  $("clock").textContent = M.clock(new Date());
+  const blocks = (p, n = 40) => { const on = Math.round((p / 100) * n); return `${"|".repeat(on)}<span class="off">${"|".repeat(n - on)}</span>`; };
+  $("cores").innerHTML = M.cpu.perCore.map((p, i) => `<div class="line"><span class="n">${i}</span><span class="blocks cpu">${blocks(p, 36)}</span><span class="n">${p}%</span></div>`).join("");
+  $("mem-blocks").innerHTML = blocks(64, 60);
+  $("tmp-blocks").innerHTML = blocks(12, 60);
+  $("disk-blocks").innerHTML = blocks(41, 60);
+  // Block-character history: 8 rows tall, the last 10 minutes in 72 columns.
+  const CH = " ▁▂▃▄▅▆▇█";
+  function hist(samples, cols = 72) {
+    const step = Math.max(1, Math.floor(samples.length / cols));
+    const vals = [];
+    for (let i = samples.length - cols * step; i < samples.length; i += step) vals.push(samples[Math.max(0, i)].v);
+    return vals.map((v) => CH[Math.min(8, Math.round(v * 8))]).join("");
+  }
+  $("cpu-hist").textContent = hist(M.history.cpu10);
+  $("mem-hist").textContent = hist(M.history.mem10);
+  const rows = [
+    [4121, "chat", 23.6, "1.38G", "R", "claude --session website-redesign (Website redesign)"],
+    [4188, "chat", 5.9, "534M", "S", "node tsserver.js --serverMode partialSemantic (checker, Website redesign)"],
+    [3902, "chat", 0.8, "622M", "S", "claude --session budget-tracker (Budget tracker)"],
+    [3711, "chat", 0.0, "418M", "S", "claude --session fix-login-bug (Fix login bug)"],
+    [812, "ws", 1.9, "310M", "S", "chat-app --port 8010"],
+    [790, "ws", 0.8, "240M", "S", "system-interface"],
+    [5020, "app", 0.4, "192M", "S", "recipe-box --port 8080"],
+    [5044, "app", 0.1, "118M", "S", "habit-tracker --port 8081"],
+    [801, "ws", 0.6, "88M", "S", "restic backup (host-backup)"],
+    [771, "ws", 0.1, "4M", "S", "earlyoom -m 10,5"],
+  ];
+  $("proc").querySelector("tbody").innerHTML = rows.map((r, i) => `<tr class="${i === 0 ? "sel" : ""}"><td class="n">${r[0]}</td><td>${r[1]}</td><td class="n">${r[2].toFixed(1)}</td><td class="n">${r[3]}</td><td>${r[4]}</td><td class="cmd">${M.esc(r[5])}</td></tr>`).join("");
+})();
+</script>
+</body>
+</html>
