@@ -48,6 +48,7 @@ from routines.primitives import Weekday
 from routines.runner import ROUTINE_ID_ENV
 from routines.runner import RUN_DIR_ENV
 from routines.runner import RUN_ID_ENV
+from routines.service import DEFAULT_RUN_LIMIT
 from routines.service import RoutinesService
 from routines.service import build_service
 
@@ -438,7 +439,7 @@ def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | No
 
 @routines.command("runs")
 @click.argument("routine_id")
-@click.option("--limit", type=int, default=25, show_default=True, help="How many recent runs")
+@click.option("--limit", type=int, default=DEFAULT_RUN_LIMIT, show_default=True, help="How many recent runs")
 @_FORMAT_OPTION
 def runs_command(routine_id: str, limit: int, output_format: str) -> None:
     """A routine's recent runs, newest first."""
