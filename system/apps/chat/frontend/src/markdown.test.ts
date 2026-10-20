@@ -68,17 +68,18 @@ describe("renderMarkdown links", () => {
 
   it("opens every web link in a new browsing context, with no opener or referrer, should nothing route it", () => {
     const anchors = render(
-      "[Docs](https://example.com/docs), [mail](mailto:a@example.com), [call](tel:+15551234), [app](http://localhost:3000/) and [api](http://127.0.0.1:8080/x)",
+      "[Docs](https://example.com/docs), [mail](mailto:a@example.com), [call](tel:+15551234), [local call](tel:5551234), [app](http://localhost:3000/) and [api](http://127.0.0.1:8080/x)",
     ).querySelectorAll("a");
     expect(Array.from(anchors, (a) => a.getAttribute("href"))).toEqual([
       "https://example.com/docs",
       "mailto:a@example.com",
       "tel:+15551234",
+      "tel:5551234",
       "http://localhost:3000/",
       "http://127.0.0.1:8080/x",
     ]);
     expect(Array.from(anchors, (a) => [a.getAttribute("target"), a.getAttribute("rel")])).toEqual(
-      Array(5).fill(["_blank", "noopener noreferrer"]),
+      Array(6).fill(["_blank", "noopener noreferrer"]),
     );
   });
 

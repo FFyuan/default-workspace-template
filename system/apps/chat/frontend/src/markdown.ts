@@ -1,7 +1,7 @@
 import m from "mithril";
 import DOMPurify from "dompurify";
 import { Marked } from "marked";
-import { classifyLink, fileUrl } from "@imbue/workspace-ui/src/links";
+import { classifyLink, fileUrl, isCustomSchemeLink } from "@imbue/workspace-ui/src/links";
 import { openImageLightbox } from "./lightbox";
 import { isBlockExpanded, setBlockExpanded } from "./views/expansion-state";
 
@@ -47,7 +47,7 @@ function rewritePathLinks(root: DocumentFragment): void {
     const href = anchor.getAttribute("href") ?? "";
     const target = classifyLink(messageLinkUrl(href), window.location.host);
     anchor.removeAttribute("download");
-    if (target.kind === "unroutable" || FILE_LINE_REFERENCE.test(href)) {
+    if (target.kind === "unroutable" || (FILE_LINE_REFERENCE.test(href) && isCustomSchemeLink(href))) {
       anchor.replaceWith(...Array.from(anchor.childNodes));
     } else if (target.kind === "file") {
       anchor.setAttribute("href", fileUrl(target.path));
