@@ -45,10 +45,11 @@ Users make "creations". There are conventions for the common kinds:
 - **customizations**: changes to any of the above -- everything in the
   workspace can be modified.
 
-A **service** is a background program with no tab -- usually supervised by
-supervisord, sometimes cron-driven (the Caretaker). Standalone services live
-in `system/services/`; a service that exists solely to support one app lives
-in that app's folder and is named `<app>-<role>`.
+A **service** is a background program with no tab, supervised by supervisord;
+work that runs on a schedule and then exits is a routine, not a service (the
+Caretaker's check is one). Standalone services live in `system/services/`; a
+service that exists solely to support one app lives in that app's folder and
+is named `<app>-<role>`.
 
 ## Structure
 
