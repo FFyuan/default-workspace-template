@@ -55,8 +55,12 @@ export function formOf(definition: RoutineDefinition): ScheduleForm {
   };
 }
 
-function unitOf(form: ScheduleForm): { value: CadenceUnit; label: string; one: string; seconds: number } {
-  return CADENCE_UNITS.find((unit) => unit.value === form.unit) ?? CADENCE_UNITS[2];
+const CADENCE_UNIT_BY_VALUE: Record<CadenceUnit, (typeof CADENCE_UNITS)[number]> = Object.fromEntries(
+  CADENCE_UNITS.map((unit) => [unit.value, unit]),
+) as Record<CadenceUnit, (typeof CADENCE_UNITS)[number]>;
+
+function unitOf(form: ScheduleForm): (typeof CADENCE_UNITS)[number] {
+  return CADENCE_UNIT_BY_VALUE[form.unit];
 }
 
 /** Whether the form offers a time of day: only a cadence of a day or more has one. */
