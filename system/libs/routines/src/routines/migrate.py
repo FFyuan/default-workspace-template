@@ -224,16 +224,24 @@ def convert_cron_entry(text: str, file_name: str) -> list[ConvertedEntry | Skipp
 
 
 def _read_epoch(path: Path) -> datetime | None:
+    """The moment a legacy state file holds as epoch seconds; None for no file, or one that cannot be read."""
+    if not path.is_file():
+        return None
     try:
         return datetime.fromtimestamp(int(path.read_text().strip()), tz=timezone.utc)
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        logger.warning("Ignoring the legacy job state file {}: {}", path, e)
         return None
 
 
 def _read_count(path: Path) -> int:
+    """The count a legacy state file holds; 0 for no file, or one that cannot be read."""
+    if not path.is_file():
+        return 0
     try:
         return int(path.read_text().strip())
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        logger.warning("Ignoring the legacy job state file {}: {}", path, e)
         return 0
 
 
