@@ -503,7 +503,10 @@ def test_a_titled_create_names_the_agent_and_shows_the_title(
     ids=["app-schema", "before-app-schema"],
 )
 def test_a_chat_app_from_before_the_title_is_asked_again_without_it(
-    fake_chat_app: Any, fake_mngr: Path, refusal: str
+    fake_chat_app: Any,
+    fake_mngr: Path,
+    refusal: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A route that knows the other fields but not ``title`` refuses it by name; the chat is still worth making
     there, under its name, rather than handed to the bare ``mngr create``."""
@@ -524,6 +527,23 @@ def test_a_chat_app_from_before_the_title_is_asked_again_without_it(
     assert "title" not in second
     assert second["name"] == "update-to-minds-v0-9-0"
     assert _mngr_calls(fake_mngr) == []
+    assert "does not take a title" in capsys.readouterr().err
+
+
+def test_a_title_with_no_name_names_the_chat_on_a_chat_app_from_before_the_title(
+    fake_chat_app: Any, fake_mngr: Path
+) -> None:
+    fake_chat_app.answers = [
+        (400, {"detail": "field 'title': Extra inputs are not permitted"}),
+        _CREATED_ANSWER,
+    ]
+
+    rc, _ = _run_create("--title", "Fix the login", "-m", "/assist it broke")
+
+    assert rc == message_chat.EXIT_DELIVERED
+    [_, (_, second)] = fake_chat_app.posted
+    assert second["name"] == "Fix the login"
+    assert "title" not in second
 
 
 def test_a_titled_backoff_create_labels_the_chat_with_its_title(
