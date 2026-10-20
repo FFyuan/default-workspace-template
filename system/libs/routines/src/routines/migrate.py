@@ -237,13 +237,15 @@ def _weekdays_of(field: str) -> tuple[Weekday, ...] | None:
         first, dash, last = part.partition("-")
         if not first.isdigit() or (dash and not last.isdigit()):
             return None
+        if int(last or first) < int(first):
+            return None
         for number in range(int(first), int(last or first) + 1):
             if number > 7:
                 return None
             weekday = WEEKDAYS_IN_ORDER[(number + 6) % 7]
             if weekday not in weekdays:
                 weekdays.append(weekday)
-    return tuple(weekdays)
+    return tuple(weekdays) if weekdays else None
 
 
 @pure

@@ -107,7 +107,7 @@ def test_a_cron_shape_with_no_routine_form_is_left_with_a_reason() -> None:
     (skipped,) = convert_cron_entry("0 0 1 6 * root cmd\n", "june")
     assert isinstance(skipped, SkippedEntry)
     assert skipped.reason == "a schedule naming a month has no routine form"
-    for field in ("*/2", "mon-fri", "1-8", "5-"):
+    for field in ("*/2", "mon-fri", "1-8", "5-", "5-1"):
         (skipped,) = convert_cron_entry(f"0 8 * * {field} root cmd\n", "odd")
         assert isinstance(skipped, SkippedEntry), field
         assert skipped.reason == "the schedule has no routine form"
