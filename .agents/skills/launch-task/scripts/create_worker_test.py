@@ -2623,20 +2623,12 @@ class _RealGitRunner(_RecordingRunner):
         return subprocess.run(argv, cwd=self.repo, **kwargs)
 
 
-def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-
-
 def _repo_with_a_pass(tmp_path: Path, root: str) -> tuple[Path, str]:
     """A repo on ``main`` whose pass branch ``mngr/<root>`` holds two commits
     ``main`` lacks, one of them from a sub-worker branch merged into it."""
     repo = tmp_path / "repo"
-    subprocess.run(["git", "init", "--quiet", "-b", "main", str(repo)], check=True)
+    repo.mkdir()
+    _git(repo, "init", "--quiet", "--initial-branch=main")
     _git(repo, "commit", "--allow-empty", "-m", "base")
     child = f"{root}-child"
     _git(repo, "branch", f"mngr/{root}")
