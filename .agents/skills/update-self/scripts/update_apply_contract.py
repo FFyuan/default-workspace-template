@@ -395,10 +395,10 @@ def write_marker(
     _mirror_apply_into_run_status(marker.phase, marker.updated_at, repo_root, now)
 
 
-def clear_marker(repo_root: Path, *, is_landed: bool = False) -> None:
-    """Take the marker down; ``is_landed`` when the apply went live, which the run record keeps."""
+def clear_marker(repo_root: Path, *, landed_at: float | None = None) -> None:
+    """Take the marker down; ``landed_at`` is when the apply went live, which the run record keeps."""
     marker_path(repo_root).unlink(missing_ok=True)
-    _mirror_apply_into_run_status(None, None, repo_root, time.time, is_landed=is_landed)
+    _mirror_apply_into_run_status(None, None, repo_root, time.time, landed_at=landed_at)
 
 
 def _mirror_apply_into_run_status(
@@ -407,7 +407,7 @@ def _mirror_apply_into_run_status(
     repo_root: Path,
     now: Callable[[], float],
     *,
-    is_landed: bool = False,
+    landed_at: float | None = None,
 ) -> None:
     """Keep the run record's apply fields equal to the marker's presence and phase.
 
@@ -415,8 +415,8 @@ def _mirror_apply_into_run_status(
     Imbue Studio app reads. Stamping the two together at the marker's chokepoints is
     what lets the app size its apply window off this file alone -- the app
     stands back while ``apply_phase`` is set and for the recovery grace after
-    its last restamp, exactly as it did off the marker. ``is_landed`` also
-    stamps ``applied_at``, which the app reads to say the update is finishing.
+    its last restamp, exactly as it did off the marker. ``landed_at`` is
+    stamped as ``applied_at``, which the app reads to say the update is finishing.
     A workspace with no run record (an apply run by hand outside a pass) has
     nothing to report to.
     """
@@ -426,13 +426,13 @@ def _mirror_apply_into_run_status(
     if (
         status.apply_phase == phase
         and status.apply_updated_at == apply_updated_at
-        and not is_landed
+        and landed_at is None
     ):
         return
     status.apply_phase = phase
     status.apply_updated_at = apply_updated_at
-    if is_landed:
-        status.applied_at = now()
+    if landed_at is not None:
+        status.applied_at = landed_at
     write_run_status(status, repo_root, now)
 
 

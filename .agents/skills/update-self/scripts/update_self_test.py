@@ -2026,6 +2026,7 @@ def _apply(
     is_pid_live: Callable[[int], bool] = lambda pid: False,
     expend: Callable[[Sequence[str]], list[str]] = _tagging_expend,
     sweep_homes: Sequence[Path] = (),
+    clock: _Clock | None = None,
 ) -> int:
     return update_apply.apply_update(
         merge_ref,
@@ -2038,7 +2039,7 @@ def _apply(
         spawner=spawner,
         sleeper=lambda _seconds: None,
         base_url=_LIVE_BASE,
-        now=_Clock(),
+        now=clock if clock is not None else _Clock(),
         today=_TODAY,
         is_pid_live=is_pid_live,
         expend=expend,
@@ -7957,6 +7958,7 @@ def test_a_landed_apply_records_when_it_landed_in_the_run_record(
         update_self.main(["run-status", "start", "--repo-root", str(apply_repo)]) == 0
     )
     runner = _apply_runner(_DOCS_DIFF, apply_repo)
+    clock = _Clock()
 
     code = _apply(
         runner,
@@ -7964,13 +7966,15 @@ def test_a_landed_apply_records_when_it_landed_in_the_run_record(
         _FakeSpawner(),
         apply_repo,
         target_ref="minds-v0.4.2",
+        clock=clock,
     )
 
     assert code == 0
     status = update_apply_contract.read_run_status(apply_repo)
     assert status is not None
     assert status.apply_phase is None
-    assert status.applied_at is not None
+    # Stamped on the apply's own clock, like every other fact of the landing.
+    assert status.applied_at is not None and 1000.0 < status.applied_at <= clock.value
 
 
 def test_a_rolled_back_apply_records_no_landing(apply_repo: Path, monkeypatch) -> None:
@@ -8002,7 +8006,7 @@ def test_run_status_start_clears_the_previous_runs_landing(
     monkeypatch.setenv("MNGR_AGENT_NAME", "update-lead")
     assert update_self.main(["run-status", "start", "--repo-root", str(tmp_path)]) == 0
     _plant_marker(tmp_path)
-    update_apply_contract.clear_marker(tmp_path, is_landed=True)
+    update_apply_contract.clear_marker(tmp_path, landed_at=time.time())
     landed = update_apply_contract.read_run_status(tmp_path)
     assert landed is not None and landed.applied_at is not None
 
