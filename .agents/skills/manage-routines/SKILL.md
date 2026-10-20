@@ -83,7 +83,7 @@ A command that needs a credential the user supplied through the
 (after the `--`), which puts the file's variables in that process's
 environment; never read or source the file in the command itself.
 
-A new routine is due at once (so the user sees it work), then on its schedule.
+A new `--every` routine that is switched on is due at once (so the user sees it work), then on its schedule; a `--once` routine is due at its moment, and one added `--disabled` is not due until it is turned on.
 To make it wait a full cadence first, run it now and let that count:
 `uv run --no-sync routines run <id> --wait`.
 
