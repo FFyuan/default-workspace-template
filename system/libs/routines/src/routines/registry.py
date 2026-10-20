@@ -1,6 +1,7 @@
 """The app registry (``data/.state/apps.toml``), as far as the library reads it: where the chat app is, and what
 each app is called."""
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
@@ -16,7 +17,7 @@ CHAT_APP_NAME: Final[str] = "chat"
 CHAT_APP_FALLBACK_URL: Final[str] = "http://127.0.0.1:8010"
 
 
-def registry_path_of(repo_root: Path, environ: dict[str, str]) -> Path:
+def registry_path_of(repo_root: Path, environ: Mapping[str, str]) -> Path:
     """The registry's location, as ``forward_port.py`` resolves it: the environment's, else the default under the root."""
     named = environ.get(ENV_APPS_FILE, "")
     return Path(named) if named else repo_root / DEFAULT_APPS_FILE
