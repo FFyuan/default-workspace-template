@@ -223,7 +223,9 @@ A pass whose holder stopped while its worker is still there is neither stale
 nor abandoned: the worker holds verified work and is waiting for a lead, often
 on a gate nobody relayed. Become that lead; do not replace the pass.
 
-1. Its task file is `data/.tasks/harden/<worker-name>/task.md`. Its
+1. Its task file is the one the calling skill writes:
+   `data/.tasks/harden/<worker-name>/task.md` for an update or heal pass,
+   `data/.tasks/update-self/task.md` for update-self. Its
    `lead_work_dir` must be your own checkout (`$MNGR_AGENT_WORK_DIR`; the chats
    of one workspace share it), since the worker delivers every report there.
    If it names another checkout, you cannot receive its reports: supersede the
