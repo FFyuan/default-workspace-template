@@ -193,16 +193,16 @@ Exit 0 is `succeeded`; anything else is `failed`.
 
 ### 6.4 A skill run
 
-`skill = "<name>"` is sugar for `command = ["uv", "run", "--no-sync", "routines", "wake", "<name>"]`, and `routines wake` is what the Caretaker's check calls too.
+`skill = "<name>"` runs the wake below in the runner's own process; `routines wake <name>` is the same wake as a command, which is what the Caretaker's check calls.
 Inside a run (`ROUTINES_RUN_ID` set) the wake attaches the chat to that run and records an agent that waits on the user on it exactly as a skill run does (`run_blocked`, the state, the notification); outside one it is a plain wake that only keeps the chat, with its own exit code.
 
 1. **Find the chat.** The routine's chat id is in its state.
-   With none, or one the chat app no longer knows, create the agent as the automation script does today: `uv run mngr create <id> --template automation --no-connect --format json --label routine=<id> --label workspace=<workspace> --message /<skill>`, record the chat id, and go to step 4, where any agent message counts as the answer, since the chat starts empty.
+   With none, or one the chat app no longer knows, create the agent as the automation script did: `uv run --no-sync mngr create <id> --template automation --no-connect --format jsonl --label routine=<id> --label display_name=<title> [--label workspace=<workspace>] --message /<skill>`, record the chat id, and go to step 4, where any agent message counts as the answer, since the chat starts empty.
    The create needs a signed-in provider account; a refusal is a `failed` run whose summary is the refusal's text.
 2. **Make sure it is free.** Read the chat's snapshot from `GET /api/chats`.
    A chat that is `working`, `background`, or `attention` is the previous run still going (or, rarely, the user talking to it, which this cuts short): stop it (`POST /api/chats/<id>/stop`), start it (`POST .../start`), wait until its status is `idle`, and note `restarted_previous_run` on this run.
    That note is a warning in the row and the run page, since it means the routine's timeout or cadence is wrong.
-3. **Start fresh.** Send `/clear` through `message_chat.py`, then `/<skill>` with a message id the wake minted.
+3. **Start fresh.** Send `/clear` through the chat app's message route, then `/<skill>` with a message id the wake minted.
    The send route answers only once the harness has accepted the text, so a returned send is the acknowledgement; nothing sleeps.
 4. **Wait for the turn.** Poll the chat's snapshot every second.
    The turn is over when the status is `idle` and the transcript (`GET /api/chats/<id>/events`) holds an agent message after the sent one; that is `succeeded`.
@@ -236,11 +236,11 @@ A skill run has no result file; its summary is the agent's last message (6.4), w
   "consecutive_failures": 0,
   "is_failure_notified": false,
   "current_run": null,
-  "last_run": {"run_id": "...", "trigger": "scheduled", "outcome": "succeeded", "summary": "3 messages summarized", "started_at": "...", "finished_at": "..."}
+  "last_run": {"run_id": "...", "trigger": "SCHEDULED", "kind": "SKILL", "outcome": "SUCCEEDED", "summary": "3 messages summarized", "started_at": "...", "finished_at": "...", "warnings": []}
 }
 ```
 
-`is_enabled` is absent until the user flips the switch; the definition's `enabled` applies while it is.
+`is_enabled` is null until the user flips the switch; the definition's `enabled` applies while it is.
 `current_run` carries the run id, the pid, the trigger, and when it started.
 Every write to the file, the switch included, goes through the library under the routine's lock, so the app and a run never race on it.
 Deleting a routine's state directory resets it; deleting `last_succeeded_at` makes it due.
@@ -249,9 +249,11 @@ Deleting a routine's state directory resets it; deleting `last_succeeded_at` mak
 
 `data/.state/routines/events/runs/events.jsonl`, append-only, one event per line under the `imbue_common` `EventEnvelope` (`timestamp`, `type`, `event_id`, `source` = `runs`), every event carrying `routine_id` and `run_id`:
 
-- `run_started`: `trigger`, `kind` (`command` or `skill`), `command`.
+- `run_started`: `trigger` (`SCHEDULED` or `MANUAL`), `kind` (`COMMAND` or `SKILL`), `command`.
 - `run_blocked`: a skill run's agent is waiting on the user.
-- `run_finished`: `outcome` (`succeeded`, `failed`, `timed_out`, `interrupted`), `exit_code`, `duration_seconds`, `summary`, `chat_id`, `warnings`, `output_tail` (the log's last 4 KB).
+- `run_finished`: `outcome` (`SUCCEEDED`, `FAILED`, `TIMED_OUT`, `INTERRUPTED`), `exit_code`, `duration_seconds`, `summary`, `chat_id`, `warnings`, `output_tail` (the log's last 4 KB).
+
+Every enum value is written in upper case, as the JSON of the state, the ledger, the command and the API all carry it.
 
 Readers take the file from its tail and stop once they have what they need; the app never reads the whole file for one routine.
 The tick's daily housekeeping (6.1) rotates the file past 16 MB to `events.<date>.jsonl.gz` and prunes run directories older than 90 days.
@@ -260,7 +262,7 @@ Every event is self-describing, so the per-routine run directory is a convenienc
 ### 7.3 The log
 
 `<run_dir>/log` holds everything the routine printed, unprocessed.
-It is the raw record behind every derived field, and the run page and `routines log` show it as is.
+It is the raw record behind every derived field; the run page and `routines log` show its last 200 KB as is, and the run's `/log` route the whole of it.
 
 ### 7.4 Health
 
@@ -268,14 +270,14 @@ One enum, matched exhaustively everywhere it is read; the first row that holds w
 
 | Health | When |
 |---|---|
-| `broken` | The definition does not validate. |
-| `off` | The switch is off. |
-| `done` | A `once` routine that has succeeded. |
-| `needs_user` | The run in flight is blocked on the user. |
-| `failing` | `consecutive_failures` is above zero. |
-| `overdue` | Section 5.2. |
-| `not_run_yet` | No run has finished. |
-| `working` | None of the above. |
+| `BROKEN` | The definition does not validate. |
+| `OFF` | The switch is off. |
+| `DONE` | A `once` routine that has succeeded. |
+| `NEEDS_USER` | The run in flight is blocked on the user. |
+| `FAILING` | `consecutive_failures` is above zero. |
+| `OVERDUE` | Section 5.2. |
+| `NOT_RUN_YET` | No run has finished. |
+| `WORKING` | None of the above. |
 
 Whether a run is in flight is a separate flag beside the health, because a failing routine can be mid-retry and the row has to say both.
 
@@ -283,35 +285,35 @@ Whether a run is in flight is a separate flag beside the health, because a faili
 
 The runner, at the end of every run, applies three rules against the state:
 
-1. **Failing.** When `consecutive_failures` reaches `notify_after_failures` and `is_failure_notified` is false, post a notification ("Morning inbox digest": "Failed 3 times in a row.") and set the flag.
+1. **Failing.** When `consecutive_failures` reaches `notify_after_failures` and `is_failure_notified` is false, post a notification (headed "Morning inbox digest", saying "Morning inbox digest has failed 3 times in a row.") and set the flag.
    A streak notifies once.
-2. **Recovered.** When a run succeeds and `is_failure_notified` is true, post ("Working again.") and clear the flag.
+2. **Recovered.** When a run succeeds and `is_failure_notified` is true, post ("Morning inbox digest is working again.") and clear the flag.
    The flag moves only when the app took the post; a post that did not go out is noted in the run's log and tried again after the next run.
-3. **Blocked.** On `run_blocked`, post ("Needs you: the agent is waiting for an answer.") once per run.
+3. **Blocked.** On `run_blocked`, post ("Morning inbox digest needs you.") once per run.
 
-A notification is `POST /api/v1/agents/<MNGR_AGENT_ID>/notifications` through the latchkey gateway, exactly as `notify_user.py` does, from the services agent's environment the env wrapper restores, headed by the routine's title and with a `destination` naming the routine's page (section 14).
+A notification is `POST /api/v1/agents/<MNGR_AGENT_ID>/notifications` through the latchkey gateway, as `notify_user.py` does (without `watched_by`: the sender is not a chat), from the services agent's environment the env wrapper restores, headed by the routine's title and with a `destination` naming the routine's page (section 14).
 The services agent is not a chat, so the desktop must not treat the entry as a chat's message; section 14 covers that.
 A gateway that is not there, or an app that refuses, is a warning in the run's log and nothing else; a notification never fails a run.
 
-The Caretaker's check (section 11) is the other layer: it reads the ledger for runs that failed or routines that went overdue since its last check and wakes its agent with them.
+The Caretaker's check (section 11) is the other layer: it reads the listing for routines that are failing, overdue, broken or waiting on the user and wakes its agent with them.
 
 ## 9. The command
 
 `routines`, a `click` group, the agent-facing surface and what the app calls.
-Every subcommand answers `--format json` for scripts.
+`list`, `show` and `runs` answer `--format json` for scripts; `run` prints its receipt as JSON.
 
 | Command | Does |
 |---|---|
 | `routines list` | Every routine with health, schedule, next run, last run. |
 | `routines show <id>` | One routine with its recent runs. |
-| `routines add <id> --title --what (--every \| --once) [--at] [--days] [--day-of-month] (--command -- ... \| --skill) [--app] [--timeout] [--retry-after] [--notify-after-failures] [--disabled]` | Writes the definition after validating it; refuses an id that exists. |
+| `routines add <id> --title --what (--every \| --once) [--at] [--days] [--day-of-month] (--skill \| -- <command...>) [--app] [--timeout] [--retry-after] [--notify-after-failures] [--disabled]` | Writes the definition after validating it; refuses an id that exists. |
 | `routines edit <id> [same flags]` | Rewrites the named fields, keeping the rest and the comments. |
 | `routines enable <id>`, `routines disable <id>` | Flips the switch in the state. |
 | `routines run <id> [--wait]` | A manual run; without `--wait` it is detached and the command returns the run id. `--trigger scheduled` is the tick's spelling and nobody else's. |
 | `routines runs <id> [--limit N]` | The routine's recent runs. |
 | `routines log <id> [<run_id>]` | A run's log, the last run's by default. |
 | `routines remove <id>` | Deletes the definition and the state, keeps the ledger; stops the routine's chat agent if it has one, and never destroys it, since the chat is the user's to read or delete. |
-| `routines wake <skill>` | Section 6.4. |
+| `routines wake <skill> [--routine <id>] [--title] [--timeout]` | Section 6.4; inside a run, the wait is what is left of the run's own time. |
 | `routines tick` | Section 6.1. |
 | `routines migrate-cron` | Section 12. |
 
@@ -350,12 +352,14 @@ Typed routes in `app_schema`'s route table, every model in the library's `data_t
 | `GET /api/routines` | `RoutineListing`. |
 | `GET /api/routines/<id>` | `RoutineDetail` with recent runs. |
 | `GET /api/routines/<id>/runs/<run_id>` | `RunDetail` with the log tail; `GET .../runs/<run_id>/log` the whole log as text. |
-| `POST /api/routines/<id>/run` | Starts a manual run; 409 while one is in flight. |
+| `POST /api/routines/<id>/run` | Starts a manual run; 409 while one is in flight, 400 for a broken definition. |
 | `PUT /api/routines/<id>/enabled` | `{"is_enabled": bool}`. |
 | `PUT /api/routines/<id>/schedule` | The schedule fields; 400 with the validation message. |
 | `POST /api/routines/<id>/fix` | Opens the fix chat; answers its id. |
-| `DELETE /api/routines/<id>` | Removes the routine. |
+| `DELETE /api/routines/<id>` | Removes the routine; 409 while a run of it is in flight. |
 | `GET /api/health`, `GET /api/schema` | As every app. |
+
+A preview boot (`ROUTINES_APP_PREVIEW`) answers every mutation with 403, as the shell's preview does.
 
 Every mutation goes through the library, which is what the CLI runs, so the app and an agent cannot disagree.
 The page polls the listing every 30 seconds, every 5 while a run is in flight, and never while a dialog is open.
@@ -374,8 +378,8 @@ enabled = false
 timeout = "2h"
 ```
 
-The check keeps its four findings and adds a fifth, read with `routines list --format json`: routines whose last run failed, that are overdue, or that are blocked, since the check's last run.
-With findings it ends with `exec uv run --no-sync routines wake caretaker`, so the agent's chat is the run's chat and the run ends when the agent's turn does.
+The check keeps its four findings and adds a fifth, read with `routines list --format json`: every other routine whose health is failing, overdue, broken, or waiting on the user at the time of the check.
+With findings it ends with `exec uv run --no-sync routines wake caretaker --routine caretaker`, so the agent's chat is the run's chat and the run ends when the agent's turn does.
 The `caretaker` create template goes; the role it carried moves into the `caretaker` skill's opening, and the agent is created from the `automation` template like every other.
 The `enable-caretaker` and `disable-caretaker` skills go; the Routines app's switch and `routines enable caretaker` are the switch.
 The Caretaker's own notes and permissions stay under `data/.state/caretaker/`, untouched by the switch, as before.
@@ -389,11 +393,11 @@ The daily routines-only check is a second definition later, `caretaker-routines.
 - Every `data/.state/cron.d` entry whose line runs `run_job.sh` becomes a definition: the job id, `--every`, `--at`, and `--retry-after` map to the fields; a command that is `run_automation.sh <skill>` becomes `skill`; a `caretaker` entry becomes the switch on the shipped definition.
   `data/.state/jobs/<id>/` becomes the state's `last_succeeded_at` and `consecutive_failures`.
   The title is the id with the hyphens read as spaces, and `what` is the command, until an agent describes it.
-- A plain cron line whose five fields are one of the shapes section 5 expresses becomes a definition the same way; one that is not is left in place with a warning in the tick log, since the daemon still runs it.
+- A plain cron line whose five fields are one of the shapes section 5 expresses becomes a definition the same way; one that is not is left in place with a warning in the boot log, since the daemon still runs it.
 - Both copies of every converted entry are removed.
 
 The bootstrap runs it at every boot, after the first-boot commit and before writing the tick entry; it is a no-op once nothing is left, and the recovery guard is never touched.
-The definitions it writes are committed as every definition write is (section 4), one commit for the whole migration.
+The definitions it writes are committed as every definition write is (section 4), one commit per definition; a commit the index refuses leaves the file written and the entry converted, as for any write.
 
 `system/libs/automations` goes once the migration ships; `run_job.sh`'s tests become the library's.
 `CLEANUP:` marks the migration and the legacy readers for removal once every workspace has booted a build that has them.
@@ -420,10 +424,10 @@ That change is its own PR on the mngr repo and lands before the template's.
 
 - `schedule_test.py`: every rule of 5.1 as a table, the month clamp, the weekday move, the retry floor, catch-up after a gap, `once` before and after success, and the described sentences by inline snapshot.
 - `runner_test.py`: a command run over a real subprocess (a script that prints and exits as told): the log is streamed, the events are written, the state is updated, a timeout kills the process group, a held lock refuses a second run, a dead `current_run` is reaped as `interrupted`, `result.json` is read.
-- `wake_test.py`: the skill run over a fake chat app (an HTTP server answering the four routes it uses) and a fake `mngr` on the PATH: create on first run, restart when busy with the warning, blocked then succeeded, stopped is failed, timeout interrupts.
+- `wake_test.py`: the skill run over a scripted chat app: create on first run, restart when busy with the warning, blocked then succeeded, stopped is failed, timeout interrupts; `chat_app_test.py`: the chat app's routes over a fake HTTP server, and the create over a fake `uv` (which runs `mngr create`) on the PATH.
 - `notifications_test.py`: the three rules over a fake gateway: one notification per streak, recovery, blocked once per run, and a dead gateway logged and ignored.
-- `cli_test.py`: every subcommand over a temporary workspace root, `add` refusing a bad definition with the validator's message, `edit` keeping a comment.
-- `migrate_cron_test.py`: the shapes of 12 and the one left in place.
+- `cli_test.py`: every subcommand over a temporary workspace root, `add` refusing a bad definition with the validator's message; `definitions_test.py`: an edit keeping a comment.
+- `migrate_test.py`: the shapes of 12 and the one left in place.
 - The app: `assert_api_schema_describes_app`, every route, and `vitest` over the views as Files does; the manifest in `system/test_app_manifests.py`'s built-in table.
 - The bootstrap: the tick entry is rewritten every boot and can run from cron's own PATH, as the recovery guard's tests check.
 - `system/libs/routines/test_routines.py`: a routine with `every = "1m"` in a temporary state dir runs through a real tick and shows up in `routines list`.
