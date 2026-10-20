@@ -12,13 +12,16 @@ from routines.cli import WAKE_MARGIN_BEFORE_RUN_DEADLINE
 from routines.cli import routines
 from routines.cli import wait_within_run
 from routines.cli import wake_defaults
+from routines.cli import wake_run_result
 from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
+from routines.data_types import WakeOutcome
 from routines.migrate import LEGACY_ENV_WRAPPER_PATH
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import RunId
+from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.state import FileStateStore
 from routines.testing import TEST_NOW
@@ -245,6 +248,15 @@ def test_a_wake_inside_a_run_stops_before_the_runs_own_deadline() -> None:
     # A state that names another run, or none, says nothing about this one.
     assert wait_within_run(None, run_id, timeout, timeout, TEST_NOW) == timeout
     assert wait_within_run(started_ten_minutes_ago, RunId.generate(), timeout, timeout, TEST_NOW) == timeout
+
+
+def test_a_wake_leaves_its_chat_on_the_run_only_when_the_chat_is_the_runs_own_routines() -> None:
+    outcome = WakeOutcome(outcome=RunOutcome.SUCCEEDED, summary="Checked.", chat_id="agent-1", warnings=())
+    own = wake_run_result(outcome, RoutineId("caretaker"), "caretaker")
+    assert (own.summary, own.chat_id) == ("Checked.", "agent-1")
+    # A command routine that wakes another routine's chat does not adopt that chat.
+    other = wake_run_result(outcome, RoutineId("caretaker"), "nightly-check")
+    assert (other.summary, other.chat_id) == ("Checked.", None)
 
 
 def test_wake_refuses_a_timeout_that_is_not_a_duration_in_the_commands_words(git_paths: RoutinesPaths) -> None:

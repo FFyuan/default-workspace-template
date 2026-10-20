@@ -19,12 +19,14 @@ from pydantic import ValidationError
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.ids import InvalidRandomIdError
 from imbue.imbue_common.logging import setup_logging
+from imbue.imbue_common.pure import pure
 from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineRow
 from routines.data_types import RunRecord
 from routines.data_types import RunResult
 from routines.data_types import RunStartReceipt
+from routines.data_types import WakeOutcome
 from routines.definitions import describe_validation_error
 from routines.definitions import once_moment_from_text
 from routines.errors import DefinitionValidationError
@@ -88,6 +90,14 @@ def wait_within_run(
         return wait
     remaining = current.started_at + run_timeout - now - WAKE_MARGIN_BEFORE_RUN_DEADLINE
     return max(min(wait, remaining), LEAST_WAKE_WAIT)
+
+
+@pure
+def wake_run_result(outcome: WakeOutcome, wanted_id: RoutineId, run_routine_id: str) -> RunResult:
+    """What the wake leaves for the run it happened inside: the agent's summary, and the chat only when the wake
+    was of the run's own routine, since the runner records the result's chat on that routine."""
+    is_own_chat = str(wanted_id) == run_routine_id
+    return RunResult(summary=outcome.summary, chat_id=outcome.chat_id if is_own_chat else None)
 
 
 def _definition_if_any(service: RoutinesService, routine_id: RoutineId) -> RoutineDefinition | None:
@@ -507,7 +517,7 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
         _fail(str(e))
     run_dir = os.environ.get(RUN_DIR_ENV, "")
     if run_dir:
-        result = RunResult(summary=outcome.summary, chat_id=outcome.chat_id)
+        result = wake_run_result(outcome, wanted_id, os.environ.get(ROUTINE_ID_ENV, ""))
         (Path(run_dir) / RESULT_FILENAME).write_text(result.model_dump_json(), encoding="utf-8")
     click.echo(f"{outcome.outcome.lower()}: {outcome.summary}")
     sys.exit(0 if outcome.outcome is RunOutcome.SUCCEEDED else 1)
