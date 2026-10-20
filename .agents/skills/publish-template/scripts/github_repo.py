@@ -203,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
     try:
-        point_readme_at(args.worktree, repo)
+        is_readme_pointed = point_readme_at(args.worktree, repo)
     except subprocess.CalledProcessError as e:
         print(repo)
         print(
@@ -213,6 +213,13 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    if not is_readme_pointed:
+        print(
+            f"github_repo: follow-up: README.md in {args.worktree} carries no "
+            f"{_REPO_URL_PLACEHOLDER}, so its Open in Imbue Studio link was not pointed "
+            f"at {repo}; check it and commit a fix before the push.",
+            file=sys.stderr,
+        )
     print(repo)
     return 0
 

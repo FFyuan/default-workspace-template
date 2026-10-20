@@ -186,6 +186,27 @@ def test_a_refused_readme_commit_still_names_the_created_repo(
     assert "Traceback" not in completed.stderr
 
 
+def test_a_readme_without_the_placeholder_is_called_out(
+    fake_latchkey: FakeLatchkey, tmp_path: Path
+) -> None:
+    worktree = _worktree(tmp_path)
+    (worktree / "README.md").write_text("[Open](https://github.com/someone/else)\n")
+    git(worktree, "commit", "-qam", "lose the placeholder")
+    fake_latchkey.set_state(
+        responses={
+            _CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}}),
+            _LOCKDOWN: json.dumps({"name": "demo"}),
+        }
+    )
+
+    completed = _create(fake_latchkey, worktree)
+
+    assert completed.returncode == 0
+    assert completed.stdout.strip() == "octo/demo"
+    assert "follow-up" in completed.stderr
+    assert "not pointed at octo/demo" in completed.stderr
+
+
 @pytest.mark.parametrize("name", ["-demo", "my repo", "demo/evil", ""])
 def test_an_invalid_name_is_refused_before_anything_is_created(
     fake_latchkey: FakeLatchkey, tmp_path: Path, name: str
