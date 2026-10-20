@@ -857,7 +857,10 @@ def _cmd_run_status_stop_chats(args: argparse.Namespace) -> int:
         print(f"error: {e}; nothing was paused.", file=sys.stderr)
         return 1
     if not targets:
-        print("Nothing to pause: no other chat or background agent is busy.")
+        if args.agent:
+            print("Nothing to pause: every agent named is already stopped.")
+        else:
+            print("Nothing to pause: no other chat or background agent is busy.")
         return 0
 
     def record(stopped: StoppedAgent) -> None:
