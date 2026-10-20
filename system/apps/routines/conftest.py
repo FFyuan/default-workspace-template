@@ -7,9 +7,9 @@ from routines.data_types import RoutineDefinition
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.mock_notifier_test import RecordingNotifier
+from routines.mock_repository_test import RecordingRepository
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
-from routines.repository import GitRepository
 from routines.service import RoutinesService
 from routines.testing import TEST_NOW
 from routines.testing import TEST_ZONE
@@ -41,10 +41,19 @@ def notifier() -> RecordingNotifier:
 
 
 @pytest.fixture
+def repository(git_paths: RoutinesPaths) -> RecordingRepository:
+    """What the service commits through: records each commit, and refuses them all once told to."""
+    return RecordingRepository(repo_root=git_paths.repo_root)
+
+
+@pytest.fixture
 def service(
-    git_paths: RoutinesPaths, clock: FakeClock, chat_app: ScriptedChatApp, notifier: RecordingNotifier
+    git_paths: RoutinesPaths,
+    repository: RecordingRepository,
+    clock: FakeClock,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
 ) -> RoutinesService:
-    repository = GitRepository(repo_root=git_paths.repo_root, clock=clock)
     return build_test_service(git_paths, repository, clock, chat_app, notifier)
 
 
