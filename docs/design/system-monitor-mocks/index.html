@@ -80,7 +80,7 @@
     <li>The sample data is shared (<code>shared/mock.js</code>): one working chat, two idle ones, a code checker, two user-built apps, two programs stopped by the memory guard (one this morning, one last night). Hover a chart for the reading at that time.</li>
     <li>Each page is self-contained HTML with no build step, like the shipped page, so whichever direction wins can keep that property. The headline figures come from the shared data; some pages hard-code their labels and side facts, so they are pictures rather than renderings.</li>
     <li>Nothing in the shell gives the app a size of its own: a new window opens at the cascade frame (60% x 70% of the desktop, <code>frames.ts</code>), which is landscape on a laptop. The portrait default here is the size the app is expected to be used at; check the landscape presets before ruling out a two-column direction.</li>
-    <li>Pages 03, 04 and 08 are "app chrome" layouts that fill their window; the rest are the single scrolling column of the current app.</li>
+    <li>Pages 03 and 04 are "app chrome" layouts that fill their window. Page 08 is a demo page that shows the 300 px strip twice (collapsed, and with one meter unfolded); the strip itself is meant for its own small pinned window. The rest are the single scrolling column of the current app.</li>
   </ul>
 </section>
 
