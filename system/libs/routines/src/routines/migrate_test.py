@@ -83,6 +83,9 @@ def test_plain_cron_lines_in_the_shapes_a_definition_can_say_are_converted() -> 
         "0 */2 * * * root cmd": ("2h", None, ()),
         "30 9 * * * root cmd": ("1d", "09:30", ()),
         "30 9 * * 1 root cmd": ("1d", "09:30", (Weekday.MON,)),
+        "30 9 * * 1-5 root cmd": ("1d", "09:30", (Weekday.MON, Weekday.TUE, Weekday.WED, Weekday.THU, Weekday.FRI)),
+        "0 8 * * 1,3,5 root cmd": ("1d", "08:00", (Weekday.MON, Weekday.WED, Weekday.FRI)),
+        "0 8 * * 0,7 root cmd": ("1d", "08:00", (Weekday.SUN,)),
         "0 0 1 * * root cmd": ("1mo", "00:00", ()),
     }
     for line, (every, at, days) in cases.items():
@@ -98,6 +101,10 @@ def test_a_cron_shape_with_no_routine_form_is_left_with_a_reason() -> None:
     (skipped,) = convert_cron_entry("0 0 1 6 * root cmd\n", "june")
     assert isinstance(skipped, SkippedEntry)
     assert skipped.reason == "a schedule naming a month has no routine form"
+    for field in ("*/2", "mon-fri", "1-8", "5-"):
+        (skipped,) = convert_cron_entry(f"0 8 * * {field} root cmd\n", "odd")
+        assert isinstance(skipped, SkippedEntry), field
+        assert skipped.reason == "the schedule has no routine form"
 
 
 def test_migration_writes_definitions_carries_state_over_and_removes_both_copies(

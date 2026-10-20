@@ -30,6 +30,7 @@ from routines.primitives import Duration
 from routines.primitives import RoutineId
 from routines.primitives import TimeOfDay
 from routines.primitives import WEEKDAYS_IN_ORDER
+from routines.primitives import Weekday
 
 LEGACY_CRON_DIR: Final[Path] = Path("data/.state/cron.d")
 LEGACY_JOB_STATE_DIR: Final[Path] = Path("data/.state/jobs")
@@ -205,9 +206,8 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
         at = TimeOfDay(f"{int(hour):02d}:{int(minute):02d}")
         if day_of_month == "*" and day_of_week == "*":
             values.update({"every": Duration("1d"), "at": at})
-        elif day_of_month == "*" and day_of_week.isdigit():
-            weekday = WEEKDAYS_IN_ORDER[(int(day_of_week) + 6) % 7]
-            values.update({"every": Duration("1d"), "at": at, "days": (weekday,)})
+        elif day_of_month == "*" and (weekdays := _weekdays_of(day_of_week)) is not None:
+            values.update({"every": Duration("1d"), "at": at, "days": weekdays})
         elif day_of_month.isdigit() and day_of_week == "*":
             values.update({"every": Duration("1mo"), "at": at, "day_of_month": int(day_of_month)})
         else:
@@ -227,6 +227,23 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
 def rewrite_env_wrapper(text: str) -> str:
     """The entry's text with the env wrapper named where it lives now, for an entry that stays with cron."""
     return text.replace(LEGACY_ENV_WRAPPER_PATH, ENV_WRAPPER_PATH)
+
+
+@pure
+def _weekdays_of(field: str) -> tuple[Weekday, ...] | None:
+    """A cron day-of-week field of digits, lists and ranges (0 and 7 both Sunday) as weekdays; None otherwise."""
+    weekdays: list[Weekday] = []
+    for part in field.split(","):
+        first, dash, last = part.partition("-")
+        if not first.isdigit() or (dash and not last.isdigit()):
+            return None
+        for number in range(int(first), int(last or first) + 1):
+            if number > 7:
+                return None
+            weekday = WEEKDAYS_IN_ORDER[(number + 6) % 7]
+            if weekday not in weekdays:
+                weekdays.append(weekday)
+    return tuple(weekdays)
 
 
 @pure
