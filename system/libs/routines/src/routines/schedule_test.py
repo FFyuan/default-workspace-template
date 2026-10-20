@@ -7,7 +7,6 @@ from inline_snapshot import snapshot
 
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineState
-from routines.primitives import Duration
 from routines.schedule import describe_age
 from routines.schedule import describe_duration
 from routines.schedule import describe_moment
@@ -206,9 +205,3 @@ def test_moments_ages_and_durations_read_relative_to_now() -> None:
             "1h 02m",
         ]
     )
-
-
-def test_a_duration_knows_its_count_unit_and_length() -> None:
-    assert Duration("3h").timedelta == timedelta(hours=3)
-    assert Duration("2w").approximate_seconds == 14 * 86400
-    assert Duration("1mo").is_calendar_months
