@@ -904,6 +904,9 @@ def _cmd_run_status_resume_chats(args: argparse.Namespace) -> int:
     now = time.time
     recorder = args.chat or os.environ.get(ENV_DRI_AGENT, "")
     status = _run_status_for_recorder(repo_root, recorder, now)
+    if not status.stopped_agents:
+        print("Nothing to resume: this run's record names no paused chat or agent.")
+        return 0
     if all(entry.is_restarted and entry.is_told for entry in status.stopped_agents):
         print(
             "Nothing to resume: every paused chat is running again and has been told."
