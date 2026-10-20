@@ -55,7 +55,7 @@ add_finding() { FINDINGS="${FINDINGS}- $1"$'\n'; }
 # verdicts). The Caretaker leaves itself out: a check that follows a failed run of its own would
 # otherwise wake the agent about the very routine it is.
 if command -v uv >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-    bad_routines=$(uv run --no-sync routines list --format json 2>/dev/null \
+    bad_routines=$(uv run --no-sync routines list --format json \
         | jq -r '.routines[] | select(.routine_id != "caretaker") | select(.health == "FAILING" or .health == "OVERDUE" or .health == "BROKEN" or .health == "NEEDS_USER") | "\(.title) (\(.health_text))"' 2>/dev/null \
         | tr '\n' ';' || true)
     [ -n "$bad_routines" ] && add_finding "routines needing attention: $bad_routines"
