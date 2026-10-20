@@ -73,7 +73,7 @@ def _pinned_claude_or_skip() -> str:
 
 
 def _signed_in_claude_account_or_skip() -> Path:
-    """The folder of the Claude account a chat would launch on.
+    """The folder of the Claude account the default-account rule picks among the workspace's Claude accounts.
 
     Named by home: the conftest points ``MINDS_ACCOUNTS_ROOT`` at an empty store of the test's own, and the default
     lookup follows it."""
