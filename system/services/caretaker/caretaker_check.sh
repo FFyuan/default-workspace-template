@@ -37,6 +37,14 @@ wake_agent() {
 
 log() { printf '%s caretaker_check: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
+# The findings file the agent reads, headed by what kind of check found them.
+write_findings() {
+    {
+        printf '# %s (%s)\n\n' "$1" "$(date +'%Y-%m-%d %H:%M %Z')"
+        printf '%s' "$FINDINGS"
+    } > "$CARETAKER_DIR/findings.md"
+}
+
 mkdir -p "$CARETAKER_DIR"
 MARKER="$CARETAKER_DIR/last_check"
 
@@ -67,10 +75,7 @@ if [ "$ONLY" = "routines" ]; then
         log "all routines are fine; nothing to report"
         exit 0
     fi
-    {
-        printf '# What the routines check found (%s)\n\n' "$(date +'%Y-%m-%d %H:%M %Z')"
-        printf '%s' "$FINDINGS"
-    } > "$CARETAKER_DIR/findings.md"
+    write_findings "What the routines check found"
     log "routine findings; waking the agent"
     wake_agent
 fi
@@ -108,8 +113,5 @@ if [ -z "$FINDINGS" ]; then
 fi
 
 log "findings; waking the agent"
-{
-    printf '# What the weekly check found (%s)\n\n' "$(date +'%Y-%m-%d %H:%M %Z')"
-    printf '%s' "$FINDINGS"
-} > "$CARETAKER_DIR/findings.md"
+write_findings "What the weekly check found"
 wake_agent
