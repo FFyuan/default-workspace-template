@@ -469,6 +469,40 @@ def test_a_tree_still_carrying_the_placeholder_thumbnail_is_flagged(
     assert any("placeholder thumbnail" in problem for problem in problems)
 
 
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        "<svg><script>alert(1)</script></svg>",
+        "<svg><foreignObject><div/></foreignObject></svg>",
+        '<svg><rect onload="x()"/></svg>',
+        '<svg><rect ONCLICK = "x()"/></svg>',
+    ],
+)
+def test_an_unsafe_thumbnail_is_flagged_even_on_an_unfinished_skeleton(
+    tmp_path: Path, unsafe: str
+) -> None:
+    """The thumbnail renders on GitHub and in the adopter's app, so it must stay inert."""
+    _write_tree(tmp_path, thumbnail_text=unsafe)
+
+    problems = validate_template_tree(tmp_path, is_unfinished_allowed=True)
+
+    assert any("thumbnail" in problem for problem in problems)
+
+
+def test_ordinary_svg_attributes_are_not_mistaken_for_event_handlers(
+    tmp_path: Path,
+) -> None:
+    _write_tree(
+        tmp_path,
+        thumbnail_text=(
+            '<svg version="1.1" viewBox="0 0 240 160"><text font-family="sans-serif" '
+            'text-anchor="middle" dominant-baseline="central">Inbox</text></svg>'
+        ),
+    )
+
+    assert validate_template_tree(tmp_path) == ()
+
+
 def test_a_readme_with_an_unfinished_block_is_flagged(tmp_path: Path) -> None:
     _write_tree(tmp_path)
     (tmp_path / "README.md").write_text("<!-- FILL-IN (publishing agent): overview -->")

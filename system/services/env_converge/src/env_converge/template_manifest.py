@@ -771,6 +771,24 @@ def check_unfinished_placeholders(*texts: str) -> tuple[str, ...]:
     return tuple(problems)
 
 
+# What makes an SVG active rather than a picture: script, embedded HTML, and
+# event-handler attributes.
+_UNSAFE_SVG_PATTERN = re.compile(
+    r"<script|<foreignObject|\bon[a-z]+\s*=", re.IGNORECASE
+)
+
+
+def check_thumbnail_safety(thumbnail_text: str) -> tuple[str, ...]:
+    """Problems that would make the thumbnail run code where it is displayed."""
+    match = _UNSAFE_SVG_PATTERN.search(thumbnail_text)
+    if match is None:
+        return ()
+    return (
+        f"the thumbnail contains {match.group(0)!r}; it must have no <script>, "
+        "no <foreignObject> and no on*= event attributes",
+    )
+
+
 def validate_template_tree(
     repo_root: Path, is_unfinished_allowed: bool = False
 ) -> tuple[str, ...]:
@@ -807,6 +825,7 @@ def validate_template_tree(
     else:
         thumbnail_text = thumbnail_path.read_text(encoding="utf-8", errors="replace")
 
+    problems.extend(check_thumbnail_safety(thumbnail_text))
     problems.extend(check_env_d_units(manifest))
     problems.extend(check_secret_references(repo_root, manifest))
     # `check_env_d_units` proves a unit is named right and WOULD ship if it

@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _SCRIPT = Path(__file__).resolve().parent / "validate_template.py"
 _spec = importlib.util.spec_from_file_location("validate_template", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
@@ -48,3 +50,62 @@ def test_every_ancestor_is_offered_as_a_repo_root() -> None:
 
     assert Path("/a/b/c/d/e") / validate_template._IN_REPO_SCHEMA_PATH in candidates
     assert Path("/a") / validate_template._IN_REPO_SCHEMA_PATH in candidates
+
+
+_FIXTURE_TOML = """format = "v2"
+
+[template]
+slug = "demo"
+title = "Demo"
+description = "A demo."
+thumbnail = "template.svg"
+version = "v1"
+
+[recipe]
+include = ["system/apps/demo"]
+"""
+
+_FIXTURE_MARKDOWN = """---
+title: Demo
+description: A demo.
+thumbnail: template.svg
+format: v2
+---
+
+# Demo
+"""
+
+
+def _finished_template(root: Path, readme: str) -> Path:
+    (root / "template.toml").write_text(_FIXTURE_TOML)
+    (root / "template.md").write_text(_FIXTURE_MARKDOWN)
+    (root / "template.svg").write_text("<svg></svg>")
+    (root / "README.md").write_text(readme)
+    return root
+
+
+def test_pre_push_refuses_a_readme_still_carrying_the_repo_url_placeholder(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The Open in Imbue Studio button is dead until the real owner/repo replaces it."""
+    _finished_template(
+        tmp_path,
+        "[Open](https://studio.imbue.com/open?git_url=https://github.com/MINDS_TEMPLATE_REPO_URL)",
+    )
+
+    assert validate_template.main([str(tmp_path), "--skip-apt-check"]) == 0
+    assert (
+        validate_template.main([str(tmp_path), "--skip-apt-check", "--pre-push"]) == 1
+    )
+    assert "MINDS_TEMPLATE_REPO_URL" in capsys.readouterr().err
+
+
+def test_pre_push_passes_once_the_repo_url_is_filled_in(tmp_path: Path) -> None:
+    _finished_template(
+        tmp_path,
+        "[Open](https://studio.imbue.com/open?git_url=https://github.com/octo/demo)",
+    )
+
+    assert (
+        validate_template.main([str(tmp_path), "--skip-apt-check", "--pre-push"]) == 0
+    )
