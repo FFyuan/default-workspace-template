@@ -89,7 +89,7 @@ def _advance_to_allowed_weekday(moment: datetime, days: tuple[Weekday, ...], zon
 @pure
 def next_due(definition: RoutineDefinition, state: RoutineState, now: datetime, zone: tzinfo) -> datetime | None:
     """The earliest moment a scheduled run may start, or None for a routine that is done."""
-    # Rules 1 and 2 answer outright; 3 to 6 compose.
+    # Rules 1 and 2 give the due moment outright and 3 to 5 compose it; rule 6 floors whichever answered.
     if definition.once is not None:
         if state.last_succeeded_at is not None:
             return None

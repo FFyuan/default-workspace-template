@@ -119,7 +119,7 @@ All arithmetic is in `schedule.py` as pure functions of the definition, the stat
 ### 5.1 The next due moment
 
 `next_due(definition, state, now)` answers the earliest moment at or after which a scheduled run may start, or `None` for a routine that is done.
-Rules 1 and 2 answer outright; rules 3 to 6 compose, in order.
+Rules 1 and 2 give the due moment outright and rules 3 to 5 compose it, in order; rule 6 then floors whichever of them answered, so a routine that has never succeeded, or a `once` routine, is retried after `retry_after` too, not on every tick.
 
 1. A routine with `once` is due at that moment while it has never succeeded, and done once it has.
 2. A routine that has never succeeded is due now.

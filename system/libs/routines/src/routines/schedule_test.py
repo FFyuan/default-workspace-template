@@ -81,6 +81,14 @@ def test_a_failed_attempt_floors_the_due_moment_at_the_retry_gap() -> None:
     assert next_due(_definition(every="1h"), state, TEST_NOW, TEST_ZONE) == TEST_NOW + timedelta(seconds=90)
 
 
+def test_the_retry_gap_also_floors_a_routine_that_never_succeeded_or_a_one_off() -> None:
+    # Without the floor a failing routine would be started again on every tick.
+    failed_just_now = RoutineState(last_started_at=TEST_NOW - timedelta(seconds=30))
+    assert next_due(_definition(every="1h"), failed_just_now, TEST_NOW, TEST_ZONE) == TEST_NOW + timedelta(seconds=90)
+    once = _definition(once=datetime(2026, 10, 20, 6, 0))
+    assert next_due(once, failed_just_now, TEST_NOW, TEST_ZONE) == TEST_NOW + timedelta(seconds=90)
+
+
 def test_a_gap_of_days_leaves_the_routine_due_at_once_and_counts_from_the_catch_up() -> None:
     state = RoutineState(last_succeeded_at=TEST_NOW - timedelta(days=3))
     definition = _definition(every="1d", at="07:30")
