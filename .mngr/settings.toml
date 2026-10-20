@@ -1724,14 +1724,6 @@ setting__extend = [
     'agent_types.codex.config_overrides__extend={"service_tier":"fast","features__extend":{"fast_mode":true}}',
 ]
 
-# Caretaker: the weekly maintenance agent -- the tailored instance of the
-# generic `automation` role below. Spawned (and re-woken) by the caretaker job
-# (the /etc/cron.d/minds-caretaker entry the enable-caretaker skill creates --
-# absent until then, weekly and findings-gated via
-# system/services/caretaker/caretaker_check.sh once enabled) via
-# system/libs/automations/run_automation.sh, and labelled automation=caretaker
-# so it can be found as a singleton (the agent surfaces its own chat window via
-# uv run --no-sync workspace-layout after its first message).
 # Automation: the agent a skill routine runs in (system/libs/routines). The
 # routines runner creates one per routine on its first run, labels it
 # routine=<id>, and on every later run clears its chat and sends `/<skill>` --
