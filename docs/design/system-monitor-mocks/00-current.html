@@ -70,7 +70,8 @@
   $("mem-free").textContent = `${M.size(m.available)} free`; $("mem-pct").textContent = `${mp}% used`;
   $("mem-bar").style.width = `${mp}%`;
   M.drawSpark($("spark"), [{ name: "In use", samples: M.history.mem10, color: "var(--c-text-primary)", area: false }], { windowMs: 10 * 60e3, h: 100, gapMs: 15000 });
-  $("mem-note").innerHTML = `<strong>Memory is ${mp}% full.</strong> The workspace stopped 1 program in the last 24 hours.`;
+  const n = M.stops.length;
+  $("mem-note").innerHTML = `<strong>Memory is ${mp}% full.</strong> The workspace stopped ${n} program${n > 1 ? "s" : ""} in the last 24 hours.`;
 
   const SCRATCH_INFO = `<button type="button" class="info" aria-label="What are temporary files?"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.2v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="4.9" r="0.95" fill="currentColor"/></svg><span class="tip" role="tooltip">Temporary files are created by programs while they work, such as downloads in progress or screenshots from a test run. They are kept in memory, so they count toward memory use. They are cleared when the workspace restarts.</span></button>`;
   const tagOf = (g) => g.id === "scratch" ? `of ${M.size(g.limit)} limit` : g.hint ? g.hint : ["chats", "checkers", "apps"].includes(g.id) ? (g.items.length ? `${g.items.length} running` : "none running") : "";

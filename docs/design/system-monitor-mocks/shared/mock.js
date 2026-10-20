@@ -1,6 +1,7 @@
 // Sample data and small drawing helpers shared by every mock. The numbers describe one plausible
 // workspace: the default 8 GiB machine with a 28 GB disk and 4 vCPUs, three chats open (one
-// working), two user-built apps, and one program stopped by the memory guard this morning.
+// working), two user-built apps, and two programs stopped by the memory guard (one this morning, one
+// last night).
 (() => {
   const GiB = 2 ** 30, MiB = 2 ** 20, GB = 1e9;
   const now = Date.now();
