@@ -1,5 +1,5 @@
 """The browser's preview boots beside the live service without touching its ports or its profiles, and taking it
-down leaves none of its browsers' audio sinks in the shared pulse daemon.
+down leaves the shared pulse daemon up with none of its browsers' audio sinks in it.
 
 This checkout's ``browser-service`` is booted by update-app's ``preview_app.py`` from the manifest's
 ``[preview]`` table, while the live service's ports are taken and a live profile sits under the live host dir.
@@ -138,6 +138,11 @@ def _pulse_sinks() -> list[str]:
     return [line.split("\t")[1] for line in listed.stdout.splitlines() if line.strip()]
 
 
+def _pulse_daemon_answers() -> bool:
+    probe = subprocess.run(["pactl", "info"], env=bsession._pulse_env(), capture_output=True, timeout=10)
+    return probe.returncode == 0
+
+
 @pytest.mark.timeout(5 * _STEP_TIMEOUT_SECONDS)
 def test_a_preview_boots_on_its_own_ports_and_leaves_the_live_profiles_alone(live_repo_root: Path) -> None:
     with _preview_beside_the_live_service(live_repo_root) as ports:
@@ -174,6 +179,8 @@ def test_taking_a_preview_down_unloads_the_audio_sinks_of_its_browsers(live_repo
         sink_prefix = f"browserpreview{ports['main']}_"
         assert [sink for sink in _pulse_sinks() if sink.startswith(sink_prefix)], _pulse_sinks()
 
+    # The live browsers play through the same daemon, so the preview's teardown must leave it running.
+    assert _pulse_daemon_answers(), "the shared pulse daemon went down with the preview"
     assert not [sink for sink in _pulse_sinks() if sink.startswith(sink_prefix)], _pulse_sinks()
 
 
