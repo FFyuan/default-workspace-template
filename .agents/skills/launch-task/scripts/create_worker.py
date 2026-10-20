@@ -2087,18 +2087,18 @@ def destroy(
     toplevel = _repo_toplevel(runner)
     flags = ["--force", "-b"] if delete_branches else ["--force"]
     outcomes: list[_LifecycleOutcome] = []
-    if not recursive:
-        _orphan_warning(name, subtree, "destroyed")
-        subtree = ()
+    doomed_subtree = subtree if recursive else ()
     own = _record_named(records, name)
     if delete_branches and not discard_unmerged:
-        branches = [_record_branch(r) for r in subtree]
+        branches = [_record_branch(r) for r in doomed_subtree]
         branches.append(f"mngr/{name}" if own is None else _record_branch(own))
         refusal = _branch_deletion_refusal(branches, runner)
         if refusal is not None:
             print(f"create_worker: not destroying {name}: {refusal}", file=sys.stderr)
             return 2
-    for record in subtree:
+    if not recursive:
+        _orphan_warning(name, subtree, "destroyed")
+    for record in doomed_subtree:
         _relocate_task_dirs(record, runner, toplevel)
         _unmerged_work_warning(record, runner)
         child = _record_name(record)
