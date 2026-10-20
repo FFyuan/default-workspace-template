@@ -50,6 +50,7 @@ from routines.interfaces import NotifierInterface
 from routines.interfaces import StateStoreInterface
 from routines.locks import held_lock
 from routines.locks import tried_lock
+from routines.paths import RUNS_DIRNAME
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import RunId
@@ -458,7 +459,7 @@ class Runner(MutableModel):
             routines = self.definitions.list_routines()
             reaped = self._reap_dead_runs(routines)
             started = self._start_due_runs(routines)
-            self._housekeep(routines)
+            self._housekeep()
             return TickReport(started=tuple(started), reaped=tuple(reaped), is_skipped=False)
 
     def _reap_dead_runs(self, routines: list[LoadedRoutine]) -> list[RoutineId]:
@@ -531,21 +532,25 @@ class Runner(MutableModel):
         logger.info("Starting a scheduled run of {}", routine_id)
         spawn_run_process(self.paths, routine_id, RunTrigger.SCHEDULED, RunId.generate())
 
-    def _housekeep(self, routines: list[LoadedRoutine]) -> None:
+    def _housekeep(self) -> None:
         now = self.clock.now()
         today = now.strftime("%Y-%m-%d")
         stamp_path = self.paths.housekeeping_path
         if _read_housekeeping_date(stamp_path) == today:
             return
         self.ledger.rotate_if_large(now)
-        self._prune_old_run_dirs(routines, now)
+        self._prune_old_run_dirs(now)
         stamp_path.parent.mkdir(parents=True, exist_ok=True)
         stamp_path.write_text(json.dumps({"date": today}) + "\n")
 
-    def _prune_old_run_dirs(self, routines: list[LoadedRoutine], now: datetime) -> None:
+    def _prune_old_run_dirs(self, now: datetime) -> None:
+        # Every routine directory under the state, not only the defined routines': the runs of a routine whose
+        # definition is gone are the ones nothing else cleans up.
         cutoff = now.timestamp() - RUN_DIR_RETENTION.total_seconds()
-        for loaded in routines:
-            runs_dir = self.paths.runs_dir(loaded.routine_id)
+        if not self.paths.state_dir.is_dir():
+            return
+        for routine_dir in self.paths.state_dir.iterdir():
+            runs_dir = routine_dir / RUNS_DIRNAME
             if not runs_dir.is_dir():
                 continue
             for run_dir in runs_dir.iterdir():

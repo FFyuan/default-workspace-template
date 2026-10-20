@@ -98,7 +98,7 @@ def test_a_command_run_streams_its_output_records_both_events_and_updates_the_st
     assert isinstance(events[0], RunStartedEvent)
     assert isinstance(events[1], RunFinishedEvent)
     # Quoted as a shell would need it, so the ledger's line is the command that ran.
-    assert events[0].command == "sh -c 'echo \"hello from the run\"; echo \"stderr too\" >&2'"
+    assert events[0].command == 'sh -c \'echo "hello from the run"; echo "stderr too" >&2\''
 
 
 def test_a_command_sees_its_run_directory_and_its_result_file_becomes_the_summary(
@@ -331,9 +331,12 @@ def test_the_tick_keeps_house_once_a_day(runner: Runner, definitions: FileDefini
     stamp = json.loads(runner.paths.housekeeping_path.read_text())
     assert stamp == {"date": "2026-10-20"}
     old_run = runner.paths.run_dir(SYNC, RunId.generate())
-    old_run.mkdir(parents=True)
+    # A routine whose definition is gone keeps its state directory; its old runs go too.
+    old_run_of_removed = runner.paths.run_dir(RoutineId("retired"), RunId.generate())
     ninety_one_days_ago = (clock.now() - timedelta(days=91)).timestamp()
-    os.utime(old_run, (ninety_one_days_ago, ninety_one_days_ago))
+    for run_dir in (old_run, old_run_of_removed):
+        run_dir.mkdir(parents=True)
+        os.utime(run_dir, (ninety_one_days_ago, ninety_one_days_ago))
 
     runner.tick()
     assert old_run.exists(), "housekeeping ran today already"
@@ -341,6 +344,7 @@ def test_the_tick_keeps_house_once_a_day(runner: Runner, definitions: FileDefini
     clock.advance(timedelta(days=1))
     runner.tick()
     assert not old_run.exists()
+    assert not old_run_of_removed.exists()
 
 
 @pytest.mark.parametrize("stamp", ["not json", "[1, 2]", '{"day": "2026-10-20"}'])
