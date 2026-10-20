@@ -1575,6 +1575,10 @@ def _run_create_chat() -> CreatedChat | Response:
     ``chat_id`` launches a chat minted earlier -- a seeded one awaiting its first send, or one
     whose create failed -- under that id, keeping the name it was minted with.
 
+    A ``title`` beside the ``name`` is the chat's display name, and the ``name`` its agent's true
+    name in canonical form, so a caller can name the agent for what it is (an update chat's
+    ``update-to-minds-v0-9-0``) and show it as something else ("Update to v0.9.0").
+
     The chat's display name is minted here (server-side) when the request names
     none: the first free "Chat N", whatever harness the account runs on, counted
     against every name on the machine -- agents and in-flight creates -- so
@@ -1620,6 +1624,7 @@ def _run_create_chat() -> CreatedChat | Response:
             labels=create_request.labels,
             is_installation_check_skipped=create_request.is_installation_check_skipped,
             model_pick=create_request.model,
+            title=create_request.title,
         )
     )
     if isinstance(created, Response):

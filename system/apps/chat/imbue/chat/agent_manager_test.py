@@ -1033,6 +1033,7 @@ def test_create_chat_relaunches_a_failed_chat_under_its_id_and_name(
         "type": "provisional_chat_created",
         "chat_id": "failed-1",
         "name": "Chat 1",
+        "agent_name": "",
         "project_id": "",
         "account_id": signed_in.id,
         "message": "",
@@ -1895,6 +1896,16 @@ def test_chat_create_argv_canonicalizes_the_name_and_labels_the_human_one() -> N
     assert_mngr_argv_valid(argv)
 
 
+def test_chat_create_argv_takes_an_explicit_true_name_beside_the_display_name() -> None:
+    """A titled chat's agent is named for what it is and labelled with what the user sees."""
+    argv = _chat_create_argv(name="Update to v0.9.0", agent_name="update-to-minds-v0-9-0")
+
+    assert argv[2] == "update-to-minds-v0-9-0"
+    labels = [argv[i + 1] for i, arg in enumerate(argv) if arg == "--label"]
+    assert "display_name=Update to v0.9.0" in labels
+    assert_mngr_argv_valid(argv)
+
+
 def test_a_successor_create_argv_is_accepted_by_the_live_cli() -> None:
     """A handoff's create adds the chat membership labels after the account args, which mngr has
     to accept.
@@ -2299,6 +2310,76 @@ def test_create_chat_rejects_an_explicit_name_that_collides(
     with pytest.raises(AgentNameConflictError):
         agent_manager.create_chat("chat 2")
     agent_manager.stop()
+
+
+def test_create_chat_with_a_title_checks_only_the_true_name_against_the_names_in_use(
+    agent_manager: AgentManager,
+) -> None:
+    """An update chat's agent name says what it updates to, and takes a numeric suffix when an earlier
+    run's chat has it; its title stays "Update to v0.9.0" every time, which an earlier run's chat
+    already shows, so the title is no collision."""
+    _tracked_chat(agent_manager, "agent-1", "update-to-minds-v0-9-0", display_name="Update to v0.9.0")
+
+    with pytest.raises(AgentNameConflictError):
+        agent_manager.create_chat("update-to-minds-v0-9-0", title="Update to v0.9.0")
+    created = agent_manager.create_chat("update-to-minds-v0-9-0-2", title="Update to v0.9.0")
+    # The in-flight create holds its true name, so a concurrent one cannot take it too.
+    with pytest.raises(AgentNameConflictError):
+        agent_manager.create_chat("update-to-minds-v0-9-0-2", title="Update to v0.9.0")
+    agent_manager.stop()
+
+    assert created.name == "update-to-minds-v0-9-0-2"
+    assert created.display_name == "Update to v0.9.0"
+
+
+def test_a_successor_create_takes_the_chats_true_name_not_its_titles(agent_manager: AgentManager) -> None:
+    """The manager's successor create names the agent by the spec's true name, so a titled chat keeps it."""
+    argv = agent_manager._build_successor_create_command(
+        SuccessorCreateSpec(
+            name="Update to v0.9.0",
+            agent_name="update-to-minds-v0-9-0",
+            chat_id=ChatId("agent-1"),
+            agent_id="agent-2",
+            harness=HarnessType.CLAUDE,
+            project_id="",
+            account_id="acct-1",
+            extra_labels=(),
+        )
+    )
+    agent_manager.stop()
+
+    assert argv[2] == "update-to-minds-v0-9-0"
+
+
+def test_create_chat_registers_a_titled_chat_under_its_name_and_shows_its_title(
+    broadcaster: WebSocketBroadcaster,
+    git_work_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    true_binary: str,
+) -> None:
+    """The agent a titled create makes carries the requested name as its true name and the title as its
+    ``display_name`` label, which is what every surface shows; ``true`` stands in for ``mngr create``."""
+    monkeypatch.setenv("MNGR_AGENT_ID", "test-agent-id")
+    monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(git_work_dir))
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    manager = AgentManager.build(broadcaster, mngr_binary=true_binary, chat_files_root=tmp_path / "chats")
+    try:
+        created = manager.create_chat("update-to-minds-v0-9-0", title="Update to v0.9.0")
+        assert (created.name, created.display_name) == ("update-to-minds-v0-9-0", "Update to v0.9.0")
+
+        wait_for(
+            lambda: manager.get_agent_by_id(created.chat_id) is not None,
+            timeout=30.0,
+            error_message="the creation thread never registered the agent",
+        )
+
+        agent = manager.get_agent_by_id(created.chat_id)
+        assert agent is not None
+        assert agent.name == "update-to-minds-v0-9-0"
+        assert agent.labels["display_name"] == "Update to v0.9.0"
+    finally:
+        manager.stop()
 
 
 def test_create_chat_registers_the_pre_observe_state_under_the_name_pair(

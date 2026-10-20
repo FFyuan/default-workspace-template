@@ -8,6 +8,7 @@ Usage, from the repo root (every skill's cwd)::
     some-command | python3 system/scripts/message_chat.py <chat-id>
     python3 system/scripts/message_chat.py <chat-id> --browser-fleet -m "a browser-fleet nudge"
     python3 system/scripts/message_chat.py --create --name "assist-1a2b3c" --label auto_open=true -m "/assist ..."
+    python3 system/scripts/message_chat.py --create --name "update-to-minds-v0-9-0" --title "Update to v0.9.0" -m "..."
 
 This is the in-workspace replacement for ``mngr message <agent>``. A chat is
 addressed by its chat id (``$MINDS_CHAT_ID`` on an agent the chat app created; the
@@ -55,7 +56,8 @@ chat app's copy by a test there.
 ``--create`` makes a new chat instead of messaging one, through the chat app's
 create route, so the chat is what a launcher-started chat would be: the app mints its id,
 binds it to the workspace's default account and harness, names it (``--name``,
-else the next free "Chat N"), and sends the message as its first one. ``--label``
+else the next free "Chat N"; ``--title`` shows it under another name, with ``--name`` its
+agent's true name), and sends the message as its first one. ``--label``
 adds a label to the chat's agent (``auto_open=true`` has the workspace surface its
 window). Every create waves the claude version check, so a workspace whose claude no
 longer matches its pin can still make the update chat that repairs it.
@@ -64,7 +66,9 @@ JSON line on stdout, ``{"chat_id", "name", "display_name"}``, or 1 with the
 create's own failure on stderr. The backoff is a plain ``mngr create --template
 chat`` with the same name, labels, and message, taken on the same terms as the
 send's: only when the chat app cannot be reached, has no create route, or has a
-create route from before these fields (which refuses them by name).
+create route from before these fields (which refuses them by name). A route that refuses only
+``title`` by name is asked again without it, and the backoff sets the ``display_name`` label
+from it instead.
 
 Standard library only: skills run this as ``python3 system/scripts/...`` and
 cron runs it before any venv exists. The chat app is found through its row in
@@ -118,6 +122,9 @@ CREATE_CHAT_PATH = "/api/chats/create"
 # The create route's field that asks it to answer once the create has finished; a route
 # from before it rejects the field by name.
 WAIT_FIELD = "should_wait"
+# The create route's field for a display name apart from the agent's name; a route from before it
+# refuses it by name, on a line of its own.
+TITLE_FIELD = "title"
 
 # Mirrors ``SKIP_CLAUDE_INSTALLATION_CHECK_SETTING`` in the chat app's ``agent_manager.py``,
 # the setting the create route applies for ``is_installation_check_skipped``; the backoff
@@ -350,14 +357,17 @@ def send_through_chat_app(
 
 def create_request_body(request: CreateRequest) -> dict[str, object]:
     """The JSON the create route is posted: the chat app's ``CreateChatRequest``, which forbids
-    unknown fields, so a test there pins these keys against it."""
-    return {
+    unknown fields, so a test there pins these keys against it. ``title`` rides only when given."""
+    body: dict[str, object] = {
         "name": request.name,
         "message": request.message,
         "labels": dict(request.labels),
         "is_installation_check_skipped": True,
         WAIT_FIELD: True,
     }
+    if request.title:
+        body[TITLE_FIELD] = request.title
+    return body
 
 
 def create_through_chat_app(
@@ -381,6 +391,14 @@ def create_through_chat_app(
         # The route predates these fields (a chat app not yet restarted after an update):
         # its refusal names the field it does not know, and mngr makes the chat instead.
         return SendResult(Outcome.NOT_FOUND, answer.detail)
+    if (
+        answer.status == 400
+        and request.title
+        and TITLE_FIELD in answer.detail.splitlines()
+    ):
+        # A route from before ``title`` takes the rest: the chat is made under its name.
+        untitled = CreateRequest(request.name, request.message, request.labels)
+        return create_through_chat_app(base_url, untitled, clock, sleep)
     if not 200 <= answer.status < 300:
         return SendResult(Outcome.REFUSED, answer.detail)
     if not isinstance(answer.body, dict) or not isinstance(
@@ -397,12 +415,15 @@ def create_through_chat_app(
 
 
 class CreateRequest:
-    """What ``--create`` asks for: the chat's name, labels, and message."""
+    """What ``--create`` asks for: the chat's name, labels, message, and display name apart from its name."""
 
-    def __init__(self, name: str, message: str, labels: Mapping[str, str]) -> None:
+    def __init__(
+        self, name: str, message: str, labels: Mapping[str, str], title: str = ""
+    ) -> None:
         self.name = name
         self.message = message
         self.labels = dict(labels)
+        self.title = title
 
 
 def _run_mngr(
@@ -514,6 +535,8 @@ def create_through_mngr(request: CreateRequest) -> int:
     """
     argv = ["mngr", "create", *([request.name] if request.name else [])]
     argv += ["--template", "chat", "--no-connect", "--label", "user_created=true"]
+    if request.title:
+        argv += ["--label", f"display_name={request.title}"]
     for key, value in request.labels.items():
         argv += ["--label", f"{key}={value}"]
     argv += ["-S", SKIP_CLAUDE_INSTALLATION_CHECK_SETTING]
@@ -532,7 +555,9 @@ def create_through_mngr(request: CreateRequest) -> int:
             "`mngr create` named no chat in its output; the chat exists but its id is unknown",
             file=sys.stderr,
         )
-    created = CreatedChat(chat_id=chat_id, name=request.name, display_name=request.name)
+    created = CreatedChat(
+        chat_id=chat_id, name=request.name, display_name=request.title or request.name
+    )
     print(created.as_json_line())
     return EXIT_DELIVERED
 
@@ -604,6 +629,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="The new chat's name; the chat app mints one when absent.",
     )
     create.add_argument(
+        "--title",
+        default="",
+        help="The new chat's display name, when it differs from --name (which then names its agent).",
+    )
+    create.add_argument(
         "--label",
         action="append",
         default=[],
@@ -624,8 +654,8 @@ def _validate_mode(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
         return
     if args.chat_id is None:
         parser.error("a chat id is required (or --create to make a new chat)")
-    if args.name or args.label:
-        parser.error("--name and --label apply only with --create")
+    if args.name or args.label or args.title:
+        parser.error("--name, --title and --label apply only with --create")
 
 
 def main(
@@ -648,6 +678,7 @@ def main(
             name=args.name,
             message=text,
             labels=_parse_labels(parser, args.label),
+            title=args.title,
         )
         return _create(base_url, request, clock, sleep)
     result = send_through_chat_app(

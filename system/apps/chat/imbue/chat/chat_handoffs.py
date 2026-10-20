@@ -324,7 +324,10 @@ class CreationOutputTail(MutableModel):
 class SuccessorCreateSpec(FrozenModel):
     """What the successor's ``mngr create`` names, for the manager's shared argv builder."""
 
-    name: str = Field(description="The chat's display name; its canonical form is the mngr name the successor takes")
+    name: str = Field(description="The chat's display name")
+    agent_name: str = Field(
+        default="", description="The mngr name the successor takes; empty for the display name's canonical form"
+    )
     chat_id: ChatId = Field(description="The chat the successor joins")
     agent_id: str = Field(description="The pre-minted successor id")
     harness: HarnessType = Field(description="The harness the successor runs")
@@ -749,6 +752,7 @@ class HandoffRunner:
             raise HandoffStepError(f"the handoff of chat {chat_id} reached switching with no prompt for the successor")
         spec = SuccessorCreateSpec(
             name=handoff.chat_title,
+            agent_name=handoff.chat_name,
             chat_id=chat_id,
             agent_id=handoff.next_agent_id,
             harness=handoff.target_harness,
