@@ -26,6 +26,7 @@ class ScriptedChatApp(ChatAppInterface):
     next_created_id: str = Field(default="agent-created", description="The id the next create answers")
     is_create_refused: bool = Field(default=False, description="Whether creates fail")
     is_list_refused: bool = Field(default=False, description="Whether the chat list cannot be read")
+    is_interrupt_refused: bool = Field(default=False, description="Whether interrupts are refused, as of an idle chat")
     event_ids: dict[str, str] = Field(default_factory=dict, description="The latest event id per chat")
     findable: dict[RoutineId, str] = Field(
         default_factory=dict, description="The agent a routine's label finds, as mngr would list it"
@@ -59,6 +60,8 @@ class ScriptedChatApp(ChatAppInterface):
 
     def interrupt_chat(self, chat_id: str) -> None:
         self.verbs.append((chat_id, "interrupt"))
+        if self.is_interrupt_refused:
+            raise ChatAppError("The chat app refused to interrupt the chat: the chat is idle.")
 
     def send_message(self, chat_id: str, text: str) -> None:
         if chat_id not in self.chats:

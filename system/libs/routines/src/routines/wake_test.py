@@ -197,6 +197,15 @@ def test_a_turn_past_the_timeout_is_interrupted(chat_app: ScriptedChatApp, clock
     assert chat_app.verbs == [("agent-1", "interrupt")]
 
 
+def test_an_interrupt_the_chat_app_refuses_leaves_the_run_timed_out(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
+    """The turn may end between the last poll and the interrupt; the run still took longer than its time."""
+    chat_app.script("agent-1", (ChatStatusWord.IDLE, ChatStatusWord.WORKING), None)
+    chat_app.is_interrupt_refused = True
+    outcome, _, _ = _wake(chat_app, clock, "agent-1", timeout=timedelta(minutes=2))
+    assert outcome.outcome is RunOutcome.TIMED_OUT
+    assert chat_app.verbs == [("agent-1", "interrupt")]
+
+
 def test_the_summary_is_the_first_real_line_of_the_message_without_its_heading_marks() -> None:
     assert summary_of_message("\n## Done\nThe rest.") == "Done"
     assert summary_of_message("x" * 300) == "x" * 200

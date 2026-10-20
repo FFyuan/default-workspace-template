@@ -210,7 +210,11 @@ def _wait_for_turn(
                     )
         clock.pause(POLL_PAUSE_SECONDS)
         now = clock.now()
-    chat_app.interrupt_chat(chat_id)
+    try:
+        chat_app.interrupt_chat(chat_id)
+    except ChatAppError as e:
+        # The turn may have ended between the last poll and the interrupt; the run still took too long.
+        logger.warning("The chat {} could not be interrupted after the deadline: {}", chat_id, e)
     return WakeOutcome(
         outcome=RunOutcome.TIMED_OUT,
         summary="The agent was still going when the time ran out.",
