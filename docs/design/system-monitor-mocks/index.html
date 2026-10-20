@@ -126,7 +126,7 @@
     $("needs").innerHTML = needs;
     $("view").src = file;
     $("open").href = file;
-    try { location.hash = `v${i}`; } catch (e) {}
+    location.hash = `v${i}`;
   }
   $("sizes").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     $("sizes").querySelectorAll("button").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
