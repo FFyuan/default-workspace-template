@@ -12,6 +12,8 @@ from routines.errors import InvalidRoutineIdError
 from routines.errors import InvalidTimeOfDayError
 
 ROUTINE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+# The run ledger's directory under the state dir, beside the routines' own; no routine may take the name.
+LEDGER_DIRNAME: Final[str] = "events"
 _DURATION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^(\d+)(mo|m|h|d|w|s)$")
 _TIME_OF_DAY_PATTERN: Final[re.Pattern[str]] = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
@@ -29,6 +31,8 @@ class RoutineId(NonEmptyStr):
             raise InvalidRoutineIdError(
                 f"{value!r} is not a routine id: lowercase letters, digits and hyphens, starting with a letter or digit"
             )
+        if value == LEDGER_DIRNAME:
+            raise InvalidRoutineIdError(f"{value!r} cannot be a routine id: the run ledger lives under that name")
         return super().__new__(cls, value)
 
     @property

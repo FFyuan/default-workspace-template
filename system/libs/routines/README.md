@@ -7,8 +7,10 @@ files and the command.
 
 A **routine** is one TOML file under `system/routines/<id>.toml` (tracked in
 git like an app or a skill; the root `routines` symlink points at the
-directory) plus its state under `data/.state/routines/<id>/`. It runs a
-**command** from the repo root, or a **skill** in a chat of its own.
+directory) plus its state under `data/.state/routines/<id>/`. The id is
+lowercase letters, digits and hyphens, and never `events`, which is the run
+ledger's directory beside the routines' own. It runs a **command** from the
+repo root, or a **skill** in a chat of its own.
 
 ```toml
 title = "Morning inbox digest"
