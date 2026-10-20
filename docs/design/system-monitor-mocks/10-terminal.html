@@ -15,7 +15,7 @@
   .box { border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 10px; background: var(--c-surface); position: relative; }
   .box .t { position: absolute; top: -8px; left: 10px; padding: 0 4px; background: var(--c-surface); color: var(--c-text-secondary); font-size: 11px; }
   .cores { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 16px; }
-  .line { display: grid; grid-template-columns: 42px 1fr 42px; gap: 8px; white-space: nowrap; }
+  .line { display: grid; grid-template-columns: 42px 1fr minmax(42px, auto); gap: 8px; white-space: nowrap; }
   .line .n { text-align: right; color: var(--c-text-secondary); }
   .blocks { letter-spacing: -1px; overflow: hidden; }
   .blocks.cpu { color: var(--ink-cpu); }
@@ -73,21 +73,36 @@
 (() => {
   const M = window.MOCK, $ = (id) => document.getElementById(id);
   $("clock").textContent = M.clock(new Date());
-  const blocks = (p, n = 40) => { const on = Math.round((p / 100) * n); return `${"|".repeat(on)}<span class="off">${"|".repeat(n - on)}</span>`; };
-  $("cores").innerHTML = M.cpu.perCore.map((p, i) => `<div class="line"><span class="n">${i}</span><span class="blocks cpu">${blocks(p, 36)}</span><span class="n">${p}%</span></div>`).join("");
-  $("mem-blocks").innerHTML = blocks(64, 60);
-  $("tmp-blocks").innerHTML = blocks(12, 60);
-  $("disk-blocks").innerHTML = blocks(41, 60);
-  // Block-character history: 8 rows tall, the last 10 minutes in 72 columns.
+  // How many of the given glyphs fit across an element: measured in place, at the widest glyph,
+  // since the block characters can come from a fallback font with a different advance.
+  function columns(el, glyphs) {
+    const probes = [...glyphs].map((g) => { const span = document.createElement("span"); span.textContent = g; return span; });
+    el.replaceChildren(...probes);
+    const widest = Math.max(...probes.map((span) => span.getBoundingClientRect().width));
+    el.replaceChildren();
+    return Math.max(8, Math.floor(el.clientWidth / widest));
+  }
+  // A gauge of p percent: bar glyphs across the whole element, the part past p dimmed.
+  function blocks(el, p) {
+    const n = columns(el, "|"), on = Math.round((p / 100) * n);
+    el.innerHTML = `${"|".repeat(on)}<span class="off">${"|".repeat(n - on)}</span>`;
+  }
+  $("cores").innerHTML = M.cpu.perCore.map((p, i) => `<div class="line"><span class="n">${i}</span><span class="blocks cpu" id="core-${i}"></span><span class="n">${p}%</span></div>`).join("");
+  M.cpu.perCore.forEach((p, i) => blocks($(`core-${i}`), p));
+  blocks($("mem-blocks"), 64);
+  blocks($("tmp-blocks"), 12);
+  blocks($("disk-blocks"), 41);
+  // Block-character history: one row of eight levels, the last 10 minutes in as many columns as fit.
   const CH = " ▁▂▃▄▅▆▇█";
-  function hist(samples, cols = 72) {
+  function hist(el, samples) {
+    const cols = Math.min(columns(el, CH.trim()), samples.length);
     const step = Math.max(1, Math.floor(samples.length / cols));
     const vals = [];
-    for (let i = samples.length - cols * step; i < samples.length; i += step) vals.push(samples[Math.max(0, i)].v);
-    return vals.map((v) => CH[Math.min(8, Math.round(v * 8))]).join("");
+    for (let i = samples.length - cols * step; i < samples.length; i += step) vals.push(samples[i].v);
+    el.textContent = vals.map((v) => CH[Math.min(8, Math.round(v * 8))]).join("");
   }
-  $("cpu-hist").textContent = hist(M.history.cpu10);
-  $("mem-hist").textContent = hist(M.history.mem10);
+  hist($("cpu-hist"), M.history.cpu10);
+  hist($("mem-hist"), M.history.mem10);
   const rows = [
     [4121, "chat", 23.6, "1.38G", "R", "claude --session website-redesign (Website redesign)"],
     [4188, "chat", 5.9, "534M", "S", "node tsserver.js --serverMode partialSemantic (checker, Website redesign)"],
