@@ -6,6 +6,7 @@ from routines.mock_clock_test import FakeClock
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
 from routines.primitives import RunOutcome
+from routines.testing import TEST_NOW
 from routines.wake import NEVER_LISTED_SUMMARY
 from routines.wake import NEVER_STARTED_SUMMARY
 from routines.wake import NO_ANSWER_SUMMARY
@@ -132,6 +133,27 @@ def test_a_chat_list_that_cannot_be_read_fails_the_run_but_keeps_the_known_chat(
     assert "chat list" in outcome.summary
     assert outcome.chat_id == "agent-1"
     assert known == []
+
+
+def test_a_chat_app_unreachable_for_a_while_mid_turn_does_not_end_the_run(
+    chat_app: ScriptedChatApp, clock: FakeClock
+) -> None:
+    """A bounce of the chat app is not the agent's turn ending: the poll waits for it and the run still succeeds."""
+    chat_app.script("agent-1", (ChatStatusWord.IDLE, ChatStatusWord.WORKING, ChatStatusWord.IDLE), "Done.")
+    # The first poll finds the chat; the next three, mid-turn, cannot be answered.
+    chat_app.refused_poll_attempts = {1, 2, 3}
+    outcome, _, _ = _wake(chat_app, clock, "agent-1")
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+    assert outcome.summary == "Done."
+
+
+def test_a_chat_app_unreachable_past_the_grace_is_a_failed_run(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
+    chat_app.script("agent-1", (ChatStatusWord.IDLE, ChatStatusWord.WORKING), None)
+    chat_app.refused_poll_attempts = set(range(1, 10_000))
+    outcome, _, _ = _wake(chat_app, clock, "agent-1")
+    assert outcome.outcome is RunOutcome.FAILED
+    assert "chat list" in outcome.summary
+    assert clock.now() - TEST_NOW < timedelta(minutes=3)
 
 
 def test_a_stopped_agent_is_a_failed_run(chat_app: ScriptedChatApp, clock: FakeClock) -> None:

@@ -27,6 +27,8 @@ POLL_PAUSE_SECONDS: Final[float] = 1.0
 # idle this long with no answer has nothing to say; a chat the app does not list yet this long after its
 # create, or after a restart, is gone rather than still being registered.
 START_DEADLINE: Final[timedelta] = timedelta(seconds=60)
+# How long the chat app may go unreachable mid-turn before the run is given up as failed.
+CHAT_APP_OUTAGE_GRACE: Final[timedelta] = timedelta(minutes=2)
 SUMMARY_MAX_CHARS: Final[int] = 200
 CLEAR_COMMAND: Final[str] = "/clear"
 NEVER_STARTED_SUMMARY: Final[str] = "The agent never started on the message."
@@ -167,9 +169,22 @@ def _wait_for_turn(
     is_blocked_told = False
     has_worked = False
     idle_without_answer_since: datetime | None = None
+    unreachable_since: datetime | None = None
     now = clock.now()
     while now <= deadline:
-        status = chat_app.chat_status(chat_id)
+        try:
+            status = chat_app.chat_status(chat_id)
+        except ChatAppError as e:
+            # The chat app restarting (an update, a bounce) is not the agent's turn ending; it is given a while.
+            if unreachable_since is None:
+                unreachable_since = now
+                logger.warning("The chat app could not say how the chat {} is; waiting for it: {}", chat_id, e)
+            if now - unreachable_since > CHAT_APP_OUTAGE_GRACE:
+                raise
+            clock.pause(POLL_PAUSE_SECONDS)
+            now = clock.now()
+            continue
+        unreachable_since = None
         if status is None and is_fresh_chat and now - sent_at <= START_DEADLINE:
             # The chat app lists a just-created agent once its follower has seen it.
             clock.pause(POLL_PAUSE_SECONDS)

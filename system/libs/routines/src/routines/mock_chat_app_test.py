@@ -34,13 +34,19 @@ class ScriptedChatApp(ChatAppInterface):
     unlisted_polls_by_chat: dict[str, int] = Field(
         default_factory=dict, description="How many status polls a chat is left out of the list for, as a fresh one is"
     )
+    refused_poll_attempts: set[int] = Field(
+        default_factory=set, description="Which status polls, counted from 0 over every chat, the app cannot answer"
+    )
+    poll_attempts: int = Field(default=0, description="How many status polls were asked for, refused ones included")
 
     def script(self, chat_id: str, statuses: tuple[ChatStatusWord, ...], reply: str | None) -> None:
         self.chats[chat_id] = ScriptedChat(statuses=statuses, reply=reply)
         self.polls_by_chat[chat_id] = 0
 
     def chat_status(self, chat_id: str) -> ChatStatusWord | None:
-        if self.is_list_refused:
+        attempt = self.poll_attempts
+        self.poll_attempts = attempt + 1
+        if self.is_list_refused or attempt in self.refused_poll_attempts:
             raise ChatAppError("The chat app answered 500 for the chat list.")
         if self.unlisted_polls_by_chat.get(chat_id, 0) > 0:
             self.unlisted_polls_by_chat[chat_id] -= 1
