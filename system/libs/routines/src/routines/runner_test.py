@@ -192,7 +192,7 @@ class BrokenChatApp(ScriptedChatApp):
 
 
 def test_an_error_in_the_runner_closes_the_books_as_failed_and_still_surfaces(
-    runner: Runner, definitions: FileDefinitionStore
+    runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, ledger: FileLedger
 ) -> None:
     _skill_routine(definitions)
     runner = runner.model_copy_update(to_update(runner.field_ref().chat_app, BrokenChatApp()))
