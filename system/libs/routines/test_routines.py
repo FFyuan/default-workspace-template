@@ -9,6 +9,7 @@ from typing import Final
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
+from routines.primitives import RunOutcome
 from routines.state import FileStateStore
 from routines.testing import wait_for_last_run
 
@@ -53,7 +54,7 @@ def test_a_due_routine_runs_through_a_real_tick_and_shows_up_as_worked(git_paths
     assert "started hello" in tick.stdout
 
     last_run = wait_for_last_run(FileStateStore(paths=git_paths), RoutineId("hello"), WAIT_SECONDS)
-    assert last_run.outcome == "SUCCEEDED"
+    assert last_run.outcome is RunOutcome.SUCCEEDED
     assert marker.read_text().strip() == "hello"
 
     listing = json.loads(_routines(git_paths, "list", "--format", "json").stdout)
