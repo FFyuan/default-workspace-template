@@ -136,7 +136,10 @@ function bootstrap(): void {
   // The pull-out conversation's two asks from the chrome: what it can do, and a window to bring back.
   setEmbedderMessageHandler(EMBEDDER_CAPABILITIES, (message) => {
     desktopStore.setCanPopOut(message.canPopOut === true);
-    desktopStore.setCanOpenLinksOutside(message.opensExternalLinks === true);
+    desktopStore.setOutsideLinkCapabilities({
+      opensExternalLinks: message.opensExternalLinks === true,
+      opensCustomSchemeLinks: message.opensCustomSchemeLinks === true,
+    });
   });
   setEmbedderMessageHandler(REATTACH_WINDOW, (message) => {
     const windowId = message.windowId;
@@ -175,7 +178,9 @@ function bootstrap(): void {
   // Announced once the page can act on what the embedder held, not merely once a handler is
   // registered: relaying a message needs the apps (which of them take it), and the embedder sends
   // what it held the moment this lands.
-  void Promise.all([started, desktopStore.whenAppsLoaded()]).then(() => announceReadyToEmbedder({ opensLinks: true }));
+  void Promise.all([started, desktopStore.whenAppsLoaded()]).then(() =>
+    announceReadyToEmbedder({ opensLinks: true, opensCustomSchemeLinks: true }),
+  );
 }
 
 window.addEventListener("load", bootstrap);

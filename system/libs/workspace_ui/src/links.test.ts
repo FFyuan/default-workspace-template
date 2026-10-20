@@ -6,9 +6,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { classifyLink, fileUrl, type LinkTarget } from "./links";
+import { isCustomSchemeUrl } from "./app_contract";
+import { classifyLink, externalLinkMessageType, fileUrl, type LinkTarget } from "./links";
 
-/** The URLs the Imbue Studio desktop app's ``isExternalUrl`` was asked about, with its answers, fetched from the
+/** The URLs the Imbue Studio desktop app's ``isExternalUrl`` and ``isCustomSchemeUrl`` were asked about, with its answers, fetched from the
  *  pinned mngr commit with the embed contract (``system/scripts/fetch_mngr_assets.sh``). */
 const EXTERNALITY_VECTORS_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -18,6 +19,7 @@ const EXTERNALITY_VECTORS_PATH = resolve(
 interface ExternalityVector {
   readonly url: string;
   readonly isExternal: boolean;
+  readonly isCustomScheme: boolean;
   readonly note: string;
 }
 
@@ -66,6 +68,11 @@ describe("classifyLink", () => {
     ["a relative path", "data/q4.pdf", { kind: "unroutable" }],
     ["a fragment", "#top", { kind: "unroutable" }],
     ["javascript", "javascript:alert(1)", { kind: "unroutable" }],
+    ["a custom-scheme link", "slack://channel?id=C1", { kind: "external", url: "slack://channel?id=C1" }],
+    ["an uppercase custom scheme", "VSCODE://file/a", { kind: "external", url: "vscode://file/a" }],
+    ["a custom scheme naming the web message", "web://example", { kind: "unroutable" }],
+    ["a custom scheme naming the url message", "url:x", { kind: "unroutable" }],
+    ["a data URL", "data:text/html,<p>hi</p>", { kind: "unroutable" }],
     ["a file URL", "file:///etc/passwd", { kind: "file", path: "/etc/passwd" }],
     [
       "an encoded file URL to a folder",
@@ -135,12 +142,32 @@ describe("agreement with the Imbue Studio desktop app", () => {
     expect(vectors.length).toBeGreaterThan(0);
   });
 
-  it.each(vectors.map((vector) => [vector.note, vector.url, vector.isExternal] as const))(
-    "calls %s external exactly when the desktop app does",
+  it.each(vectors.map((vector) => [vector.note, vector.url, vector.isExternal || vector.isCustomScheme] as const))(
+    "calls %s external exactly when the desktop app calls it external or custom-scheme",
     (_note, url, isExternal) => {
       expect(classifyLink(url, CHAT_HOST).kind === "external").toBe(isExternal);
     },
   );
+
+  it.each(vectors.map((vector) => [vector.note, vector.url, vector.isCustomScheme] as const))(
+    "calls %s custom-scheme exactly when the desktop app does",
+    (_note, url, isCustomScheme) => {
+      expect(URL.canParse(url) && isCustomSchemeUrl(new URL(url))).toBe(isCustomScheme);
+    },
+  );
+});
+
+describe("externalLinkMessageType", () => {
+  it.each([
+    ["https://example.com/", "open:web"],
+    ["HTTP://example.com/", "open:web"],
+    ["mailto:someone@example.com", "open:mailto"],
+    ["tel:+15551234567", "open:tel"],
+    ["slack://channel?id=C1", "open:slack"],
+    ["web+mastodon://share", "open:web+mastodon"],
+  ])("names the message %s becomes", (url, type) => {
+    expect(externalLinkMessageType(url)).toBe(type);
+  });
 });
 
 describe("fileUrl", () => {

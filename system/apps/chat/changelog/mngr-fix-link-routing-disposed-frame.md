@@ -1,0 +1,1 @@
+- A custom-scheme link in a message (`[channel](slack://channel?id=C1)`, `sms:`) is now a link, opened by the app of the workspace registered for its scheme or else by the app of the user's system it belongs to. Before, it was unwrapped to its text. A file and line written as a link target (`q4.md:12`) still renders as text.

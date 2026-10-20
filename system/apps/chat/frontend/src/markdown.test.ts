@@ -82,6 +82,18 @@ describe("renderMarkdown links", () => {
     );
   });
 
+  it("keeps a custom-scheme link, which an app of the workspace or of the user's system opens", () => {
+    const anchors = render(
+      "[channel](slack://channel?team=T1&id=C1), [text me](sms:+15551234) and [settings](x-apple.systempreferences:com.apple.preference.security)",
+    ).querySelectorAll("a");
+    expect(Array.from(anchors, (a) => a.getAttribute("href"))).toEqual([
+      "slack://channel?team=T1&id=C1",
+      "sms:+15551234",
+      "x-apple.systempreferences:com.apple.preference.security",
+    ]);
+    expect(Array.from(anchors, (a) => a.getAttribute("target"))).toEqual(Array(3).fill("_blank"));
+  });
+
   it("names a file by its file URL, whether written as an absolute path or as a file URL", () => {
     const anchors = render(
       "[Q4 report](/home/user/workspace/data/my%20docs/q4.pdf), [folder](/home/user/workspace/data/), [plan](/home/user/my%20notes/plan%23.md?requested_at=2026-09-29#top), [root](/) and [notes](file:///home/user/workspace/notes.md)",
@@ -102,9 +114,11 @@ describe("renderMarkdown links", () => {
     "[the skill](.agents/skills/assist/SKILL.md)",
     "[guide](docs/guide.md:12)",
     "[report](q4.md:12)",
+    "[build](Makefile:3:1)",
+    "[run](javascript:alert(1))",
+    "[page](data:text/html,<p>hi</p>)",
     "[section](#usage)",
     "[remote file](file://server.example/share/notes.md)",
-    "[text me](sms:+15551234)",
     "[cdn](//cdn.example.com/lib.js)",
     "[broken](/home/user/%zz)",
   ])("renders %s as its label text with no link", (source) => {

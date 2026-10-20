@@ -5,6 +5,10 @@
  * - A web link off this machine (and ``mailto:``, ``tel:``) is **external**, by the app contract's ``isExternalUrl``,
  *   which a shared fixture holds to the Imbue Studio desktop app's rule: an app registered for its message
  *   (``open:web``, ``open:mailto``, ``open:tel``) opens it, else the user's own browser or mail or phone app.
+ * - A custom-scheme link (``slack:``, ``vscode:``, by the app contract's ``isCustomSchemeUrl``, held to the desktop
+ *   app's rule the same way) is **external** too: an app registered for ``open:<scheme>`` opens it, else the app of
+ *   the user's system it belongs to. One whose scheme would name another message (``web:``, ``url:``) is
+ *   **unroutable**.
  * - A ``file:`` URL on this machine is a **file** of the workspace, opened in Files (``open:file``).
  * - A URL on a local host (``localhost``, ``127.0.0.1``, ``[::1]``, ``*.localhost``) is a **local URL**: on an app's
  *   ``<label>.localhost`` host, or on a bare host name at the port the app registered, that app's window, else the
@@ -13,10 +17,16 @@
  *   refuses).
  * - An address on this workspace's share domain is an **app address** too, from any client, though its host is not
  *   local; another workspace's share address cannot be told from any other site, so it is external.
- * - Anything else (a path or other relative URL, a fragment, another scheme) is **unroutable**.
+ * - Anything else (a path or other relative URL, a fragment, another of the browser's own schemes) is **unroutable**.
  */
 
-import { LOCAL_HOSTNAMES, hasWorkspaceCoordinate, isExternalUrl, workspaceHostCoordinate } from "./app_contract";
+import {
+  LOCAL_HOSTNAMES,
+  hasWorkspaceCoordinate,
+  isCustomSchemeUrl,
+  isExternalUrl,
+  workspaceHostCoordinate,
+} from "./app_contract";
 
 /** What a link is, as the workspace routes it. */
 export type LinkTarget =
@@ -32,16 +42,26 @@ export type LinkTarget =
 export const OPEN_FILE_MESSAGE = "open:file";
 export const OPEN_URL_MESSAGE = "open:url";
 
-/** The message an external link becomes: ``open:mailto``, ``open:tel``, or ``open:web`` for a web link. Only an app
- *  registered for it takes it; with none, the link opens outside the workspace. */
-export function externalLinkMessageType(url: string): "open:mailto" | "open:tel" | "open:web" {
-  const scheme = url.slice(0, url.indexOf(":") + 1).toLowerCase();
-  if (scheme === "mailto:") return "open:mailto";
-  if (scheme === "tel:") return "open:tel";
-  return "open:web";
+/** The message an external link becomes: ``open:<scheme>`` (``open:mailto``, ``open:tel``, ``open:slack``), or
+ *  ``open:web`` for a web link. Only an app registered for it takes it; with none, the link opens outside the
+ *  workspace. */
+export function externalLinkMessageType(url: string): string {
+  const scheme = url.slice(0, url.indexOf(":")).toLowerCase();
+  return WEB_SCHEMES.has(`${scheme}:`) ? "open:web" : `open:${scheme}`;
+}
+
+/** Whether ``href`` is a custom-scheme link (``slack:``, ``vscode:``). */
+export function isCustomSchemeLink(href: string): boolean {
+  try {
+    return isCustomSchemeUrl(new URL(href));
+  } catch {
+    return false;
+  }
 }
 
 const WEB_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:"]);
+/** Custom schemes whose ``open:<scheme>`` would be one of the shell's other messages. */
+const RESERVED_LINK_SCHEMES: ReadonlySet<string> = new Set(["web:", "url:"]);
 const WEB_URL_PREFIX = /^https?:\/\//i;
 
 /** The file a path names: decoded, with no query or fragment and no trailing slash (but the root's), so one file or
@@ -122,6 +142,9 @@ export function classifyLink(href: string, workspaceHost: string, shareDomain: s
     if (shareAddress !== null) return shareAddress;
   }
   if (isExternalUrl(url)) return { kind: "external", url: url.href };
+  if (isCustomSchemeUrl(url)) {
+    return RESERVED_LINK_SCHEMES.has(url.protocol) ? { kind: "unroutable" } : { kind: "external", url: url.href };
+  }
   if (!WEB_SCHEMES.has(url.protocol)) return { kind: "unroutable" };
   return classifyLocalUrl(url, workspaceHost);
 }

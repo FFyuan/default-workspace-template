@@ -166,12 +166,17 @@ export function setEmbedderMessageObserver(observer: EmbedderMessageHandler): vo
 export interface ReadyAnnouncement {
   /** Whether it opens the links Imbue Studio hands it with OPEN_LINK. */
   readonly opensLinks: boolean;
+  /** Whether it takes custom-scheme links (``slack:``, ``vscode:``) among them. */
+  readonly opensCustomSchemeLinks: boolean;
 }
 
 /** Tell the embedder this page is listening, so it can send what it held, and what it handles.
  * Called once per load, after the handlers that the held messages need. */
 export function announceReadyToEmbedder(announcement: ReadyAnnouncement): void {
-  sendToEmbedder(WORKSPACE_READY, { opensLinks: announcement.opensLinks });
+  sendToEmbedder(WORKSPACE_READY, {
+    opensLinks: announcement.opensLinks,
+    opensCustomSchemeLinks: announcement.opensCustomSchemeLinks,
+  });
 }
 
 /** Clear the handler for one embedder->workspace type. */

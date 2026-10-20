@@ -47,10 +47,12 @@ workspace rooted at `system/package.json` (one `npm ci`, one lockfile).
   this workspace's app addresses
   (an address on its share domain included), another workspace's, or
   unroutable, and `externalLinkMessageType` names the message an external link
-  becomes (`open:web`, `open:mailto`, `open:tel`). The shell classifies every
-  link handed to it with it, and the chat every link of a message it renders;
-  its test holds its external rule (the app contract's `isExternalUrl`) to the
-  desktop app's (the vendored `link-externality-vectors.json`).
+  becomes (`open:web`, or `open:<scheme>`: `open:mailto`, `open:tel`,
+  `open:slack` for a custom-scheme link). The shell classifies every link
+  handed to it with it, and the chat every link of a message it renders; its
+  test holds its external and custom-scheme rules (the app contract's
+  `isExternalUrl` and `isCustomSchemeUrl`) to the desktop app's (the vendored
+  `link-externality-vectors.json`).
 - `src/search.ts`: `matchesQuery`, the one text match of the workspace's
   typeaheads (every whitespace token of the query occurring in one of the given
   texts, case-insensitively), which the desktop's launcher, the Getting Started

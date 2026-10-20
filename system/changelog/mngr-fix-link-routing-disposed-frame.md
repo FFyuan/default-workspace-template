@@ -1,0 +1,1 @@
+- Pin mngr to the mngr-internal branch that lets Imbue Studio hand custom-scheme links (`slack:`, `vscode:`) to the workspace (embed contract v9), so the vendored contract and link vectors include them.

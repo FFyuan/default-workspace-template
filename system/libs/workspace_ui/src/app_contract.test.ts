@@ -276,6 +276,7 @@ describe("a framed page's link clicks", () => {
     ["a web link", "https://example.com/docs"],
     ["mailto", "mailto:someone@example.com"],
     ["tel", "tel:+15551234567"],
+    ["a custom-scheme link", "slack://channel?id=C1"],
   ])("hands %s to the shell and keeps the page where it is, whatever its target", (_what, href) => {
     const parent = connect();
     click(`<a href="${href}"><span data-click>open</span></a>`);
@@ -417,6 +418,7 @@ describe("a framed page's scripted popups", () => {
     const calls: unknown[][] = [
       ["https://example.com/sign-in", "signin", "popup"],
       ["mailto:someone@example.com"],
+      ["slack://channel?id=C1"],
       ["about:blank"],
       [],
       [""],
