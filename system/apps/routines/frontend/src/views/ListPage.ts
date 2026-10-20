@@ -52,7 +52,7 @@ function row(routine: RoutineRow): m.Vnode {
     {
       href: routinePathOf(routine.routine_id),
       class:
-        "routine-row grid gap-x-4 gap-y-1 border-b border-faint px-1 py-3 no-underline " +
+        "routine-row grid gap-x-4 gap-y-1 border-b border-subtle px-1 py-3 no-underline " +
         "hover:bg-fill-hover sm:grid-cols-[minmax(0,1fr)_200px_180px] sm:items-start",
       "data-routine": routine.routine_id,
     },

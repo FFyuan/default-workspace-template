@@ -28,7 +28,7 @@ const OUTCOME_CLASS: Record<Outcome, string> = {
 
 function runRow(run: RunRecord): m.Vnode {
   const outcomeClass = run.outcome === null ? "text-accent" : OUTCOME_CLASS[run.outcome];
-  return m("tr", { class: "border-t border-faint align-top", "data-run": run.run_id }, [
+  return m("tr", { class: "border-t border-subtle align-top", "data-run": run.run_id }, [
     m(
       "td",
       { class: "py-1.5 pr-3 whitespace-nowrap" },
