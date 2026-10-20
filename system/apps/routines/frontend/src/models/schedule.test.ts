@@ -83,9 +83,9 @@ describe("problemOf", () => {
     expect(problemOf(daily)).toBeNull();
     expect(changeOf(daily).day_of_month).toBeNull();
     expect(changeOf(daily).days).toEqual(["mon"]);
-    // A weekday routine switched to monthly: the weekday picker is gone, and so are the weekdays.
+    // A weekday routine switched to monthly keeps its weekdays: they go with any cadence.
     const monthly = form({ unit: "mo", days: ["mon"], dayOfMonth: "40" });
-    expect(changeOf(monthly).days).toEqual([]);
+    expect(changeOf(monthly).days).toEqual(["mon"]);
     expect(problemOf(monthly)).toMatch(/between 1 and 31/);
   });
 
@@ -117,6 +117,7 @@ describe("sentenceOf", () => {
     expect(sentenceOf(form({ count: "2", unit: "mo", dayOfMonth: "22", at: "12:00" }))).toBe(
       "Every 2 months on the 22nd at noon",
     );
+    expect(sentenceOf(form({ count: "1", unit: "mo", days: ["mon"] }))).toBe("Every month on Monday");
     expect(sentenceOf(form({ mode: "once", once: "2026-11-03T15:00" }))).toBe("Once, Nov 3 at 3:00 pm");
   });
 });

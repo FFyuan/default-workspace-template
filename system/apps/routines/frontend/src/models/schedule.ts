@@ -69,16 +69,15 @@ export function offersTimeOfDay(form: ScheduleForm): boolean {
   return form.mode === "every" && /^\d+$/.test(form.count.trim()) && count * unitOf(form).seconds >= 86400;
 }
 
-/** The form as the dialog shows it: a time of day under a day's cadence, a day of the month off a monthly
- *  one and weekdays on a monthly one are hidden, and what is not shown is not part of the change (a value
- *  typed before the unit changed must not block the save or ride into the definition). */
+/** The form as the dialog shows it: a time of day under a day's cadence and a day of the month off a
+ *  monthly one are hidden, and what is not shown is not part of the change (a value typed before the unit
+ *  changed must not block the save or ride into the definition). Weekdays go with any cadence. */
 export function shownFieldsOf(form: ScheduleForm): ScheduleForm {
   if (form.mode === "once") return form;
   return {
     ...form,
     at: offersTimeOfDay(form) ? form.at : "",
     dayOfMonth: form.unit === "mo" ? form.dayOfMonth : "",
-    days: form.unit === "mo" ? [] : form.days,
   };
 }
 

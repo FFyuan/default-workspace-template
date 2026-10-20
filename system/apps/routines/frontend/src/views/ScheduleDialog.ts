@@ -129,26 +129,27 @@ export function ScheduleDialog(): m.Component<ScheduleDialogAttrs> {
                         oninput: (event: Event) => set({ dayOfMonth: (event.target as HTMLInputElement).value }),
                       }),
                     ])
-                  : m("div", { class: "mt-3" }, [
-                      m("span", { class: MODAL_LABEL_CLASS }, "Only on"),
+                  : null,
+                m("div", { class: "mt-3" }, [
+                  m("span", { class: MODAL_LABEL_CLASS }, "Only on"),
+                  m(
+                    "div",
+                    { class: "flex flex-wrap gap-1" },
+                    WEEKDAYS.map((day) =>
                       m(
-                        "div",
-                        { class: "flex flex-wrap gap-1" },
-                        WEEKDAYS.map((day) =>
-                          m(
-                            Button,
-                            {
-                              sm: true,
-                              variant: form.days.includes(day.value) ? "primary" : "secondary",
-                              "data-day": day.value,
-                              "aria-pressed": form.days.includes(day.value) ? "true" : "false",
-                              onclick: () => toggleDay(day.value),
-                            },
-                            day.label.slice(0, 3),
-                          ),
-                        ),
+                        Button,
+                        {
+                          sm: true,
+                          variant: form.days.includes(day.value) ? "primary" : "secondary",
+                          "data-day": day.value,
+                          "aria-pressed": form.days.includes(day.value) ? "true" : "false",
+                          onclick: () => toggleDay(day.value),
+                        },
+                        day.label.slice(0, 3),
                       ),
-                    ]),
+                    ),
+                  ),
+                ]),
               ],
           m(
             "p",

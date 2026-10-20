@@ -39,14 +39,15 @@ describe("ScheduleDialog", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
-  it("hides the time of day under a day's cadence and the weekdays on a monthly one", () => {
+  it("hides the time of day under a day's cadence and offers the day of the month on a monthly one", () => {
     const minutes = mount({ form: formOf({ unit: "m", count: "15" }) });
     expect(minutes.querySelector("[data-at]")).toBeNull();
     expect(minutes.querySelector("[data-reads]")?.textContent).toBe("Every 15 minutes on Monday.");
 
     unmountViews();
     const monthly = mount({ form: formOf({ unit: "mo", dayOfMonth: "1" }) });
-    expect(monthly.querySelector("[data-day]")).toBeNull();
+    // Weekdays go with any cadence, so the picker stays.
+    expect(monthly.querySelector("[data-day='mon']")?.getAttribute("aria-pressed")).toBe("true");
     expect(monthly.querySelector("[data-day-of-month]")).not.toBeNull();
     expect(monthly.querySelector("[data-reads]")?.textContent).toBe("Monthly on the 1st at 7:30 am.");
   });
