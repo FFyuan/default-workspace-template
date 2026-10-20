@@ -162,6 +162,30 @@ def test_a_failed_lockdown_is_a_follow_up_not_a_failure(
     assert "MINDS_TEMPLATE_REPO_URL" not in (worktree / "README.md").read_text()
 
 
+def test_a_refused_readme_commit_still_names_the_created_repo(
+    fake_latchkey: FakeLatchkey, tmp_path: Path
+) -> None:
+    """The repo exists by then, so a retry of `create` would only hit "already exists"."""
+    worktree = _worktree(tmp_path)
+    hook = worktree / ".git/hooks/pre-commit"
+    hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n")
+    hook.chmod(0o755)
+    fake_latchkey.set_state(
+        responses={
+            _CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}}),
+            _LOCKDOWN: json.dumps({"name": "demo"}),
+        }
+    )
+
+    completed = _create(fake_latchkey, worktree)
+
+    assert completed.returncode == 1
+    assert completed.stdout.strip() == "octo/demo"
+    assert "hook says no" in completed.stderr
+    assert "never re-run create" in completed.stderr
+    assert "Traceback" not in completed.stderr
+
+
 @pytest.mark.parametrize("name", ["-demo", "my repo", "demo/evil", ""])
 def test_an_invalid_name_is_refused_before_anything_is_created(
     fake_latchkey: FakeLatchkey, tmp_path: Path, name: str

@@ -202,7 +202,17 @@ def main(argv: list[str] | None = None) -> int:
             f"projects, discussions and outside pull requests did not take: {lockdown_problem}",
             file=sys.stderr,
         )
-    point_readme_at(args.worktree, repo)
+    try:
+        point_readme_at(args.worktree, repo)
+    except subprocess.CalledProcessError as e:
+        print(repo)
+        print(
+            f"github_repo: {repo} was created, but committing README.md in {args.worktree} "
+            f"failed: {(e.stderr or '').strip()}. Commit README.md there by hand, then go on "
+            "to the push -- never re-run create, the repo already exists.",
+            file=sys.stderr,
+        )
+        return 1
     print(repo)
     return 0
 
