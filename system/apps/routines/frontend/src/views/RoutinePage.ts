@@ -101,7 +101,7 @@ export const RoutinePage: m.Component<RoutinePageAttrs> = {
       ]),
       m("div", { class: "flex flex-wrap gap-2", "data-controls": "" }, [
         needsFixing
-          ? m(Button, { variant: "destructive", disabled: isBusy, onclick: onFix, "data-fix": "" }, "Fix it")
+          ? m(Button, { variant: "primary", disabled: isBusy, onclick: onFix, "data-fix": "" }, "Fix it")
           : null,
         m(
           Button,
