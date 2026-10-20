@@ -2,7 +2,7 @@
 
 - The deterministic steps are scripts, shared with `update-published-template`: `github_access.py` probes and waits for the GitHub grants (the permission requests stay inline, since the chat builds its approval card from them), `github_repo.py` creates the repo, locks it down, points the README's Open in Imbue Studio button at it and sets its topic, `push_snapshot.py` runs the pre-push gate and pushes one snapshot commit as a fast-forward (with an optional version tag), and `record_publish.py` writes the `docs/VERSION_HISTORY.md` entry. `update-published-template`'s `references/ledger-entry.md` is gone.
 
-- The pre-push gate is one command: `validate_template.py --pre-push` also checks that the thumbnail is inert (no script, embedded HTML or event handlers) and that the README's repo-URL placeholder was replaced, which three greps did before.
+- The pre-push gate is one command, where it was a validator run plus three greps: every `validate_template.py` run now checks that the thumbnail is inert (no script, embedded HTML or event handlers), and `--pre-push` adds the check that the README's repo-URL placeholder was replaced.
 
 - The worker and the lead run the publish tools from the publishing workspace's copy rather than the copy inside the assembled tree, which is the base's and can be older. A workspace whose base predates a tool fix no longer fails at the worker's or the lead's validation.
 
