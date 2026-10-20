@@ -717,9 +717,10 @@ def test_a_catch_up_gate_runs_a_creations_own_suite_when_what_came_in_reaches_it
     """The lead's commits a worker merges in after its gate passed can change something its
     creation depends on without touching the creation: a package, a lock upgrade, a shared
     frontend, the root project's own configuration for a creation the root project collects, or
-    for a skill, which runs on the root project, a package it depends on. The creation's own suite has never run against that change and the pass's together, so the
-    catch-up gate runs it; the changed package's own suite, its other dependents, the full root
-    suite, and the rest of what came in are not the pass's."""
+    for a skill, which runs on the root project, a package it depends on. The creation's own
+    suite has never run against that change and the pass's together, so the catch-up gate runs
+    it; the changed package's own suite, its other dependents, the full root suite, and the rest
+    of what came in are not the pass's."""
     repo_root = tmp_path / "workspace"
     build_selection_workspace(repo_root)
     declare_root_dependency(repo_root, "midlib")
