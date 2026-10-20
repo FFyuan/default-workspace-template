@@ -142,8 +142,8 @@ with no scheme (`localhost:3000/app`), or another of the browser's own schemes
 is unwrapped to its text. A chat with no shell above it (opened on its
 own, or in a chat root opened on its own, which hands its pages no handshake)
 leaves its links to the browser, which opens a web, mail, or phone link in a new
-tab and does nothing for a file link: a browser does not follow a `file:` link
-from a web page.
+tab, hands a custom-scheme link to the app it belongs to, and does nothing for
+a file link: a browser does not follow a `file:` link from a web page.
 Sends are reported to the shell's client-activity route so agents can
 attribute a request to a client, and the app asks the shell for windows,
 through one client of the `workspace_layout` library that asks as the chat app
