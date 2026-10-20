@@ -244,8 +244,8 @@ The link opens `system/services/host_backup/README.md` in Files through the app 
 
 - The app no longer starts a sampler thread.
   Its `/api/stats` reads `recent.json` on every snapshot; a missing or stale file gives `cpu.sampled_at = null`, empty histories, null CPU shares, and the page shows "No readings yet" in the graphs and dashes in the CPU column.
-- A stretch event the app cannot parse is skipped with a warning, like a bad ledger line.
-- The backups summary never raises: an unreadable events file reads as "not configured" with a warning.
+- A stretch event the app cannot parse is skipped, like a bad ledger line: the app logs nothing and reports through what the page shows.
+- The backups summary never raises: an unreadable events file reads as "not configured".
 
 ## 5. Part C: wiring
 
