@@ -170,7 +170,7 @@ def last_run_record(state: RoutineState, routine_id: RoutineId, now: datetime) -
         duration_seconds=duration,
         summary=last.summary,
         chat_id=state.chat_id,
-        warnings=(),
+        warnings=last.warnings,
         is_blocked=False,
         exit_code=None,
         when_text=describe_age(last.started_at, now),

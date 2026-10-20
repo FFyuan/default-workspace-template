@@ -400,6 +400,7 @@ class Runner(MutableModel):
             summary=execution.summary,
             started_at=started_at,
             finished_at=finished_at,
+            warnings=execution.warnings,
         )
         is_success = execution.outcome is RunOutcome.SUCCEEDED
 

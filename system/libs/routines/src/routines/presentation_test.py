@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from imbue.imbue_common.logging import format_nanosecond_iso_timestamp
 from imbue.imbue_common.logging import generate_log_event_id
+from imbue.imbue_common.model_update import to_update
 from imbue.imbue_common.primitives import NonNegativeInt
 from routines.data_types import CurrentRun
 from routines.data_types import LastRun
@@ -23,6 +24,7 @@ from routines.primitives import RunId
 from routines.primitives import RunKind
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
+from routines.primitives import RunWarning
 from routines.testing import TEST_NOW
 from routines.testing import TEST_ZONE
 
@@ -117,6 +119,16 @@ def test_a_working_routine_reads_its_schedule_and_its_last_run() -> None:
     assert row.last_run_text == "Worked 10 minutes ago, automatic"
     assert row.last_run is not None
     assert row.last_run.summary == "3 messages summarized"
+
+
+def test_the_row_carries_the_last_runs_warnings() -> None:
+    last = _last_run(RunOutcome.SUCCEEDED, TEST_NOW - timedelta(minutes=10)).model_copy_update(
+        to_update(_last_run(RunOutcome.SUCCEEDED, TEST_NOW).field_ref().warnings, (RunWarning.RESTARTED_PREVIOUS_RUN,))
+    )
+    state = RoutineState(last_succeeded_at=TEST_NOW - timedelta(minutes=10), last_run=last)
+    row = build_row(_loaded(), state, TEST_NOW, TEST_ZONE)
+    assert row.last_run is not None
+    assert row.last_run.warnings == (RunWarning.RESTARTED_PREVIOUS_RUN,)
 
 
 def test_a_one_off_that_ran_is_done() -> None:

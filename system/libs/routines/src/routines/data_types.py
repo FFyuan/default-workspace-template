@@ -142,6 +142,7 @@ class LastRun(FrozenModel):
     summary: str = Field(description="One line about it, possibly empty")
     started_at: datetime = Field(description="When it started")
     finished_at: datetime = Field(description="When it ended")
+    warnings: tuple[RunWarning, ...] = Field(default=(), description="What was worth saying beside the outcome")
 
 
 class RoutineState(FrozenModel):

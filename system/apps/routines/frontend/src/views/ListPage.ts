@@ -71,6 +71,13 @@ function row(routine: RoutineRow): m.Vnode {
         routine.last_run !== null && routine.last_run.summary !== "" && routine.health_detail === ""
           ? m("div", { class: "truncate text-faint" }, routine.last_run.summary)
           : null,
+        routine.last_run !== null && routine.last_run.warnings.includes("RESTARTED_PREVIOUS_RUN")
+          ? m(
+              "div",
+              { class: "text-warning", "data-warning": "" },
+              "The previous run was still going and was cut off.",
+            )
+          : null,
       ]),
     ],
   );

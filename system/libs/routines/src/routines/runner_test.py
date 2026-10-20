@@ -250,6 +250,8 @@ def test_a_busy_chat_is_restarted_and_the_run_carries_the_warning(
 
     assert event.outcome is RunOutcome.SUCCEEDED
     assert event.warnings == (RunWarning.RESTARTED_PREVIOUS_RUN,)
+    last_run = states.read(SYNC).last_run
+    assert last_run is not None and last_run.warnings == (RunWarning.RESTARTED_PREVIOUS_RUN,)
     assert chat_app.verbs == [("agent-old", "stop"), ("agent-old", "start")]
     assert chat_app.sent == [("agent-old", "/clear"), ("agent-old", "/digest")]
 
