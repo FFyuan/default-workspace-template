@@ -2,6 +2,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
@@ -41,6 +43,7 @@ from routines.runner import INTERRUPTED_SUMMARY
 from routines.runner import RUNNER_FAILED_SUMMARY
 from routines.runner import Runner
 from routines.runner import read_result
+from routines.runner import reap_in_background
 from routines.state import FileStateStore
 
 SYNC = RoutineId("nightly-sync")
@@ -182,6 +185,15 @@ def test_a_command_past_its_timeout_is_killed_with_its_whole_process_group(
     child_pid = int(pid_file.read_text())
     assert not is_pid_alive(child_pid), "the sleep the command left in its process group outlived the run"
     assert states.read(SYNC).consecutive_failures == 1
+
+
+def test_a_spawned_process_is_collected_once_it_exits_without_the_spawner_waiting() -> None:
+    process = subprocess.Popen(["true"], stdin=subprocess.DEVNULL, start_new_session=True)
+    reap_in_background(process)
+    deadline = time.monotonic() + 10
+    while process.returncode is None and time.monotonic() < deadline:
+        threading.Event().wait(0.05)
+    assert process.returncode == 0
 
 
 class BrokenChatApp(ScriptedChatApp):

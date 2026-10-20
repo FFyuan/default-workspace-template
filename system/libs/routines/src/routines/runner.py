@@ -132,7 +132,7 @@ def spawn_run_process(paths: RoutinesPaths, routine_id: RoutineId, trigger: RunT
         str(run_id),
     ]
     with log_path.open("ab") as log_handle:
-        subprocess.Popen(
+        process = subprocess.Popen(
             argv,
             cwd=paths.repo_root,
             stdin=subprocess.DEVNULL,
@@ -140,6 +140,13 @@ def spawn_run_process(paths: RoutinesPaths, routine_id: RoutineId, trigger: RunT
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+    reap_in_background(process)
+
+
+def reap_in_background(process: subprocess.Popen[bytes]) -> None:
+    """Collect the process's exit from a thread of its own, so a spawner that lives on (the Routines app) leaves
+    no zombie behind, whose pid the tick would keep reading as a run still going."""
+    threading.Thread(target=process.wait, name=f"reap-{process.pid}", daemon=True).start()
 
 
 class Runner(MutableModel):
