@@ -77,6 +77,12 @@ The title and the sentence are the user's words for it, not the command's:
 "Morning inbox digest" and "Reads new mail and writes a short summary note.",
 never "run_sync.py" and "runs the sync".
 
+A command that needs a credential the user supplied through the
+`connect-external-service` skill's secret card runs under
+`python3 system/scripts/with_secrets.py data/.secrets/<name>.env -- <command...>`
+(after the `--`), which puts the file's variables in that process's
+environment; never read or source the file in the command itself.
+
 A new routine is due at once (so the user sees it work), then on its schedule.
 To make it wait a full cadence first, run it now and let that count:
 `uv run --no-sync routines run <id> --wait`.
