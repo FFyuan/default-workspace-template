@@ -24,6 +24,11 @@ from routines.primitives import RoutineId
 from routines.primitives import RunId
 
 LEDGER_SIZE_CAP_BYTES: Final[int] = 16 * 1024 * 1024
+_EVENT_CLASS_BY_TYPE: Final[dict[str, type[RunEvent]]] = {
+    RUN_STARTED_EVENT: RunStartedEvent,
+    RUN_BLOCKED_EVENT: RunBlockedEvent,
+    RUN_FINISHED_EVENT: RunFinishedEvent,
+}
 _READ_CHUNK_BYTES: Final[int] = 64 * 1024
 _ROTATING_SUFFIX: Final[str] = ".rotating"
 
@@ -70,18 +75,15 @@ def parse_run_event(line: str) -> RunEvent | None:
         logger.warning("Skipping a ledger line that is not an object")
         return None
     event_type = raw.get("type")
+    event_class = _EVENT_CLASS_BY_TYPE.get(event_type) if isinstance(event_type, str) else None
+    if event_class is None:
+        logger.warning("Skipping a ledger event of an unknown type: {}", event_type)
+        return None
     try:
-        if event_type == RUN_STARTED_EVENT:
-            return RunStartedEvent.model_validate(raw)
-        if event_type == RUN_BLOCKED_EVENT:
-            return RunBlockedEvent.model_validate(raw)
-        if event_type == RUN_FINISHED_EVENT:
-            return RunFinishedEvent.model_validate(raw)
+        return event_class.model_validate(raw)
     except ValidationError as e:
         logger.warning("Skipping a ledger line that does not validate: {}", e)
         return None
-    logger.warning("Skipping a ledger event of an unknown type: {}", event_type)
-    return None
 
 
 class FileLedger(LedgerInterface):
