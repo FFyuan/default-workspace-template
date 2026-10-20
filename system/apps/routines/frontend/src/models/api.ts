@@ -9,6 +9,7 @@ export type Health = "BROKEN" | "OFF" | "DONE" | "NEEDS_USER" | "FAILING" | "OVE
 export type Trigger = "SCHEDULED" | "MANUAL";
 export type Kind = "COMMAND" | "SKILL";
 export type Outcome = "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "INTERRUPTED";
+export type RunWarning = "RESTARTED_PREVIOUS_RUN";
 
 export interface RunRecord {
   run_id: string;
@@ -21,7 +22,7 @@ export interface RunRecord {
   duration_seconds: number | null;
   summary: string;
   chat_id: string | null;
-  warnings: string[];
+  warnings: RunWarning[];
   is_blocked: boolean;
   exit_code: number | null;
   when_text: string;

@@ -4,7 +4,7 @@ import m from "mithril";
 
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 
-import type { RoutineDetail, RunRecord } from "../models/api";
+import type { Outcome, RoutineDetail, RunRecord } from "../models/api";
 import { chatUrlOf } from "../models/chatLink";
 import { runPathOf } from "../models/routing";
 import { healthPill } from "./healthPill";
@@ -19,7 +19,7 @@ export interface RoutinePageAttrs {
   onRemove: () => void;
 }
 
-const OUTCOME_CLASS: Record<string, string> = {
+const OUTCOME_CLASS: Record<Outcome, string> = {
   SUCCEEDED: "text-success",
   FAILED: "text-danger",
   TIMED_OUT: "text-danger",
@@ -27,7 +27,7 @@ const OUTCOME_CLASS: Record<string, string> = {
 };
 
 function runRow(run: RunRecord): m.Vnode {
-  const outcomeClass = run.outcome === null ? "text-accent" : (OUTCOME_CLASS[run.outcome] ?? "text-secondary");
+  const outcomeClass = run.outcome === null ? "text-accent" : OUTCOME_CLASS[run.outcome];
   return m("tr", { class: "border-t border-faint align-top", "data-run": run.run_id }, [
     m(
       "td",
