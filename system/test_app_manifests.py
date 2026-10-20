@@ -433,6 +433,19 @@ def test_built_in_manifests_agree_with_the_contract_table() -> None:
     assert by_name["system-monitor"].default_shortcut is not None
     assert by_name["system-monitor"].default_shortcut.launch == "open"
     assert by_name["system-monitor"].default_shortcut.mode == "focus"
+    # Routines: one window over the schedule, focused like Memory & disk; the runner's notifications land on a
+    # routine's page through the one message type it registers, with the library's routine_id field as the path.
+    assert by_name["routines"].critical is False
+    assert by_name["routines"].program == "routines"
+    assert by_name["routines"].priority == "routines"
+    assert by_name["routines"].launch_paths == ()
+    assert by_name["routines"].default_shortcut is not None
+    assert by_name["routines"].default_shortcut.launch == "open"
+    assert by_name["routines"].default_shortcut.mode == "focus"
+    assert [(handler.type, handler.show) for handler in by_name["routines"].message_handlers] == [
+        ("minds:show-routine", "/{routine_id}")
+    ]
+    assert by_name["routines"].preview.env["ROUTINES_APP_PREVIEW"] == "1"
     # One order for the built-ins: the desktop seeds its shortcuts in it and the launcher lists its apps in it.
     assert sorted(
         (manifest.launcher_rank, manifest.name) for manifest in by_name.values() if manifest.launcher_rank is not None
