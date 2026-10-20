@@ -1209,7 +1209,8 @@ export class DesktopStore {
 
   /** An external link goes to the app registered for its kind; with none, it opens outside the workspace at once,
    *  still inside the click that asked for it (a browser opens a new tab only then): through the Imbue Studio chrome
-   *  when it said it opens that kind of link, else as a popup, or a custom-scheme link from this page. One the
+   *  when it said it opens that kind of link, else as a popup; a custom-scheme link facing an older chrome, which
+   *  shows that popup as an empty window, opens from this page instead. One the
    *  chrome handed over (``senderApp`` null) goes back to it however early: a chrome that hands a link over opens it
    *  too, and opening it here would only send it back again. */
   private async openExternalLink(url: string, senderApp: string | null): Promise<void> {
@@ -1222,7 +1223,7 @@ export class DesktopStore {
       await this.deliverMessage({ type, url }, senderApp ?? EMBEDDER_SENDER);
     } else if (doesEmbedderOpen || senderApp === null) {
       this.outsideLinks.openInEmbedder(url);
-    } else if (isCustomScheme) {
+    } else if (isCustomScheme && capabilities.opensExternalLinks) {
       this.outsideLinks.launchInSystemApp(url);
     } else {
       this.outsideLinks.openInBrowser(url);

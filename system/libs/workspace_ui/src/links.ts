@@ -7,8 +7,9 @@
  *   (``open:web``, ``open:mailto``, ``open:tel``) opens it, else the user's own browser or mail or phone app.
  * - A custom-scheme link (``slack:``, ``vscode:``, by the app contract's ``isCustomSchemeUrl``, held to the desktop
  *   app's rule the same way) is **external** too: an app registered for ``open:<scheme>`` opens it, else the app of
- *   the user's system it belongs to. One whose ``open:<scheme>`` would be another message (``open:web``) is
- *   **unroutable**.
+ *   the user's system it belongs to. A file and line or a host and port written without a scheme (``q4.md:12``,
+ *   ``localhost:3000/app``) parses as a URL of the scheme ``q4.md:`` or ``localhost:`` but names neither, so it is
+ *   **unroutable**, unless its scheme takes a bare number (``sms:5551234``).
  * - A ``file:`` URL on this machine is a **file** of the workspace, opened in Files (``open:file``).
  * - A URL on a local host (``localhost``, ``127.0.0.1``, ``[::1]``, ``*.localhost``) is a **local URL**: on an app's
  *   ``<label>.localhost`` host, or on a bare host name at the port the app registered, that app's window, else the
@@ -61,8 +62,10 @@ export function isCustomSchemeLink(href: string): boolean {
 }
 
 const WEB_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:"]);
-/** The shell's own messages, which a custom scheme's ``open:<scheme>`` must not take over. */
-const RESERVED_MESSAGE_TYPES: ReadonlySet<string> = new Set([OPEN_WEB_MESSAGE, OPEN_URL_MESSAGE, OPEN_FILE_MESSAGE]);
+/** A file and line (``q4.md:12``, ``Makefile:3:1``, ``app.ts:12-20``) or a host and port (``localhost:3000/app``). */
+const FILE_OR_HOST_REFERENCE = /^[^:/?#]+:\d+(?:[:-]\d+)*(?:[/?#]|$)/;
+/** Custom schemes whose links may be a bare number (a phone number), the shape of a file and line. */
+const NUMBER_SCHEMES: ReadonlySet<string> = new Set(["sms:", "callto:", "facetime:", "facetime-audio:"]);
 const WEB_URL_PREFIX = /^https?:\/\//i;
 
 /** The file a path names: decoded, with no query or fragment and no trailing slash (but the root's), so one file or
@@ -144,8 +147,8 @@ export function classifyLink(href: string, workspaceHost: string, shareDomain: s
   }
   if (isExternalUrl(url)) return { kind: "external", url: url.href };
   if (isCustomSchemeUrl(url)) {
-    const isReserved = RESERVED_MESSAGE_TYPES.has(externalLinkMessageType(url.href));
-    return isReserved ? { kind: "unroutable" } : { kind: "external", url: url.href };
+    const isReference = FILE_OR_HOST_REFERENCE.test(url.href) && !NUMBER_SCHEMES.has(url.protocol);
+    return isReference ? { kind: "unroutable" } : { kind: "external", url: url.href };
   }
   if (!WEB_SCHEMES.has(url.protocol)) return { kind: "unroutable" };
   return classifyLocalUrl(url, workspaceHost);

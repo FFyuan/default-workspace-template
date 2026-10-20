@@ -200,8 +200,9 @@ domain the workspace was last shared under included, read off the apps'
 custom-scheme (`slack:`) link as `open:web` or `open:<scheme>` (`open:mailto`,
 `open:slack`) to the app registered for it, or else outside the workspace: back
 to a chrome that says it opens that kind of external link
-(`minds:open-external`), else in a new browser tab, or a custom-scheme link
-by navigating the page to it, which opens no window. An app's window already
+(`minds:open-external`), else in a new browser tab; a custom-scheme link
+facing an older desktop app, which shows a popup of one as an empty window,
+opens by navigating the page to it instead. An app's window already
 there that the client has popped out is raised in its own window, and one a
 link opens while the client has only pop-outs open gets the same notice. An
 app that wants a window for what it was told asks the op route's `show`, which

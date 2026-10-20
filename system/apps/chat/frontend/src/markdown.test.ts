@@ -85,14 +85,15 @@ describe("renderMarkdown links", () => {
 
   it("keeps a custom-scheme link, which an app of the workspace or of the user's system opens", () => {
     const anchors = render(
-      "[channel](slack://channel?team=T1&id=C1), [text me](sms:+15551234) and [settings](x-apple.systempreferences:com.apple.preference.security)",
+      "[channel](slack://channel?team=T1&id=C1), [text me](sms:+15551234), [text this](sms:5551234) and [settings](x-apple.systempreferences:com.apple.preference.security)",
     ).querySelectorAll("a");
     expect(Array.from(anchors, (a) => a.getAttribute("href"))).toEqual([
       "slack://channel?team=T1&id=C1",
       "sms:+15551234",
+      "sms:5551234",
       "x-apple.systempreferences:com.apple.preference.security",
     ]);
-    expect(Array.from(anchors, (a) => a.getAttribute("target"))).toEqual(Array(3).fill("_blank"));
+    expect(Array.from(anchors, (a) => a.getAttribute("target"))).toEqual(Array(4).fill("_blank"));
   });
 
   it("names a file by its file URL, whether written as an absolute path or as a file URL", () => {

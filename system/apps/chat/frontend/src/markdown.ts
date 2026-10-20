@@ -1,7 +1,7 @@
 import m from "mithril";
 import DOMPurify from "dompurify";
 import { Marked } from "marked";
-import { classifyLink, fileUrl, isCustomSchemeLink } from "@imbue/workspace-ui/src/links";
+import { classifyLink, fileUrl } from "@imbue/workspace-ui/src/links";
 import { openImageLightbox } from "./lightbox";
 import { isBlockExpanded, setBlockExpanded } from "./views/expansion-state";
 
@@ -17,10 +17,6 @@ const TOOL_CALL_PREFIX = "Tool call: ";
 // ``rewritePathLinks`` rather than losing its target.
 const ALLOWED_URI_REGEXP =
   /^(?:(?:(?:f|ht)tps?|file|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$)|(?!(?:javascript|vbscript|data):)[a-z][a-z0-9+.-]*:)/i;
-
-// A file and line (``q4.md:12``, ``Makefile:3:1``, ``app.ts:12-20``) or a host and port written without its scheme
-// (``localhost:3000/app``), which reads as a URL of the custom scheme ``q4.md:`` or ``localhost:`` but names neither.
-const FILE_OR_HOST_REFERENCE = /^[^:/?#]+:\d+(?:[:-]\d+)*(?:[/?#]|$)/;
 
 export function renderMarkdown(source: string): string {
   const rawHtml = marked.parse(source) as string;
@@ -48,7 +44,7 @@ function rewritePathLinks(root: DocumentFragment): void {
     const href = anchor.getAttribute("href") ?? "";
     const target = classifyLink(messageLinkUrl(href), window.location.host);
     anchor.removeAttribute("download");
-    if (target.kind === "unroutable" || (FILE_OR_HOST_REFERENCE.test(href) && isCustomSchemeLink(href))) {
+    if (target.kind === "unroutable") {
       anchor.replaceWith(...Array.from(anchor.childNodes));
     } else if (target.kind === "file") {
       anchor.setAttribute("href", fileUrl(target.path));
