@@ -67,13 +67,14 @@ chats commit to as well, so that diff also holds their work, landed between
 (`LEAD_WORK_DIR`; the repo's main worktree when it is unset), and from it the
 command finds where your branch forked: the newest commit of the lead's
 first-parent history your branch holds. The pass's own changes are what your
-branch changes relative to that commit, plus every file of a commit the lead
-made in the window before it that touched a creation in the pass: that is how
+branch changes relative to that commit, every file of your own commits, and
+every file of a commit the lead made in the window before it that touched a
+creation in the pass: that is how
 the change you are hardening reached your branch, and a commit of another
 chat's that touched none of them is not yours. A milestone the lead merged
 from you does not move the fork point, and a commit of the lead's you merged
 in does, so the lead's work that came in with that merge is not yours unless
-it touched a creation in the pass.
+it touched a creation in the pass; your own commits from before it stay yours.
 
 The file holds one entry per creation under `creations` -- its `primary` (its
 own directories), `wiring` (the supervisord program blocks that run it, in the

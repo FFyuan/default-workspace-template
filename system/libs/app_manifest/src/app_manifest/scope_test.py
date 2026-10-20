@@ -735,6 +735,28 @@ def test_a_milestone_the_lead_merged_does_not_move_the_passs_fork_point(tmp_path
     assert scope.diff.others == ("docs/system/unrelated.md",)
 
 
+def test_a_milestone_stays_the_passs_after_the_worker_merges_the_lead_that_merged_it(tmp_path: Path) -> None:
+    """Once the worker merges a lead HEAD that holds its provisionally merged milestone, the fork
+    point is past the milestone's commits, but they are still on the worker's own line: the edit
+    outside the footprint they made is still the pass's claim."""
+    diff_base, _ = _news_lead_with_a_change(tmp_path)
+    run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
+    commit_changes(tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "milestone")
+    run_git(tmp_path, ("checkout", "-q", "main"))
+    run_git(tmp_path, ("merge", "-q", "--no-ff", "worker", "-m", "Provisional merge of worker at milestone"))
+    lead_head = commit_changes(tmp_path, {"docs/system/later.md": "# later\n"}, "another chat, after the milestone")
+    run_git(tmp_path, ("checkout", "-q", "worker"))
+    run_git(tmp_path, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
+    commit_changes(tmp_path, {"system/apps/news/runner_test.py": "def test_routes() -> None:\n    pass\n"}, "tests")
+
+    scope = compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], diff_base, "HEAD", "main")
+
+    assert scope.diff is not None
+    assert scope.diff.fork_point == lead_head
+    assert scope.diff.outside_footprint == ("system/scripts/helper.sh",)
+    assert scope.diff.others == ("docs/system/later.md", "docs/system/unrelated.md")
+
+
 def test_after_merging_the_leads_head_its_commits_are_the_leads_and_not_the_passs(tmp_path: Path) -> None:
     """Once a worker merges the lead's later HEAD into its branch, the pass forks from that commit:
     over the window since the worker's tip before the merge, what the merge brought into the

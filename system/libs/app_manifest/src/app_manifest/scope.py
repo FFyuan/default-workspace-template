@@ -162,8 +162,8 @@ class DiffSummary(FrozenModel):
     fork_point: NonEmptyStr | None = Field(
         description="The newest commit of the lead's first-parent history that the ref holds, when "
         "the caller named the lead. The pass's own changes are what the ref changes relative to it, "
-        "and every file of a commit on the lead's line before it that changed something a footprint "
-        "accounts for",
+        "every file of the branch's own commits, and every file of a commit on the lead's line "
+        "before it that changed something a footprint accounts for",
     )
     others: tuple[RepoRelativePath, ...] = Field(
         description="The changed files that are neither in a footprint nor the pass's own: other "
@@ -574,12 +574,26 @@ class PassOwnChanges(FrozenModel):
     )
 
 
-def list_footprint_commit_files(
-    repo_root: Path, since: str, until: str, creations: Sequence[CreationScope]
-) -> frozenset[RepoRelativePath]:
-    """Every file changed by a commit on ``until``'s first-parent line after ``since`` that changed
-    something a creation's footprint accounts for. Merges are skipped: what one brings in is a
-    branch's work, whose commits are not on that line, and its footprint files are in the diff."""
+def find_departure_point(repo_root: Path, lead_ref: str, ref: str) -> NonEmptyStr:
+    """The newest commit of ``ref``'s first-parent line that is on ``lead_ref``'s: where the
+    branch's own line of commits began. Unlike the fork point, a later commit of the lead the
+    branch merged in does not move it, so the branch's commits before that merge stay its own."""
+    lead_sha = resolve_commit(repo_root, lead_ref)
+    ref_sha = resolve_commit(repo_root, ref)
+    lead_line = frozenset(_run_git(repo_root, ("rev-list", "--first-parent", lead_sha)).split())
+    for commit in _run_git(repo_root, ("rev-list", "--first-parent", ref_sha)).split():
+        if commit in lead_line:
+            return NonEmptyStr(commit)
+    raise ScopeComputationError(
+        f"{ref}'s first-parent line never reaches {lead_ref}'s, so it did not fork from it"
+    )
+
+
+def _list_first_parent_commits(
+    repo_root: Path, since: str, until: str
+) -> tuple[tuple[NonEmptyStr, tuple[RepoRelativePath, ...]], ...]:
+    """Each non-merge commit on ``until``'s first-parent line after ``since``, newest first, with
+    the files it changed."""
     output = _run_git(
         repo_root,
         (
@@ -590,16 +604,28 @@ def list_footprint_commit_files(
             "--no-merges",
             "--no-renames",
             "-z",
-            "--format=%x01",
+            "--format=%x01%H",
             "--name-only",
             f"{since}..{until}",
         ),
     )
+    commits: list[tuple[NonEmptyStr, tuple[RepoRelativePath, ...]]] = []
+    # Each commit is a \x01, its sha, a NUL, then its NUL-separated names, the first after a newline.
+    for record in output.split("\x01")[1:]:
+        sha, *names = record.split("\0")
+        changed = tuple(RepoRelativePath(name.removeprefix("\n")) for name in names if name)
+        commits.append((NonEmptyStr(sha), changed))
+    return tuple(commits)
+
+
+def list_footprint_commit_files(
+    repo_root: Path, since: str, until: str, creations: Sequence[CreationScope]
+) -> frozenset[RepoRelativePath]:
+    """Every file changed by a commit on ``until``'s first-parent line after ``since`` that changed
+    something a creation's footprint accounts for. Merges are skipped: what one brings in is a
+    branch's work, whose commits are not on that line, and its footprint files are in the diff."""
     files: set[RepoRelativePath] = set()
-    # Each commit is a \x01, a NUL, then its NUL-separated names, the first after a newline.
-    for record in output.split("\x01"):
-        names = (name.removeprefix("\n") for name in record.split("\0"))
-        changed = [RepoRelativePath(name) for name in names if name]
+    for _, changed in _list_first_parent_commits(repo_root, since, until):
         inside, _ = split_against_creations(changed, creations)
         if inside:
             files.update(changed)
@@ -610,16 +636,28 @@ def find_pass_own_changes(
     repo_root: Path, diff_base: str, diff_ref: str, lead_ref: str, creations: Sequence[CreationScope]
 ) -> PassOwnChanges:
     """What the pass changed: everything ``diff_ref`` changes relative to its fork point from
-    ``lead_ref``, and every file of a commit the lead made in the window before that point that
-    touched a creation in the pass, which is how the change being hardened reached the branch.
-    Another chat's commit that touched none of them is not the pass's. When such a commit
+    ``lead_ref``, every file of the branch's own commits on its first-parent line, and every file
+    of a commit the lead made in the window before the fork point that touched a creation in the
+    pass, which is how the change being hardened reached the branch. Another chat's commit that
+    touched none of them is not the pass's. When one of the pass's commits before the fork point
     changed ``uv.lock``, the lock is compared from the window's start, so that upgrade counts."""
     fork_point = find_fork_point(repo_root, lead_ref, diff_ref)
     window_start = NonEmptyStr(_run_git(repo_root, ("merge-base", diff_base, fork_point)).strip())
-    before_fork = list_footprint_commit_files(repo_root, window_start, fork_point, creations)
+    before_fork = set(list_footprint_commit_files(repo_root, window_start, fork_point, creations))
+    branch_commits = _list_first_parent_commits(
+        repo_root, find_departure_point(repo_root, lead_ref, diff_ref), diff_ref
+    )
+    after_fork = frozenset(
+        _run_git(repo_root, ("rev-list", "--first-parent", f"{fork_point}..{diff_ref}")).split()
+    )
+    for sha, changed in branch_commits:
+        if sha not in after_fork:
+            before_fork.update(changed)
     return PassOwnChanges(
         fork_point=fork_point,
-        files=frozenset(list_changed_files(repo_root, fork_point, diff_ref).files) | before_fork,
+        files=frozenset(list_changed_files(repo_root, fork_point, diff_ref).files)
+        | before_fork
+        | frozenset(path for _, changed in branch_commits for path in changed),
         lockfile_base=window_start if LOCKFILE in before_fork else fork_point,
     )
 

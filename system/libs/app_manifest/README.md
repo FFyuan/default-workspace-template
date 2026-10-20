@@ -103,8 +103,8 @@ The models behind a workspace app's two descriptions (a third, the OpenAPI docum
   pathspec that matches nothing and a mistyped path would read as "unchanged".
   `parse_creation_spec`, `compute_creation_scope`, `compute_pass_scope`, and
   `render_pass_scope_file` build the pass scope file behind `app-manifest
-  pass-scope`, with `find_fork_point` telling the pass's own commits from the
-  lead's, and `read_pass_scope_file` reads one back; `split_against_creations`
+  pass-scope`, with `find_fork_point` and `find_departure_point` telling the
+  pass's own commits from the lead's, and `read_pass_scope_file` reads one back; `split_against_creations`
   is the diff split both scope files share. `BUILT_IN_EXCLUDES`, `APP_CONVENTIONS`, `SKILL_CONVENTIONS`, and
   `SERVICE_CONVENTIONS` are the fixed lists. Exclude matching is `pathspec`
   gitignore syntax; a failing git command raises `ScopeComputationError` rather
@@ -226,15 +226,16 @@ every changed file none does. With `--lead-ref` (the branch the pass's branch
 was cut from), the diff also tells the pass's own work from other work that
 landed in the window, as a worker branched off a shared branch needs: its
 `fork_point` is the newest commit of the lead's first-parent history the ref
-holds, the pass's own changes are what the ref changes relative to it plus
-every file of a commit on the lead's first-parent line between the diff base
+holds, the pass's own changes are what the ref changes relative to it, every
+file of a non-merge commit on the ref's first-parent line since it left the
+lead's, and every file of a commit on the lead's first-parent line between the diff base
 and the fork point that changed something a footprint accounts for (how the
 change being hardened reached the branch; merges are skipped),
 `outside_footprint` keeps only those, and `others` lists every changed file
 that is neither in a footprint nor the pass's own. A milestone the lead merged
 from the pass's branch sits on a second parent there, so it does not move the
 fork point; a lead commit the branch merged in does, so what came in with it
-is the lead's. `lockfile_base` is the commit a changed `uv.lock` is compared
+is the lead's, while the branch's own commits from before that merge stay its own. `lockfile_base` is the commit a changed `uv.lock` is compared
 against to tell what the pass upgraded: the fork point, or the merge base of the
 diff base and the fork point when one of the pass's commits before the fork
 point changed the lock. Without `--lead-ref`, `fork_point` and `lockfile_base`
