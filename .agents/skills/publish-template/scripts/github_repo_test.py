@@ -16,6 +16,8 @@ _README = (
     '<a href="https://studio.imbue.com/open?git_url=https://github.com/MINDS_TEMPLATE_REPO_URL">Open</a>\n'
     "` /use-template https://github.com/MINDS_TEMPLATE_REPO_URL`\n"
 )
+_CREATED = {_CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}})}
+_CREATED_AND_LOCKED_DOWN = {**_CREATED, _LOCKDOWN: json.dumps({"name": "demo"})}
 
 
 def _worktree(tmp_path: Path) -> Path:
@@ -63,12 +65,7 @@ def test_create_makes_a_locked_down_repo_and_points_the_readme_at_it(
     fake_latchkey: FakeLatchkey, tmp_path: Path
 ) -> None:
     worktree = _worktree(tmp_path)
-    fake_latchkey.set_state(
-        responses={
-            _CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}}),
-            _LOCKDOWN: json.dumps({"name": "demo"}),
-        }
-    )
+    fake_latchkey.set_state(responses=_CREATED_AND_LOCKED_DOWN)
 
     completed = _create(fake_latchkey, worktree)
 
@@ -96,12 +93,7 @@ def test_create_makes_a_locked_down_repo_and_points_the_readme_at_it(
 def test_a_public_repo_is_created_public(
     fake_latchkey: FakeLatchkey, tmp_path: Path
 ) -> None:
-    fake_latchkey.set_state(
-        responses={
-            _CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}}),
-            _LOCKDOWN: json.dumps({"name": "demo"}),
-        }
-    )
+    fake_latchkey.set_state(responses=_CREATED_AND_LOCKED_DOWN)
 
     assert (
         _create(fake_latchkey, _worktree(tmp_path), visibility="public").returncode == 0
@@ -149,10 +141,7 @@ def test_a_failed_lockdown_is_a_follow_up_not_a_failure(
     """The repo exists and is private by default, so the publish carries on."""
     worktree = _worktree(tmp_path)
     fake_latchkey.set_state(
-        responses={
-            _CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}}),
-            _LOCKDOWN: json.dumps({"message": "Server Error"}),
-        }
+        responses={**_CREATED, _LOCKDOWN: json.dumps({"message": "Server Error"})}
     )
 
     completed = _create(fake_latchkey, worktree)
@@ -170,12 +159,7 @@ def test_a_refused_readme_commit_still_names_the_created_repo(
     hook = worktree / ".git/hooks/pre-commit"
     hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n")
     hook.chmod(0o755)
-    fake_latchkey.set_state(
-        responses={
-            _CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}}),
-            _LOCKDOWN: json.dumps({"name": "demo"}),
-        }
-    )
+    fake_latchkey.set_state(responses=_CREATED_AND_LOCKED_DOWN)
 
     completed = _create(fake_latchkey, worktree)
 
@@ -192,12 +176,7 @@ def test_a_readme_without_the_placeholder_is_called_out(
     worktree = _worktree(tmp_path)
     (worktree / "README.md").write_text("[Open](https://github.com/someone/else)\n")
     git(worktree, "commit", "-qam", "lose the placeholder")
-    fake_latchkey.set_state(
-        responses={
-            _CREATE: json.dumps({"name": "demo", "owner": {"login": "octo"}}),
-            _LOCKDOWN: json.dumps({"name": "demo"}),
-        }
-    )
+    fake_latchkey.set_state(responses=_CREATED_AND_LOCKED_DOWN)
 
     completed = _create(fake_latchkey, worktree)
 
