@@ -308,7 +308,9 @@ def create_app(
             routine_detail = service.detail(wanted)
         except RoutineNotFoundError:
             return not_found(routine_id)
-        brief = build_fix_brief(routine_detail, f"/{wanted}")
+        last_finished = next((run for run in routine_detail.runs if run.outcome is not None), None)
+        last_run_log = service.log_tail(wanted, last_finished.run_id)[0] if last_finished is not None else ""
+        brief = build_fix_brief(routine_detail, f"/{wanted}", last_run_log)
         try:
             chat_id = fix_chat_starter.start(brief, fix_chat_name(routine_detail.row.title))
         except FixChatError as e:

@@ -56,9 +56,10 @@ def test_the_brief_names_the_routine_its_failure_and_each_run_with_an_unambiguou
         runs=(_run(TEST_NOW - timedelta(hours=2)),),
     )
 
-    brief = build_fix_brief(detail, "/news-sync")
+    brief = build_fix_brief(detail, "/news-sync", "pulling...\nTraceback: the feed answered 500\n")
 
     assert brief.startswith('/assist The routine "News sync" is not working')
+    assert "## Last run's output\n\n```\npulling...\nTraceback: the feed answered 500\n```" in brief
     assert "- Command it runs: `python3 sync.py`" in brief
     assert "- Belongs to the app: news" in brief
     assert "- Current state: Failing" in brief
@@ -77,4 +78,19 @@ def test_a_run_started_in_another_zone_is_still_printed_in_utc() -> None:
     )
     detail = RoutineDetail(row=row, definition=definition, definition_path="x", runs=(local,))
 
-    assert "(2026-10-20 13:00 UTC)" in build_fix_brief(detail, "/news-sync")
+    assert "(2026-10-20 13:00 UTC)" in build_fix_brief(detail, "/news-sync", "")
+
+
+def test_a_long_log_is_quoted_by_its_final_lines_and_an_empty_one_not_at_all() -> None:
+    definition = RoutineDefinition.model_validate({"title": "T", "what": "W", "every": "1d", "skill": "digest"})
+    row = build_row(
+        LoadedRoutine(routine_id=SYNC, definition=definition, error=None), RoutineState(), TEST_NOW, TEST_ZONE
+    )
+    detail = RoutineDetail(row=row, definition=definition, definition_path="x", runs=())
+
+    long_log = "\n".join(f"line {number}" for number in range(100)) + "\n"
+    quoted = build_fix_brief(detail, "/news-sync", long_log)
+    assert "## Last run's output (its final lines)" in quoted
+    assert "line 60\n" in quoted and "line 59\n" not in quoted
+
+    assert "Last run's output" not in build_fix_brief(detail, "/news-sync", "")

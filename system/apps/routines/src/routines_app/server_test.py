@@ -182,6 +182,7 @@ def test_the_fix_route_opens_a_chat_briefed_on_the_routine_and_answers_its_id(
     client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter
 ) -> None:
     _add(service)
+    service.runner.run(SYNC, RunTrigger.MANUAL, None)
     response = client.post("/api/routines/news-sync/fix", json={})
     assert response.status_code == 200
     assert response.get_json() == {"chat_id": "agent-fix"}
@@ -189,6 +190,8 @@ def test_the_fix_route_opens_a_chat_briefed_on_the_routine_and_answers_its_id(
     assert name == "Fix News sync"
     assert '"News sync"' in brief
     assert "/news-sync" in brief
+    # The last finished run's output rides in the brief, so the agent sees the evidence at once.
+    assert "## Last run's output\n\n```\nran\n```" in brief
     assert client.post("/api/routines/nothing/fix", json={}).status_code == 404
 
 

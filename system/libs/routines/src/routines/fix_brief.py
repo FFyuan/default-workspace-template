@@ -9,6 +9,8 @@ from routines.data_types import RunRecord
 
 RUNS_IN_BRIEF: Final[int] = 8
 MAX_CHAT_NAME_CHARS: Final[int] = 40
+# How much of the last finished run's log the brief quotes: enough to show the failure, not the whole run.
+LOG_LINES_IN_BRIEF: Final[int] = 40
 
 
 @pure
@@ -28,8 +30,20 @@ def _run_lines(runs: tuple[RunRecord, ...]) -> list[str]:
 
 
 @pure
-def build_fix_brief(detail: RoutineDetail, routine_page_path: str) -> str:
-    """The first message of the Fix chat, addressed to the workspace's /assist flow."""
+def _log_lines(last_run_log: str) -> list[str]:
+    """The last finished run's output, its final lines, as evidence the fixing agent can read at once."""
+    if not last_run_log.strip():
+        return []
+    lines = last_run_log.rstrip("\n").splitlines()
+    kept = lines[-LOG_LINES_IN_BRIEF:]
+    heading = "## Last run's output" if len(kept) == len(lines) else "## Last run's output (its final lines)"
+    return [heading, "", "```", *kept, "```", ""]
+
+
+@pure
+def build_fix_brief(detail: RoutineDetail, routine_page_path: str, last_run_log: str) -> str:
+    """The first message of the Fix chat, addressed to the workspace's /assist flow; ``last_run_log`` is the
+    last finished run's log (possibly empty), quoted so the agent sees the failure without a lookup."""
     row = detail.row
     definition = detail.definition
     lines = [
@@ -64,6 +78,7 @@ def build_fix_brief(detail: RoutineDetail, routine_page_path: str) -> str:
         "",
         *_run_lines(detail.runs),
         "",
+        *_log_lines(last_run_log),
         "## What I would like",
         "",
         "Reproduce the failure yourself (`routines run <id> --wait` runs it now), find the real cause, and fix it.",
