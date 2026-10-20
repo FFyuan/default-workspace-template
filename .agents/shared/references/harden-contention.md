@@ -316,10 +316,11 @@ answering. That work is never dropped. The new pass carries it:
    leave each kept branch for the user to decide on, and say so in step 4.
 4. **Tell the user** what was kept, in a sentence about the work itself (from
    the commit subjects), and that the new pass is finishing it.
-5. **Once you merge the new pass's `done`**, delete each kept branch with `git
-   branch -d superseded/<name>`. The lowercase `-d` refuses a branch your
-   `HEAD` does not contain, which would mean the worker never merged it: ask
-   it why rather than forcing the delete.
+5. **Once you merge the new pass's `done`**, delete each branch you named
+   under `## Carried work` with `git branch -d superseded/<name>`. The
+   lowercase `-d` refuses a branch your `HEAD` does not contain, which would
+   mean the worker never merged it: ask it why rather than forcing the delete.
+   A kept branch you left for the user stays until they decide.
 
 Two wrinkles when the pass had already delivered a provisional milestone
 merge:
