@@ -78,6 +78,7 @@ def static_directory(tmp_path: Path) -> Path:
     (directory / "assets").mkdir(parents=True)
     (directory / "index.html").write_text("<!doctype html><head><title>Routines</title></head><div id=app></div>")
     (directory / "assets" / "app.js").write_text("console.log('built');")
+    (directory / "assets" / "app-Ab12cd34.js").write_text("console.log('built');")
     return directory
 
 

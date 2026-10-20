@@ -17,6 +17,7 @@ work unmodified.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Final
 
@@ -83,6 +84,9 @@ APP_DESCRIPTION: Final[str] = (
     "reschedule and fix controls."
 )
 STATIC_DIR: Final[Path] = Path(__file__).parent / "static"
+# A bundle file Vite named from its content, which may be cached for good; the rest is checked on every load.
+_HASHED_ASSET: Final[re.Pattern[str]] = re.compile(r"-[A-Za-z0-9_-]{8}\.(js|css)$")
+_A_YEAR_IN_SECONDS: Final[int] = 365 * 24 * 60 * 60
 PAGE_DOCUMENT_FILENAME: Final[str] = "index.html"
 HEALTH_PATH: Final[str] = "/api/health"
 
@@ -177,8 +181,14 @@ def create_app(
 
     @app.get("/assets/<path:filename>")
     def asset(filename: str) -> ResponseReturnValue:
-        """One file of the pages' built bundle, by name."""
-        return send_from_directory((static_directory / "assets").absolute(), filename)
+        """One file of the pages' built bundle, by name; one named from its content is cached for good."""
+        is_hashed = _HASHED_ASSET.search(filename) is not None
+        response = send_from_directory(
+            (static_directory / "assets").absolute(), filename, max_age=_A_YEAR_IN_SECONDS if is_hashed else None
+        )
+        if not is_hashed:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.get(HEALTH_PATH)
     def health() -> ResponseReturnValue:

@@ -47,7 +47,12 @@ def test_every_page_path_serves_the_one_document_and_assets_their_file(
         # The chat app's minted origin label rides in the document, so the pages can link a run's chat.
         assert b'<meta name="routines-chat-label" content="chat-x7k9q2w1">' in response.data
         assert response.headers["Cache-Control"] == "no-store"
-    assert client.get("/assets/app.js").data == b"console.log('built');"
+    unhashed = client.get("/assets/app.js")
+    assert unhashed.data == b"console.log('built');"
+    assert unhashed.headers["Cache-Control"] == "no-cache"
+    hashed = client.get("/assets/app-Ab12cd34.js")
+    assert hashed.status_code == 200
+    assert "max-age=31536000" in hashed.headers["Cache-Control"]
     assert client.get("/assets/missing.js").status_code == 404
 
 
