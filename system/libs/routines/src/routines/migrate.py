@@ -84,7 +84,6 @@ def _strip_redirect(tokens: list[str]) -> list[str]:
     return cleaned
 
 
-@pure
 def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | SkippedEntry:
     """``<id> --every N [--at H] [--retry-after N] <command...>`` after the runner's name."""
     if not tokens:

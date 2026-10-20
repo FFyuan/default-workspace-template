@@ -1,6 +1,5 @@
 """What the command and the app both do: the one place a routine is listed, changed, run, or removed."""
 
-import os
 from pathlib import Path
 from typing import Final
 
@@ -48,6 +47,7 @@ from routines.runner import Runner
 from routines.runner import read_result
 from routines.runner import spawn_run_process
 from routines.state import FileStateStore
+from routines.tails import read_tail
 
 DEFAULT_RUN_LIMIT: Final[int] = 25
 LOG_TAIL_BYTES: Final[int] = 200_000
@@ -113,12 +113,7 @@ class RoutinesService(MutableModel):
         path = self.paths.run_log_path(routine_id, run_id)
         if not path.is_file():
             return "", False
-        with path.open("rb") as handle:
-            handle.seek(0, os.SEEK_END)
-            size = handle.tell()
-            is_truncated = size > LOG_TAIL_BYTES
-            handle.seek(max(0, size - LOG_TAIL_BYTES))
-            return handle.read().decode("utf-8", errors="replace"), is_truncated
+        return read_tail(path, LOG_TAIL_BYTES)
 
     def last_run_id(self, routine_id: RoutineId) -> RunId | None:
         state = self.states.read(routine_id)

@@ -24,7 +24,6 @@ from imbue.imbue_common.logging import generate_log_event_id
 from imbue.imbue_common.model_update import to_update
 from imbue.imbue_common.mutable_model import MutableModel
 from imbue.imbue_common.primitives import NonNegativeInt
-from imbue.imbue_common.pure import pure
 from routines.data_types import CurrentRun
 from routines.data_types import LastRun
 from routines.data_types import RUN_BLOCKED_EVENT
@@ -38,7 +37,6 @@ from routines.data_types import RunFinishedEvent
 from routines.data_types import RunResult
 from routines.data_types import RunStartedEvent
 from routines.errors import DefinitionValidationError
-from routines.errors import RunInFlightError
 from routines.interfaces import ChatAppInterface
 from routines.interfaces import ClockInterface
 from routines.interfaces import DefinitionStoreInterface
@@ -47,6 +45,7 @@ from routines.interfaces import NotifierInterface
 from routines.interfaces import StateStoreInterface
 from routines.locks import held_lock
 from routines.locks import is_lock_held
+from routines.locks import tried_lock
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import RunId
@@ -56,6 +55,7 @@ from routines.primitives import RunTrigger
 from routines.primitives import RunWarning
 from routines.schedule import is_switched_on
 from routines.schedule import next_due
+from routines.tails import read_tail
 from routines.wake import WakeOutcome
 from routines.wake import slash_command_of
 from routines.wake import wake_skill
@@ -100,16 +100,13 @@ def _envelope(event_type: str, now: datetime) -> dict[str, str]:
     }
 
 
-@pure
 def read_output_tail(log_path: Path) -> str:
+    """The log's last part for the finish event; empty for a run that wrote no log."""
     try:
-        with log_path.open("rb") as handle:
-            handle.seek(0, os.SEEK_END)
-            size = handle.tell()
-            handle.seek(max(0, size - OUTPUT_TAIL_BYTES))
-            return handle.read().decode("utf-8", errors="replace")
+        text, _ = read_tail(log_path, OUTPUT_TAIL_BYTES)
     except OSError:
         return ""
+    return text
 
 
 def is_run_process_alive(current: CurrentRun) -> bool:
@@ -436,14 +433,13 @@ class Runner(MutableModel):
 
     def tick(self) -> TickReport:
         """Section 6.1 of the spec: reap, start what is due, keep house once a day."""
-        try:
-            with held_lock(self.paths.tick_lock_path, "A tick"):
-                reaped = self._reap_dead_runs()
-                started = self._start_due_runs()
-                self._housekeep()
-                return TickReport(started=tuple(started), reaped=tuple(reaped), is_skipped=False)
-        except RunInFlightError:
-            return TickReport(started=(), reaped=(), is_skipped=True)
+        with tried_lock(self.paths.tick_lock_path) as is_held:
+            if not is_held:
+                return TickReport(started=(), reaped=(), is_skipped=True)
+            reaped = self._reap_dead_runs()
+            started = self._start_due_runs()
+            self._housekeep()
+            return TickReport(started=tuple(started), reaped=tuple(reaped), is_skipped=False)
 
     def _reap_dead_runs(self) -> list[RoutineId]:
         reaped: list[RoutineId] = []
