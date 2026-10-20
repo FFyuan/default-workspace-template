@@ -71,8 +71,8 @@ def _run_line(run: RunRecord) -> str:
     return f"{run.run_id}  {run.started_at:%Y-%m-%d %H:%M}  {run.trigger.lower():9} {run.outcome_text:14} {run.duration_text}{summary}"
 
 
-def _fail(error: Exception) -> None:
-    click.echo(f"error: {error}", err=True)
+def _fail(message: str) -> None:
+    click.echo(f"error: {message}", err=True)
     sys.exit(1)
 
 
@@ -106,7 +106,7 @@ def show_command(routine_id: str, output_format: str) -> None:
     try:
         detail = _service().detail(RoutineId(routine_id))
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     if output_format == JSON_FORMAT:
         _print_json(detail)
@@ -191,56 +191,42 @@ class DefinitionOptions(FrozenModel):
 
 def _definition_from_options(base: RoutineDefinition | None, options: DefinitionOptions) -> RoutineDefinition:
     """A definition from the flags, over the existing one for an edit; raises ValidationError with the problem."""
-    title = options.title
-    what = options.what
-    every = options.every
-    once = options.once
-    at_time = options.at_time
-    days = options.days
-    day_of_month = options.day_of_month
-    skill = options.skill
-    command = options.command
-    app_name = options.app_name
-    timeout = options.timeout
-    retry_after = options.retry_after
-    notify_after_failures = options.notify_after_failures
-    is_disabled = options.disabled
     values: dict[str, object] = base.model_dump() if base is not None else {}
-    if title is not None:
-        values["title"] = title
-    if what is not None:
-        values["what"] = what
-    if every is not None:
-        values["every"] = every
+    if options.title is not None:
+        values["title"] = options.title
+    if options.what is not None:
+        values["what"] = options.what
+    if options.every is not None:
+        values["every"] = options.every
         values["once"] = None
-    if once is not None:
-        values["once"] = once_moment_from_text(once)
+    if options.once is not None:
+        values["once"] = once_moment_from_text(options.once)
         values["every"] = None
         values["at"] = None
         values["days"] = ()
         values["day_of_month"] = None
-    if at_time is not None:
-        values["at"] = at_time or None
-    parsed_days = _parse_days(days)
+    if options.at_time is not None:
+        values["at"] = options.at_time or None
+    parsed_days = _parse_days(options.days)
     if parsed_days is not None:
         values["days"] = parsed_days
-    if day_of_month is not None:
-        values["day_of_month"] = day_of_month
-    if skill is not None:
-        values["skill"] = skill
+    if options.day_of_month is not None:
+        values["day_of_month"] = options.day_of_month
+    if options.skill is not None:
+        values["skill"] = options.skill
         values["command"] = None
-    if command:
-        values["command"] = tuple(command)
+    if options.command:
+        values["command"] = tuple(options.command)
         values["skill"] = None
-    if app_name is not None:
-        values["app"] = app_name or None
-    if timeout is not None:
-        values["timeout"] = timeout
-    if retry_after is not None:
-        values["retry_after"] = retry_after
-    if notify_after_failures is not None:
-        values["notify_after_failures"] = notify_after_failures
-    if is_disabled:
+    if options.app_name is not None:
+        values["app"] = options.app_name or None
+    if options.timeout is not None:
+        values["timeout"] = options.timeout
+    if options.retry_after is not None:
+        values["retry_after"] = options.retry_after
+    if options.notify_after_failures is not None:
+        values["notify_after_failures"] = options.notify_after_failures
+    if options.disabled:
         values["enabled"] = False
     return RoutineDefinition.model_validate(values)
 
@@ -254,10 +240,10 @@ def add_command(routine_id: str, **options: object) -> None:
         definition = _definition_from_options(None, DefinitionOptions.model_validate(options))
         path = _service().add(RoutineId(routine_id), definition)
     except ValidationError as e:
-        _fail(ValueError(describe_validation_error(e)))
+        _fail(describe_validation_error(e))
         return
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     click.echo(f"Added {routine_id} at {path}")
 
@@ -274,10 +260,10 @@ def edit_command(routine_id: str, **options: object) -> None:
         definition = _definition_from_options(base, DefinitionOptions.model_validate(options))
         path = service.replace(RoutineId(routine_id), definition, "edit")
     except ValidationError as e:
-        _fail(ValueError(describe_validation_error(e)))
+        _fail(describe_validation_error(e))
         return
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     click.echo(f"Updated {routine_id} at {path}")
 
@@ -289,7 +275,7 @@ def enable_command(routine_id: str) -> None:
     try:
         _service().set_enabled(RoutineId(routine_id), True)
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     click.echo(f"Turned {routine_id} on")
 
@@ -301,7 +287,7 @@ def disable_command(routine_id: str) -> None:
     try:
         _service().set_enabled(RoutineId(routine_id), False)
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     click.echo(f"Turned {routine_id} off")
 
@@ -330,7 +316,7 @@ def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | No
         try:
             receipt = service.start_run_detached(RoutineId(routine_id))
         except RoutinesError as e:
-            _fail(e)
+            _fail(str(e))
             return
         click.echo(receipt.model_dump_json())
         return
@@ -340,10 +326,10 @@ def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | No
         # The tick found the lock free a moment ago; a run that started since is the one that counts.
         if run_trigger is RunTrigger.SCHEDULED:
             return
-        _fail(e)
+        _fail(str(e))
         return
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     if run_id is not None:
         # A spawned run's stdout is its own log, which already has what the run wrote.
@@ -365,7 +351,7 @@ def runs_command(routine_id: str, limit: int, output_format: str) -> None:
     try:
         records = _service().runs(RoutineId(routine_id), limit)
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     if output_format == JSON_FORMAT:
         _print_json(records)
@@ -387,7 +373,7 @@ def log_command(routine_id: str, run_id: str | None) -> None:
             return
         text, is_truncated = service.log_tail(RoutineId(routine_id), wanted)
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     if is_truncated:
         click.echo("... (earlier output left out)")
@@ -401,7 +387,7 @@ def remove_command(routine_id: str) -> None:
     try:
         _service().remove(RoutineId(routine_id))
     except RoutinesError as e:
-        _fail(e)
+        _fail(str(e))
         return
     click.echo(f"Removed {routine_id}")
 
