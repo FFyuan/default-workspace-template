@@ -474,15 +474,16 @@ path below instead.
 **When the update touches a critical app (`system/apps/system_interface/`,
 `system/apps/chat/`, `system/apps/terminal/`, `system/apps/terminal_pty/`),
 `system/apps/getting_started/frontend/`, `system/apps/files/frontend/`,
-`system/libs/workspace_ui/`, `system/libs/workspace_layout/`, or
-`system/package.json` / `system/package-lock.json` at all** (every critical
-app's tree, plus the Getting Started and Files frontends, the shared library,
+`system/apps/routines/frontend/`, `system/libs/workspace_ui/`,
+`system/libs/workspace_layout/`, or `system/package.json` /
+`system/package-lock.json` at all** (every critical app's tree, plus the
+Getting Started, Files and Routines frontends, the shared library,
 and the npm files, whose change rebuilds every frontend bundle, and the layout
 wire contract the critical apps run), also take the `editing
 critical app <name>` lease for each critical app it touches through the apply,
 as `update-app/references/critical-app.md` does (`<name>` is the app's
 `app.toml` name, so `system/apps/terminal_pty/` is `terminal-pty`; the Getting
-Started and Files frontends, `workspace_ui`, and the npm files count as both
+Started, Files and Routines frontends, `workspace_ui`, and the npm files count as both
 `system_interface` and `chat`; `workspace_layout` counts as `system_interface`,
 `chat`, and `terminal`). Take them all or none, as that reference says:
 check each one in `tk ready` (`grep -E -- "- editing critical app <name>$"`,
