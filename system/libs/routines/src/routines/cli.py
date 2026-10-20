@@ -483,7 +483,7 @@ def remove_command(routine_id: str) -> None:
     "--routine",
     "routine_id",
     default=None,
-    help="The routine whose chat to use; the skill's name by default",
+    help="The routine whose chat to use; inside a run the routine being run, else the skill's name",
 )
 @click.option(
     "--title",
