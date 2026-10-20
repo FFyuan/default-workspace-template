@@ -25,23 +25,25 @@ def _zone_name_of_localtime(localtime_path: Path, zoneinfo_dir: Path) -> str:
     try:
         target = localtime_path.resolve(strict=True)
         return str(target.relative_to(zoneinfo_dir.resolve()))
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        logger.debug("The localtime link {} names no zone under {}: {}", localtime_path, zoneinfo_dir, e)
         return ""
 
 
 def resolve_local_zone(
     environ: Mapping[str, str],
-    timezone_name_path: Path = TIMEZONE_NAME_PATH,
-    localtime_path: Path = LOCALTIME_PATH,
-    zoneinfo_dir: Path = ZONEINFO_DIR,
+    timezone_name_path: Path,
+    localtime_path: Path,
+    zoneinfo_dir: Path,
 ) -> tzinfo:
-    """The machine's zone with its daylight-saving rules: TZ, else /etc/timezone, else what /etc/localtime
-    points at; the current fixed offset when none of them names a zone the zoneinfo database knows."""
+    """The machine's zone with its daylight-saving rules: TZ, else the timezone name file, else what the
+    localtime link points at; the current fixed offset when none of them names a zone the zoneinfo database
+    knows."""
     candidates = [environ.get(TIMEZONE_ENV, "")]
     try:
         candidates.append(timezone_name_path.read_text().strip())
-    except OSError:
-        pass
+    except OSError as e:
+        logger.debug("The timezone name file {} could not be read: {}", timezone_name_path, e)
     candidates.append(_zone_name_of_localtime(localtime_path, zoneinfo_dir))
     for name in candidates:
         if not name:
@@ -62,7 +64,7 @@ class SystemClock(ClockInterface):
         return datetime.now(timezone.utc)
 
     def local_zone(self) -> tzinfo:
-        return resolve_local_zone(os.environ)
+        return resolve_local_zone(os.environ, TIMEZONE_NAME_PATH, LOCALTIME_PATH, ZONEINFO_DIR)
 
     def pause(self, seconds: float) -> None:
         threading.Event().wait(seconds)
