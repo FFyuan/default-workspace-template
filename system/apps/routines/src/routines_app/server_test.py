@@ -225,7 +225,7 @@ def test_the_health_probe_says_whether_the_pages_are_built(client: FlaskClient) 
 def test_an_unbuilt_frontend_serves_the_not_built_page_and_says_so_in_the_health_probe(
     service: RoutinesService, tmp_path: Path, fix_chat_starter: RecordingFixChatStarter
 ) -> None:
-    unbuilt = create_app(service, tmp_path / "nothing-built", is_preview=False, start_fix_chat=fix_chat_starter)
+    unbuilt = create_app(service, tmp_path / "nothing-built", is_preview=False, fix_chat_starter=fix_chat_starter)
     client = unbuilt.test_client()
     page = client.get("/")
     assert page.status_code == 200
