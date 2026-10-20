@@ -507,8 +507,11 @@ def test_select_tests_prints_json_with_every_path_classified(tmp_path: Path) -> 
     }
 
 
-def _write_pass_scope(repo_root: Path, scope_path: Path, creations: list[str], diff_base: str) -> dict:
-    """Write the pass scope file the way a harden worker does, with the lead's branch as main."""
+def _write_pass_scope(
+    repo_root: Path, scope_path: Path, creations: list[str], diff_base: str, lead_ref: str | None
+) -> dict:
+    """Write the pass scope file the way a harden worker does; a None lead ref leaves --lead-ref out."""
+    lead_arguments = [] if lead_ref is None else ["--lead-ref", lead_ref]
     result = _run_cli(
         [
             "pass-scope",
@@ -517,8 +520,7 @@ def _write_pass_scope(repo_root: Path, scope_path: Path, creations: list[str], d
             str(repo_root),
             "--diff-base",
             diff_base,
-            "--lead-ref",
-            "main",
+            *lead_arguments,
             "--out",
             str(scope_path),
         ]
@@ -564,7 +566,7 @@ def test_a_pass_gate_runs_what_the_pass_changed_and_not_the_other_work_in_its_wi
     run_git(repo_root, ("checkout", "-q", "worker"))
     scope_path = tmp_path / "scope.json"
 
-    scope = _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    scope = _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
     commands = _selected_commands(repo_root, scope_path)
 
     assert scope["diff"]["inside_footprint"] == [
@@ -592,7 +594,7 @@ def test_a_pass_gate_runs_the_full_root_suite_for_an_unowned_path_the_worker_cha
     commit_changes(repo_root, {"system/scripts/forward_port.py": "PORT = 2\n"}, "a fix the skill needed")
     scope_path = tmp_path / "scope.json"
 
-    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
     commands = _selected_commands(repo_root, scope_path)
 
     assert "uv run pytest" in commands
@@ -606,11 +608,11 @@ def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_head(tmp_path
     run_git(repo_root, ("checkout", "-q", "-b", "worker"))
     commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "harden refresh")
     scope_path = tmp_path / "scope.json"
-    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
     head = commit_changes(repo_root, {"system/libs/midlib/src/midlib/core.py": "VALUE = 2\n"}, "a later fix")
 
     stale = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
-    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
     regenerated = _selected_commands(repo_root, scope_path)
 
     assert stale.exit_code != 0
@@ -624,20 +626,7 @@ def test_a_pass_gate_refuses_a_scope_file_written_without_the_leads_branch(tmp_p
     diff_base = run_git(repo_root, ("rev-parse", "HEAD")).strip()
     commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "the chat's change")
     scope_path = tmp_path / "scope.json"
-    written = _run_cli(
-        [
-            "pass-scope",
-            "--creation",
-            "skill:refresh",
-            "--repo-root",
-            str(repo_root),
-            "--diff-base",
-            diff_base,
-            "--out",
-            str(scope_path),
-        ]
-    )
-    assert written.exit_code == 0, written.output
+    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, None)
 
     result = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
 
