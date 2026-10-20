@@ -19,8 +19,8 @@ anything itself.
 Agents are listed with a ``--format`` template scoped to the local provider, as
 ``system/services/oom_priority/bin/memory_candidates.py`` lists them: inside a workspace the
 template path answers from local state where ``--format json`` can fail, and every agent here
-is the local provider's. Background runners are read off ``/proc``, the only place their chat is
-recorded while they run; a host without it (macOS) has none to find.
+is the local provider's. Background runners are read off ``/proc``, where each one's command line
+names its chat and the command it runs; a host without it (macOS) has none to find.
 """
 
 from __future__ import annotations
