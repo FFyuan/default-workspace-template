@@ -75,7 +75,8 @@ It waits on a `threading.Event` between samples, never `time.sleep`, and logs on
   A new process contributes its whole counter (it started after the previous sample); a gone process's last counter is dropped while its parent's child counters now carry it in full; a process that started and exited inside the interval is carried by its parent alone.
 - Usage is `busy_ticks / (CLK_TCK * elapsed_seconds * cores)`, clamped to `[0, 1]`, with `CLK_TCK` from `os.sysconf("SC_CLK_TCK")` and `elapsed_seconds` the wall time since the previous sample.
   The first sample after start has no previous sample and records no usage.
-- Per process, the same interval's share of capacity is `(ticks now - ticks before) / (CLK_TCK * elapsed_seconds * cores)`, with a missing previous reading counting as 0.
+- Per process, the same interval's share of capacity is `(ticks now - ticks before) / (CLK_TCK * elapsed_seconds * cores)`, with a missing previous reading counting as 0, less the last counter of every process gone since the previous sample, taken from its nearest ancestor still alive: that process's earlier ticks were already reported under its own pid and its whole lifetime now sits in its parent's child counters, so without the subtraction the parent would spike by the child's lifetime for one sample.
+  The shares then add up to the busy ticks.
   Shares under 0.001 are left out of the file to keep it small.
 - Memory is the guard's reading: the headroom file (`/mngr-vol/.host-meminfo`) while it is under 5 s old, else `/proc/meminfo`, giving total, available and used.
   This reader moves from the app's `memory.py` into `oom_priority.meminfo` and the app imports it from there.

@@ -148,14 +148,38 @@ def cpu_reading(
         entry.ticks for entry in before.values()
     )
     usage = min(1.0, max(0.0, busy_ticks / capacity_ticks))
+    deltas = {
+        pid: entry.ticks - (before[pid].ticks if pid in before else 0)
+        for pid, entry in now.items()
+    }
+    # A process gone since the previous walk had its earlier ticks reported under its own pid,
+    # and its whole lifetime now sits in its parent's child counters: take the part already
+    # reported back from the nearest ancestor still alive, so the shares add up to the busy ticks.
+    for pid, entry in before.items():
+        if pid not in now:
+            ancestor = _nearest_live_ancestor(entry.ppid, now, before)
+            if ancestor is not None:
+                deltas[ancestor] -= entry.ticks
     by_pid: dict[int, float] = {}
-    for pid, entry in now.items():
-        previous = before.get(pid)
-        delta = entry.ticks - (previous.ticks if previous is not None else 0)
+    for pid, delta in deltas.items():
         share = min(1.0, max(0.0, delta / capacity_ticks))
         if share >= MIN_PID_SHARE:
             by_pid[pid] = share
     return CpuReading(usage, by_pid)
+
+
+def _nearest_live_ancestor(
+    pid: int, now: Mapping[int, ProcessTicks], last: Mapping[int, ProcessTicks]
+) -> int | None:
+    """``pid`` itself when it is still alive, else its closest ancestor (by the parent pids last seen) that is."""
+    for _ in range(_MAX_ANCESTRY):
+        if pid in now:
+            return pid
+        entry = last.get(pid)
+        if entry is None or pid <= 1:
+            return None
+        pid = entry.ppid
+    return None
 
 
 class Sample(NamedTuple):

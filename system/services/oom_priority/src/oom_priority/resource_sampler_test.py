@@ -73,7 +73,9 @@ def test_busy_ticks_are_the_change_in_the_sum_so_an_exited_child_is_neither_lost
 
     # 10 (20's own) + 80 (30's whole life, less the 30 already counted) + 20 (40) = 80 busy ticks of 1000.
     assert reading.usage == 0.08
-    assert reading.by_pid == {20: 0.09, 40: 0.02}
+    # 20's share holds its own 10 and the 50 of 30's life not yet reported under 30, so the shares add up.
+    assert reading.by_pid == {20: 0.06, 40: 0.02}
+    assert sum(reading.by_pid.values()) == reading.usage
 
 
 def test_usage_is_clamped_and_shares_under_the_floor_are_left_out() -> None:
