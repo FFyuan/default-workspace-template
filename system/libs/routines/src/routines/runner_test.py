@@ -348,6 +348,37 @@ def test_a_notification_the_feed_did_not_take_is_tried_again_after_the_next_run(
     ]
 
 
+def test_a_new_streak_after_an_unsent_recovery_post_is_still_announced(
+    runner: Runner, definitions: FileDefinitionStore, notifier: RecordingNotifier, states: FileStateStore
+) -> None:
+    marker = runner.paths.repo_root / "succeed-once"
+    _command_routine(
+        definitions,
+        "sh",
+        "-c",
+        f'if [ -e "{marker}" ]; then rm "{marker}"; exit 0; fi; exit 1',
+        notify_after_failures=1,
+    )
+    runner.run(SYNC, RunTrigger.SCHEDULED, None)
+    assert states.read(SYNC).is_failure_notified is True
+
+    # The recovery post does not go out, so the flag stays up for a retry...
+    notifier.is_accepting = False
+    marker.write_text("")
+    runner.run(SYNC, RunTrigger.SCHEDULED, None)
+    assert states.read(SYNC).is_failure_notified is True
+
+    # ...but a new streak starts over: the feed hears about it at the threshold.
+    notifier.is_accepting = True
+    runner.run(SYNC, RunTrigger.SCHEDULED, None)
+    assert [message for _, _, message in notifier.sent] == [
+        "Nightly sync has failed once.",
+        "Nightly sync is working again.",
+        "Nightly sync has failed once.",
+    ]
+    assert states.read(SYNC).is_failure_notified is True
+
+
 def test_the_tick_closes_off_a_run_whose_pid_now_belongs_to_another_process(
     runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, clock: FakeClock
 ) -> None:

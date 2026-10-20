@@ -399,6 +399,9 @@ class Runner(MutableModel):
             ]
             if is_success:
                 updates.append(to_update(state.field_ref().last_succeeded_at, finished_at))
+            elif int(state.consecutive_failures) == 0:
+                # A new streak: a recovery the feed never took is moot now, and this streak is told at its threshold.
+                updates.append(to_update(state.field_ref().is_failure_notified, False))
             if execution.chat_id is not None:
                 updates.append(to_update(state.field_ref().chat_id, execution.chat_id))
             return state.model_copy_update(*updates)
