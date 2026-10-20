@@ -667,6 +667,13 @@ def test_a_pass_gate_runs_what_the_hardened_changes_own_lock_upgrade_reaches(tmp
             "uv run pytest system/libs/corelib",
         ),
         (
+            "app:notes",
+            "system/apps/notes/src/notes/core.py",
+            {"conftest.py": "import os\n"},
+            ["uv run pytest system/apps/notes"],
+            "uv run pytest system/libs",
+        ),
+        (
             "app:chat",
             "system/apps/chat/imbue/chat/server.py",
             {"system/libs/ui/src/index.ts": "export const x = 2;\n"},
@@ -709,8 +716,8 @@ def test_a_catch_up_gate_runs_a_creations_own_suite_when_what_came_in_reaches_it
 ) -> None:
     """The lead's commits a worker merges in after its gate passed can change something its
     creation depends on without touching the creation: a package, a lock upgrade, a shared
-    frontend, or for a skill, which runs on the root project, the root project's own configuration
-    or a package it depends on. The creation's own suite has never run against that change and the pass's together, so the
+    frontend, the root project's own configuration for a creation the root project collects, or
+    for a skill, which runs on the root project, a package it depends on. The creation's own suite has never run against that change and the pass's together, so the
     catch-up gate runs it; the changed package's own suite, its other dependents, the full root
     suite, and the rest of what came in are not the pass's."""
     repo_root = tmp_path / "workspace"

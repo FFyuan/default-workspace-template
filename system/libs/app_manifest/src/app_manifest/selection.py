@@ -763,9 +763,10 @@ def _read_lockfile_change(
 def _select_for_reach(
     context: _SelectionContext, reach: CreationReach
 ) -> tuple[list[_PytestRequest], list[_FrontendRequest], list[str]]:
-    """The creations' own pytest runs and npm checks that the reach's paths call for. A creation
-    the root project runs that is no workspace member (a skill) depends on what the root project
-    depends on, so a path the root project depends on runs its suite. When the reach's
+    """The creations' own pytest runs and npm checks that the reach's paths call for. The root
+    project's own configuration runs the suite of every creation the root project collects. A
+    collected creation that is no workspace member (a skill) also depends on what the root project
+    depends on, so any other path the root project depends on runs its suite. When the reach's
     ``uv.lock`` change cannot be read, every creation's suite runs, with a note saying why."""
     layout = context.layout
     lockfile, lockfile_failure = _read_lockfile_change(reach.paths, reach.lockfile_texts)
@@ -779,11 +780,15 @@ def _select_for_reach(
     def is_under_a_creation(directory: str) -> bool:
         return any(is_path_covered_by(creation, directory) for creation in reach.creation_directories)
 
-    on_root_project = [
+    root_collected = [
         directory
         for directory in (creation.rstrip("/") for creation in reach.creation_directories)
         if _own_root_for(layout, directory) == ROOT_DIRECTORY
-        and not any(is_path_covered_by(member.directory, directory) for member in layout.python_members)
+    ]
+    on_root_project = [
+        directory
+        for directory in root_collected
+        if not any(is_path_covered_by(member.directory, directory) for member in layout.python_members)
     ]
     pytest_requests: list[_PytestRequest] = []
     frontend_requests: list[_FrontendRequest] = []
@@ -800,7 +805,9 @@ def _select_for_reach(
             pytest_requests.extend(
                 _present(
                     _whole_request(layout, directory, marker_scope=MarkerScope.DEFAULT, reason=reason)
-                    for directory in on_root_project
+                    for directory in (
+                        root_collected if ChangedPathClass.ROOT_CONFIG in outcome.classes else on_root_project
+                    )
                 )
             )
     if lockfile_failure is None:
