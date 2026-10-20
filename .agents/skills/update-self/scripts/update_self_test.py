@@ -1845,12 +1845,8 @@ def test_step_4_ends_a_hold_with_a_decision_keeping_the_worker() -> None:
         "mngr destroy" in command or "git branch" in command for command in commands
     )
     assert not any("run-status hold" in command for command in commands)
-    assert (
-        _first_index(
-            _fenced_commands(_skill_section("## 6. Teardown")),
-            "run-status resume-chats",
-        )
-        >= 0
+    _first_index(
+        _fenced_commands(_skill_section("## 6. Teardown")), "run-status resume-chats"
     )
 
     relanding = _fenced_commands(_skill_section("## Resuming after a decision"))
