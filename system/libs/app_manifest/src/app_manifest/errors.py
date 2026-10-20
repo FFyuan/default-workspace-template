@@ -23,7 +23,9 @@ class RegistryReadError(AppManifestError):
 
 
 class ScopeComputationError(AppManifestError):
-    """A creation's footprint cannot be computed: a git command failed, or a config it reads is unparseable."""
+    """A creation's footprint cannot be computed: a git command failed, a config it reads is
+    unparseable, the branch did not fork from the lead ref it is judged against, or a pass scope
+    file cannot be read back."""
 
 
 class SuiteSelectionError(AppManifestError):
