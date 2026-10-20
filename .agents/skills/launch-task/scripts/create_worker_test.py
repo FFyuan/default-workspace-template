@@ -2726,6 +2726,29 @@ def test_delete_branches_goes_ahead_once_the_pass_is_merged(tmp_path: Path) -> N
     assert [argv[2] for argv in _destroy_argvs(runner)] == [child, root]
 
 
+@pytest.mark.parametrize(
+    ("failing_probe", "reason"),
+    [
+        (("git", "for-each-ref"), "could not list the local branches"),
+        (("git", "rev-list", "--count"), "could not count the commits"),
+    ],
+)
+def test_delete_branches_refuses_when_git_cannot_prove_the_work_is_safe(
+    failing_probe: tuple[str, ...], reason: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _unique("root")
+    runner = _RecordingRunner()
+    runner.respond(("mngr", "list"), _listing(_agent_record(root, "STOPPED")))
+    runner.respond(("git", "for-each-ref"), _StubResult(stdout=f"refs/heads/mngr/{root}\n"))
+    runner.respond(failing_probe, _StubResult(returncode=128))
+
+    rc = create_worker_mod.destroy(root, runner, delete_branches=True)
+
+    assert rc == 2
+    assert _lifecycle_argvs(runner) == []
+    assert reason in capsys.readouterr().err
+
+
 def test_discard_unmerged_deletes_branches_holding_work(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
