@@ -35,10 +35,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from validate_template import REPO_URL_PLACEHOLDER
+
 _API = "https://api.github.com"
 _FLOW_VERSION_SUFFIX = " (minds template v2)"
 _TEMPLATE_TOPIC = "minds-template"
-_REPO_URL_PLACEHOLDER = "MINDS_TEMPLATE_REPO_URL"
 _REPO_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._][A-Za-z0-9._-]*$")
 _LOCKDOWN_SETTINGS = {
     "pull_request_creation_policy": "collaborators_only",
@@ -136,9 +137,9 @@ def point_readme_at(worktree: Path, repo: str) -> bool:
     if not readme.is_file():
         return False
     text = readme.read_text(encoding="utf-8")
-    if _REPO_URL_PLACEHOLDER not in text:
+    if REPO_URL_PLACEHOLDER not in text:
         return False
-    readme.write_text(text.replace(_REPO_URL_PLACEHOLDER, repo), encoding="utf-8")
+    readme.write_text(text.replace(REPO_URL_PLACEHOLDER, repo), encoding="utf-8")
     for command in (
         ["git", "add", "README.md"],
         [
@@ -216,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     if not is_readme_pointed:
         print(
             f"github_repo: follow-up: README.md in {args.worktree} carries no "
-            f"{_REPO_URL_PLACEHOLDER}, so its Open in Imbue Studio link was not pointed "
+            f"{REPO_URL_PLACEHOLDER}, so its Open in Imbue Studio link was not pointed "
             f"at {repo}; check it and commit a fix before the push.",
             file=sys.stderr,
         )
