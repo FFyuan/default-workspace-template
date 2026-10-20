@@ -29,6 +29,8 @@ from routines.state import FileStateStore
 # same everywhere, and a moment that is 07:00 local on a Tuesday.
 TEST_ZONE: Final[timezone] = timezone(timedelta(hours=-8))
 TEST_NOW: Final[datetime] = datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
+# The routine most of the library's tests are about.
+TEST_ROUTINE_ID: Final[RoutineId] = RoutineId("inbox-digest")
 
 
 def make_workspace_paths(root: Path) -> RoutinesPaths:

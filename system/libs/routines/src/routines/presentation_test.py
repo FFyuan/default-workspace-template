@@ -19,16 +19,14 @@ from routines.presentation import build_listing
 from routines.presentation import build_row
 from routines.presentation import fold_run_events
 from routines.primitives import RoutineHealth
-from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunKind
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.primitives import RunWarning
 from routines.testing import TEST_NOW
+from routines.testing import TEST_ROUTINE_ID
 from routines.testing import TEST_ZONE
-
-DIGEST = RoutineId("inbox-digest")
 
 
 def _loaded(**fields: object) -> LoadedRoutine:
@@ -39,7 +37,7 @@ def _loaded(**fields: object) -> LoadedRoutine:
         "command": ["true"],
     }
     values.update(fields)
-    return LoadedRoutine(routine_id=DIGEST, definition=RoutineDefinition.model_validate(values), error=None)
+    return LoadedRoutine(routine_id=TEST_ROUTINE_ID, definition=RoutineDefinition.model_validate(values), error=None)
 
 
 def _last_run(outcome: RunOutcome, started_at: datetime) -> LastRun:
@@ -55,7 +53,7 @@ def _last_run(outcome: RunOutcome, started_at: datetime) -> LastRun:
 
 
 def test_a_broken_definition_is_broken_whatever_its_state() -> None:
-    loaded = LoadedRoutine(routine_id=DIGEST, definition=None, error="what: Field required")
+    loaded = LoadedRoutine(routine_id=TEST_ROUTINE_ID, definition=None, error="what: Field required")
     row = build_row(loaded, RoutineState(is_enabled=False), TEST_NOW, TEST_ZONE)
     assert row.health is RoutineHealth.BROKEN
     assert row.health_detail == "what: Field required"
@@ -175,14 +173,17 @@ def test_run_events_fold_into_records_with_a_blocked_run_still_going() -> None:
     started = RunStartedEvent(
         **envelope,
         type=RUN_STARTED_EVENT,
-        routine_id=DIGEST,
+        routine_id=TEST_ROUTINE_ID,
         run_id=run_id,
         trigger=RunTrigger.MANUAL,
         kind=RunKind.SKILL,
         command="/inbox-digest",
     )
     blocked = RunBlockedEvent(
-        **{**envelope, "event_id": generate_log_event_id()}, type=RUN_BLOCKED_EVENT, routine_id=DIGEST, run_id=run_id
+        **{**envelope, "event_id": generate_log_event_id()},
+        type=RUN_BLOCKED_EVENT,
+        routine_id=TEST_ROUTINE_ID,
+        run_id=run_id,
     )
 
     records = fold_run_events([blocked, started], TEST_NOW)

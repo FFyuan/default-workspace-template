@@ -14,8 +14,7 @@ from routines.mock_repository_test import RecordingRepository
 from routines.primitives import RoutineId
 from routines.primitives import TimeOfDay
 from routines.primitives import Weekday
-
-DIGEST = RoutineId("inbox-digest")
+from routines.testing import TEST_ROUTINE_ID
 
 
 def _digest() -> RoutineDefinition:
@@ -33,7 +32,7 @@ def _digest() -> RoutineDefinition:
 def test_adding_a_routine_writes_its_file_without_the_defaults_and_commits_it(
     definitions: FileDefinitionStore, repository: RecordingRepository
 ) -> None:
-    path = definitions.add(DIGEST, _digest())
+    path = definitions.add(TEST_ROUTINE_ID, _digest())
 
     assert path.read_text() == snapshot("""\
 title = "Morning inbox digest"
@@ -43,19 +42,19 @@ at = "07:30"
 skill = "inbox-digest"
 """)
     assert repository.commits == [(path, "routines: add inbox-digest")]
-    assert definitions.load(DIGEST).definition == _digest()
+    assert definitions.load(TEST_ROUTINE_ID).definition == _digest()
 
 
 def test_adding_a_routine_that_exists_is_refused(definitions: FileDefinitionStore) -> None:
-    definitions.add(DIGEST, _digest())
+    definitions.add(TEST_ROUTINE_ID, _digest())
     with pytest.raises(RoutineExistsError):
-        definitions.add(DIGEST, _digest())
+        definitions.add(TEST_ROUTINE_ID, _digest())
 
 
 def test_replacing_a_routine_keeps_the_comments_an_agent_left(
     definitions: FileDefinitionStore, repository: RecordingRepository
 ) -> None:
-    path = definitions.add(DIGEST, _digest())
+    path = definitions.add(TEST_ROUTINE_ID, _digest())
     path.write_text("# The user asked for this on a Tuesday.\n" + path.read_text())
 
     definition = _digest()
@@ -63,7 +62,7 @@ def test_replacing_a_routine_keeps_the_comments_an_agent_left(
         to_update(definition.field_ref().at, TimeOfDay("08:00")),
         to_update(definition.field_ref().days, (Weekday.MON,)),
     )
-    definitions.replace(DIGEST, changed, "change the schedule")
+    definitions.replace(TEST_ROUTINE_ID, changed, "change the schedule")
 
     assert path.read_text() == snapshot("""\
 # The user asked for this on a Tuesday.
@@ -93,21 +92,21 @@ def test_a_broken_file_is_listed_with_its_reason_and_never_raises(definitions: F
 
 
 def test_a_file_whose_name_is_not_a_routine_id_is_skipped(definitions: FileDefinitionStore) -> None:
-    definitions.add(DIGEST, _digest())
+    definitions.add(TEST_ROUTINE_ID, _digest())
     (definitions.paths.definitions_dir / "Not An Id.toml").write_text('title = "x"\n')
 
-    assert [loaded.routine_id for loaded in definitions.list_routines()] == [DIGEST]
+    assert [loaded.routine_id for loaded in definitions.list_routines()] == [TEST_ROUTINE_ID]
 
 
 def test_replacing_a_file_that_no_longer_parses_rewrites_it_whole(
     definitions: FileDefinitionStore, repository: RecordingRepository
 ) -> None:
-    path = definitions.add(DIGEST, _digest())
+    path = definitions.add(TEST_ROUTINE_ID, _digest())
     path.write_text("# a comment that will not survive\ntitle = \n")
 
-    definitions.replace(DIGEST, _digest(), "change the schedule")
+    definitions.replace(TEST_ROUTINE_ID, _digest(), "change the schedule")
 
-    assert definitions.load(DIGEST).definition == _digest()
+    assert definitions.load(TEST_ROUTINE_ID).definition == _digest()
     assert "a comment" not in path.read_text()
     assert repository.commits[-1] == (path, "routines: change the schedule of inbox-digest")
 
@@ -120,8 +119,8 @@ def test_loading_a_routine_that_does_not_exist_raises(definitions: FileDefinitio
 def test_removing_a_routine_deletes_the_file_and_commits_the_deletion(
     definitions: FileDefinitionStore, repository: RecordingRepository
 ) -> None:
-    path = definitions.add(DIGEST, _digest())
-    definitions.remove(DIGEST)
+    path = definitions.add(TEST_ROUTINE_ID, _digest())
+    definitions.remove(TEST_ROUTINE_ID)
     assert not path.exists()
     assert repository.commits[-1] == (path, "routines: remove inbox-digest")
 
