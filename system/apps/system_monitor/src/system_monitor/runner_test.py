@@ -1,6 +1,7 @@
 """Tests for the routes: the page on each of its views with the shell script injected, the stats, history and disk
 endpoints, the shell modules, health, and the API document."""
 
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -8,7 +9,7 @@ import pytest
 from app_schema.testing import assert_api_schema_describes_app
 from flask.testing import FlaskClient
 
-from system_monitor import runner, stats
+from system_monitor import disk, runner, stats
 
 
 @pytest.fixture
@@ -130,6 +131,34 @@ def test_the_disk_endpoint_answers_the_figures_the_backups_and_an_idle_walk(
         "rows": [],
         "missing": [],
     }
+
+
+def test_starting_a_disk_walk_answers_202_then_200_while_it_runs(
+    client: FlaskClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(stats, "WORKSPACE_DIR", tmp_path)
+    monkeypatch.delenv("MNGR_AGENT_STATE_DIR", raising=False)
+    gate = threading.Event()
+    rows = [{"id": "other", "label": "Everything else", "hint": "", "bytes": 7, "items": []}]
+    scanner = disk.DiskScanner(run=lambda: (gate.wait(10), (rows, ["caches"]))[1])
+    monkeypatch.setattr(runner, "DISK_SCANNER", scanner)
+
+    try:
+        started = client.post("/api/disk/scan")
+        assert started.status_code == 202
+        assert started.get_json()["scan"]["state"] == "scanning"
+        # A second request while the walk runs starts none.
+        repeated = client.post("/api/disk/scan")
+        assert repeated.status_code == 200
+        assert repeated.get_json()["scan"]["state"] == "scanning"
+    finally:
+        gate.set()
+    scanner.wait(10.0)
+
+    body = client.get("/api/disk").get_json()
+    assert body["scan"]["state"] == "done"
+    assert body["scan"]["scanned_at"] is not None
+    assert body["scan"]["rows"] == rows and body["scan"]["missing"] == ["caches"]
 
 
 def test_only_the_two_shell_modules_are_served(client: FlaskClient) -> None:
