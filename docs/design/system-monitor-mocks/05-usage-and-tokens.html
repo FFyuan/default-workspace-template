@@ -37,7 +37,7 @@
 <main class="page">
   <header class="page-header">
     <h1>Usage</h1>
-    <span class="type-helper secondary">Today · <span class="num">Oct 20</span></span>
+    <span class="type-helper secondary">Today · <span class="num" id="today"></span></span>
   </header>
 
   <section class="section">
@@ -66,6 +66,7 @@
 <script>
 (() => {
   const M = window.MOCK, $ = (id) => document.getElementById(id);
+  $("today").textContent = new Date(M.now).toLocaleDateString([], { month: "short", day: "numeric" });
   const mp = M.pct(M.memory.used, M.memory.total), dp = M.pct(M.disk.used, M.disk.total), cp = Math.round(M.cpu.pct);
   $("meters").innerHTML = [
     ["CPU", cp, "cpu", `<b>${cp}%</b> of 4 cores`],
