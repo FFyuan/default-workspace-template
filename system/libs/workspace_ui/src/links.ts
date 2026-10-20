@@ -7,7 +7,7 @@
  *   (``open:web``, ``open:mailto``, ``open:tel``) opens it, else the user's own browser or mail or phone app.
  * - A custom-scheme link (``slack:``, ``vscode:``, by the app contract's ``isCustomSchemeUrl``, held to the desktop
  *   app's rule the same way) is **external** too: an app registered for ``open:<scheme>`` opens it, else the app of
- *   the user's system it belongs to. One whose scheme would name another message (``web:``, ``url:``) is
+ *   the user's system it belongs to. One whose ``open:<scheme>`` would be another message (``open:web``) is
  *   **unroutable**.
  * - A ``file:`` URL on this machine is a **file** of the workspace, opened in Files (``open:file``).
  * - A URL on a local host (``localhost``, ``127.0.0.1``, ``[::1]``, ``*.localhost``) is a **local URL**: on an app's
@@ -41,13 +41,14 @@ export type LinkTarget =
  *  ``open:url`` for a local URL no app is registered at. */
 export const OPEN_FILE_MESSAGE = "open:file";
 export const OPEN_URL_MESSAGE = "open:url";
+const OPEN_WEB_MESSAGE = "open:web";
 
 /** The message an external link becomes: ``open:<scheme>`` (``open:mailto``, ``open:tel``, ``open:slack``), or
  *  ``open:web`` for a web link. Only an app registered for it takes it; with none, the link opens outside the
  *  workspace. */
 export function externalLinkMessageType(url: string): string {
   const scheme = url.slice(0, url.indexOf(":")).toLowerCase();
-  return WEB_SCHEMES.has(`${scheme}:`) ? "open:web" : `open:${scheme}`;
+  return WEB_SCHEMES.has(`${scheme}:`) ? OPEN_WEB_MESSAGE : `open:${scheme}`;
 }
 
 /** Whether ``href`` is a custom-scheme link (``slack:``, ``vscode:``). */
@@ -60,8 +61,8 @@ export function isCustomSchemeLink(href: string): boolean {
 }
 
 const WEB_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:"]);
-/** Custom schemes whose ``open:<scheme>`` would be one of the shell's other messages. */
-const RESERVED_LINK_SCHEMES: ReadonlySet<string> = new Set(["web:", "url:"]);
+/** The shell's own messages, which a custom scheme's ``open:<scheme>`` must not take over. */
+const RESERVED_MESSAGE_TYPES: ReadonlySet<string> = new Set([OPEN_WEB_MESSAGE, OPEN_URL_MESSAGE, OPEN_FILE_MESSAGE]);
 const WEB_URL_PREFIX = /^https?:\/\//i;
 
 /** The file a path names: decoded, with no query or fragment and no trailing slash (but the root's), so one file or
@@ -143,7 +144,8 @@ export function classifyLink(href: string, workspaceHost: string, shareDomain: s
   }
   if (isExternalUrl(url)) return { kind: "external", url: url.href };
   if (isCustomSchemeUrl(url)) {
-    return RESERVED_LINK_SCHEMES.has(url.protocol) ? { kind: "unroutable" } : { kind: "external", url: url.href };
+    const isReserved = RESERVED_MESSAGE_TYPES.has(externalLinkMessageType(url.href));
+    return isReserved ? { kind: "unroutable" } : { kind: "external", url: url.href };
   }
   if (!WEB_SCHEMES.has(url.protocol)) return { kind: "unroutable" };
   return classifyLocalUrl(url, workspaceHost);
