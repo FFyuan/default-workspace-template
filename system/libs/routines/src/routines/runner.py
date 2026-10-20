@@ -18,7 +18,7 @@ from loguru import logger
 from pydantic import Field
 from pydantic import ValidationError
 
-from chat_background_tasks.markers import is_pid_alive
+from chat_background_tasks.markers import is_process_live
 from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.logging import format_nanosecond_iso_timestamp
@@ -112,13 +112,8 @@ def read_output_tail(log_path: Path) -> str:
 
 
 def is_run_process_alive(current: CurrentRun) -> bool:
-    """Whether the run's process still runs: its pid is alive and, where /proc can say, it is the process the
-    run recorded rather than a later one given its pid."""
-    if not is_pid_alive(current.pid):
-        return False
-    if not current.pid_start:
-        return True
-    return process_start_time(current.pid) in ("", current.pid_start)
+    """Whether the run's process still runs: the process the run recorded, not a later one given its pid."""
+    return is_process_live(current.pid, current.pid_start)
 
 
 def spawn_run_process(paths: RoutinesPaths, routine_id: RoutineId, trigger: RunTrigger, run_id: RunId) -> None:
