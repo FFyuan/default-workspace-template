@@ -17,10 +17,11 @@ _WORKSPACE_HEADING = "## Workspace"
 _LEDGER_NOTE_WIDTH = 26
 
 # The canonical starter, recreated when the file was deleted since creation.
-# Byte-identical to the ``docs/VERSION_HISTORY.md`` the template ships;
-# ``publish-template``, ``update-published-template`` and
-# ``update-installed-template`` all recreate it by reference to here.
-_VERSION_HISTORY_STARTER = """\
+# Byte-identical to the ``docs/VERSION_HISTORY.md`` the template ships.
+# ``publish-template``'s ``record_publish.py`` imports it, ``origin_line`` and
+# ``insert_under_workspace`` from here, and ``update-installed-template``
+# recreates it by reference to here.
+VERSION_HISTORY_STARTER = """\
 # Version history
 
 Where this workspace came from, what it has migrated in, what it has published,
@@ -52,7 +53,7 @@ def _ledger_line(date: str, note: str, sha: str) -> str:
     return f"- {date}  {padded}{sha}"
 
 
-def _insert_under_workspace(lines: list[str], new_line: str, *, first: bool) -> None:
+def insert_under_workspace(lines: list[str], new_line: str, *, first: bool) -> None:
     """Insert ``new_line`` under ``## Workspace`` -- as the section's first line
     (the origin seed: the oldest event) or after its last existing line (an
     update entry). Existing lines are never re-flowed."""
@@ -76,7 +77,7 @@ def _insert_under_workspace(lines: list[str], new_line: str, *, first: bool) -> 
         lines.insert(after, "")
 
 
-def _origin_line(repo_root: Path, runner: Runner) -> str:
+def origin_line(repo_root: Path, runner: Runner) -> str:
     """The one-time ``created from`` seed for ``## Workspace``.
 
     Where the workspace started is its own ``Initial workspace commit``, falling
@@ -153,18 +154,18 @@ def write_version_history_entry(
     path = repo_root / _VERSION_HISTORY_REL
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(_VERSION_HISTORY_STARTER)
+        path.write_text(VERSION_HISTORY_STARTER)
     lines = path.read_text().splitlines()
     if _WORKSPACE_HEADING not in lines:
         # A hand-mangled file: append the section rather than losing the entry.
         lines.extend(["", _WORKSPACE_HEADING, ""])
     if not any("created from" in line for line in lines):
-        _insert_under_workspace(lines, _origin_line(repo_root, runner), first=True)
+        insert_under_workspace(lines, origin_line(repo_root, runner), first=True)
     short = git_out(runner, repo_root, ["rev-parse", "--short=7", merge_sha])
     note = f"updated to {target_ref}"
     if any(note in line and short in line for line in lines):
         return  # already recorded; a retried landing must be a no-op
-    _insert_under_workspace(lines, _ledger_line(today, note, short), first=False)
+    insert_under_workspace(lines, _ledger_line(today, note, short), first=False)
     path.write_text("\n".join(lines) + "\n")
     runner.run(
         ["git", "add", _VERSION_HISTORY_REL],

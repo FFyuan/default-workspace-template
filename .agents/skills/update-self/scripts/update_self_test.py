@@ -6828,7 +6828,7 @@ def test_the_starter_this_recreates_is_the_one_the_template_ships() -> None:
     shipped = ledger.read_text()
 
     assert _without_ledger_entries(shipped) == _without_ledger_entries(
-        update_ledger._VERSION_HISTORY_STARTER
+        update_ledger.VERSION_HISTORY_STARTER
     )
 
 
