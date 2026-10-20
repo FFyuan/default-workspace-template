@@ -6,6 +6,9 @@ day-to-day, but every part is inspectable and the agent maintains it.
 - `apps/` - Everything you can open as a tab: the built-in apps and the apps
   your agent builds for you.
 - `services/` - Standalone background services, supervised by supervisord (scheduled work is a routine).
+- `routines/` - One TOML file per routine: everything that runs on a schedule
+  and exits (the root `routines/` symlink points here). The Routines app shows
+  them; the `manage-routines` skill writes them.
 - `libs/` - Support libraries, including the first-boot bootstrap and the
   routines library (everything that runs on a schedule).
 - `scripts/` - Provisioning and utility scripts (image build, boot, Claude
