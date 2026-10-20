@@ -221,10 +221,14 @@ def create_app(service: RoutinesService, static_directory: Path, is_preview: boo
 
     @app.get("/api/routines/<routine_id>/runs/<run_id>/log")
     def run_log(routine_id: str, run_id: str) -> ResponseReturnValue:
-        """The run's whole log, unprocessed, as text."""
+        """The run's whole log, unprocessed, as text; 404 for a run the ledger does not know."""
         wanted = _routine_id(routine_id)
         wanted_run = _run_id(run_id)
         if wanted is None or wanted_run is None:
+            return Response("No such run.\n", status=HTTP_NOT_FOUND, mimetype="text/plain")
+        try:
+            service.run_detail(wanted, wanted_run)
+        except (RoutineNotFoundError, RunNotFoundError):
             return Response("No such run.\n", status=HTTP_NOT_FOUND, mimetype="text/plain")
         path = service.paths.run_log_path(wanted, wanted_run)
         if not path.is_file():
@@ -233,7 +237,7 @@ def create_app(service: RoutinesService, static_directory: Path, is_preview: boo
 
     @app.post("/api/routines/<routine_id>/run")
     def run_now(routine_id: str) -> ResponseReturnValue:
-        """Start a manual run in a process of its own; 409 while one is already going."""
+        """Start a manual run in a process of its own; 409 while one is already going, 400 for a broken definition."""
         wanted = _routine_id(routine_id)
         if wanted is None:
             return not_found(routine_id)
@@ -246,7 +250,7 @@ def create_app(service: RoutinesService, static_directory: Path, is_preview: boo
         except RunInFlightError as e:
             return error_response(str(e), HTTP_CONFLICT)
         except DefinitionValidationError as e:
-            return error_response(str(e), HTTP_CONFLICT)
+            return error_response(str(e), HTTP_BAD_REQUEST)
 
     @app.put("/api/routines/<routine_id>/enabled")
     def set_enabled(routine_id: str) -> ResponseReturnValue:

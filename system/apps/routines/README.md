@@ -31,7 +31,7 @@ and the API's are the same shapes:
 | `GET /api/routines` | The listing. |
 | `GET /api/routines/<id>` | One routine with recent runs. |
 | `GET /api/routines/<id>/runs/<run id>` | One run with the tail of its log; `/log` the whole log as text. |
-| `POST /api/routines/<id>/run` | Starts a manual run; 409 while one is going. |
+| `POST /api/routines/<id>/run` | Starts a manual run; 409 while one is going, 400 for a broken definition. |
 | `PUT /api/routines/<id>/enabled` | `{"is_enabled": bool}`. |
 | `PUT /api/routines/<id>/schedule` | The schedule fields; 400 with the reason. |
 | `POST /api/routines/<id>/fix` | Opens the fix chat. |

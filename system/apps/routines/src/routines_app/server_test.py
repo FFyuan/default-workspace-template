@@ -103,11 +103,24 @@ def test_a_run_and_its_log_are_read_back(client: FlaskClient, service: RoutinesS
     assert run.get_json()["run"]["outcome"] == "SUCCEEDED"
     assert "ran" in run.get_json()["log"]
     assert client.get(f"/api/routines/news-sync/runs/{event.run_id}/log").data == b"ran\n"
-    assert client.get("/api/routines/news-sync/runs/run-00000000000000000000000000000000").status_code == 404
+    unknown_run = "run-00000000000000000000000000000000"
+    assert client.get(f"/api/routines/news-sync/runs/{unknown_run}").status_code == 404
+    assert client.get(f"/api/routines/news-sync/runs/{unknown_run}/log").status_code == 404
+    assert client.get(f"/api/routines/nothing/runs/{event.run_id}/log").status_code == 404
 
     detail = client.get("/api/routines/news-sync").get_json()
     assert [run["run_id"] for run in detail["runs"]] == [event.run_id]
     assert detail["row"]["last_run_text"].startswith("Worked")
+
+
+def test_a_broken_definition_cannot_be_run_and_the_reason_is_a_bad_request(
+    client: FlaskClient, service: RoutinesService
+) -> None:
+    _add(service)
+    (service.paths.definitions_dir / "news-sync.toml").write_text('title = "News sync"\n')
+    refused = client.post("/api/routines/news-sync/run", json={})
+    assert refused.status_code == 400
+    assert "cannot run" in refused.get_json()["detail"]
 
 
 def test_removing_a_routine_deletes_it_once_no_run_is_going(client: FlaskClient, service: RoutinesService) -> None:
