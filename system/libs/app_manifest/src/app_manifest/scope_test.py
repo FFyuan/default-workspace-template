@@ -37,9 +37,6 @@ from app_manifest.testing import write_supervisord_conf
 from app_manifest.testing import write_supervisord_dropin
 
 
-# --- the news workspace every case below is built on ----------------------------
-
-
 def _news_manifest_path(repo_root: Path) -> Path:
     return repo_root / "system" / "apps" / "news" / "app.toml"
 
@@ -50,9 +47,6 @@ def _news_manifest(repo_root: Path) -> AppManifest:
 
 def _news_app_scope(repo_root: Path) -> CreationScope:
     return compute_app_scope(repo_root, _news_manifest_path(repo_root), _news_manifest(repo_root))
-
-
-# --- reference kinds ------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -73,9 +67,6 @@ def test_reference_kind_comes_from_the_paths_prefix(
     assert reference_kind_for_path(ReferencePath(reference_path)) is expected_kind
 
 
-# --- footprint coverage ---------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("footprint_entry", "candidate", "is_covered"),
     [
@@ -90,9 +81,6 @@ def test_a_footprint_entry_covers_itself_and_what_is_beneath_it(
     footprint_entry: str, candidate: str, is_covered: bool
 ) -> None:
     assert is_path_covered_by(footprint_entry, candidate) is is_covered
-
-
-# --- wiring ---------------------------------------------------------------------
 
 
 def test_wiring_finds_the_apps_program_and_its_sidecars_but_not_other_apps(
@@ -195,9 +183,6 @@ def test_an_unparseable_supervisord_conf_raises_rather_than_yielding_no_wiring(
 
     with pytest.raises(ScopeComputationError, match="supervisord.conf"):
         find_wiring_sections(tmp_path, _news_manifest(tmp_path))
-
-
-# --- the app scope --------------------------------------------------------------
 
 
 def test_an_app_scope_carries_the_apps_own_paths_wiring_references_and_conventions(
@@ -309,9 +294,6 @@ def test_the_rendered_scope_file_is_indented_json_ending_in_a_newline(tmp_path: 
         "package": "news",
         "manifest": "system/apps/news/app.toml",
     }
-
-
-# --- the reverse lookup and the skill scope -------------------------------------
 
 
 def test_the_reverse_lookup_finds_the_app_that_declares_a_referenced_directory(
@@ -457,9 +439,6 @@ def test_a_change_to_the_owning_apps_manifest_is_inside_a_skill_scopes_footprint
         "docs/system/news.md",
         "system/apps/news/runner.py",
     )
-
-
-# --- the diff -------------------------------------------------------------------
 
 
 def _commit_news_workspace_base(repo_root: Path) -> str:

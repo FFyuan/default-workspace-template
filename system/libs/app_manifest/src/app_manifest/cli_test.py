@@ -573,7 +573,6 @@ def test_a_pass_gate_runs_what_the_pass_changed_and_not_the_other_work_in_its_wi
     ]
     assert scope["diff"]["outside_footprint"] == ["system/libs/midlib/src/midlib/core.py"]
     assert scope["diff"]["others"] == ["system/apps/chat/imbue/chat/server.py", "system/scripts/forward_port.py"]
-    # The always-run set, then the skill, the app that depends on the edited library, and the library.
     assert commands[0].startswith("uv run pytest ")
     assert commands[1:] == [
         "uv run pytest .agents/skills/refresh",
