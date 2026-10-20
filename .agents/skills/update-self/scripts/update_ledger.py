@@ -43,11 +43,16 @@ Each template this agent has adopted and the version it is on;
 """
 
 
-def _ledger_line(date: str, note: str, sha: str) -> str:
-    padded = note.ljust(_LEDGER_NOTE_WIDTH)
+def pad_note(note: str, width: int) -> str:
+    """``note`` padded to ``width``, but always leaving two spaces before the sha."""
+    padded = note.ljust(width)
     if len(padded) - len(note) < 2:
         padded = note + "  "
-    return f"- {date}  {padded}{sha}"
+    return padded
+
+
+def _ledger_line(date: str, note: str, sha: str) -> str:
+    return f"- {date}  {pad_note(note, _LEDGER_NOTE_WIDTH)}{sha}"
 
 
 def insert_under_workspace(lines: list[str], new_line: str, *, first: bool) -> None:

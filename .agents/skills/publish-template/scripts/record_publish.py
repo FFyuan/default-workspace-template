@@ -60,9 +60,7 @@ def _update_self_module(name: str) -> ModuleType:
 
 
 def template_line(version: int, date: str, note: str, sha: str) -> str:
-    padded = note.ljust(_NOTE_WIDTH)
-    if len(padded) - len(note) < 2:
-        padded = note + "  "
+    padded = _update_self_module("update_ledger").pad_note(note, _NOTE_WIDTH)
     return f"- v{version}  {date}  {padded}{sha}"
 
 
