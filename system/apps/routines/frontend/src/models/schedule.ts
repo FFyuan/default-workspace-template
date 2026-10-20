@@ -88,8 +88,6 @@ export function problemOf(form: ScheduleForm): string | null {
   }
   const count = Number(form.count);
   if (!/^\d+$/.test(form.count.trim()) || count < 1) return "How often has to be a whole number, at least 1.";
-  const seconds = count * unitOf(form).seconds;
-  if (seconds > 366 * 86400) return "A gap longer than a year is too long to schedule.";
   const { dayOfMonth } = shownFieldsOf(form);
   if (dayOfMonth !== "" && !(/^\d+$/.test(dayOfMonth) && Number(dayOfMonth) >= 1 && Number(dayOfMonth) <= 31)) {
     return "The day of the month has to be between 1 and 31.";

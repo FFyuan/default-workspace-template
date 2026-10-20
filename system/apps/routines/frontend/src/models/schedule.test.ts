@@ -68,7 +68,6 @@ describe("problemOf", () => {
   it("names what cannot be saved", () => {
     expect(problemOf(form({ count: "0" }))).toMatch(/at least 1/);
     expect(problemOf(form({ count: "x" }))).toMatch(/whole number/);
-    expect(problemOf(form({ count: "400", unit: "d" }))).toMatch(/longer than a year/);
     expect(problemOf(form({ unit: "mo", dayOfMonth: "32" }))).toMatch(/between 1 and 31/);
     expect(problemOf(form({ mode: "once", once: "" }))).toMatch(/date and a time/);
     expect(problemOf(form({ count: "1", unit: "d", at: "07:30" }))).toBeNull();
