@@ -1925,7 +1925,7 @@ def _unmerged_work_warning(record: Mapping[str, object], runner: Runner) -> None
     Uncommitted changes are lost with the worktree (dead-worker-recovery.md's
     salvage flow is for that); commits on the worker's branch not in HEAD stay
     on it unless ``--delete-branches`` deletes it. Never blocks:
-    ``_branch_deletion_refusal`` is what guards the commits that would take.
+    ``_branch_deletion_refusal`` guards the commits a branch deletion would lose.
     """
     name = _record_name(record)
     work_dir = _record_field(record, "work_dir")
