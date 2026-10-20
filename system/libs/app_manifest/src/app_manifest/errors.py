@@ -28,8 +28,8 @@ class ScopeComputationError(AppManifestError):
 
 class SuiteSelectionError(AppManifestError):
     """The suite selection cannot be computed: a file it reads cannot be read or parsed, a
-    guard it lists is not tracked by git, or a diff selection would miss the working tree's
-    uncommitted changes."""
+    guard it lists is not tracked by git, a diff selection would miss the working tree's
+    uncommitted changes, or a pass scope file has no fork point or no longer describes HEAD."""
 
 
 class AppRegistrationError(AppManifestError):
