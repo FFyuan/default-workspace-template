@@ -302,8 +302,9 @@ uv run app-manifest select-tests --scope-file "$SCOPE_FILE"
 ```
 
 The change it selects for is what the pass is responsible for: the changed
-files some creation's footprint accounts for, and every file your own branch
-changed, inside a footprint or not. Other work that landed in the window (the
+files some creation's footprint accounts for, and every one of the pass's own
+changes, inside a footprint or not: what your branch changed and the files of
+the change you are hardening ("The scope file" above). Other work that landed in the window (the
 scope file's `others`) selects nothing. The selector reads commits, like the
 scope file. It refuses to run while the working tree holds an uncommitted or
 untracked change, naming it, and refuses a scope file whose diff does not run

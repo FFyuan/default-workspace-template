@@ -1080,7 +1080,7 @@ def _refuse_uncommitted_changes(repo_root: Path) -> None:
 
 def select_tests_for_pass_scope(repo_root: Path, scope: PassScope) -> SuiteSelection:
     """The selection for a harden pass, read from its scope file: every file in the diff some
-    footprint accounts for or the pass's own branch changed, and none of the other work that
+    footprint accounts for or that is the pass's own change, and none of the other work that
     landed in the window. A changed ``uv.lock`` is compared against the scope file's
     ``lockfile_base``, so only what the pass upgraded counts.
 

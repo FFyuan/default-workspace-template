@@ -277,8 +277,8 @@ what the ref changed since it forked from the base (the same three-dot diff as
 them, and `--diff-base` only names the revision a changed `uv.lock` is compared
 against. With `--scope-file`, a harden pass's file from `pass-scope
 --diff-base REF --lead-ref REF`, the change is every file of its diff except
-`others`: what the pass's footprints account for and what its own branch
-changed, but not the other work that landed in the window. A changed `uv.lock`
+`others`: what the pass's footprints account for and the pass's own changes,
+but not the other work that landed in the window. A changed `uv.lock`
 is then compared against the file's `lockfile_base`. A `--diff-base` selection that runs to
 the checked-out commit refuses to run while the working tree holds uncommitted
 or untracked changes, and names them, since the tests would run against
