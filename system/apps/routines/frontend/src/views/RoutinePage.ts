@@ -2,7 +2,7 @@
 
 import m from "mithril";
 
-import { Button } from "@imbue/workspace-ui/src/components/Button";
+import { Button, buttonClass } from "@imbue/workspace-ui/src/components/Button";
 
 import type { Outcome, RoutineDetail, RunRecord } from "../models/api";
 import { chatUrlOf } from "../models/chatLink";
@@ -120,7 +120,7 @@ export const RoutinePage: m.Component<RoutinePageAttrs> = {
         ),
         chatId === null
           ? null
-          : m(Button, { onclick: () => window.open(chatUrlOf(chatId), "_blank") }, "Open its chat"),
+          : m("a", { href: chatUrlOf(chatId), class: buttonClass(), "data-open-chat": "" }, "Open its chat"),
         m(Button, { variant: "ghost-destructive", disabled: isBusy, onclick: onRemove, "data-remove": "" }, "Remove"),
       ]),
       m("section", [

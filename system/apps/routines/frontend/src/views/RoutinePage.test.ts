@@ -106,6 +106,8 @@ describe("RoutinePage", () => {
     expect(rows[1].textContent).toContain("The previous run was still going and was cut off.");
     const chatLink = [...rows[1].querySelectorAll("a")].find((link) => link.textContent === "Open chat");
     expect(chatLink?.getAttribute("href")).toContain("?chat=agent-1");
+    // The routine's own chat is a plain link too: the app contract opens it where the workspace opens chats.
+    expect(root.querySelector("[data-open-chat]")?.getAttribute("href")).toContain("?chat=agent-1");
   });
 
   it("says when nothing has run", () => {
