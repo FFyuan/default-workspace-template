@@ -2,11 +2,11 @@
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 from latchkey_testing import FakeLatchkey
+from publish_testing import git
 
 _SCRIPT = Path(__file__).resolve().parent / "github_repo.py"
 _CREATE = "POST https://api.github.com/user/repos"
@@ -18,32 +18,16 @@ _README = (
 )
 
 
-def _git(cwd: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
-    ).stdout.strip()
-
-
 def _worktree(tmp_path: Path) -> Path:
     worktree = tmp_path / "wt"
     worktree.mkdir()
-    _git(worktree, "init", "-q", ".")
-    _git(worktree, "config", "user.email", "t@t.t")
-    _git(worktree, "config", "user.name", "T")
+    git(worktree, "init", "-q", ".")
+    git(worktree, "config", "user.email", "t@t.t")
+    git(worktree, "config", "user.name", "T")
     (worktree / "README.md").write_text(_README)
-    _git(worktree, "add", "-A")
-    _git(worktree, "commit", "-qm", "assembled")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-qm", "assembled")
     return worktree
-
-
-def _run(fake: FakeLatchkey, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(_SCRIPT), *args],
-        env=fake.env(),
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
 
 
 def _create(
@@ -53,8 +37,8 @@ def _create(
     name: str = "demo",
     visibility: str = "private",
 ) -> subprocess.CompletedProcess[str]:
-    return _run(
-        fake,
+    return fake.run(
+        _SCRIPT,
         "create",
         "--name",
         name,
@@ -105,8 +89,8 @@ def test_create_makes_a_locked_down_repo_and_points_the_readme_at_it(
     readme = (worktree / "README.md").read_text()
     assert "MINDS_TEMPLATE_REPO_URL" not in readme
     assert readme.count("https://github.com/octo/demo") == 2
-    assert _git(worktree, "status", "--porcelain") == ""
-    assert _git(worktree, "log", "-1", "--format=%s").startswith("readme:")
+    assert git(worktree, "status", "--porcelain") == ""
+    assert git(worktree, "log", "-1", "--format=%s").startswith("readme:")
 
 
 def test_a_public_repo_is_created_public(
@@ -193,7 +177,7 @@ def test_topic_tags_the_repo_as_a_template(fake_latchkey: FakeLatchkey) -> None:
         responses={_TOPIC: json.dumps({"names": ["minds-template"]})}
     )
 
-    completed = _run(fake_latchkey, "topic", "--repo", "octo/demo")
+    completed = fake_latchkey.run(_SCRIPT, "topic", "--repo", "octo/demo")
 
     assert completed.returncode == 0, completed.stderr
     assert _body_of(fake_latchkey, _TOPIC) == {"names": ["minds-template"]}

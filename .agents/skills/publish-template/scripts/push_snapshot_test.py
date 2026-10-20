@@ -11,39 +11,11 @@ import sys
 from pathlib import Path
 
 import pytest
+from publish_testing import git, write_finished_template
 from push_snapshot import hint_for_push_failure
 
 _SCRIPT = Path(__file__).resolve().parent / "push_snapshot.py"
 _GATEWAY = "http://gateway.invalid"
-
-_TOML = """format = "v2"
-
-[template]
-slug = "demo"
-title = "Demo"
-description = "A demo."
-thumbnail = "template.svg"
-version = "v1"
-
-[recipe]
-include = ["system/apps/demo"]
-"""
-
-_MARKDOWN = """---
-title: Demo
-description: A demo.
-thumbnail: template.svg
-format: v2
----
-
-# Demo
-"""
-
-
-def _git(cwd: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
-    ).stdout.strip()
 
 
 class _Publish:
@@ -52,34 +24,29 @@ class _Publish:
     def __init__(self, root: Path) -> None:
         self.worktree = root / "wt"
         self.worktree.mkdir()
-        _git(self.worktree, "init", "-q", "-b", "main", ".")
-        _git(self.worktree, "config", "user.email", "t@t.t")
-        _git(self.worktree, "config", "user.name", "T")
+        git(self.worktree, "init", "-q", "-b", "main", ".")
+        git(self.worktree, "config", "user.email", "t@t.t")
+        git(self.worktree, "config", "user.name", "T")
         (self.worktree / "pyproject.toml").write_text("[project]\nname = 'x'\n")
-        _git(self.worktree, "add", "-A")
-        _git(self.worktree, "commit", "-qm", "Template release")
-        self.base = _git(self.worktree, "rev-parse", "HEAD")
+        git(self.worktree, "add", "-A")
+        git(self.worktree, "commit", "-qm", "Template release")
+        self.base = git(self.worktree, "rev-parse", "HEAD")
 
         (self.worktree / "system/apps/demo").mkdir(parents=True)
         (self.worktree / "system/apps/demo/config.py").write_text(
             "CHANNEL = 'team-private'\n"
         )
-        _git(self.worktree, "add", "-A")
-        _git(self.worktree, "commit", "-qm", "raw assembly")
-        self.intermediate = _git(self.worktree, "rev-parse", "HEAD")
+        git(self.worktree, "add", "-A")
+        git(self.worktree, "commit", "-qm", "raw assembly")
+        self.intermediate = git(self.worktree, "rev-parse", "HEAD")
         (self.worktree / "system/apps/demo/config.py").write_text("CHANNEL = None\n")
-        (self.worktree / "template.toml").write_text(_TOML)
-        (self.worktree / "template.md").write_text(_MARKDOWN)
-        (self.worktree / "template.svg").write_text("<svg></svg>")
-        (self.worktree / "README.md").write_text(
-            "[Open](https://github.com/octo/demo)\n"
-        )
-        _git(self.worktree, "add", "-A")
-        _git(self.worktree, "commit", "-qm", "generalize and finish the manifest")
+        write_finished_template(self.worktree, "[Open](https://github.com/octo/demo)\n")
+        git(self.worktree, "add", "-A")
+        git(self.worktree, "commit", "-qm", "generalize and finish the manifest")
 
         self.remote = root / "remotes/octo/demo.git"
         self.remote.parent.mkdir(parents=True)
-        _git(root, "init", "-q", "--bare", str(self.remote))
+        git(root, "init", "-q", "--bare", str(self.remote))
         self.root = root
 
     def env(self) -> dict[str, str]:
@@ -141,11 +108,11 @@ def test_one_snapshot_commit_on_the_base_is_published_and_nothing_in_between(
     assert completed.returncode == 0, completed.stdout + completed.stderr
     snapshot = publish.remote_main()
     assert completed.stdout.strip() == snapshot
-    assert _git(publish.remote, "rev-parse", f"{snapshot}^") == publish.base
-    assert _git(publish.remote, "rev-parse", f"{snapshot}^{{tree}}") == _git(
+    assert git(publish.remote, "rev-parse", f"{snapshot}^") == publish.base
+    assert git(publish.remote, "rev-parse", f"{snapshot}^{{tree}}") == git(
         publish.worktree, "rev-parse", "HEAD^{tree}"
     )
-    published = _git(publish.remote, "rev-list", snapshot).splitlines()
+    published = git(publish.remote, "rev-list", snapshot).splitlines()
     assert published == [snapshot, publish.base]
     assert publish.intermediate not in published
 
@@ -166,7 +133,7 @@ def test_a_failing_pre_push_gate_stops_the_push(publish: _Publish) -> None:
     (publish.worktree / "README.md").write_text(
         "[Open](https://github.com/MINDS_TEMPLATE_REPO_URL)\n"
     )
-    _git(publish.worktree, "commit", "-qam", "regress the readme")
+    git(publish.worktree, "commit", "-qam", "regress the readme")
 
     completed = publish.push()
 
@@ -187,15 +154,15 @@ def test_an_update_fast_forwards_and_tags_the_new_version(publish: _Publish) -> 
     assert first.returncode == 0, first.stderr
     published_tip = publish.remote_main()
     (publish.worktree / "system/apps/demo/main.py").write_text("x = 2\n")
-    _git(publish.worktree, "add", "-A")
-    _git(publish.worktree, "commit", "-qm", "the v2 delta")
+    git(publish.worktree, "add", "-A")
+    git(publish.worktree, "commit", "-qm", "the v2 delta")
 
     second = publish.push("--tag", "template/demo/v2", parent=published_tip)
 
     assert second.returncode == 0, second.stdout + second.stderr
     new_tip = publish.remote_main()
-    assert _git(publish.remote, "rev-parse", f"{new_tip}^") == published_tip
-    assert _git(publish.remote, "rev-parse", "template/demo/v2^{commit}") == new_tip
+    assert git(publish.remote, "rev-parse", f"{new_tip}^") == published_tip
+    assert git(publish.remote, "rev-parse", "template/demo/v2^{commit}") == new_tip
 
 
 def test_a_published_main_that_moved_is_never_overwritten(publish: _Publish) -> None:
@@ -203,8 +170,8 @@ def test_a_published_main_that_moved_is_never_overwritten(publish: _Publish) -> 
     assert publish.push().returncode == 0
     published_tip = publish.remote_main()
     (publish.worktree / "system/apps/demo/main.py").write_text("x = 3\n")
-    _git(publish.worktree, "add", "-A")
-    _git(publish.worktree, "commit", "-qm", "another change")
+    git(publish.worktree, "add", "-A")
+    git(publish.worktree, "commit", "-qm", "another change")
 
     stale = publish.push(parent=publish.base)
 

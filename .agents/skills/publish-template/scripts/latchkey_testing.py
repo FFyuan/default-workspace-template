@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -62,6 +63,16 @@ class FakeLatchkey:
         env["FAKE_LATCHKEY_STATE"] = str(self.state_path)
         env["FAKE_LATCHKEY_LOG"] = str(self.log_path)
         return env
+
+    def run(self, script: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        """Run a publish script the way the skill does, with this stand-in on PATH."""
+        return subprocess.run(
+            [sys.executable, str(script), *args],
+            env=self.env(),
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
 
 
 def install_fake_latchkey(tmp_path: Path) -> FakeLatchkey:
