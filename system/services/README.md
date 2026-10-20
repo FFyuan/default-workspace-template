@@ -1,7 +1,8 @@
 # system/services/
 
-Background services with no tab of their own -- most supervised by
-supervisord, some driven by cron instead. They keep the workspace running --
+Background services with no tab of their own, supervised by supervisord
+(anything that runs on a schedule and exits is a routine instead: the
+`manage-routines` skill, `system/routines/`). They keep the workspace running --
 backing it up, keeping tunnels alive, watching state -- without the user ever
 needing to open them.
 
