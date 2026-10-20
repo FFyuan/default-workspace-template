@@ -195,11 +195,11 @@ def _definition_options(command: Callable[..., None]) -> Callable[..., None]:
         click.option("--what", default=None, help="One sentence saying what it does"),
         click.option("--every", default=None, help="The cadence: 15m, 3h, 1d, 2w, 1mo"),
         click.option("--once", default=None, help="A single local moment, YYYY-MM-DDTHH:MM"),
-        click.option("--at", "at_time", default=None, help="The local time of day, HH:MM"),
+        click.option("--at", "at_time", default=None, help="The local time of day, HH:MM; '' clears it on edit"),
         click.option(
             "--days",
             default=None,
-            help="Weekdays a run may start, comma separated: mon,wed,fri",
+            help="Weekdays a run may start, comma separated: mon,wed,fri; '' clears them on edit",
         ),
         click.option(
             "--day-of-month",
@@ -208,7 +208,7 @@ def _definition_options(command: Callable[..., None]) -> Callable[..., None]:
             help="The day a monthly run is due",
         ),
         click.option("--skill", default=None, help="The skill to run in the routine's chat"),
-        click.option("--app", "app_name", default=None, help="The app this routine belongs to"),
+        click.option("--app", "app_name", default=None, help="The app this routine belongs to; '' clears it on edit"),
         click.option("--timeout", default=None, help="How long a run may take"),
         click.option("--retry-after", default=None, help="The gap before a failed run is retried"),
         click.option(

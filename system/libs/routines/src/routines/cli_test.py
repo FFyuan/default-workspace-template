@@ -64,6 +64,14 @@ def test_add_list_show_edit_and_remove_round_trip(git_paths: RoutinesPaths) -> N
     assert edited.exit_code == 0, edited.output
     assert "Every Monday and Friday at 7:30 am" in _invoke(git_paths, "show", "news-sync").output
 
+    # The kept time of day refuses a cadence under a day; an empty value clears it.
+    kept = _invoke(git_paths, "edit", "news-sync", "--every", "2h")
+    assert kept.exit_code == 1
+    assert "a day or longer" in kept.output
+    cleared = _invoke(git_paths, "edit", "news-sync", "--every", "2h", "--at", "", "--days", "")
+    assert cleared.exit_code == 0, cleared.output
+    assert "Every 2 hours" in _invoke(git_paths, "show", "news-sync").output
+
     removed = _invoke(git_paths, "remove", "news-sync")
     assert removed.exit_code == 0
     assert not (git_paths.definitions_dir / "news-sync.toml").exists()

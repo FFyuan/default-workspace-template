@@ -105,6 +105,7 @@ uv run --no-sync routines show <id>                 # one routine with its recen
 uv run --no-sync routines runs <id>                 # its recent runs
 uv run --no-sync routines log <id> [<run id>]       # a run's output, the latest by default
 uv run --no-sync routines edit <id> --every 2h      # any of the add flags; the rest stays
+uv run --no-sync routines edit <id> --every 2h --at ""   # an empty --at, --days or --app clears the field (a kept 7:30 refuses a 2h cadence)
 uv run --no-sync routines run <id> --wait           # run it now and report the outcome
 uv run --no-sync routines disable <id>              # pause: nothing runs until it is enabled
 uv run --no-sync routines enable <id>
