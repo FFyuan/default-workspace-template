@@ -111,6 +111,8 @@
   const cap = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
   const tokensShort = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
   const clock = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  // A stop's time, with the day when it was not today (the list covers 24 hours).
+  const when = (d) => clock(d) + (d.toDateString() === new Date().toDateString() ? "" : " yesterday");
 
   // A line (and optional area) for samples over the last windowMs, in a viewBox of w x h. y runs
   // from 0 (full) to h (empty). Gaps longer than gapMs break the line.
@@ -185,5 +187,5 @@
     el.innerHTML = segments.map((s) => `<span class="${s.cls}" style="width:${s.pct}%" title="${esc(s.title || "")}"></span>`).join("");
   }
 
-  window.MOCK = { GiB, MiB, GB, now, chats, checkers, apps, groups, memory, cpu, disk, diskBreakdown, stops, tokens, history, size, sizeDecimal, pct, level, esc, cap, tokensShort, clock, sparkPath, drawSpark, drawMiniSpark, bar, todayAt, yesterdayAt };
+  window.MOCK = { GiB, MiB, GB, now, chats, checkers, apps, groups, memory, cpu, disk, diskBreakdown, stops, tokens, history, size, sizeDecimal, pct, level, esc, cap, tokensShort, clock, when, sparkPath, drawSpark, drawMiniSpark, bar, todayAt, yesterdayAt };
 })();

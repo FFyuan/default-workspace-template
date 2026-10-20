@@ -73,8 +73,7 @@
   }).join("");
 
   $("stops").innerHTML = M.stops.map((x) => {
-    const day = x.at.toDateString() === new Date().toDateString() ? "" : " yesterday";
-    return `<li><time>${M.clock(x.at)}${day}</time><span>Stopped ${M.esc(x.what)} to free memory</span><button type="button" class="btn ghost quiet">Details</button></li>`;
+    return `<li><time>${M.when(x.at)}</time><span>Stopped ${M.esc(x.what)} to free memory</span><button type="button" class="btn ghost quiet">Details</button></li>`;
   }).join("") + `<li><time>${M.clock(M.todayAt(8, 5))}</time><span>CPU ran above 90% for 6 minutes (Website redesign was running tests)</span><span></span></li>`;
 })();
 </script>

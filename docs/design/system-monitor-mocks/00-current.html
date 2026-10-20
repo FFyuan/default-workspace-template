@@ -90,8 +90,7 @@
   $("disk-bar").style.width = `${dp}%`;
 
   $("stops").innerHTML = M.stops.map((x, i) => {
-    const day = x.at.toDateString() === new Date().toDateString() ? "" : " yesterday";
-    return `<li><time>${M.clock(x.at)}${day}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="toggle" aria-expanded="false" data-i="${i}">Details</button><div class="stop-details" id="stop-${i}" hidden><div class="label">Command</div><pre>${M.esc(x.command)}</pre></div></li>`;
+    return `<li><time>${M.when(x.at)}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="toggle" aria-expanded="false" data-i="${i}">Details</button><div class="stop-details" id="stop-${i}" hidden><div class="label">Command</div><pre>${M.esc(x.command)}</pre></div></li>`;
   }).join("");
   $("stops").querySelectorAll(".toggle").forEach((b) => b.addEventListener("click", () => {
     const panel = $(`stop-${b.dataset.i}`), isOpen = panel.hidden;

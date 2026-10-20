@@ -91,7 +91,7 @@
     return `<tr class="group"><td>${M.esc(g.label)}${g.hint ? ` <span class="tag">${M.esc(g.hint)}</span>` : ""}</td><td class="n">${g.cpu === null ? "–" : g.cpu.toFixed(1) + "%"}</td><td class="n">${M.size(g.mem)}</td></tr>${rows}`;
   }).join("");
   $("stop-count").textContent = String(M.stops.length);
-  $("stops").innerHTML = M.stops.map((x) => `<li><time>${M.clock(x.at)}${x.at.toDateString() === new Date().toDateString() ? "" : " yesterday"}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="btn ghost quiet">Details</button></li>`).join("");
+  $("stops").innerHTML = M.stops.map((x) => `<li><time>${M.when(x.at)}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="btn ghost quiet">Details</button></li>`).join("");
   $("disk").innerHTML = M.diskBreakdown.map((d) => `<tr class="group"><td>${M.esc(d.name)}${d.hint ? ` <span class="tag">${M.esc(d.hint)}</span>` : ""}</td><td class="n">${M.sizeDecimal(d.bytes)}</td></tr>`).join("");
 })();
 </script>

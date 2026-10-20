@@ -127,7 +127,7 @@
     const rows = g.items.map((i) => `<tr><td class="sub">${M.esc(i.name)}</td><td class="n sub">${M.size(i.mem)}</td></tr>`).join("");
     return `<tr class="group"><td>${M.esc(g.label)}${g.hint ? ` <span class="tag">${M.esc(g.hint)}</span>` : ""}</td><td class="n">${M.size(g.mem)}</td></tr>${rows}`;
   }).join("");
-  $("stops").innerHTML = M.stops.map((x) => `<li><time>${M.clock(x.at)}${x.at.toDateString() === new Date().toDateString() ? "" : " yesterday"}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="btn ghost quiet">Details</button></li>`).join("");
+  $("stops").innerHTML = M.stops.map((x) => `<li><time>${M.when(x.at)}</time><span>${M.esc(M.cap(x.what))}</span><button type="button" class="btn ghost quiet">Details</button></li>`).join("");
 
   // Disk: a stacked bar of what is on it, then the same rows with their share.
   const shades = ["#7096b7", "#8eafcb", "#aac3d9", "#c6d7e5", "#cfcdc7"];
