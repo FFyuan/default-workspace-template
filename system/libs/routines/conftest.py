@@ -16,6 +16,7 @@ from routines.mock_http_server_test import FakeHttpServer
 from routines.mock_notifier_test import RecordingNotifier
 from routines.mock_repository_test import RecordingRepository
 from routines.paths import RoutinesPaths
+from routines.repository import GitRepository
 from routines.runner import Runner
 from routines.state import FileStateStore
 from routines.testing import TEST_NOW
@@ -41,6 +42,19 @@ def legacy_cron_dir(paths: RoutinesPaths) -> Path:
     directory = paths.repo_root / LEGACY_CRON_DIR
     directory.mkdir(parents=True)
     return directory
+
+
+@pytest.fixture
+def git_repository(git_paths: RoutinesPaths, clock: FakeClock) -> GitRepository:
+    return GitRepository(repo_root=git_paths.repo_root, clock=clock)
+
+
+@pytest.fixture
+def written_definition(git_paths: RoutinesPaths) -> Path:
+    """A definition file written and not yet committed."""
+    path = git_paths.definitions_dir / "digest.toml"
+    path.write_text('title = "x"\n')
+    return path
 
 
 @pytest.fixture
