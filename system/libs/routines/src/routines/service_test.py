@@ -4,6 +4,7 @@ import pytest
 
 from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.model_update import to_update
+from routines.clock import SystemClock
 from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
 from routines.errors import DefinitionCommitError
@@ -19,6 +20,7 @@ from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.state import FileStateStore
 from routines.testing import build_test_service
+from routines.testing import wait_for_last_run
 
 SYNC = RoutineId("nightly-sync")
 
@@ -100,3 +102,29 @@ def test_a_routine_whose_run_lock_is_held_cannot_be_removed(
     service.remove(SYNC)
     assert not paths.definition_path(SYNC).exists()
     assert not paths.routine_state_dir(SYNC).exists()
+
+
+def test_a_manual_start_answers_once_the_run_has_taken_hold(
+    paths: RoutinesPaths,
+    repository: RecordingRepository,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+) -> None:
+    """The receipt means a run is going: a page that reads the routine right after it sees the run, not a gap
+    before the spawned interpreter has taken the lock."""
+    service = build_test_service(paths, repository, FileStateStore(paths=paths), SystemClock(), chat_app, notifier)
+    service.add(
+        SYNC,
+        RoutineDefinition.model_validate(
+            {"title": "Nightly sync", "what": "Syncs.", "every": "1d", "command": ["sleep", "2"]}
+        ),
+    )
+
+    receipt = service.start_run_detached(SYNC)
+
+    assert service.is_running(SYNC)
+    with pytest.raises(RunInFlightError):
+        service.start_run_detached(SYNC)
+    last_run = wait_for_last_run(service.states, SYNC, 15)
+    assert last_run.run_id == receipt.run_id
+    assert last_run.trigger is RunTrigger.MANUAL

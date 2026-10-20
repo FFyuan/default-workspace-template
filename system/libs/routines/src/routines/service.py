@@ -1,5 +1,6 @@
 """What the command and the app both do: the one place a routine is listed, changed, run, or removed."""
 
+from datetime import timedelta
 from pathlib import Path
 from typing import Final
 
@@ -52,6 +53,9 @@ from routines.state import FileStateStore
 from routines.tails import read_tail
 
 DEFAULT_RUN_LIMIT: Final[int] = 25
+# How long a manual start waits for the spawned run to take hold (a fresh interpreter importing the library).
+RUN_START_WAIT_SECONDS: Final[float] = 5.0
+RUN_START_POLL_SECONDS: Final[float] = 0.05
 LOG_TAIL_BYTES: Final[int] = 200_000
 
 
@@ -201,7 +205,21 @@ class RoutinesService(MutableModel):
             raise RunInFlightError(f"A run of {routine_id} is already going.")
         run_id = RunId.generate()
         spawn_run_process(self.paths, routine_id, RunTrigger.MANUAL, run_id)
+        self._wait_for_run_to_take_hold(routine_id, run_id)
         return RunStartReceipt(routine_id=routine_id, run_id=run_id)
+
+    def _wait_for_run_to_take_hold(self, routine_id: RoutineId, run_id: RunId) -> None:
+        """Wait, for a bounded time, until the spawned run holds the lock or has its books: the receipt then means
+        a run is going, so a page that reads the routine right after it sees the run rather than a gap."""
+        deadline = self.clock.now() + timedelta(seconds=RUN_START_WAIT_SECONDS)
+        while self.clock.now() < deadline:
+            last_run = self.states.read(routine_id).last_run
+            if self.is_running(routine_id) or (last_run is not None and last_run.run_id == run_id):
+                return
+            self.clock.pause(RUN_START_POLL_SECONDS)
+        logger.warning(
+            "The run {} of {} had not taken hold after {} seconds", run_id, routine_id, RUN_START_WAIT_SECONDS
+        )
 
 
 def build_service(paths: RoutinesPaths, environ: dict[str, str]) -> RoutinesService:
