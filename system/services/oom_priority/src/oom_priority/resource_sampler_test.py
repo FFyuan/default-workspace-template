@@ -203,6 +203,23 @@ def test_a_stretch_opening_at_time_zero_is_measured_from_its_first_busy_sample()
     assert events[0]["started_at"] == "1970-01-01T00:00:00.000000000Z"
 
 
+def test_a_stretch_s_peak_and_average_cover_its_own_samples_and_not_its_closing_minute() -> (
+    None
+):
+    tracker = rs.StretchTracker(lambda: {})
+    ticks = _ticks({1: (0, 0, 0)})
+
+    # The opening minute runs flat out, the next four at 0.9, and the closing minute at 0.2.
+    now, _ = _drive(tracker, 0.0, 60.0, 1.0, ticks)
+    now, _ = _drive(tracker, now, 240.0, 0.9, ticks)
+    now, events = _drive(tracker, now, 70.0, 0.2, ticks)
+
+    assert len(events) == 1
+    assert events[0]["peak"] == 1.0
+    assert events[0]["average"] == 0.92
+    assert events[0]["duration_seconds"] == 300
+
+
 def test_a_short_stretch_is_dropped_and_a_long_one_is_credited_to_its_roots() -> None:
     chat_root, program_root = 100, 200
     roots = {

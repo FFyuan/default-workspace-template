@@ -352,7 +352,8 @@ class StretchTracker:
         self._above_since: float | None = None
         self._below_since: float | None = None
         self._opened_at: float | None = None
-        self._usages: list[float] = []
+        # Each sample's time and usage since the first one at or above the open threshold.
+        self._usages: list[tuple[float, float]] = []
         self._accumulated: dict[int | str, int] = collections.defaultdict(int)
         self._root_labels: dict[int, Root] = {}
         self._last_ticks: dict[int, ProcessTicks] = {}
@@ -370,7 +371,7 @@ class StretchTracker:
         if opened_at is None:
             self._track_opening(now, usage, ticks)
             return None
-        self._usages.append(usage)
+        self._usages.append((now, usage))
         if now - self._last_fold_at >= ATTRIBUTION_INTERVAL_SECONDS:
             self._fold(now, ticks)
         if usage < STRETCH_CLOSE_USAGE:
@@ -387,15 +388,16 @@ class StretchTracker:
     ) -> None:
         if usage < STRETCH_OPEN_USAGE:
             self._above_since = None
+            self._usages = []
             return
         if self._above_since is None:
             self._above_since = now
+        self._usages.append((now, usage))
         if now - self._above_since < STRETCH_OPEN_SECONDS:
             return
         self._opened_at = self._above_since
         self._above_since = None
         self._below_since = None
-        self._usages = [usage]
         self._accumulated = collections.defaultdict(int)
         self._root_labels = {}
         self._last_ticks = dict(ticks)
@@ -429,7 +431,9 @@ class StretchTracker:
         ended_at: float,
     ) -> dict[str, object] | None:
         self._fold(now, ticks)
-        usages = self._usages
+        # The stretch's own samples: from its first busy one up to the one that began its closing minute.
+        usages = [usage for at, usage in self._usages if at < ended_at]
+        self._usages = []
         self._opened_at = None
         self._below_since = None
         duration = ended_at - opened_at
