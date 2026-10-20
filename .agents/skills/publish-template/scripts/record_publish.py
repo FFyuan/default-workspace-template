@@ -153,8 +153,8 @@ def record(
         if version == 1
         else f"version history: updated template {slug} to v{version}"
     )
-    _git(workspace, "add", _LEDGER)
     try:
+        _git(workspace, "add", _LEDGER)
         _git(workspace, "commit", "-q", "-m", message)
     except RecordPublishError as e:
         subprocess.run(

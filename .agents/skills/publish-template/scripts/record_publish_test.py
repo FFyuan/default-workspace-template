@@ -167,6 +167,21 @@ def test_a_deleted_ledger_is_recreated_from_the_shipped_starter(
     )
 
 
+def test_a_locked_index_says_the_template_is_published_and_to_commit_by_hand(
+    workspace: Path,
+) -> None:
+    """Another git process holding the index fails the add, after the push already happened."""
+    (workspace / ".git/index.lock").write_text("")
+
+    completed = _record(workspace, "first published")
+
+    assert completed.returncode == 1
+    assert "IS published" in completed.stderr
+    assert "commit that one file by hand" in completed.stderr
+    assert "Traceback" not in completed.stderr
+    assert _templates_block(workspace, "inbox")[0].startswith("- v1  ")
+
+
 def test_a_source_sha_that_does_not_resolve_says_why_and_writes_nothing(
     workspace: Path,
 ) -> None:
