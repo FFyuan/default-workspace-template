@@ -76,6 +76,7 @@ def _created_agent_id(stdout: str) -> str:
         try:
             event = json.loads(line)
         except ValueError:
+            logger.trace("Skipping a line of the create's output that is not JSON: {}", line)
             continue
         if isinstance(event, dict) and event.get("event") == "created" and isinstance(event.get("agent_id"), str):
             return event["agent_id"]
