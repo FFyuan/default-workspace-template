@@ -479,9 +479,14 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
         wanted_id = RoutineId(routine_id or os.environ.get(ROUTINE_ID_ENV) or skill)
         run_id = _run_id_of(raw_run_id) if raw_run_id else None
         defaults = wake_defaults(_definition_if_any(service, wanted_id), wanted_id, title, timeout)
-        wait = defaults.timeout.timedelta
-        if timeout is None and run_id is not None:
-            wait = wait_within_run(service.states.read(wanted_id).current_run, run_id, wait, service.clock.now())
+        # Inside a run the wait is what is left of the run's own time, whatever the flag says.
+        wait = (
+            wait_within_run(
+                service.states.read(wanted_id).current_run, run_id, defaults.timeout.timedelta, service.clock.now()
+            )
+            if run_id is not None
+            else defaults.timeout.timedelta
+        )
         outcome = service.runner.wake(wanted_id, run_id, defaults.title, skill, wait)
     except RoutinesError as e:
         _fail(str(e))
