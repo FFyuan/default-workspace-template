@@ -26,6 +26,12 @@ def _invoke(paths: RoutinesPaths, *args: str) -> Result:
     return runner.invoke(routines, list(args), env={REPO_ROOT_ENV: str(paths.repo_root)}, catch_exceptions=False)
 
 
+def _add_command_routine(paths: RoutinesPaths, *command: str, every: str = "1h", **flags: str) -> Result:
+    """``routines add x`` with a placeholder title and sentence, the cadence, any other flag, and the command."""
+    flag_args = [arg for name, value in flags.items() for arg in (f"--{name.replace('_', '-')}", value)]
+    return _invoke(paths, "add", "x", "--title", "X", "--what", "Y", "--every", every, *flag_args, "--", *command)
+
+
 def test_add_list_show_edit_and_remove_round_trip(git_paths: RoutinesPaths) -> None:
     added = _invoke(
         git_paths,
@@ -79,15 +85,13 @@ def test_add_list_show_edit_and_remove_round_trip(git_paths: RoutinesPaths) -> N
 
 
 def test_add_refuses_a_definition_that_does_not_validate_with_the_reason(git_paths: RoutinesPaths) -> None:
-    result = _invoke(
-        git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "15m", "--at", "07:00", "--", "true"
-    )
+    result = _add_command_routine(git_paths, "true", every="15m", at="07:00")
     assert result.exit_code == 1
     assert "a day or longer" in result.output
 
 
 def test_add_refuses_a_weekday_or_a_moment_it_cannot_read_in_the_commands_words(git_paths: RoutinesPaths) -> None:
-    bad_day = _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1d", "--days", "funday", "--", "true")
+    bad_day = _add_command_routine(git_paths, "true", every="1d", days="funday")
     assert bad_day.exit_code == 1
     assert "error: days: 'funday' is not a comma separated list of mon to sun" in bad_day.output
 
@@ -103,7 +107,7 @@ def test_add_needs_a_command_or_a_skill(git_paths: RoutinesPaths) -> None:
 
 
 def test_disable_and_enable_flip_the_switch_in_the_state(git_paths: RoutinesPaths) -> None:
-    _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1h", "--", "true")
+    _add_command_routine(git_paths, "true")
     assert _invoke(git_paths, "disable", "x").exit_code == 0
     listing = json.loads(_invoke(git_paths, "list", "--format", "json").output)
     assert listing["routines"][0]["health"] == "OFF"
@@ -113,9 +117,7 @@ def test_disable_and_enable_flip_the_switch_in_the_state(git_paths: RoutinesPath
 
 
 def test_run_with_wait_runs_in_process_and_reports_the_outcome(git_paths: RoutinesPaths) -> None:
-    _invoke(
-        git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1h", "--", "sh", "-c", "echo ran; exit 0"
-    )
+    _add_command_routine(git_paths, "sh", "-c", "echo ran; exit 0")
     result = _invoke(git_paths, "run", "x", "--wait")
     assert result.exit_code == 0, result.output
     receipt = json.loads(result.output.splitlines()[0])
@@ -127,12 +129,12 @@ def test_run_with_wait_runs_in_process_and_reports_the_outcome(git_paths: Routin
 
 
 def test_a_failed_run_with_wait_exits_one(git_paths: RoutinesPaths) -> None:
-    _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1h", "--", "sh", "-c", "exit 2")
+    _add_command_routine(git_paths, "sh", "-c", "exit 2")
     assert _invoke(git_paths, "run", "x", "--wait").exit_code == 1
 
 
 def test_run_with_a_mistyped_run_id_says_so(git_paths: RoutinesPaths) -> None:
-    _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1h", "--", "true")
+    _add_command_routine(git_paths, "true")
     result = _invoke(git_paths, "run", "x", "--wait", "--run-id", "not-a-run")
     assert result.exit_code == 1
     assert "There is no run called 'not-a-run'" in result.output
