@@ -572,7 +572,8 @@
     $("disk-free").textContent = `${size(d.free)} free`; $("disk-pct").textContent = `${dp}% used`;
     $("disk-bar").style.width = `${dp}%`;
     const b = r.backups, [tone, head, sub] = BACKUP_TEXT[b.state](b);
-    const every = b.interval_seconds >= 3600 ? `every ${Math.round(b.interval_seconds / 3600)} hour${b.interval_seconds >= 7200 ? "s" : ""}` : `every ${Math.round(b.interval_seconds / 60)} minutes`;
+    const minutes = Math.round(b.interval_seconds / 60);
+    const every = b.interval_seconds >= 3600 ? `every ${Math.round(b.interval_seconds / 3600)} hour${b.interval_seconds >= 7200 ? "s" : ""}` : `every ${minutes} minute${minutes === 1 ? "" : "s"}`;
     const failures = b.failures_last_day ? ` ${b.failures_last_day} backup${b.failures_last_day > 1 ? "s" : ""} failed in the last 24 hours.` : "";
     $("backup").innerHTML = `<span class="dot ${tone}" aria-hidden="true"></span><span><b>${esc(head)}</b> ${esc(sub)}</span>`
       + (b.state === "not_configured" ? "" : `<p>The whole workspace is backed up ${every}, encrypted.${esc(failures)}</p>`)
