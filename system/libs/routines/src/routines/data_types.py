@@ -121,6 +121,8 @@ class LoadedRoutine(FrozenModel):
 class CurrentRun(FrozenModel):
     """The run in flight, as the state records it."""
 
+    model_config = ConfigDict(extra="ignore")
+
     run_id: RunId = Field(description="The run")
     pid: int = Field(description="The runner process")
     pid_start: str = Field(
@@ -135,6 +137,8 @@ class CurrentRun(FrozenModel):
 
 class LastRun(FrozenModel):
     """The most recent finished run, as the state records it."""
+
+    model_config = ConfigDict(extra="ignore")
 
     run_id: RunId = Field(description="The run")
     trigger: RunTrigger = Field(description="What started it")
