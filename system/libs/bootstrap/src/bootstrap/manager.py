@@ -514,8 +514,9 @@ def _write_update_recovery_cron_entry(target_dir: Path = Path("/etc/cron.d")) ->
 
     This is also the one cron entry that deliberately does NOT go through
     ``system/libs/routines/with_agent_env.sh`` (which the routines tick
-    goes through, and which would supply that PATH and cwd for free). The wrapper reconstructs the agent environment by
-    sourcing ``/home/user/.mngr/env`` and parsing the host dir with ``jq``, and
+    goes through, and which would supply that PATH and cwd for free). The
+    wrapper reconstructs the agent environment by sourcing
+    ``/home/user/.mngr/env`` and parsing the host dir with ``jq``, and
     exits non-zero when either is missing -- and a workspace left mid-apply is
     exactly where that assumption is least safe. The guard needs no agent
     environment beyond PATH: everything it shells out to resolves from ``$HOME``
