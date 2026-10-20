@@ -20,12 +20,14 @@ from routines.primitives import RunOutcome
 from routines.primitives import RunWarning
 
 POLL_PAUSE_SECONDS: Final[float] = 1.0
-# A chat that neither works nor answers this long after the send never started; a chat the app does not list
-# yet this long after its create, or after a restart, is gone rather than still being registered.
+# A chat that neither works nor answers this long after the send never started; one that worked and has been
+# idle this long with no answer has nothing to say; a chat the app does not list yet this long after its
+# create, or after a restart, is gone rather than still being registered.
 START_DEADLINE: Final[timedelta] = timedelta(seconds=60)
 SUMMARY_MAX_CHARS: Final[int] = 200
 CLEAR_COMMAND: Final[str] = "/clear"
 NEVER_STARTED_SUMMARY: Final[str] = "The agent never started on the message."
+NO_ANSWER_SUMMARY: Final[str] = "The agent finished without answering."
 STOPPED_SUMMARY: Final[str] = "The agent stopped before it finished."
 NEVER_LISTED_SUMMARY: Final[str] = "The chat app never listed the agent's chat."
 _BUSY_STATUSES: Final[frozenset[ChatStatusWord]] = frozenset(
@@ -139,6 +141,7 @@ def wake_skill(
         # Wait for the turn.
         is_blocked_told = False
         has_worked = False
+        idle_without_answer_since: datetime | None = None
         now = clock.now()
         while now <= deadline:
             status = chat_app.chat_status(chat_id)
@@ -159,6 +162,7 @@ def wake_skill(
                 on_blocked()
             if status in _BUSY_STATUSES:
                 has_worked = True
+                idle_without_answer_since = None
             if status is ChatStatusWord.IDLE:
                 text = chat_app.assistant_text_after(chat_id, cursor)
                 if text is not None:
@@ -175,6 +179,16 @@ def wake_skill(
                         chat_id=chat_id,
                         warnings=tuple(warnings),
                     )
+                if has_worked:
+                    if idle_without_answer_since is None:
+                        idle_without_answer_since = now
+                    elif now - idle_without_answer_since > START_DEADLINE:
+                        return WakeOutcome(
+                            outcome=RunOutcome.FAILED,
+                            summary=NO_ANSWER_SUMMARY,
+                            chat_id=chat_id,
+                            warnings=tuple(warnings),
+                        )
             clock.pause(POLL_PAUSE_SECONDS)
             now = clock.now()
         chat_app.interrupt_chat(chat_id)

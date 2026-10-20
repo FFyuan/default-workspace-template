@@ -8,6 +8,7 @@ from routines.primitives import RoutineId
 from routines.primitives import RunOutcome
 from routines.wake import NEVER_LISTED_SUMMARY
 from routines.wake import NEVER_STARTED_SUMMARY
+from routines.wake import NO_ANSWER_SUMMARY
 from routines.wake import summary_of_message
 from routines.wake import wake_skill
 
@@ -140,6 +141,17 @@ def test_a_chat_that_never_starts_is_a_failed_run_after_a_minute(chat_app: Scrip
     assert outcome.outcome is RunOutcome.FAILED
     assert outcome.summary == NEVER_STARTED_SUMMARY
     assert sum(clock.pauses) > 60
+
+
+def test_a_chat_that_worked_and_went_idle_without_answering_is_a_failed_run_not_a_timeout(
+    chat_app: ScriptedChatApp, clock: FakeClock
+) -> None:
+    chat_app.script("agent-1", (ChatStatusWord.IDLE, ChatStatusWord.WORKING, ChatStatusWord.IDLE), None)
+    outcome, _, _ = _wake(chat_app, clock, "agent-1")
+    assert outcome.outcome is RunOutcome.FAILED
+    assert outcome.summary == NO_ANSWER_SUMMARY
+    assert 60 <= sum(clock.pauses) < 600, "the grace after the chat went idle, not the whole timeout"
+    assert chat_app.verbs == []
 
 
 def test_a_turn_past_the_timeout_is_interrupted(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
