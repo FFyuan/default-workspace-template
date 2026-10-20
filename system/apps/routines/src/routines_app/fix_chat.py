@@ -59,6 +59,7 @@ def chat_id_from_output(stdout: str) -> str | None:
         try:
             parsed = json.loads(line)
         except ValueError:
+            logger.trace("Skipping a line of the create's output that is not JSON: {}", line)
             continue
         if isinstance(parsed, dict) and isinstance(parsed.get("chat_id"), str) and parsed["chat_id"]:
             return parsed["chat_id"]
