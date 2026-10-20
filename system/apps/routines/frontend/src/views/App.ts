@@ -112,7 +112,8 @@ export class AppModel {
     if (this.isDisposed) return;
     const isRunning =
       (this.loaded.kind === "list" && this.loaded.listing.summary.running > 0) ||
-      (this.loaded.kind === "routine" && this.loaded.detail.row.is_running);
+      (this.loaded.kind === "routine" && this.loaded.detail.row.is_running) ||
+      (this.loaded.kind === "run" && this.loaded.detail.run.outcome === null);
     this.timer = setTimeout(
       () => {
         // Never redraw under an open editor: that would throw away a half-made choice.

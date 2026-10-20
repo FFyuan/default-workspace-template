@@ -2,7 +2,7 @@
 import "@imbue/workspace-ui/src/testing/dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { detailOf, listingOf, rowOf } from "../testing/records";
+import { detailOf, listingOf, rowOf, runDetailOf, runOf } from "../testing/records";
 import { AppModel, IDLE_REFRESH_MS, RUNNING_REFRESH_MS, type AppHost } from "./App";
 
 const requests: string[] = [];
@@ -92,6 +92,28 @@ describe("AppModel", () => {
     await vi.advanceTimersByTimeAsync(IDLE_REFRESH_MS * 2);
     await settle();
     expect(requests).toHaveLength(5);
+  });
+
+  it("re-reads a run page every 5 seconds while its run is still going", async () => {
+    // The run page reads the run and its routine; the run is answered as still going.
+    vi.stubGlobal("fetch", (url: string) => {
+      requests.push(`GET ${url}`);
+      const body = url.includes("/runs/")
+        ? runDetailOf({ run: runOf({ outcome: null, finished_at: null }) })
+        : detailOf();
+      return Promise.resolve(
+        new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+      );
+    });
+    const model = new AppModel("/news-sync/runs/run-1", host(), () => undefined);
+    await model.load();
+    expect(model.loaded.kind).toBe("run");
+    const reads = requests.length;
+
+    await vi.advanceTimersByTimeAsync(RUNNING_REFRESH_MS);
+    await settle();
+    expect(requests.length).toBeGreaterThan(reads);
+    model.dispose();
   });
 
   it("keeps a failed read on screen with its reason", async () => {
