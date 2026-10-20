@@ -196,7 +196,10 @@ inside it makes the pass stale by the usual rule.
 
 Whoever finds the staleness at merge time -- a moved base, a conflicted merge,
 or an apply refused because `HEAD` moved -- sends the pass back to its worker
-to catch up. **Keep the worker**: its branch, its worktree and anything it
+to catch up. So does a note on the pass's ticket that names a creation the pass
+does not cover, which the freshness check cannot see, since it reads only the
+pass's own creations: read the ticket's notes (`tk show <ticket-id>`) before
+you merge. **Keep the worker**: its branch, its worktree and anything it
 built (a critical app's bundles) are the verified work the catch-up builds on.
 Never destroy it to make room for a new pass.
 
@@ -205,18 +208,22 @@ poll exactly as for a gate (`lead-proxy.md`):
 
 ```bash
 uv run .agents/skills/launch-task/scripts/create_worker.py reply \
-    --task-file <TASK_FILE> -m "Catch up to $(git rev-parse HEAD) per 'Catching up to a moved base' in harden-creation.md: merge it into your branch, resolve any conflict, harden and verify what it brings in, and report done again. What moved: <the \$BASE..HEAD commits touching the creation, a conflicted path, and any notes on the ticket>."
+    --task-file <TASK_FILE> -m "Catch up to $(git rev-parse HEAD) per 'Catching up to a moved base' in harden-creation.md: merge it into your branch, resolve any conflict, harden and verify what it brings in, and report done again. What moved: <the \$BASE..HEAD commits touching its creations, a conflicted path, and any notes on the ticket>. Add to the pass: <each creation a note names that the pass does not cover, as type:name>."
 ```
+
+Leave out the `Add to the pass:` sentence when no note names one. When one
+does, add those creations to your own `$CREATIONS` too, so the freshness check
+and go-live cover them from then on.
 
 The worker's side is `.agents/shared/worker/references/harden-creation.md`
 ("Catching up to a moved base"), or its own flow's catch-up section where one
 exists (`update-self`'s worker has its own). It merges your `HEAD` into its
 branch, so merging that branch back into yours conflicts with nothing. It
 resolves every conflict on its side, regenerating lockfiles rather than
-choosing sides. The commits it brings in that touch the creation get the same
-hardening as the rest of the pass, and its test gate re-runs over what the
-catch-up changed for the creation, not over every other chat's commits in the
-window. Then it reports `done` again.
+choosing sides. The commits it brings in that touch a creation in the pass get
+the same hardening as the rest of the pass, and its test gate re-runs over
+what the catch-up changed for the pass, not over every other chat's commits in
+the window. Then it reports `done` again.
 
 That report goes through the same checks before merge as the first one.
 Usually it is fresh now. If `HEAD` moved again while the worker caught up,
@@ -241,7 +248,8 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    `lead_work_dir` must be your own checkout (`$MNGR_AGENT_WORK_DIR`; the chats
    of one workspace share it), since the worker delivers every report there.
    If it names another checkout, you cannot receive its reports: supersede the
-   pass instead (below).
+   pass instead (below). Its `creations` are the `$CREATIONS` you lead it
+   with.
 2. Move the ticket to yourself, and say why on it:
 
    ```bash
@@ -269,8 +277,9 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    waiting on them. A worker that crashed restarts with that reply, or with
    `continue` when there is nothing to answer.
 4. Arm the poll (`lead-proxy.md`) and drive the pass to its end as its lead.
-   Your own commits to the creation need nothing extra: the freshness check
-   at merge time finds them, and the pass is caught up.
+   Your own commits need nothing extra: the freshness check at merge time
+   finds them, and the pass is caught up, adding any of your creations it
+   does not cover (the note in step 2 names them).
 
 ## Superseding a pass whose worker is gone
 

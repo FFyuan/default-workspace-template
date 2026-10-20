@@ -327,7 +327,9 @@ The change it selects for is what the pass is responsible for: the changed
 files some creation's footprint accounts for, and every one of the pass's own
 changes, inside a footprint or not: what your branch changed and the files of
 the change you are hardening ("The scope file" above). Other work that landed in the window (the
-scope file's `others`) selects nothing. The selector reads commits, like the
+scope file's `others`) selects nothing, except that the lead's work you merged
+in runs the suites of the pass's creations it reaches ("Catching up to a moved
+base"). The selector reads commits, like the
 scope file. It refuses to run while the working tree holds an uncommitted or
 untracked change, naming it, and refuses a scope file whose diff does not run
 to `HEAD`; regenerate the file and run it again.
@@ -457,66 +459,55 @@ starting over.
    A conflict whose answer depends on intent you cannot see is a `question`
    gate. Conclude the merge with `git commit --no-edit`, which keeps the
    subject step 4 finds it by.
-3. **Harden what came in.** Commits that touch the creation are now part of
-   the change you are hardening, under this whole contract: tests that cover
-   their behavior, the invariants above, and anything your operation
-   reference requires of a change (a critical app's bundles are rebuilt and
-   re-reported, `type-app.md`). Commits that touch nothing of the creation
-   need nothing from you.
-4. **Re-run the test gate over what the catch-up changed for the creation**,
+3. **Harden what came in.** Commits that touch a creation in the pass are now
+   part of the change you are hardening, under this whole contract: tests
+   that cover their behavior, the invariants above, and anything your
+   operation reference requires of a change (a critical app's bundles are
+   rebuilt and re-reported, `type-app.md`). Commits that touch none of them
+   need nothing from you. When the reply names creations to add to the pass
+   (another chat's change reached past what yours covers), add each to the
+   `creations` line of your task file's frontmatter (`$TASK_FILE`), so every
+   later parse includes it, load its type's reference if no creation of that
+   type was in the pass, and harden it as part of the change.
+4. **Re-run the test gate over what the catch-up changed for the pass**,
    after committing. Not over everything since `$PRE`, your branch's tip
    before the catch-up merge: in a shared workspace most of what came in is
-   other chats' work on other creations, which step 3 leaves alone. The
-   changed paths are those the creation's footprint accounts for among
-   everything since `$PRE`, those since `$PRE` that select the creation's own
-   tests from outside its footprint (a package it depends on, a `uv.lock`
-   upgrade of one, a shared frontend package it builds), every path both sides
-   of the merge changed (every conflict is one), and everything you committed
-   after the merge:
+   other chats' work on other creations, which step 3 leaves alone. Write a
+   scope file for the catch-up alone, beside `$SCOPE_FILE` rather than over
+   it, and run the gate from that:
 
    ```bash
    MERGE=$(git log --first-parent --merges -1 --format=%H --fixed-strings --grep "Catch up to")
    PRE=$(git rev-parse "$MERGE^1")
-   MB=$(git merge-base "$MERGE^1" "$MERGE^2")
-   CAUGHT_UP=$(mktemp)
-   OWN=system/apps/<package>  # a skill: .agents/skills/<name>
-   # TYPE app; a skill passes --for-path "$OWN" instead, as in "The scope file":
-   uv run app-manifest footprint "$OWN/app.toml" \
-       --diff-base "$PRE" --out "$CAUGHT_UP.json" || exit 1
-   uv run app-manifest select-tests --diff-base "$PRE" --format json \
-       > "$CAUGHT_UP.window.json" || exit 1
-   { jq -r '.diff.inside_footprint[]' "$CAUGHT_UP.json"
-     jq -r --arg own "$OWN" '.commands[]
-         | select(.working_directory == $own or any(.argv[]; . == $own))
-         | .reasons[].path' "$CAUGHT_UP.window.json"
-     comm -12 <(git diff --name-only --no-renames "$MB" "$MERGE^1" | sort) \
-              <(git diff --name-only --no-renames "$MB" "$MERGE^2" | sort)
-     git diff --name-only --no-renames "$MERGE" HEAD; } | sort -u > "$CAUGHT_UP"
-   [ -s "$CAUGHT_UP" ] && uv run app-manifest select-tests --diff-base "$PRE" \
-       $(sed 's/^/--path /' "$CAUGHT_UP")
+   LEAD_HEAD=$(git -C "${LEAD_WORK_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")}" \
+       rev-parse HEAD) || exit 1
+   CATCH_UP_SCOPE="$(dirname "$SCOPE_FILE")/catch-up-scope.json"
+   uv run app-manifest pass-scope $(printf -- '--creation %s ' $CREATIONS) \
+       --diff-base "$PRE" --lead-ref "$LEAD_HEAD" --out "$CATCH_UP_SCOPE" || exit 1
+   uv run app-manifest select-tests --scope-file "$CATCH_UP_SCOPE"
    ```
 
-   The second `jq` keeps the window's paths that selected a command of the
-   creation's own: one run from its directory, or naming that directory as
-   what to run. A creation with no scope file swaps the `footprint` line and
-   the first `jq` for `git diff --name-only --no-renames "$PRE" HEAD -- <its
-   directory> system/supervisord.conf.d/<name>.conf`. `--no-renames` lists a renamed
-   file under both its paths, so a rename on either side still meets the
-   other side's change to the same file. With `--path`, `--diff-base` only
-   names the revision a changed `uv.lock` is compared against, and the
-   selector still adds the suites of whatever depends on these paths. An
-   empty set prints nothing and needs nothing: no part of the creation moved.
-   Do not re-run the gate over `$DIFF_BASE` either: what it already passed
-   still stands. For a test that fails in this run,
-   the tree before your change ("A failing test you would change") is the
-   commit you merged, the catch-up merge's second parent, not `$DIFF_BASE`: a
-   test that fails there was already failing at the lead's `HEAD`, and one
-   absent there is your pass's own.
-5. Regenerate the scope file and report `done` again, with a `Caught up:`
+   The commit you merged is the fork point now, so what came in with it is
+   the lead's work. It selects where a commit of it touched a creation in the
+   pass (step 3's), where your branch changed the same file (every conflict
+   is one), and, through the scope file's `incoming`, where it reaches a
+   creation in the pass through something that creation depends on (a
+   package, a `uv.lock` upgrade, a shared frontend package): that runs the
+   creation's own suite and nothing else. What you committed after the merge
+   is yours, selected like any change. A selection with nothing to run means
+   no part of the pass moved. Do not re-run the gate over `$DIFF_BASE`: what
+   it already passed still stands, unless step 3 added a creation, whose
+   changes before `$PRE` this window does not hold; then run the gate from
+   the regenerated `$SCOPE_FILE` instead, as in "The test gate". For a test
+   that fails in this run, the tree before your change ("A failing test you
+   would change") is the commit you merged, the catch-up merge's second
+   parent, not `$DIFF_BASE`: a test that fails there was already failing at
+   the lead's `HEAD`, and one absent there is your pass's own.
+5. Regenerate `$SCOPE_FILE` and report `done` again, with a `Caught up:`
    section naming the commit you merged, each conflict and how you resolved
-   it, and what the re-run gate ran. Paths the merge brought in that lie
-   outside the creation are the lead's own work, not yours to account for
-   under `Outside footprint:`.
+   it, any creation you added, and what the re-run gate ran. The lead's work
+   that came in is in the scope file's `others`, not your
+   `outside_footprint`.
 
 ## If you need to give up
 
