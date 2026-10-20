@@ -32,6 +32,7 @@ class CpuFigures(FrozenModel):
         description="The share of the workspace's CPU capacity in use, 0 to 1"
     )
     cores: int = Field(description="The cores the workspace may use")
+    processes: int = Field(description="The processes running, as many as the snapshot's walk of /proc found")
     sampled_at: float | None = Field(
         description="When the sampler took the reading, epoch seconds; null when there is no fresh reading"
     )

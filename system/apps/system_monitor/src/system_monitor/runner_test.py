@@ -34,7 +34,7 @@ def test_the_stats_endpoint_answers_the_snapshot_uncached(
     client: FlaskClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     snapshot: dict[str, Any] = {
-        "cpu": {"usage": 0.37, "cores": 4, "sampled_at": 1000.0},
+        "cpu": {"usage": 0.37, "cores": 4, "processes": 150, "sampled_at": 1000.0},
         "memory": {"total": 1, "available": 0, "used": 1},
         "disk": {"total": 8, "used": 3, "free": 5},
         "usage": [

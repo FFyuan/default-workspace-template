@@ -527,8 +527,7 @@
       $("cpu-cores").textContent = hasCpu ? `of ${s.cpu.cores} core${s.cpu.cores === 1 ? "" : "s"} busy` : "no reading yet";
       $("cpu-bar").style.width = `${hasCpu ? cp : 0}%`;
       $("cpu-when").textContent = hasCpu ? `read ${ago(Date.now() / 1000 - s.cpu.sampled_at)}` : "the sampler has not reported";
-      const chats = s.usage.find((g) => g.id === "chats");
-      $("cpu-procs").textContent = chats ? `${chats.items.length} chat${chats.items.length === 1 ? "" : "s"} running` : "";
+      $("cpu-procs").textContent = `${s.cpu.processes} process${s.cpu.processes === 1 ? "" : "es"}`;
       const byCpu = s.usage.filter((g) => g.cpu !== null && g.cpu !== undefined).sort((a, b) => b.cpu - a.cpu)
         .map((g) => ({ ...g, items: [...g.items].sort((a, b) => (b.cpu || 0) - (a.cpu || 0)) }));
       renderUsage("cpu-table", byCpu, ["cpu"]);

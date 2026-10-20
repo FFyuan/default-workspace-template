@@ -184,7 +184,7 @@ Moving between views is a real navigation (`location.href`), so the shell's hand
 
 `StatsResponse` keeps its fields and gains:
 
-- `cpu`: `usage` (0 to 1), `cores`, and `sampled_at` (epoch seconds of the sampler's reading, or null when the recent file is missing or older than 30 s).
+- `cpu`: `usage` (0 to 1), `cores`, `processes` (how many the snapshot's own walk of `/proc` found), and `sampled_at` (epoch seconds of the sampler's reading, or null when the recent file is missing or older than 30 s).
 - `history`: the last 10 minutes of both resources from `recent.json`'s samples, as `{t, cpu, memory}`; empty when there is no fresh file.
   The old `history` of memory alone goes away with the in-app sampler.
 - Every `UsageRow` and `UsageItem` gains `cpu`: the group's share of capacity (0 to 1), or null for rows that have no processes (Shared, Temporary files).

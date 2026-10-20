@@ -10,8 +10,8 @@ seconds. The design is `docs/system/specs/system-monitor.md`.
   (the breakdown below, with CPU and memory columns), and the recent events:
   the programs the memory guard stopped and the busy stretches of the last
   24 hours, newest first.
-- **CPU** (`/cpu`): the share of the cores in use, a chart over 10 minutes, an
-  hour or a day, what is using the CPU (the breakdown sorted by share; a
+- **CPU** (`/cpu`): the share of the cores in use and the number of processes
+  running, a chart over 10 minutes, an hour or a day, what is using the CPU (the breakdown sorted by share; a
   chat's share includes whatever it is running), and the busy stretches.
 - **Memory** (`/memory`): what the Memory & disk page showed: used out of
   total, the memory guard's 90% mark on the bar and the chart, a note from

@@ -56,6 +56,7 @@ def snapshot(
         "cpu": {
             "usage": reading.usage if reading else 0.0,
             "cores": reading.cores if reading else 1,
+            "processes": len(procs),
             "sampled_at": reading.sampled_at if reading else None,
         },
         "memory": meminfo,
