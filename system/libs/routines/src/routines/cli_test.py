@@ -6,6 +6,7 @@ from pathlib import Path
 from click.testing import CliRunner
 from click.testing import Result
 
+from imbue.imbue_common.model_update import to_update
 from routines.cli import DEFAULT_WAKE_TIMEOUT
 from routines.cli import LEAST_WAKE_WAIT
 from routines.cli import WAKE_MARGIN_BEFORE_RUN_DEADLINE
@@ -16,9 +17,11 @@ from routines.cli import wake_defaults
 from routines.cli import wake_run_result
 from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
+from routines.data_types import RunResult
 from routines.data_types import WakeOutcome
 from routines.migrate import LEGACY_ENV_WRAPPER_PATH
 from routines.migrate import LIVE_CRON_DIR_ENV
+from routines.mock_http_server_test import FakeHttpServer
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
@@ -26,6 +29,8 @@ from routines.primitives import RunId
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.runner import ROUTINE_ID_ENV
+from routines.runner import RUN_DIR_ENV
+from routines.runner import RUN_ID_ENV
 from routines.state import FileStateStore
 from routines.testing import TEST_NOW
 from routines.testing import legacy_runner_line
@@ -279,3 +284,42 @@ def test_wake_refuses_a_timeout_that_is_not_a_duration_in_the_commands_words(git
     result = _invoke(git_paths, "wake", "caretaker", "--timeout", "soon")
     assert result.exit_code == 1
     assert "error: 'soon' is not a duration" in result.output
+
+
+def test_a_wake_inside_a_run_wakes_the_routines_chat_and_leaves_its_result_for_the_run(
+    git_paths: RoutinesPaths, http_server: FakeHttpServer
+) -> None:
+    """What the Caretaker's check runs: the chat is woken through the chat app the registry names, and the
+    agent's answer and the chat go into the run directory's result.json for the runner to record."""
+    routine_id = RoutineId("digest")
+    registry = git_paths.repo_root / "data" / ".state" / "apps.toml"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(f'[[apps]]\nname = "chat"\nurl = "{http_server.url}"\n')
+    FileStateStore(paths=git_paths).update(
+        routine_id, lambda state: state.model_copy_update(to_update(state.field_ref().chat_id, "c1"))
+    )
+    http_server.answer("GET", "/api/chats", (200, {"chats": [{"chat_id": "c1", "status": "idle"}]}))
+    http_server.answer("POST", "/api/chats/c1/message", (200, {}))
+    http_server.answer("GET", "/api/chats/c1/events?limit=1", (200, {"events": [{"event_id": "e1"}]}))
+    http_server.answer(
+        "GET",
+        "/api/chats/c1/events?after=e1&limit=200",
+        (200, {"events": [{"event_id": "e2", "type": "assistant_message", "text": "Done: 3 summarized.\nMore."}]}),
+    )
+    run_id = RunId.generate()
+    run_dir = git_paths.run_dir(routine_id, run_id)
+    run_dir.mkdir(parents=True)
+
+    result = _invoke(
+        git_paths,
+        "wake",
+        "digest",
+        environ={RUN_ID_ENV: str(run_id), ROUTINE_ID_ENV: str(routine_id), RUN_DIR_ENV: str(run_dir)},
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "succeeded: Done: 3 summarized.\n"
+    sent = [request.body["message"] for request in http_server.requests if request.method == "POST" and request.body]
+    assert sent == ["/clear", "/digest"]
+    written = RunResult.model_validate_json((run_dir / "result.json").read_text())
+    assert written == RunResult(summary="Done: 3 summarized.", chat_id="c1")
