@@ -73,7 +73,7 @@ routine's page in the Routines app.
 ```bash
 routines list [--format json]
 routines show <id> [--format json]
-routines add <id> --title "..." --what "..." (--every 1d [--at 07:30] [--days mon,fri] | --once 2026-11-03T15:00) (--skill name | -- <command...>)
+routines add <id> --title "..." --what "..." (--every 1d [--at 07:30] [--days mon,fri] [--day-of-month 1] | --once 2026-11-03T15:00) (--skill name | -- <command...>) [--app name] [--timeout 1h] [--retry-after 2m] [--notify-after-failures 3] [--disabled]
 routines edit <id> [the same flags]
 routines enable <id> / routines disable <id>
 routines run <id> [--wait]
