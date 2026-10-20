@@ -411,15 +411,19 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
     """Wake the routine's chat with /<skill> and wait for the turn; inside a run, the chat and a waiting agent are
     recorded on the run and the agent's summary becomes the run's."""
     service = _service()
-    wanted_id = RoutineId(routine_id or os.environ.get(ROUTINE_ID_ENV) or skill)
     raw_run_id = os.environ.get(RUN_ID_ENV, "")
-    outcome = service.runner.wake(
-        wanted_id,
-        RunId(raw_run_id) if raw_run_id else None,
-        title or wanted_id.as_title,
-        skill,
-        Duration(timeout).timedelta,
-    )
+    try:
+        wanted_id = RoutineId(routine_id or os.environ.get(ROUTINE_ID_ENV) or skill)
+        outcome = service.runner.wake(
+            wanted_id,
+            RunId(raw_run_id) if raw_run_id else None,
+            title or wanted_id.as_title,
+            skill,
+            Duration(timeout).timedelta,
+        )
+    except RoutinesError as e:
+        _fail(str(e))
+        return
     run_dir = os.environ.get(RUN_DIR_ENV, "")
     if run_dir:
         result = RunResult(summary=outcome.summary, chat_id=outcome.chat_id)

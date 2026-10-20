@@ -105,3 +105,9 @@ def test_show_of_a_missing_routine_says_so(git_paths: RoutinesPaths) -> None:
     result = _invoke(git_paths, "show", "nothing")
     assert result.exit_code == 1
     assert "There is no routine called 'nothing'" in result.output
+
+
+def test_wake_refuses_a_timeout_that_is_not_a_duration_in_the_commands_words(git_paths: RoutinesPaths) -> None:
+    result = _invoke(git_paths, "wake", "caretaker", "--timeout", "soon")
+    assert result.exit_code == 1
+    assert "error: 'soon' is not a duration" in result.output
