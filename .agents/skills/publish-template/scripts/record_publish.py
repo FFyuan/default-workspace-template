@@ -114,14 +114,23 @@ def add_template_entry(
 
 
 def _git(workspace: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=workspace, check=True, capture_output=True, text=True
-    ).stdout.strip()
+    completed = subprocess.run(
+        ["git", *args], cwd=workspace, capture_output=True, text=True, check=False
+    )
+    if completed.returncode != 0:
+        raise RecordPublishError(f"git {args[0]} failed: {completed.stderr.strip()}")
+    return completed.stdout.strip()
 
 
 def record(
     workspace: Path, slug: str, repo_url: str, note: str, source_sha: str, date: str
 ) -> int | None:
+    try:
+        sha = _git(workspace, "rev-parse", "--short=7", f"{source_sha}^{{commit}}")
+    except RecordPublishError as e:
+        raise RecordPublishError(
+            f"--source-sha {source_sha!r} is not a commit in {workspace}"
+        ) from e
     ledger = _update_self_module("update_ledger")
     runner = _update_self_module("update_runtime").Runner()
     path = workspace / _LEDGER
@@ -135,7 +144,6 @@ def record(
         ledger.insert_under_workspace(
             lines, ledger.origin_line(workspace, runner), first=True
         )
-    sha = _git(workspace, "rev-parse", "--short=7", source_sha)
     version = add_template_entry(lines, slug, repo_url, note, sha, date)
     if version is None:
         return None
@@ -148,14 +156,13 @@ def record(
     _git(workspace, "add", _LEDGER)
     try:
         _git(workspace, "commit", "-q", "-m", message)
-    except subprocess.CalledProcessError as e:
+    except RecordPublishError as e:
         subprocess.run(
             ["git", "reset", "-q", "--", _LEDGER], cwd=workspace, check=False
         )
         raise RecordPublishError(
-            f"the entry is written to {_LEDGER} but committing it failed "
-            f"({e.stderr.strip()}); the template IS published -- commit that one "
-            "file by hand, never re-push"
+            f"the entry is written to {_LEDGER} but {e}; the template IS published "
+            "-- commit that one file by hand, never re-push"
         ) from e
     return version
 

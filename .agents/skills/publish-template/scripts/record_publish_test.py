@@ -165,3 +165,13 @@ def test_a_deleted_ledger_is_recreated_from_the_shipped_starter(
         < ledger.index("### inbox")
         < ledger.index("## Adopted templates")
     )
+
+
+def test_a_source_sha_that_does_not_resolve_says_why_and_writes_nothing(
+    workspace: Path,
+) -> None:
+    completed = _record(workspace, "first published", sha="no-such-commit")
+
+    assert completed.returncode == 1
+    assert "--source-sha 'no-such-commit' is not a commit" in completed.stderr
+    assert git(workspace, "status", "--porcelain") == ""
