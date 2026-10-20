@@ -37,8 +37,8 @@ even when everything looks up.
 ## Step 2: Scan the logs for errors
 
 Run one broad search across every log first -- stdout and stderr both, since
-apps log errors to either, and a scheduled job's own log (under the same
-directory) is where its failures live:
+apps log errors to either (a routine's run output is not here; step 2b reads
+it with `routines log`):
 
 ```bash
 grep -nE 'Traceback|ERROR|Exception|CRITICAL|Fatal' /var/log/supervisor/*.log
