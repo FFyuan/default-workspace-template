@@ -94,7 +94,7 @@ def definition_as_toml_values(definition: RoutineDefinition) -> dict[str, object
 
 @pure
 def parse_definition(text: str) -> RoutineDefinition:
-    """Raises DefinitionValidationError's causes as they are: the caller words them."""
+    """Raises tomllib's TOMLDecodeError or pydantic's ValidationError as they are: the caller words them."""
     raw = tomllib.loads(text)
     return RoutineDefinition.model_validate(raw)
 
