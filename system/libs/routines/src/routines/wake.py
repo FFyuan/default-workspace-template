@@ -104,12 +104,16 @@ def wake_skill(
                 logger.info("Taking up the chat {} of {}, which its agent still carries", found_chat_id, routine_id)
                 chat_id = found_chat_id
                 on_chat_known(chat_id)
-        if status is None:
+    except ChatAppError as e:
+        # The chat the state names is still the routine's; only the chat app could not say how it is.
+        return WakeOutcome(outcome=RunOutcome.FAILED, summary=str(e), chat_id=known_chat_id, warnings=())
+    if status is None:
+        try:
             chat_id = chat_app.create_chat(title, routine_id, command)
-            is_fresh_chat = True
-            on_chat_known(chat_id)
-    except (ChatCreateError, ChatAppError) as e:
-        return WakeOutcome(outcome=RunOutcome.FAILED, summary=str(e), chat_id=None, warnings=())
+        except ChatCreateError as e:
+            return WakeOutcome(outcome=RunOutcome.FAILED, summary=str(e), chat_id=None, warnings=())
+        is_fresh_chat = True
+        on_chat_known(chat_id)
     assert chat_id is not None
 
     try:

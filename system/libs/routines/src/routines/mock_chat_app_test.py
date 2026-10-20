@@ -25,6 +25,7 @@ class ScriptedChatApp(ChatAppInterface):
     created: list[tuple[str, RoutineId, str]] = Field(default_factory=list, description="Every chat created")
     next_created_id: str = Field(default="agent-created", description="The id the next create answers")
     is_create_refused: bool = Field(default=False, description="Whether creates fail")
+    is_list_refused: bool = Field(default=False, description="Whether the chat list cannot be read")
     event_ids: dict[str, str] = Field(default_factory=dict, description="The latest event id per chat")
     findable: dict[RoutineId, str] = Field(
         default_factory=dict, description="The agent a routine's label finds, as mngr would list it"
@@ -38,6 +39,8 @@ class ScriptedChatApp(ChatAppInterface):
         self.polls_by_chat[chat_id] = 0
 
     def chat_status(self, chat_id: str) -> ChatStatusWord | None:
+        if self.is_list_refused:
+            raise ChatAppError("The chat app answered 500 for the chat list.")
         if self.unlisted_polls_by_chat.get(chat_id, 0) > 0:
             self.unlisted_polls_by_chat[chat_id] -= 1
             return None

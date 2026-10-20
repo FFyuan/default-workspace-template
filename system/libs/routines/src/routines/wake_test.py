@@ -123,6 +123,17 @@ def test_a_create_refusal_is_a_failed_run_with_the_refusal_as_its_summary(
     assert outcome.chat_id is None
 
 
+def test_a_chat_list_that_cannot_be_read_fails_the_run_but_keeps_the_known_chat(
+    chat_app: ScriptedChatApp, clock: FakeClock
+) -> None:
+    chat_app.is_list_refused = True
+    outcome, _, known = _wake(chat_app, clock, "agent-1")
+    assert outcome.outcome is RunOutcome.FAILED
+    assert "chat list" in outcome.summary
+    assert outcome.chat_id == "agent-1"
+    assert known == []
+
+
 def test_a_stopped_agent_is_a_failed_run(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
     chat_app.script("agent-1", (ChatStatusWord.IDLE, ChatStatusWord.WORKING, ChatStatusWord.STOPPED), None)
     outcome, _, _ = _wake(chat_app, clock, "agent-1")
