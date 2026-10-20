@@ -19,7 +19,6 @@ from routines_app.mock_fix_chat_test import RecordingFixChatStarter
 from routines_app.server import create_app
 
 MANIFEST_PATH = Path(__file__).resolve().parents[2] / "app.toml"
-SYNC = RoutineId("news-sync")
 
 
 def test_the_api_document_describes_every_route(client: FlaskClient) -> None:
@@ -52,11 +51,11 @@ def test_the_listing_and_the_detail_answer_the_library_shapes(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
     listing = client.get("/api/routines").get_json()
-    assert [row["routine_id"] for row in listing["routines"]] == ["news-sync"]
+    assert [row["routine_id"] for row in listing["routines"]] == [str(sync_routine)]
     assert listing["routines"][0]["health"] == "NOT_RUN_YET"
     assert listing["summary"]["total"] == 1
 
-    detail = client.get("/api/routines/news-sync").get_json()
+    detail = client.get(f"/api/routines/{sync_routine}").get_json()
     assert detail["row"]["schedule_text"] == "Every hour"
     assert detail["definition"]["command"] == ["sh", "-c", "echo ran"]
     assert detail["runs"] == []
@@ -68,20 +67,20 @@ def test_the_listing_and_the_detail_answer_the_library_shapes(
 def test_the_switch_and_the_schedule_change_answer_the_updated_row(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    off = client.put("/api/routines/news-sync/enabled", json={"is_enabled": False})
+    off = client.put(f"/api/routines/{sync_routine}/enabled", json={"is_enabled": False})
     assert off.status_code == 200
     assert off.get_json()["health"] == "OFF"
 
     changed = client.put(
-        "/api/routines/news-sync/schedule",
+        f"/api/routines/{sync_routine}/schedule",
         json={"every": "1d", "at": "07:30", "days": ["mon", "fri"], "day_of_month": None, "once": None},
     )
     assert changed.status_code == 200, changed.get_json()
     assert changed.get_json()["schedule_text"] == "Every Monday and Friday at 7:30 am"
-    assert (service.paths.definitions_dir / "news-sync.toml").read_text().count("07:30") == 1
+    assert (service.paths.definitions_dir / f"{sync_routine}.toml").read_text().count("07:30") == 1
 
     refused = client.put(
-        "/api/routines/news-sync/schedule",
+        f"/api/routines/{sync_routine}/schedule",
         json={"every": "15m", "at": "07:30", "days": [], "day_of_month": None, "once": None},
     )
     assert refused.status_code == 400
@@ -91,19 +90,19 @@ def test_the_switch_and_the_schedule_change_answer_the_updated_row(
 def test_a_run_and_its_log_are_read_back(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    event = service.runner.run(SYNC, RunTrigger.MANUAL, None)
+    event = service.runner.run(sync_routine, RunTrigger.MANUAL, None)
 
-    run = client.get(f"/api/routines/news-sync/runs/{event.run_id}")
+    run = client.get(f"/api/routines/{sync_routine}/runs/{event.run_id}")
     assert run.status_code == 200
     assert run.get_json()["run"]["outcome"] == "SUCCEEDED"
     assert "ran" in run.get_json()["log"]
-    assert client.get(f"/api/routines/news-sync/runs/{event.run_id}/log").data == b"ran\n"
+    assert client.get(f"/api/routines/{sync_routine}/runs/{event.run_id}/log").data == b"ran\n"
     unknown_run = "run-00000000000000000000000000000000"
-    assert client.get(f"/api/routines/news-sync/runs/{unknown_run}").status_code == 404
-    assert client.get(f"/api/routines/news-sync/runs/{unknown_run}/log").status_code == 404
+    assert client.get(f"/api/routines/{sync_routine}/runs/{unknown_run}").status_code == 404
+    assert client.get(f"/api/routines/{sync_routine}/runs/{unknown_run}/log").status_code == 404
     assert client.get(f"/api/routines/nothing/runs/{event.run_id}/log").status_code == 404
 
-    detail = client.get("/api/routines/news-sync").get_json()
+    detail = client.get(f"/api/routines/{sync_routine}").get_json()
     assert [run["run_id"] for run in detail["runs"]] == [event.run_id]
     assert detail["row"]["last_run_text"].startswith("Worked")
 
@@ -112,19 +111,19 @@ def test_a_run_and_its_log_are_read_back(
 def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_holds_the_lock(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    with held_lock(service.paths.run_lock_path(SYNC), "A run"):
-        refused = client.post("/api/routines/news-sync/run", json={})
+    with held_lock(service.paths.run_lock_path(sync_routine), "A run"):
+        refused = client.post(f"/api/routines/{sync_routine}/run", json={})
         assert refused.status_code == 409
         assert "already going" in refused.get_json()["detail"]
 
-    started = client.post("/api/routines/news-sync/run", json={})
+    started = client.post(f"/api/routines/{sync_routine}/run", json={})
 
     assert started.status_code == 200, started.get_json()
     receipt = started.get_json()
-    assert receipt["routine_id"] == "news-sync"
+    assert receipt["routine_id"] == str(sync_routine)
     assert receipt["run_id"].startswith("run-")
     # The run goes on in a process of its own; its books close without the app.
-    last_run = wait_for_last_run(service.states, SYNC, 15)
+    last_run = wait_for_last_run(service.states, sync_routine, 15)
     assert str(last_run.run_id) == receipt["run_id"]
     assert last_run.trigger == "MANUAL"
     assert client.post("/api/routines/nothing/run", json={}).status_code == 404
@@ -139,8 +138,8 @@ def test_the_switch_and_the_schedule_of_an_unknown_routine_are_not_found(client:
 def test_a_broken_definition_cannot_be_run_and_the_reason_is_a_bad_request(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    (service.paths.definitions_dir / "news-sync.toml").write_text('title = "News sync"\n')
-    refused = client.post("/api/routines/news-sync/run", json={})
+    (service.paths.definitions_dir / f"{sync_routine}.toml").write_text('title = "News sync"\n')
+    refused = client.post(f"/api/routines/{sync_routine}/run", json={})
     assert refused.status_code == 400
     assert "cannot run" in refused.get_json()["detail"]
 
@@ -152,17 +151,19 @@ def test_removing_a_routine_deletes_it_once_no_run_is_going(
         run_id=RunId.generate(), pid=os.getpid(), pid_start="", trigger=RunTrigger.MANUAL, started_at=TEST_NOW
     )
     service.states.update(
-        SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, in_flight))
+        sync_routine, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, in_flight))
     )
-    refused = client.delete("/api/routines/news-sync")
+    refused = client.delete(f"/api/routines/{sync_routine}")
     assert refused.status_code == 409
     assert "is going" in refused.get_json()["detail"]
-    assert client.get("/api/routines/news-sync").status_code == 200
+    assert client.get(f"/api/routines/{sync_routine}").status_code == 200
 
-    service.states.update(SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, None)))
-    assert client.delete("/api/routines/news-sync").status_code == 204
-    assert client.get("/api/routines/news-sync").status_code == 404
-    assert client.delete("/api/routines/news-sync").status_code == 404
+    service.states.update(
+        sync_routine, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, None))
+    )
+    assert client.delete(f"/api/routines/{sync_routine}").status_code == 204
+    assert client.get(f"/api/routines/{sync_routine}").status_code == 404
+    assert client.delete(f"/api/routines/{sync_routine}").status_code == 404
 
 
 def test_a_removal_that_cannot_delete_the_state_says_so_and_keeps_the_routine(
@@ -187,8 +188,8 @@ def test_a_removal_whose_commit_is_refused_is_still_a_removal(
     """The service drops the routine before it commits, so a refused commit leaves nothing to retry on."""
     repository.is_refusing = True
 
-    assert client.delete("/api/routines/news-sync").status_code == 204
-    assert client.get("/api/routines/news-sync").status_code == 404
+    assert client.delete(f"/api/routines/{sync_routine}").status_code == 204
+    assert client.get(f"/api/routines/{sync_routine}").status_code == 404
 
 
 def test_a_schedule_change_whose_commit_is_refused_is_a_conflict_in_the_repositorys_words(
@@ -197,7 +198,7 @@ def test_a_schedule_change_whose_commit_is_refused_is_a_conflict_in_the_reposito
     repository.is_refusing = True
     schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
 
-    refused = client.put("/api/routines/news-sync/schedule", json=schedule)
+    refused = client.put(f"/api/routines/{sync_routine}/schedule", json=schedule)
 
     assert refused.status_code == 409
     assert "something else is saving" in refused.get_json()["detail"]
@@ -206,14 +207,14 @@ def test_a_schedule_change_whose_commit_is_refused_is_a_conflict_in_the_reposito
 def test_the_fix_route_opens_a_chat_briefed_on_the_routine_and_answers_its_id(
     client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter, sync_routine: RoutineId
 ) -> None:
-    service.runner.run(SYNC, RunTrigger.MANUAL, None)
-    response = client.post("/api/routines/news-sync/fix", json={})
+    service.runner.run(sync_routine, RunTrigger.MANUAL, None)
+    response = client.post(f"/api/routines/{sync_routine}/fix", json={})
     assert response.status_code == 200
     assert response.get_json() == {"chat_id": "agent-fix"}
     ((brief, name),) = fix_chat_starter.started
     assert name == "Fix News sync"
     assert '"News sync"' in brief
-    assert "/news-sync" in brief
+    assert f"/{sync_routine}" in brief
     # The last finished run's output rides in the brief, so the agent sees the evidence at once.
     assert "## Last run's output\n\n```\nran\n```" in brief
     assert client.post("/api/routines/nothing/fix", json={}).status_code == 404
@@ -223,7 +224,7 @@ def test_a_fix_chat_that_could_not_start_is_a_bad_gateway_with_the_reason(
     client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter, sync_routine: RoutineId
 ) -> None:
     fix_chat_starter.refusal = "sign in to a provider first"
-    response = client.post("/api/routines/news-sync/fix", json={})
+    response = client.post(f"/api/routines/{sync_routine}/fix", json={})
     assert response.status_code == 502
     assert "sign in" in response.get_json()["detail"]
 
@@ -235,14 +236,14 @@ def test_a_preview_refuses_every_change(
     sync_routine: RoutineId,
 ) -> None:
     assert preview_client.get("/api/routines").status_code == 200
-    assert preview_client.post("/api/routines/news-sync/run", json={}).status_code == 403
-    assert preview_client.put("/api/routines/news-sync/enabled", json={"is_enabled": False}).status_code == 403
+    assert preview_client.post(f"/api/routines/{sync_routine}/run", json={}).status_code == 403
+    assert preview_client.put(f"/api/routines/{sync_routine}/enabled", json={"is_enabled": False}).status_code == 403
     schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
-    assert preview_client.put("/api/routines/news-sync/schedule", json=schedule).status_code == 403
-    assert preview_client.post("/api/routines/news-sync/fix", json={}).status_code == 403
-    assert preview_client.delete("/api/routines/news-sync").status_code == 403
-    assert service.detail(SYNC).row.is_enabled
-    assert service.detail(SYNC).row.schedule_text == "Every hour"
+    assert preview_client.put(f"/api/routines/{sync_routine}/schedule", json=schedule).status_code == 403
+    assert preview_client.post(f"/api/routines/{sync_routine}/fix", json={}).status_code == 403
+    assert preview_client.delete(f"/api/routines/{sync_routine}").status_code == 403
+    assert service.detail(sync_routine).row.is_enabled
+    assert service.detail(sync_routine).row.schedule_text == "Every hour"
     assert fix_chat_starter.started == []
 
 
@@ -265,7 +266,7 @@ def test_a_schedule_body_the_model_refuses_is_a_bad_request(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
     for body in ({"every": "15x", "at": None, "days": [], "day_of_month": None, "once": None}, ["not", "a", "body"]):
-        refused = client.put("/api/routines/news-sync/schedule", json=body)
+        refused = client.put(f"/api/routines/{sync_routine}/schedule", json=body)
         assert refused.status_code == 400, body
         assert refused.get_json()["detail"]
-    assert service.detail(SYNC).row.schedule_text == "Every hour"
+    assert service.detail(sync_routine).row.schedule_text == "Every hour"
