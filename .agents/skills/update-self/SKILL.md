@@ -739,15 +739,18 @@ Exit codes:
 - **`1` -- precondition; nothing changed** (dirty tree, `HEAD` moved under the
   pass, another apply in flight, this merge already landed and rolled back, or
   a merge that does not first revert an earlier update's rollback commit).
-  The chats stay paused. A dirty tree or a moved `HEAD` means something wrote
-  after the pause (the user, or a chat they woke): release the `editing
-  critical app` leases you took for this apply (5b takes them again right
-  before the next one), save the new changes the same way, and come back
+  A dirty tree or a moved `HEAD` means something wrote after the pause (the
+  user, or a chat they woke): the chats stay paused while you release the
+  `editing critical app` leases you took for this apply (5b takes them again
+  right before the next one), save the new changes the same way, and come back
   through the fast-forward check, catching the worker up only if `HEAD` moved.
   Another apply in flight is the same once it finishes, since it has likely
   moved `HEAD`. A merge that leaves a rollback in place, or one already landed
   and rolled back, needs a fresh worker pass off the current `HEAD`
   (`references/apply-outcomes.md`); the refusal names the commits to revert.
+  Waiting on another apply, or a fresh pass, can take far longer than an apply,
+  so bring the chats back first (`run-status resume-chats`, without
+  `--landed`) and let the next 5b pause them again.
 
 **Right after an apply that exits 0, 2 or 3, bring back what you paused**,
 naming the release when it landed (exit 0) and the commit that saved the
