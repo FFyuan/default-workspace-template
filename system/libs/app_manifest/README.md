@@ -206,7 +206,8 @@ goes to stdout; with it, the parent directories are created.
   file, a reference, or a `context` entry's `app.toml`, and `outside_footprint`,
   the changed files under none of those. A file matched by `exclude` is in
   neither. A non-empty `outside_footprint` means either a missing reference or a
-  change that does not belong on the branch.
+  change that does not belong on the branch. `fork_point` is null and `others`
+  empty: they are `pass-scope --lead-ref`'s (below).
 
 `app-manifest pass-scope` writes the scope file for a harden pass, which covers
 every creation one change touched:
