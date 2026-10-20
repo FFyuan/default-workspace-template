@@ -450,18 +450,27 @@ starting over.
    before the catch-up merge: in a shared workspace most of what came in is
    other chats' work on other creations, which step 3 leaves alone. The
    changed paths are those the creation's footprint accounts for among
-   everything since `$PRE`, every path both sides of the merge changed (every
-   conflict is one), and everything you committed after the merge:
+   everything since `$PRE`, those since `$PRE` that select the creation's own
+   tests from outside its footprint (a package it depends on, a `uv.lock`
+   upgrade of one, a shared frontend package it builds), every path both sides
+   of the merge changed (every conflict is one), and everything you committed
+   after the merge:
 
    ```bash
    MERGE=$(git log --first-parent --merges -1 --format=%H --fixed-strings --grep "Catch up to")
    PRE=$(git rev-parse "$MERGE^1")
    MB=$(git merge-base "$MERGE^1" "$MERGE^2")
    CAUGHT_UP=$(mktemp)
-   # TYPE app; a skill passes --for-path .agents/skills/<name> instead, as in "The scope file":
-   uv run app-manifest footprint system/apps/<package>/app.toml \
+   OWN=system/apps/<package>  # a skill: .agents/skills/<name>
+   # TYPE app; a skill passes --for-path "$OWN" instead, as in "The scope file":
+   uv run app-manifest footprint "$OWN/app.toml" \
        --diff-base "$PRE" --out "$CAUGHT_UP.json" || exit 1
+   uv run app-manifest select-tests --diff-base "$PRE" --format json \
+       > "$CAUGHT_UP.window.json" || exit 1
    { jq -r '.diff.inside_footprint[]' "$CAUGHT_UP.json"
+     jq -r --arg own "$OWN" '.commands[]
+         | select(.working_directory == $own or any(.argv[]; . == $own))
+         | .reasons[].path' "$CAUGHT_UP.window.json"
      comm -12 <(git diff --name-only --no-renames "$MB" "$MERGE^1" | sort) \
               <(git diff --name-only --no-renames "$MB" "$MERGE^2" | sort)
      git diff --name-only --no-renames "$MERGE" HEAD; } | sort -u > "$CAUGHT_UP"
@@ -469,9 +478,11 @@ starting over.
        $(sed 's/^/--path /' "$CAUGHT_UP")
    ```
 
-   A creation with no scope file swaps the `footprint` and `jq` lines for
-   `git diff --name-only --no-renames "$PRE" HEAD -- <its directory>
-   system/supervisord.conf.d/<name>.conf`. `--no-renames` lists a renamed
+   The second `jq` keeps the window's paths that selected a command of the
+   creation's own: one run from its directory, or naming that directory as
+   what to run. A creation with no scope file swaps the `footprint` line and
+   the first `jq` for `git diff --name-only --no-renames "$PRE" HEAD -- <its
+   directory> system/supervisord.conf.d/<name>.conf`. `--no-renames` lists a renamed
    file under both its paths, so a rename on either side still meets the
    other side's change to the same file. With `--path`, `--diff-base` only
    names the revision a changed `uv.lock` is compared against, and the
