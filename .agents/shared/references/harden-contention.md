@@ -248,8 +248,8 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    `lead_work_dir` must be your own checkout (`$MNGR_AGENT_WORK_DIR`; the chats
    of one workspace share it), since the worker delivers every report there.
    If it names another checkout, you cannot receive its reports: supersede the
-   pass instead (below). Its `creations` are the `$CREATIONS` you lead it
-   with.
+   pass instead (below). An update or heal pass's `creations` are the
+   `$CREATIONS` you lead it with.
 2. Move the ticket to yourself, and say why on it:
 
    ```bash
