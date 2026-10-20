@@ -344,7 +344,7 @@ One document serves every page; the page routes on its path and reports it throu
 - **`/<id>/runs/<run_id>`, the run.** The finished event's fields and the log, rendered as is and scrolled to its end.
 - The phone layout stacks the row's cells; the controls wrap into as many rows as the width takes.
 
-Fix it builds a brief from the routine, its last runs, and their logs, and opens a chat on it through `message_chat.py --create` with `auto_open=true`, as the reference template did; the brief links the routine's page.
+Fix it builds a brief from the routine, its last runs, and the last finished run's log, and opens a chat on it through `message_chat.py --create` with `auto_open=true`, as the reference template did; the brief links the routine's page.
 
 ### 10.3 API
 
