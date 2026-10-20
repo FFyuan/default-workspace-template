@@ -22,6 +22,22 @@ def held_lock(path: Path, what_is_held: str) -> Generator[None, None, None]:
 
 
 @contextmanager
+def tried_lock(path: Path) -> Generator[bool, None, None]:
+    """Hold the file lock for the block when it is free; yields whether it was taken, never waiting."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+")
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        yield True
+    finally:
+        handle.close()
+
+
+@contextmanager
 def waited_lock(path: Path) -> Generator[None, None, None]:
     """Hold the file lock for the block, waiting for whoever holds it; for the short state writes."""
     path.parent.mkdir(parents=True, exist_ok=True)
