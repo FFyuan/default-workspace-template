@@ -151,6 +151,20 @@ def test_a_success_after_a_notified_streak_says_it_is_working_again(
     assert states.read(SYNC).is_failure_notified is False
 
 
+def test_a_command_whose_executable_is_missing_is_a_failed_run_with_the_reason(
+    runner: Runner, definitions: FileDefinitionStore, states: FileStateStore
+) -> None:
+    _command_routine(definitions, "/nowhere/no-such-program", "--flag")
+
+    event = runner.run(SYNC, RunTrigger.MANUAL, None)
+
+    assert event.outcome is RunOutcome.FAILED
+    assert event.exit_code == 127
+    assert "No such file or directory" in event.summary
+    assert "could not start the command" in runner.paths.run_log_path(SYNC, event.run_id).read_text()
+    assert states.read(SYNC).consecutive_failures == 1
+
+
 def test_a_command_past_its_timeout_is_killed_with_its_whole_process_group(
     runner: Runner, definitions: FileDefinitionStore, states: FileStateStore
 ) -> None:

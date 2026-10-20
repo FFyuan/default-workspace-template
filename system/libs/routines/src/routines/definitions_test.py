@@ -91,6 +91,26 @@ def test_a_broken_file_is_listed_with_its_reason_and_never_raises(definitions: F
     assert garbled_error.startswith("not valid TOML")
 
 
+def test_a_file_whose_name_is_not_a_routine_id_is_skipped(definitions: FileDefinitionStore) -> None:
+    definitions.add(DIGEST, _digest())
+    (definitions.paths.definitions_dir / "Not An Id.toml").write_text('title = "x"\n')
+
+    assert [loaded.routine_id for loaded in definitions.list_routines()] == [DIGEST]
+
+
+def test_replacing_a_file_that_no_longer_parses_rewrites_it_whole(
+    definitions: FileDefinitionStore, repository: RecordingRepository
+) -> None:
+    path = definitions.add(DIGEST, _digest())
+    path.write_text("# a comment that will not survive\ntitle = \n")
+
+    definitions.replace(DIGEST, _digest(), "change the schedule")
+
+    assert definitions.load(DIGEST).definition == _digest()
+    assert "a comment" not in path.read_text()
+    assert repository.commits[-1] == (path, "routines: change the schedule of inbox-digest")
+
+
 def test_loading_a_routine_that_does_not_exist_raises(definitions: FileDefinitionStore) -> None:
     with pytest.raises(RoutineNotFoundError):
         definitions.load(RoutineId("nothing"))
