@@ -5,7 +5,6 @@ from pathlib import Path
 from inline_snapshot import snapshot
 
 from routines.definitions import FileDefinitionStore
-from routines.errors import DefinitionCommitError
 from routines.migrate import ConvertedEntry
 from routines.migrate import SkippedEntry
 from routines.migrate import convert_cron_entry
@@ -193,13 +192,6 @@ def test_an_entry_left_in_place_is_pointed_at_the_moved_env_wrapper_in_both_copi
     assert (live / "june").read_text() == expected
 
 
-class RefusingRepository(RecordingRepository):
-    """A repository whose index another writer holds for good."""
-
-    def commit_path(self, path: Path, message: str) -> None:
-        raise DefinitionCommitError("locked")
-
-
 def test_an_entry_whose_commit_is_refused_is_still_converted_with_its_state(
     paths: RoutinesPaths, states: FileStateStore, tmp_path: Path
 ) -> None:
@@ -212,7 +204,7 @@ def test_an_entry_whose_commit_is_refused_is_still_converted_with_its_state(
     job_state = root / "data" / ".state" / "jobs" / "news-sync"
     job_state.mkdir(parents=True)
     (job_state / "failures").write_text("2\n")
-    definitions = FileDefinitionStore(paths=paths, repository=RefusingRepository(repo_root=root))
+    definitions = FileDefinitionStore(paths=paths, repository=RecordingRepository(repo_root=root, is_refusing=True))
 
     report = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
 
