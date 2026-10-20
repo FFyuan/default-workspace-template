@@ -302,6 +302,11 @@ class _PathOutcome(FrozenModel):
     is_full_root: bool = Field(
         default=False, description="Whether it brings in the full root suite"
     )
+    is_root_dependency: bool = Field(
+        default=False,
+        description="Whether the root project depends on what it changed: a package, directly or "
+        "through a member, or a package the lock upgraded",
+    )
 
 
 class _SelectionContext(FrozenModel):
@@ -505,9 +510,9 @@ def _referenced_directory_requests(
 def _select_for_unit(context: _SelectionContext, path: str, unit: str) -> _PathOutcome:
     """A package's or skill's own suite, or only the changed test file in an app with its own
     pytest root; for a package's non-test file, also the suites of the members that depend on it
-    and of the directories an app's manifest references, and the full root suite when the root
-    project depends on the package or on one of those members. A non-test file in an app's
-    frontend selects nothing here."""
+    and of the directories an app's manifest references, and whether the root project depends on
+    the package or on one of those members. A non-test file in an app's frontend selects nothing
+    here."""
     layout = context.layout
     # An app's frontend is built into the app's own bundle, which no Python code of the app or
     # of a package that depends on it loads; its tests marked browser or frontend, and its npm
@@ -546,7 +551,7 @@ def _select_for_unit(context: _SelectionContext, path: str, unit: str) -> _PathO
     # root suite.
     return _PathOutcome(
         pytest_requests=tuple(requests),
-        is_full_root=any(member in layout.root_dependent_members for member in (unit, *consumers)),
+        is_root_dependency=any(member in layout.root_dependent_members for member in (unit, *consumers)),
     )
 
 
@@ -665,7 +670,7 @@ def _select_for_path(context: _SelectionContext, path: str) -> _PathOutcome:
         )
         unit_outcome = _select_for_unit(context, path, unit)
         pytest_requests.extend(unit_outcome.pytest_requests)
-        is_root_dependency = unit_outcome.is_full_root
+        is_root_dependency = unit_outcome.is_root_dependency
         is_owned = True
     elif path in layout.test_files:
         classes.append(ChangedPathClass.TEST_FILE)
@@ -685,6 +690,7 @@ def _select_for_path(context: _SelectionContext, path: str) -> _PathOutcome:
         pytest_requests=tuple(pytest_requests),
         frontend_requests=tuple(frontend_requests),
         is_full_root=not is_owned or is_root_dependency,
+        is_root_dependency=is_root_dependency,
     )
 
 
@@ -726,11 +732,14 @@ def _select_for_lockfile(context: _SelectionContext, path: str) -> _PathOutcome:
         )
         for member in lockfile.dependent_members
     )
+    is_root_dependency = lockfile.is_root_dependent or any(
+        member in layout.root_dependent_members for member in lockfile.dependent_members
+    )
     return _PathOutcome(
         classes=(ChangedPathClass.LOCKFILE,),
         pytest_requests=requests,
-        is_full_root=lockfile.is_root_dependent
-        or any(member in layout.root_dependent_members for member in lockfile.dependent_members),
+        is_full_root=is_root_dependency,
+        is_root_dependency=is_root_dependency,
     )
 
 
@@ -752,11 +761,14 @@ def _read_lockfile_change(
 def _select_for_reach(
     context: _SelectionContext, reach: CreationReach
 ) -> tuple[list[_PytestRequest], list[_FrontendRequest], list[str]]:
-    """The creations' own pytest runs and npm checks that the reach's paths call for. When its
+    """The creations' own pytest runs and npm checks that the reach's paths call for. A creation
+    the root project runs that is no workspace member (a skill) depends on what the root project
+    depends on, so a path the root project depends on runs its suite. When the reach's
     ``uv.lock`` change cannot be read, every creation's suite runs, with a note saying why."""
+    layout = context.layout
     lockfile, lockfile_failure = _read_lockfile_change(reach.paths, reach.lockfile_texts)
     reach_context = _SelectionContext(
-        layout=context.layout,
+        layout=layout,
         python_consumers=context.python_consumers,
         npm_consumers=context.npm_consumers,
         lockfile=lockfile,
@@ -765,6 +777,12 @@ def _select_for_reach(
     def is_creations(directory: str) -> bool:
         return any(is_path_covered_by(creation, directory) for creation in reach.creation_directories)
 
+    on_root_project = [
+        directory
+        for directory in (creation.rstrip("/") for creation in reach.creation_directories)
+        if _own_root_for(layout, directory) == ROOT_DIRECTORY
+        and not any(is_path_covered_by(member.directory, directory) for member in layout.python_members)
+    ]
     pytest_requests: list[_PytestRequest] = []
     frontend_requests: list[_FrontendRequest] = []
     for path in reach.paths:
@@ -775,6 +793,14 @@ def _select_for_reach(
         frontend_requests.extend(
             request for request in outcome.frontend_requests if is_creations(request.package_directory)
         )
+        if outcome.is_root_dependency:
+            reason = _reason(path, outcome.classes[-1], "the root project depends on it")
+            pytest_requests.extend(
+                _present(
+                    _whole_request(layout, directory, marker_scope=MarkerScope.DEFAULT, reason=reason)
+                    for directory in on_root_project
+                )
+            )
     if lockfile_failure is None:
         return pytest_requests, frontend_requests, []
     reason = _reason(LOCKFILE, ChangedPathClass.LOCKFILE, "came in, and could not be compared")

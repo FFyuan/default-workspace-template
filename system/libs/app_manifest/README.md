@@ -288,9 +288,11 @@ is then compared against the file's `lockfile_base`. Each `incoming` file also
 selects whatever it would of the pass's creations' own suites and npm
 packages, and nothing else: no suite has yet run those creations against that
 work and the pass's together, while the rest of what it reaches was tested
-where it was committed. An incoming `uv.lock` is compared from
-`incoming_base` to the fork point; when that cannot be read, every creation's
-own suite runs. A `--diff-base` selection that runs to
+where it was committed. A skill runs on the root project, so an incoming file
+the root project depends on (a package, or a `uv.lock` upgrade) runs the suite
+of each skill in the pass rather than the full root suite. An incoming
+`uv.lock` is compared from `incoming_base` to the fork point; when that cannot
+be read, every creation's own suite runs. A `--diff-base` selection that runs to
 the checked-out commit refuses to run while the working tree holds uncommitted
 or untracked changes, and names them, since the tests would run against
 changes the diff leaves out; a `--scope-file` selection always does, and also

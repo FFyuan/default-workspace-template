@@ -13,6 +13,7 @@ from app_manifest.selection import render_selection
 from app_manifest.selection import select_tests
 from app_manifest.testing import build_selection_workspace
 from app_manifest.testing import commit_everything
+from app_manifest.testing import declare_root_dependency
 from app_manifest.testing import remove_shell_modules
 from app_manifest.testing import selection_lock
 from app_manifest.testing import write_app_manifest
@@ -43,15 +44,6 @@ def _select(
 
 def _command_lines(selection: SuiteSelection) -> list[str]:
     return [render_command_line(command) for command in selection.commands]
-
-
-def _declare_root_dependency(repo_root: Path, name: str) -> None:
-    root_pyproject = repo_root / "pyproject.toml"
-    root_pyproject.write_text(
-        root_pyproject.read_text().replace(
-            'version = "0.1.0"\n', f'version = "0.1.0"\ndependencies = ["{name}"]\n', 1
-        )
-    )
 
 
 @pytest.fixture
@@ -108,7 +100,7 @@ def test_a_shared_library_test_change_runs_only_the_librarys_own_suite(workspace
 def test_a_package_the_root_project_depends_on_runs_the_full_root_suite(
     workspace: Path, path: str
 ) -> None:
-    _declare_root_dependency(workspace, "midlib")
+    declare_root_dependency(workspace, "midlib")
 
     selection = _select(workspace, [path])
 
@@ -540,7 +532,7 @@ def test_an_upgrade_reaching_a_package_the_root_project_depends_on_runs_the_full
     workspace: Path,
 ) -> None:
     # requests reaches midlib through corelib.
-    _declare_root_dependency(workspace, "midlib")
+    declare_root_dependency(workspace, "midlib")
 
     selection = _select(workspace, ["uv.lock"], (selection_lock("2.0"), selection_lock("2.1")))
 

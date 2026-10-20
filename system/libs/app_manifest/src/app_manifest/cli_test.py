@@ -11,6 +11,7 @@ from app_manifest.testing import build_news_workspace
 from app_manifest.testing import build_selection_workspace
 from app_manifest.testing import commit_changes
 from app_manifest.testing import commit_everything
+from app_manifest.testing import declare_root_dependency
 from app_manifest.testing import init_git_repository
 from app_manifest.testing import run_git
 from app_manifest.testing import selection_lock
@@ -675,6 +676,20 @@ def test_a_pass_gate_runs_what_the_hardened_changes_own_lock_upgrade_reaches(tmp
             ],
             "--workspace=libs/ui",
         ),
+        (
+            "skill:refresh",
+            ".agents/skills/refresh/scripts/refresh.py",
+            {"system/libs/midlib/src/midlib/core.py": "VALUE = 2\n"},
+            ["uv run pytest .agents/skills/refresh"],
+            "uv run pytest system/",
+        ),
+        (
+            "skill:refresh",
+            ".agents/skills/refresh/scripts/refresh.py",
+            {"uv.lock": selection_lock("2.1")},
+            ["uv run pytest .agents/skills/refresh"],
+            "uv run pytest system/",
+        ),
     ],
 )
 def test_a_catch_up_gate_runs_a_creations_own_suite_when_what_came_in_reaches_it(
@@ -687,11 +702,13 @@ def test_a_catch_up_gate_runs_a_creations_own_suite_when_what_came_in_reaches_it
 ) -> None:
     """The lead's commits a worker merges in after its gate passed can change something its
     creation depends on without touching the creation: a package, a lock upgrade, a shared
-    frontend. The creation's own suite has never run against that change and the pass's together,
-    so the catch-up gate runs it; the changed package's own suite, its other dependents, and the
-    rest of what came in are not the pass's."""
+    frontend, or for a skill, which runs on the root project, a package the root project depends
+    on. The creation's own suite has never run against that change and the pass's together, so the
+    catch-up gate runs it; the changed package's own suite, its other dependents, the full root
+    suite, and the rest of what came in are not the pass's."""
     repo_root = tmp_path / "workspace"
     build_selection_workspace(repo_root)
+    declare_root_dependency(repo_root, "midlib")
     diff_base = commit_changes(repo_root, {"uv.lock": selection_lock("2.0")}, "lock")
     run_git(repo_root, ("checkout", "-q", "-b", "worker"))
     commit_changes(repo_root, {worker_change: "VALUE = 2\n"}, "harden")

@@ -248,6 +248,16 @@ def build_selection_workspace(repo_root: Path) -> None:
     commit_everything(repo_root, "workspace")
 
 
+def declare_root_dependency(repo_root: Path, name: str) -> None:
+    """Make the selection workspace's root project depend on the member ``name``."""
+    root_pyproject = repo_root / "pyproject.toml"
+    root_pyproject.write_text(
+        root_pyproject.read_text().replace(
+            'version = "0.1.0"\n', f'version = "0.1.0"\ndependencies = ["{name}"]\n', 1
+        )
+    )
+
+
 def remove_shell_modules(repo_root: Path) -> None:
     """Delete the shell's built modules, as a fresh worktree lacks them."""
     for module_path in SHELL_MODULE_PATHS:
