@@ -351,9 +351,7 @@ def test_references_still_answers_when_another_apps_manifest_cannot_load(tmp_pat
 def _branch_with_changes(repo_root: Path, changes: dict[str, str]) -> None:
     """Put the selection workspace on a branch off main that changes the given files."""
     run_git(repo_root, ("checkout", "-q", "-b", "work"))
-    for relative_path, content in changes.items():
-        write_repo_file(repo_root, relative_path, content)
-    commit_everything(repo_root, "work")
+    commit_changes(repo_root, changes, "work")
 
 
 def test_select_tests_over_explicit_paths_matches_the_same_set_read_from_a_diff(
