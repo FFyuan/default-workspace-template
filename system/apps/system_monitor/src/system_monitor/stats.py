@@ -40,7 +40,7 @@ def snapshot(
         usage.exact_usage if programs.has_breakdown(procs) else usage.scaled_usage
     )
     reading = cpu.read_recent(recent_path, moment.timestamp())
-    stop_records = stops.recent_stops(shed_ledger_path(), names=names)
+    stop_records = stops.recent_stops(shed_ledger_path(), now=moment, names=names)
     events = [
         {
             "at": stop["at"],
