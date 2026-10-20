@@ -12,7 +12,6 @@ from typing import Final
 from loguru import logger
 from pydantic import ValidationError
 
-from imbue.imbue_common.pure import pure
 from routines.data_types import RUN_BLOCKED_EVENT
 from routines.data_types import RUN_FINISHED_EVENT
 from routines.data_types import RUN_STARTED_EVENT
@@ -48,7 +47,6 @@ def _iter_lines_newest_first(path: Path) -> Iterator[str]:
             yield remainder.decode("utf-8", errors="replace")
 
 
-@pure
 def parse_run_event(line: str) -> RunEvent | None:
     """One ledger line as its event; None, with a warning, for a line that is not one."""
     try:
@@ -120,8 +118,12 @@ class FileLedger(LedgerInterface):
         if not path.is_file() or path.stat().st_size < LEDGER_SIZE_CAP_BYTES:
             return False
         archive = path.with_name(f"events.{now.strftime('%Y-%m-%d')}.jsonl.gz")
-        with path.open("rb") as source, gzip.open(archive, "wb") as target:
+        # Runs append outside the tick lock, so the live file is moved aside first: an append from then on
+        # starts the new file, and nothing lands in the copy between the copy and a truncate.
+        full = path.with_name(f"{path.name}.rotating")
+        path.replace(full)
+        with full.open("rb") as source, gzip.open(archive, "wb") as target:
             shutil.copyfileobj(source, target)
-        path.write_text("", encoding="utf-8")
+        full.unlink()
         logger.info("Archived the run ledger to {}", archive.name)
         return True

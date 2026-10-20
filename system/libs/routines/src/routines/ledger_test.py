@@ -1,3 +1,4 @@
+import gzip
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
@@ -97,5 +98,12 @@ def test_the_ledger_is_archived_once_past_the_cap(ledger: FileLedger) -> None:
 
     assert ledger.rotate_if_large(NOW) is True
 
-    assert ledger.paths.events_path.stat().st_size == 0
-    assert (ledger.paths.events_path.parent / "events.2026-10-20.jsonl.gz").is_file()
+    assert not ledger.paths.events_path.exists()
+    archive = ledger.paths.events_path.parent / "events.2026-10-20.jsonl.gz"
+    with gzip.open(archive, "rt", encoding="utf-8") as handle:
+        assert handle.read().count("run_started") == 1
+    assert not (ledger.paths.events_path.parent / "events.jsonl.rotating").exists()
+    # The next append starts the new file.
+    run_id = RunId.generate()
+    ledger.append(_started(DIGEST, run_id, NOW))
+    assert [event.run_id for event in ledger.recent_events(DIGEST, run_limit=5)] == [run_id]
