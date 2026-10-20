@@ -49,7 +49,7 @@ def service(
 def static_directory(tmp_path: Path) -> Path:
     directory = tmp_path / "static"
     (directory / "assets").mkdir(parents=True)
-    (directory / "index.html").write_text("<!doctype html><title>Routines</title><div id=app></div>")
+    (directory / "index.html").write_text("<!doctype html><head><title>Routines</title></head><div id=app></div>")
     (directory / "assets" / "app.js").write_text("console.log('built');")
     return directory
 

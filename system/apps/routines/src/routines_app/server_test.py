@@ -32,14 +32,26 @@ def test_the_api_document_describes_every_route(client: FlaskClient) -> None:
     assert_api_schema_describes_app(client, MANIFEST_PATH)
 
 
-def test_every_page_path_serves_the_one_document_and_assets_their_file(client: FlaskClient) -> None:
+def test_every_page_path_serves_the_one_document_and_assets_their_file(
+    client: FlaskClient, service: RoutinesService
+) -> None:
+    service.registry_path.parent.mkdir(parents=True, exist_ok=True)
+    service.registry_path.write_text(
+        '[[apps]]\nname = "chat"\nurl = "http://127.0.0.1:8010"\nlabel = "chat-x7k9q2w1"\n'
+    )
     for path in ("/", "/news-sync", "/news-sync/runs/run-1"):
         response = client.get(path)
         assert response.status_code == 200, path
         assert b"<title>Routines</title>" in response.data
+        # The chat app's minted origin label rides in the document, so the pages can link a run's chat.
+        assert b'<meta name="routines-chat-label" content="chat-x7k9q2w1">' in response.data
         assert response.headers["Cache-Control"] == "no-store"
     assert client.get("/assets/app.js").data == b"console.log('built');"
     assert client.get("/assets/missing.js").status_code == 404
+
+
+def test_the_document_carries_no_chat_label_before_the_chat_app_registers(client: FlaskClient) -> None:
+    assert b'<meta name="routines-chat-label" content="">' in client.get("/").data
 
 
 def test_the_listing_and_the_detail_answer_the_library_shapes(client: FlaskClient, service: RoutinesService) -> None:

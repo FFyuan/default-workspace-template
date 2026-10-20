@@ -5,6 +5,7 @@ import m from "mithril";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 
 import type { RoutineDetail, RunRecord } from "../models/api";
+import { chatUrlOf } from "../models/chatLink";
 import { runPathOf } from "../models/routing";
 import { healthPill } from "./healthPill";
 
@@ -56,16 +57,10 @@ function runRow(run: RunRecord): m.Vnode {
   ]);
 }
 
-/** The chat's page on the chat app's origin: the sibling label ``chat`` on this workspace host. */
-export function chatUrlOf(chatId: string): string {
-  const host = location.host.split(".");
-  const workspaceHost = host.length > 1 ? host.slice(1).join(".") : location.host;
-  return `${location.protocol}//chat.${workspaceHost}/?chat=${encodeURIComponent(chatId)}`;
-}
-
 export const RoutinePage: m.Component<RoutinePageAttrs> = {
   view({ attrs: { detail, isBusy, onRunNow, onToggleEnabled, onChangeSchedule, onFix, onRemove } }) {
     const { row, definition } = detail;
+    const chatId = row.chat_id;
     const isBroken = definition === null;
     const needsFixing =
       row.health === "FAILING" || row.health === "OVERDUE" || row.health === "BROKEN" || row.health === "NEEDS_USER";
@@ -123,9 +118,9 @@ export const RoutinePage: m.Component<RoutinePageAttrs> = {
           { disabled: isBusy || isBroken, onclick: onChangeSchedule, "data-change-schedule": "" },
           "Change schedule",
         ),
-        row.chat_id === null
+        chatId === null
           ? null
-          : m(Button, { onclick: () => window.open(chatUrlOf(row.chat_id ?? ""), "_blank") }, "Open its chat"),
+          : m(Button, { onclick: () => window.open(chatUrlOf(chatId), "_blank") }, "Open its chat"),
         m(Button, { variant: "ghost-destructive", disabled: isBusy, onclick: onRemove, "data-remove": "" }, "Remove"),
       ]),
       m("section", [

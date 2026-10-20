@@ -30,6 +30,8 @@ from werkzeug.exceptions import NotFound
 from werkzeug.serving import run_simple
 
 from app_manifest.content_security_policy import attach_document_policy
+from app_manifest.primitives import AppName
+from app_manifest.registry import read_origin_label
 from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
 from app_schema.api_schema import RouteModels
 from app_schema.api_schema import RouteTable
@@ -58,11 +60,13 @@ from routines.paths import RoutinesPaths
 from routines.paths import paths_from_environment
 from routines.primitives import RoutineId
 from routines.primitives import RunId
+from routines.registry import CHAT_APP_NAME
 from routines.service import RoutinesService
 from routines.service import build_service
 from routines_app.data_types import EnabledRequest
 from routines_app.data_types import FixChatResponse
 from routines_app.data_types import HealthResponse
+from routines_app.documents import inject_chat_label_meta_tag
 from routines_app.errors import FixChatError
 from routines_app.fix_chat import start_fix_chat
 
@@ -138,12 +142,13 @@ def create_app(service: RoutinesService, static_directory: Path, is_preview: boo
     static_directory = static_directory.resolve()
 
     def page() -> ResponseReturnValue:
+        """The one document, carrying the chat app's origin label (read per load: the registry is one small file)."""
         document = static_directory / PAGE_DOCUMENT_FILENAME
         if not document.is_file():
             return Response(_NOT_BUILT_PAGE, mimetype="text/html", headers={"Cache-Control": "no-store"})
-        response = send_file(document.absolute(), mimetype="text/html")
-        response.headers["Cache-Control"] = "no-store"
-        return response
+        chat_label = read_origin_label(service.registry_path, AppName(CHAT_APP_NAME))
+        html_content = inject_chat_label_meta_tag(document.read_text(encoding="utf-8"), chat_label)
+        return Response(html_content, mimetype="text/html", headers={"Cache-Control": "no-store"})
 
     def not_found(routine_id: str) -> ResponseReturnValue:
         return error_response(f"There is no routine called {routine_id!r}.", HTTP_NOT_FOUND)

@@ -3,8 +3,8 @@
 import m from "mithril";
 
 import { logUrlOf, type RunDetail } from "../models/api";
+import { chatUrlOf } from "../models/chatLink";
 import { routinePathOf } from "../models/routing";
-import { chatUrlOf } from "./RoutinePage";
 
 export interface RunPageAttrs {
   detail: RunDetail;
