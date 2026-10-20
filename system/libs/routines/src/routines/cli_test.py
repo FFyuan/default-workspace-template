@@ -232,14 +232,19 @@ def test_a_wake_inside_a_run_stops_before_the_runs_own_deadline() -> None:
     )
     timeout = timedelta(hours=2)
 
-    wait = wait_within_run(started_ten_minutes_ago, run_id, timeout, TEST_NOW)
+    wait = wait_within_run(started_ten_minutes_ago, run_id, timeout, timeout, TEST_NOW)
     assert wait == timeout - timedelta(minutes=10) - WAKE_MARGIN_BEFORE_RUN_DEADLINE
+    # A shorter wait (a --timeout flag) is kept; a longer one is capped at what is left of the run.
+    assert wait_within_run(started_ten_minutes_ago, run_id, timeout, timedelta(minutes=10), TEST_NOW) == timedelta(
+        minutes=10
+    )
+    assert wait_within_run(started_ten_minutes_ago, run_id, timeout, timedelta(hours=3), TEST_NOW) == wait
 
     nearly_over = CurrentRun(run_id=run_id, pid=1, trigger=RunTrigger.SCHEDULED, started_at=TEST_NOW - timeout)
-    assert wait_within_run(nearly_over, run_id, timeout, TEST_NOW) == LEAST_WAKE_WAIT
+    assert wait_within_run(nearly_over, run_id, timeout, timeout, TEST_NOW) == LEAST_WAKE_WAIT
     # A state that names another run, or none, says nothing about this one.
-    assert wait_within_run(None, run_id, timeout, TEST_NOW) == timeout
-    assert wait_within_run(started_ten_minutes_ago, RunId.generate(), timeout, TEST_NOW) == timeout
+    assert wait_within_run(None, run_id, timeout, timeout, TEST_NOW) == timeout
+    assert wait_within_run(started_ten_minutes_ago, RunId.generate(), timeout, timeout, TEST_NOW) == timeout
 
 
 def test_wake_refuses_a_timeout_that_is_not_a_duration_in_the_commands_words(git_paths: RoutinesPaths) -> None:

@@ -78,13 +78,16 @@ def wake_defaults(
     return WakeDefaults(title=title, timeout=Duration(timeout))
 
 
-def wait_within_run(current: CurrentRun | None, run_id: RunId, timeout: timedelta, now: datetime) -> timedelta:
-    """How long a wake inside the run may wait: what is left of the run's own time less the margin, so the
-    runner's deadline never cuts the wake off first; the whole timeout when the state does not name the run."""
+def wait_within_run(
+    current: CurrentRun | None, run_id: RunId, run_timeout: timedelta, wait: timedelta, now: datetime
+) -> timedelta:
+    """How long a wake inside the run may wait: the wanted wait, capped at what is left of the run's own time
+    less the margin, so the runner's deadline never cuts the wake off first; the whole wait when the state
+    does not name the run."""
     if current is None or current.run_id != run_id:
-        return timeout
-    remaining = current.started_at + timeout - now - WAKE_MARGIN_BEFORE_RUN_DEADLINE
-    return max(remaining, LEAST_WAKE_WAIT)
+        return wait
+    remaining = current.started_at + run_timeout - now - WAKE_MARGIN_BEFORE_RUN_DEADLINE
+    return max(min(wait, remaining), LEAST_WAKE_WAIT)
 
 
 def _definition_if_any(service: RoutinesService, routine_id: RoutineId) -> RoutineDefinition | None:
@@ -490,15 +493,15 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
     try:
         wanted_id = RoutineId(routine_id or os.environ.get(ROUTINE_ID_ENV) or skill)
         run_id = _run_id_of(raw_run_id) if raw_run_id else None
-        defaults = wake_defaults(_definition_if_any(service, wanted_id), wanted_id, title, timeout)
-        # Inside a run the wait is what is left of the run's own time, whatever the flag says.
-        wait = (
-            wait_within_run(
-                service.states.read(wanted_id).current_run, run_id, defaults.timeout.timedelta, service.clock.now()
+        definition = _definition_if_any(service, wanted_id)
+        defaults = wake_defaults(definition, wanted_id, title, timeout)
+        wait = defaults.timeout.timedelta
+        if run_id is not None:
+            # Inside a run the wait never reaches past the run's own time, whatever the flag says.
+            run_timeout = definition.timeout.timedelta if definition is not None else wait
+            wait = wait_within_run(
+                service.states.read(wanted_id).current_run, run_id, run_timeout, wait, service.clock.now()
             )
-            if run_id is not None
-            else defaults.timeout.timedelta
-        )
         outcome = service.runner.wake(wanted_id, run_id, defaults.title, skill, wait)
     except RoutinesError as e:
         _fail(str(e))

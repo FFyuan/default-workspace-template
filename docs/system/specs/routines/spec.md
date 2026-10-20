@@ -316,7 +316,7 @@ The Caretaker's check (section 11) is the other layer: it reads the listing for 
 | `routines runs <id> [--limit N]` | The routine's recent runs. |
 | `routines log <id> [<run_id>]` | A run's log, the last run's by default. |
 | `routines remove <id>` | Deletes the definition and the state, keeps the ledger; stops the routine's chat agent if it has one, and never destroys it, since the chat is the user's to read or delete. |
-| `routines wake <skill> [--routine <id>] [--title] [--timeout]` | Section 6.4; inside a run, the wait is what is left of the run's own time. |
+| `routines wake <skill> [--routine <id>] [--title] [--timeout]` | Section 6.4; inside a run, the wait never reaches past what is left of the run's own time, whatever `--timeout` says. |
 | `routines tick` | Section 6.1. |
 | `routines migrate-cron` | Section 12. |
 
