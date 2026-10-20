@@ -379,7 +379,7 @@ timeout = "2h"
 ```
 
 The check keeps its four findings and adds a fifth, read with `routines list --format json`: every other routine whose health is failing, overdue, broken, or waiting on the user at the time of the check.
-With findings it ends with `exec uv run --no-sync routines wake caretaker --routine caretaker`, so the agent's chat is the run's chat and the run ends when the agent's turn does.
+With findings it ends with `exec uv run --no-sync routines wake caretaker`, so the agent's chat is the run's chat (the wake takes the routine from the run's environment) and the run ends when the agent's turn does.
 The `caretaker` create template goes; the role it carried moves into the `caretaker` skill's opening, and the agent is created from the `automation` template like every other.
 The `enable-caretaker` and `disable-caretaker` skills go; the Routines app's switch and `routines enable caretaker` are the switch.
 The Caretaker's own notes and permissions stay under `data/.state/caretaker/`, untouched by the switch, as before.
