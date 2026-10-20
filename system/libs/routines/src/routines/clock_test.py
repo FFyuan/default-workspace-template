@@ -34,4 +34,6 @@ def test_a_zone_with_daylight_saving_moves_a_wall_clock_time_across_the_change(t
 def test_an_unknown_name_everywhere_falls_back_to_the_current_offset(tmp_path: Path) -> None:
     (tmp_path / "timezone").write_text("Nowhere/Nothing\n")
     zone = resolve_local_zone({"TZ": "Not/AZone"}, tmp_path / "timezone", tmp_path / "localtime", tmp_path)
-    assert zone.utcoffset(datetime.now(timezone.utc)) is not None
+    now = datetime.now(timezone.utc)
+    assert not isinstance(zone, ZoneInfo)
+    assert zone.utcoffset(now) == now.astimezone().utcoffset()
