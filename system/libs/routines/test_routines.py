@@ -6,13 +6,16 @@ import subprocess
 import sys
 import threading
 import time
+from typing import Final
 
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.state import FileStateStore
 
-WAIT_SECONDS = 8.0
+# The spawned run is a fresh interpreter importing the library's dependencies; the loop polls, so a wide bound
+# only matters on a loaded machine.
+WAIT_SECONDS: Final[float] = 30.0
 
 
 def _routines(paths: RoutinesPaths, *args: str) -> subprocess.CompletedProcess[str]:
