@@ -315,6 +315,19 @@ def test_the_tick_keeps_house_once_a_day(runner: Runner, definitions: FileDefini
     assert not old_run.exists()
 
 
+@pytest.mark.parametrize("stamp", ["not json", "[1, 2]", '{"day": "2026-10-20"}'])
+def test_a_housekeeping_stamp_that_cannot_be_read_means_the_house_is_kept_again(
+    runner: Runner, definitions: FileDefinitionStore, stamp: str
+) -> None:
+    _command_routine(definitions, "true", enabled=False)
+    runner.paths.housekeeping_path.parent.mkdir(parents=True, exist_ok=True)
+    runner.paths.housekeeping_path.write_text(stamp)
+
+    runner.tick()
+
+    assert json.loads(runner.paths.housekeeping_path.read_text()) == {"date": "2026-10-20"}
+
+
 def test_a_wake_inside_a_command_run_records_the_waiting_agent_on_that_run(
     runner: Runner,
     definitions: FileDefinitionStore,

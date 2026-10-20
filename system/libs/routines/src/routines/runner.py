@@ -539,11 +539,7 @@ class Runner(MutableModel):
         now = self.clock.now()
         today = now.strftime("%Y-%m-%d")
         stamp_path = self.paths.housekeeping_path
-        try:
-            last = json.loads(stamp_path.read_text()).get("date") if stamp_path.is_file() else None
-        except (OSError, ValueError):
-            last = None
-        if last == today:
+        if _read_housekeeping_date(stamp_path) == today:
             return
         self.ledger.rotate_if_large(now)
         self._prune_old_run_dirs(now)
@@ -562,6 +558,22 @@ class Runner(MutableModel):
                         shutil.rmtree(run_dir)
                 except OSError as e:
                     logger.warning("Could not prune the run directory {}: {}", run_dir, e)
+
+
+def _read_housekeeping_date(stamp_path: Path) -> str | None:
+    """The day the house was last kept, from the stamp; None, with a warning, for a stamp that cannot be read."""
+    if not stamp_path.is_file():
+        return None
+    try:
+        stamp = json.loads(stamp_path.read_text())
+    except (OSError, ValueError) as e:
+        logger.warning("Keeping house again: the stamp {} could not be read ({})", stamp_path, e)
+        return None
+    date = stamp.get("date") if isinstance(stamp, dict) else None
+    if not isinstance(date, str):
+        logger.warning("Keeping house again: the stamp {} names no date", stamp_path)
+        return None
+    return date
 
 
 def _closing_off(run_id: RunId, last_run: LastRun) -> Callable[[RoutineState], RoutineState]:
