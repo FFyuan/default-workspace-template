@@ -196,7 +196,7 @@ def wake_skill(
                 if has_worked:
                     if idle_without_answer_since is None:
                         idle_without_answer_since = now
-                    elif now - idle_without_answer_since > START_DEADLINE:
+                    if now - idle_without_answer_since > START_DEADLINE:
                         return WakeOutcome(
                             outcome=RunOutcome.FAILED,
                             summary=NO_ANSWER_SUMMARY,

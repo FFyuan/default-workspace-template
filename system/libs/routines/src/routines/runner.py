@@ -418,6 +418,9 @@ class Runner(MutableModel):
             elif int(state.consecutive_failures) == 0:
                 # A new streak: a recovery the feed never took is moot now, and this streak is told at its threshold.
                 updates.append(to_update(state.field_ref().is_failure_notified, False))
+            else:
+                # A streak already going keeps whether it has been told.
+                pass
             if execution.chat_id is not None:
                 updates.append(to_update(state.field_ref().chat_id, execution.chat_id))
             return state.model_copy_update(*updates)
@@ -431,9 +434,11 @@ class Runner(MutableModel):
     ) -> None:
         failures = int(state.consecutive_failures)
         threshold = int(definition.notify_after_failures)
-        if failures == 0 and state.is_failure_notified:
-            self._announce(routine_id, run_id, definition, f"{definition.title} is working again.", False)
-        elif failures > 0 and threshold > 0 and failures >= threshold and not state.is_failure_notified:
+        if failures == 0:
+            if state.is_failure_notified:
+                self._announce(routine_id, run_id, definition, f"{definition.title} is working again.", False)
+            return
+        if threshold > 0 and failures >= threshold and not state.is_failure_notified:
             times = "once" if failures == 1 else f"{failures} times in a row"
             self._announce(routine_id, run_id, definition, f"{definition.title} has failed {times}.", True)
 

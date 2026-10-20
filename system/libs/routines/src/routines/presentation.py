@@ -263,6 +263,9 @@ def fold_run_events(events: Sequence[RunEvent], now: datetime) -> list[RunRecord
             finished_by_run[event.run_id] = event
         elif isinstance(event, RunBlockedEvent):
             blocked_runs.add(event.run_id)
+        else:
+            # The ledger parses only these three kinds.
+            pass
     records: list[RunRecord] = []
     for run_id in order:
         started = started_by_run[run_id]
