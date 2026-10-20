@@ -53,6 +53,19 @@ def test_a_path_with_nothing_to_commit_is_not_a_failure(git_paths: RoutinesPaths
     assert _log(git_paths)[0] == "init"
 
 
+def test_removing_a_definition_git_never_knew_commits_nothing_and_raises_nothing(
+    git_paths: RoutinesPaths, clock: FakeClock
+) -> None:
+    repository = GitRepository(repo_root=git_paths.repo_root, clock=clock)
+    definition = git_paths.definitions_dir / "digest.toml"
+    definition.write_text('title = "x"\n')
+    definition.unlink()
+
+    repository.commit_path(definition, "routines: remove digest")
+
+    assert _log(git_paths)[0] == "init"
+
+
 def test_a_held_index_lock_is_retried_once_and_then_reported_in_the_users_words(
     git_paths: RoutinesPaths, clock: FakeClock
 ) -> None:

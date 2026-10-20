@@ -14,6 +14,8 @@ _RETRY_PAUSE_SECONDS: Final[float] = 1.0
 # The library's own committer: a definition write comes from a click or a command, not from any one chat's agent.
 COMMITTER_NAME: Final[str] = "Routines"
 COMMITTER_EMAIL: Final[str] = "routines@workspace.invalid"
+# What `git add` says of a path that neither the working tree nor the index has.
+_UNKNOWN_PATH_MARKER: Final[str] = "did not match any files"
 COULD_NOT_SAVE_MESSAGE: Final[str] = (
     "Couldn't save that change because something else is saving right now. Try again in a moment."
 )
@@ -51,7 +53,12 @@ class GitRepository(RepositoryInterface):
         except (OSError, subprocess.TimeoutExpired) as e:
             return str(e)
         if staged.returncode != 0:
-            return (staged.stderr or staged.stdout).strip()
+            detail = (staged.stderr or staged.stdout).strip()
+            if _UNKNOWN_PATH_MARKER in detail:
+                # A deleted file git never tracked (a definition written by hand and never committed): nothing
+                # to record.
+                return None
+            return detail
         argv = [
             "git",
             "-c",
