@@ -84,8 +84,9 @@
   }).join("");
 
   const d = M.disk, dp = M.pct(d.used, d.total);
-  $("disk-used").textContent = M.sizeDecimal(d.used); $("disk-total").textContent = M.sizeDecimal(d.total);
-  $("disk-free").textContent = `${M.sizeDecimal(d.free)} free`; $("disk-pct").textContent = `${dp}% used`;
+  // The shipped page formats disk with the same binary units as memory.
+  $("disk-used").textContent = M.size(d.used); $("disk-total").textContent = M.size(d.total);
+  $("disk-free").textContent = `${M.size(d.free)} free`; $("disk-pct").textContent = `${dp}% used`;
   $("disk-bar").style.width = `${dp}%`;
 
   $("stops").innerHTML = M.stops.map((x, i) => {
