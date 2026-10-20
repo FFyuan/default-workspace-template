@@ -343,8 +343,8 @@ uv run --no-project --with 'pydantic>=2' python "$PT/push_snapshot.py" \
     --worktree "$WT" --parent "$BASE_REF" --repo "$REPO" \
     --message "template: <slug>
 
-Assembled on clean DEFAULT_WORKSPACE_TEMPLATE base $BASE_REF (provenance link only; no upstream fetch)."
-python3 "$PT/github_repo.py" topic --repo "$REPO"
+Assembled on clean DEFAULT_WORKSPACE_TEMPLATE base $BASE_REF (provenance link only; no upstream fetch)." \
+  && python3 "$PT/github_repo.py" topic --repo "$REPO"
 ```
 
 `push_snapshot.py` runs the pre-push gate and publishes ONE new commit holding
