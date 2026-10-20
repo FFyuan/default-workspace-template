@@ -44,6 +44,14 @@ def weekdays_in_any_case(value: Any) -> Any:
     return value
 
 
+def once_as_a_local_moment(value: Any) -> Any:
+    """A ``once`` is a local wall-clock moment, written to the file without a zone; one that carries a zone is
+    refused rather than silently re-read as local time shifted by its offset."""
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        raise DefinitionValidationError("'once' is a local moment written without a zone, as 2026-11-03T15:00")
+    return value
+
+
 class RoutineDefinition(FrozenModel):
     """What a routine is and when it runs: the contents of ``system/routines/<id>.toml``."""
 
@@ -69,6 +77,7 @@ class RoutineDefinition(FrozenModel):
     app: NonEmptyStr | None = Field(default=None, description="The app this routine belongs to")
 
     _read_weekdays_in_any_case = field_validator("days", mode="before")(weekdays_in_any_case)
+    _refuse_a_zoned_once = field_validator("once", mode="after")(once_as_a_local_moment)
 
     @model_validator(mode="after")
     def _check_one_schedule_and_one_action(self) -> Self:
@@ -108,6 +117,7 @@ class ScheduleChange(FrozenModel):
     once: datetime | None = Field(default=None, description="A single local moment")
 
     _read_weekdays_in_any_case = field_validator("days", mode="before")(weekdays_in_any_case)
+    _refuse_a_zoned_once = field_validator("once", mode="after")(once_as_a_local_moment)
 
 
 class LoadedRoutine(FrozenModel):

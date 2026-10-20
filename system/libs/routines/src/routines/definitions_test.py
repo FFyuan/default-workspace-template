@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import RoutineDefinition
+from routines.data_types import ScheduleChange
 from routines.definitions import FileDefinitionStore
 from routines.errors import RoutineExistsError
 from routines.errors import RoutineNotFoundError
@@ -139,6 +140,7 @@ def test_removing_a_routine_deletes_the_file_and_commits_the_deletion(
         ({"every": "1d", "day_of_month": 3, "command": ["true"]}, "a cadence in months"),
         ({"once": datetime(2026, 11, 3, 15, 0), "at": "07:00", "command": ["true"]}, "go with 'every'"),
         ({"every": "1d", "timeout": "1mo", "command": ["true"]}, "fixed lengths"),
+        ({"once": "2026-11-03T15:00:00Z", "command": ["true"]}, "without a zone"),
     ],
 )
 def test_a_definition_that_says_two_things_at_once_is_refused_with_a_reason(
@@ -146,6 +148,13 @@ def test_a_definition_that_says_two_things_at_once_is_refused_with_a_reason(
 ) -> None:
     with pytest.raises(ValidationError, match=problem):
         RoutineDefinition.model_validate({"title": "T", "what": "W", **fields})
+
+
+def test_a_schedule_change_refuses_a_once_that_carries_a_zone_and_takes_a_local_one() -> None:
+    """The file holds a local moment without a zone, so a zoned one would come back shifted by its offset."""
+    with pytest.raises(ValidationError, match="without a zone"):
+        ScheduleChange.model_validate({"once": "2026-11-03T15:00:00+02:00"})
+    assert ScheduleChange.model_validate({"once": "2026-11-03T15:00"}).once == datetime(2026, 11, 3, 15, 0)
 
 
 def test_weekdays_are_read_in_any_case() -> None:
