@@ -43,11 +43,16 @@ grep -E "(update|heal) $TARGET" /tmp/harden-inflight.txt
 
   ```bash
   mngr list --format jsonl > /tmp/harden-agents.jsonl
-  jq -c 'select(.name == "<holder>" or .name == "<worker-name>")
-      | {name, state, archived_at: .labels.archived_at}' /tmp/harden-agents.jsonl
+  LEAD_ID=$(jq -r 'select(.name == "<worker-name>") | .labels.lead_agent // empty' /tmp/harden-agents.jsonl)
+  jq -c --arg lead "$LEAD_ID" \
+      'select(.name == "<holder>" or .name == "<worker-name>" or ($lead != "" and .id == $lead))
+      | {name, id, state, archived_at: .labels.archived_at}' /tmp/harden-agents.jsonl
   ```
 
-  The holder is running when its state is RUNNING or WAITING. The worker is
+  The holder is running when its state is RUNNING or WAITING, found either by
+  the ticket's name or by the id in the worker's `lead_agent` label: a chat
+  renamed since it took the ticket has no record under the old name, but
+  keeps its id. The worker is
   there when it has a record with no `archived_at` (a STOPPED one without it
   crashed, and the next message restarts it; see
   `.agents/skills/launch-task/references/dead-worker-recovery.md`). No record,
