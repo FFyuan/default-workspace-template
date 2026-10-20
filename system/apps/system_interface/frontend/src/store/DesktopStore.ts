@@ -260,8 +260,8 @@ const NULL_POP_OUT_BRIDGE: PopOutBridge = {
 export interface OutsideLinkOpener {
   openInEmbedder(url: string): void;
   openInBrowser(url: string): void;
-  /** Launch a custom-scheme link from a hidden frame of this page, which opens no window: an Imbue Studio that does
-   *  not take custom-scheme links shows a popup of one as an empty window. */
+  /** Launch a custom-scheme link by navigating this page to it, which opens no window and leaves the page where it
+   *  is: an Imbue Studio that does not take custom-scheme links shows a popup of one as an empty window. */
   launchInSystemApp(url: string): void;
 }
 
@@ -1209,7 +1209,7 @@ export class DesktopStore {
 
   /** An external link goes to the app registered for its kind; with none, it opens outside the workspace at once,
    *  still inside the click that asked for it (a browser opens a new tab only then): through the Imbue Studio chrome
-   *  when it said it opens that kind of link, else as a popup, or a custom-scheme link from a hidden frame. One the
+   *  when it said it opens that kind of link, else as a popup, or a custom-scheme link from this page. One the
    *  chrome handed over (``senderApp`` null) goes back to it however early: a chrome that hands a link over opens it
    *  too, and opening it here would only send it back again. */
   private async openExternalLink(url: string, senderApp: string | null): Promise<void> {
