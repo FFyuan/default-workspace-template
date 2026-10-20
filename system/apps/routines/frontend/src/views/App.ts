@@ -53,6 +53,8 @@ export class AppModel {
   readonly page: Page;
   loaded: Loaded = { kind: "loading" };
   scheduleForm: ScheduleForm | null = null;
+  /** Whether the Remove confirmation is up, which holds the polling as the editor does. */
+  isConfirmingRemoval = false;
   isBusy = false;
   readonly toasts: ToastQueue;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -123,8 +125,8 @@ export class AppModel {
       (this.loaded.kind === "run" && this.loaded.detail.run.outcome === null);
     this.timer = setTimeout(
       () => {
-        // Never redraw under an open editor: that would throw away a half-made choice.
-        if (this.scheduleForm !== null) this.scheduleRefresh();
+        // Never redraw under an open dialog: that would throw away a half-made choice.
+        if (this.scheduleForm !== null || this.isConfirmingRemoval) this.scheduleRefresh();
         else void this.load();
       },
       isRunning ? RUNNING_REFRESH_MS : IDLE_REFRESH_MS,
@@ -202,7 +204,14 @@ export class AppModel {
     const routineId = this.page.routineId;
     const title = this.loaded.detail.row.title;
     void (async () => {
-      if (!(await this.host.confirmRemove(title))) return;
+      this.isConfirmingRemoval = true;
+      let isConfirmed: boolean;
+      try {
+        isConfirmed = await this.host.confirmRemove(title);
+      } finally {
+        this.isConfirmingRemoval = false;
+      }
+      if (!isConfirmed) return;
       const isRemoved = await this.act(async () => {
         await removeRoutine(routineId);
       }, "Couldn't remove it");

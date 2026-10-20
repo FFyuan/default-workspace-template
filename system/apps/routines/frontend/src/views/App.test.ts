@@ -79,7 +79,7 @@ describe("AppModel", () => {
     expect(requests).toHaveLength(4);
 
     // An open editor holds the polling; closing it lets the next tick read again.
-    model.scheduleForm = { mode: "every", count: "1", unit: "h", at: "", days: [], dayOfMonth: "", once: "" };
+    model.scheduleForm = scheduleFormOf({ unit: "h", at: "", days: [] });
     await vi.advanceTimersByTimeAsync(RUNNING_REFRESH_MS * 3);
     await settle();
     expect(requests).toHaveLength(4);
