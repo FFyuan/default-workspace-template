@@ -438,6 +438,19 @@ def merge_stopped(existing: list[StoppedAgent], stopped: StoppedAgent) -> None:
     existing.append(stopped)
 
 
+def _is_agent_listed(run: CommandRunner, agent_id: str) -> bool:
+    """Whether ``mngr list`` still lists ``agent_id``; a listing that fails says nothing, so yes."""
+    try:
+        agents = list_agents(run)
+    except AgentListingError as exc:
+        print(
+            f"warning: could not tell whether {agent_id} still exists: {exc}",
+            file=sys.stderr,
+        )
+        return True
+    return any(agent.id == agent_id for agent in agents)
+
+
 def send_note(
     repo_root: Path, run: CommandRunner, chat_id: str, note: str
 ) -> subprocess.CompletedProcess[str]:
@@ -478,6 +491,15 @@ def resume(
         if entry.is_restarted:
             continue
         completed = run(["mngr", "start", entry.id], MNGR_STOP_START_TIMEOUT_SECONDS)
+        if completed.returncode != 0 and not _is_agent_listed(run, entry.id):
+            # Deleted while it was paused: no later try could start or tell it.
+            print(
+                f"{entry.name} no longer exists, so nothing is left to start or tell."
+            )
+            entry.is_restarted = True
+            entry.is_told = True
+            save()
+            continue
         if completed.returncode != 0:
             problems.append(
                 f"could not start {entry.name} again: `mngr start` exited {completed.returncode}: "

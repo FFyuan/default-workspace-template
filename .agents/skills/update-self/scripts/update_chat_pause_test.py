@@ -199,6 +199,29 @@ def test_a_second_pause_tells_a_chat_only_about_what_it_has_not_heard() -> None:
     ]
 
 
+def test_a_paused_chat_deleted_before_the_resume_does_not_hold_it_open(
+    tmp_path: Path, fake_agents: FakeAgents
+) -> None:
+    fake_agents.set_agents(
+        [
+            chat("agent-lead", _LEAD, "RUNNING"),
+            chat("agent-a", "Chat-A", "RUNNING"),
+            chat("agent-b", "Chat-B", "RUNNING"),
+        ]
+    )
+    assert _main(tmp_path, "run-status", "start") == 0
+    assert _main(tmp_path, "run-status", "stop-chats") == 0
+    fake_agents.set_agents(
+        [chat("agent-lead", _LEAD, "RUNNING"), chat("agent-b", "Chat-B", "STOPPED")]
+    )
+    fake_agents.fail({"start": ["agent-a"]})
+
+    assert _main(tmp_path, "run-status", "resume-chats") == 0
+
+    assert set(fake_agents.notes()) == {"agent-b"}
+    assert all(entry.is_told for entry in _record(tmp_path).stopped_agents)
+
+
 def test_stop_chats_pauses_from_a_listing_that_exited_non_zero(
     tmp_path: Path, fake_agents: FakeAgents
 ) -> None:
