@@ -601,6 +601,27 @@ def test_a_pass_gate_runs_the_full_root_suite_for_an_unowned_path_the_worker_cha
     assert "uv run pytest .agents/skills/refresh" not in commands
 
 
+def test_a_pass_gate_reads_its_lock_change_from_the_fork_point_not_the_diff_base(tmp_path: Path) -> None:
+    """Another chat's upgrade in the window reaches corelib's dependents, but the pass's own lock
+    change only adds a package, so the gate runs none of them."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = commit_changes(repo_root, {"uv.lock": selection_lock("2.0")}, "lock")
+    upgraded_lock = selection_lock("2.1")
+    commit_changes(repo_root, {"uv.lock": upgraded_lock}, "another chat upgrades requests")
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    added_package = '\n[[package]]\nname = "newdep"\nversion = "1.0"\nsource = { registry = "https://pypi.org/simple" }\n'
+    commit_changes(repo_root, {"uv.lock": upgraded_lock + added_package}, "the pass adds a package")
+    scope_path = tmp_path / "scope.json"
+
+    scope = _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
+    commands = _selected_commands(repo_root, scope_path)
+
+    assert scope["diff"]["outside_footprint"] == ["uv.lock"]
+    assert "uv run pytest system/libs/corelib" not in commands
+    assert "uv run pytest system/libs/midlib" not in commands
+
+
 def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_the_tree(tmp_path: Path) -> None:
     repo_root = tmp_path / "workspace"
     build_selection_workspace(repo_root)
