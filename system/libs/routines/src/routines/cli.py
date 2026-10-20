@@ -101,6 +101,7 @@ _FORMAT_OPTION = click.option(
     type=click.Choice([HUMAN_FORMAT, JSON_FORMAT]),
     default=HUMAN_FORMAT,
     show_default=True,
+    help="Lines for a reader, or JSON for a script",
 )
 
 
@@ -366,8 +367,14 @@ def disable_command(routine_id: str) -> None:
     type=click.Choice([trigger.lower() for trigger in RunTrigger]),
     default=RunTrigger.MANUAL.lower(),
     hidden=True,
+    help="What started the run; 'scheduled' is the tick's spelling and nobody else's",
 )
-@click.option("--run-id", default=None, hidden=True)
+@click.option(
+    "--run-id",
+    default=None,
+    hidden=True,
+    help="The run id the tick or the app minted for this run, so its receipt names what they started",
+)
 def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | None) -> None:
     """Run a routine now. Without --wait the run goes on in the background and its id is printed."""
     service = _service()
