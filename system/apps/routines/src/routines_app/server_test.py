@@ -171,6 +171,22 @@ def test_removing_a_routine_deletes_it_once_no_run_is_going(
     assert client.delete("/api/routines/news-sync").status_code == 404
 
 
+def test_a_removal_that_cannot_delete_the_state_says_so_and_keeps_the_routine(
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
+) -> None:
+    kept = service.paths.runs_dir(sync_routine) / "run-1"
+    kept.mkdir(parents=True)
+    (kept / "log").write_text("x")
+    kept.chmod(0o500)
+    try:
+        response = client.delete(f"/api/routines/{sync_routine}")
+    finally:
+        kept.chmod(0o700)
+    assert response.status_code == 500
+    assert "Could not remove all of the state" in response.get_json()["detail"]
+    assert client.get(f"/api/routines/{sync_routine}").status_code == 200
+
+
 def test_a_removal_whose_commit_is_refused_is_still_a_removal(
     git_paths: RoutinesPaths,
     clock: FakeClock,

@@ -41,6 +41,10 @@ class DefinitionCommitError(RoutinesError, RuntimeError):
     """A definition was written but could not be committed."""
 
 
+class StateRemovalError(RoutinesError, RuntimeError):
+    """A routine's state directory could not be deleted whole."""
+
+
 class ChatAppError(RoutinesError, RuntimeError):
     """The chat app could not be reached, or refused."""
 

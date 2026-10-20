@@ -56,6 +56,7 @@ from routines.errors import InvalidRoutineIdError
 from routines.errors import RoutineNotFoundError
 from routines.errors import RunInFlightError
 from routines.errors import RunNotFoundError
+from routines.errors import StateRemovalError
 from routines.fix_brief import build_fix_brief
 from routines.fix_brief import fix_chat_name
 from routines.paths import RoutinesPaths
@@ -92,6 +93,7 @@ HTTP_CONFLICT: Final[int] = 409
 HTTP_FORBIDDEN: Final[int] = 403
 HTTP_BAD_GATEWAY: Final[int] = 502
 HTTP_NO_CONTENT: Final[int] = 204
+HTTP_INTERNAL_SERVER_ERROR: Final[int] = 500
 
 PREVIEW_REFUSAL: Final[str] = "This is a preview of the Routines app; changes are made from the live one."
 
@@ -331,6 +333,8 @@ def create_app(
             return not_found(routine_id)
         except RunInFlightError as e:
             return error_response(str(e), HTTP_CONFLICT)
+        except StateRemovalError as e:
+            return error_response(str(e), HTTP_INTERNAL_SERVER_ERROR)
         except DefinitionCommitError as e:
             # The routine is gone by the time a commit is refused; the next definition write commits the deletion.
             logger.warning("Removed {} but could not commit the removal: {}", wanted, e)

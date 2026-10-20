@@ -6,6 +6,7 @@ from typing import Final
 from loguru import logger
 
 from routines.data_types import RoutineState
+from routines.errors import StateRemovalError
 from routines.interfaces import StateStoreInterface
 from routines.locks import waited_lock
 from routines.primitives import RoutineId
@@ -67,4 +68,4 @@ class FileStateStore(StateStoreInterface):
         try:
             shutil.rmtree(directory)
         except OSError as e:
-            logger.warning("Could not remove all of the state of {} under {}: {}", routine_id, directory, e)
+            raise StateRemovalError(f"Could not remove all of the state of {routine_id} under {directory}: {e}") from e
