@@ -8,7 +8,8 @@ disagree.
 - Listen address: bind ``HOST`` and ``PORT``, which default to the loopback address and this app's assigned
   port but honor ``ROUTINES_APP_HOST`` and ``ROUTINES_APP_PORT``, so a preview can boot on a spare port
   beside the live one. ``ROUTINES_APP_PREVIEW`` makes that boot read-only: a preview may not start runs or
-  rewrite definitions, since those reach the live workspace.
+  rewrite definitions, since those reach the live workspace, and answers every change with 403 as the shell's
+  preview does.
 
 This is a synchronous Flask app served by the threaded Werkzeug server. The app owns its own browser origin
 (the forwarder routes ``http://routines.<workspace-host>/`` straight to this port), so root-absolute URLs
@@ -40,6 +41,7 @@ from app_schema.api_schema import register_api_schema_route
 from app_schema.routes import error_response
 from app_schema.routes import model_response
 from app_schema.routes import parse_request_body
+from imbue.imbue_common.ids import InvalidRandomIdError
 from imbue.imbue_common.logging import setup_logging
 from routines.data_types import RoutineDetail
 from routines.data_types import RoutineListing
@@ -87,6 +89,7 @@ HEALTH_PATH: Final[str] = "/api/health"
 HTTP_BAD_REQUEST: Final[int] = 400
 HTTP_NOT_FOUND: Final[int] = 404
 HTTP_CONFLICT: Final[int] = 409
+HTTP_FORBIDDEN: Final[int] = 403
 HTTP_BAD_GATEWAY: Final[int] = 502
 HTTP_NO_CONTENT: Final[int] = 204
 
@@ -130,7 +133,7 @@ def _routine_id(raw: str) -> RoutineId | None:
 def _run_id(raw: str) -> RunId | None:
     try:
         return RunId(raw)
-    except ValueError:
+    except InvalidRandomIdError:
         return None
 
 
@@ -230,8 +233,10 @@ def create_app(
         if wanted is None or wanted_run is None:
             return Response("No such run.\n", status=HTTP_NOT_FOUND, mimetype="text/plain")
         try:
-            service.run_detail(wanted, wanted_run)
-        except (RoutineNotFoundError, RunNotFoundError):
+            is_known = service.run_exists(wanted, wanted_run)
+        except RoutineNotFoundError:
+            is_known = False
+        if not is_known:
             return Response("No such run.\n", status=HTTP_NOT_FOUND, mimetype="text/plain")
         path = service.paths.run_log_path(wanted, wanted_run)
         if not path.is_file():
@@ -245,7 +250,7 @@ def create_app(
         if wanted is None:
             return not_found(routine_id)
         if is_preview:
-            return error_response(PREVIEW_REFUSAL, HTTP_CONFLICT)
+            return error_response(PREVIEW_REFUSAL, HTTP_FORBIDDEN)
         try:
             return model_response(service.start_run_detached(wanted))
         except RoutineNotFoundError:
@@ -262,7 +267,7 @@ def create_app(
         if wanted is None:
             return not_found(routine_id)
         if is_preview:
-            return error_response(PREVIEW_REFUSAL, HTTP_CONFLICT)
+            return error_response(PREVIEW_REFUSAL, HTTP_FORBIDDEN)
         body = parse_request_body(EnabledRequest)
         try:
             service.set_enabled(wanted, body.is_enabled)
@@ -277,7 +282,7 @@ def create_app(
         if wanted is None:
             return not_found(routine_id)
         if is_preview:
-            return error_response(PREVIEW_REFUSAL, HTTP_CONFLICT)
+            return error_response(PREVIEW_REFUSAL, HTTP_FORBIDDEN)
         change = parse_request_body(ScheduleChange)
         try:
             service.change_schedule(wanted, change)
@@ -298,7 +303,7 @@ def create_app(
         if wanted is None:
             return not_found(routine_id)
         if is_preview:
-            return error_response(PREVIEW_REFUSAL, HTTP_CONFLICT)
+            return error_response(PREVIEW_REFUSAL, HTTP_FORBIDDEN)
         try:
             routine_detail = service.detail(wanted)
         except RoutineNotFoundError:
@@ -317,7 +322,7 @@ def create_app(
         if wanted is None:
             return not_found(routine_id)
         if is_preview:
-            return error_response(PREVIEW_REFUSAL, HTTP_CONFLICT)
+            return error_response(PREVIEW_REFUSAL, HTTP_FORBIDDEN)
         try:
             service.remove(wanted)
         except RoutineNotFoundError:

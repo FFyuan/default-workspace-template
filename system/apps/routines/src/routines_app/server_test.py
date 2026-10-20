@@ -171,12 +171,12 @@ def test_a_preview_refuses_every_change(
 ) -> None:
     _add(service)
     assert preview_client.get("/api/routines").status_code == 200
-    assert preview_client.post("/api/routines/news-sync/run", json={}).status_code == 409
-    assert preview_client.put("/api/routines/news-sync/enabled", json={"is_enabled": False}).status_code == 409
+    assert preview_client.post("/api/routines/news-sync/run", json={}).status_code == 403
+    assert preview_client.put("/api/routines/news-sync/enabled", json={"is_enabled": False}).status_code == 403
     schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
-    assert preview_client.put("/api/routines/news-sync/schedule", json=schedule).status_code == 409
-    assert preview_client.post("/api/routines/news-sync/fix", json={}).status_code == 409
-    assert preview_client.delete("/api/routines/news-sync").status_code == 409
+    assert preview_client.put("/api/routines/news-sync/schedule", json=schedule).status_code == 403
+    assert preview_client.post("/api/routines/news-sync/fix", json={}).status_code == 403
+    assert preview_client.delete("/api/routines/news-sync").status_code == 403
     assert service.detail(SYNC).row.is_enabled
     assert service.detail(SYNC).row.schedule_text == "Every hour"
     assert fix_chat_starter.started == []

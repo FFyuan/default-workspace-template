@@ -44,6 +44,6 @@ message the desktop delivers when a routine's notification is opened, as a
 
 Served on port 8050 by the `routines` program; `ROUTINES_APP_PORT`,
 `ROUTINES_APP_HOST` and `ROUTINES_APP_PREVIEW` (a read-only boot beside the
-live app) are how a preview boots. The frontend lives in `frontend/` and builds
+live app, which answers every change with 403) are how a preview boots. The frontend lives in `frontend/` and builds
 into `src/routines_app/static/`; see `system/apps/README.md` for the shared
 frontend library and the npm workspace every frontend belongs to.
