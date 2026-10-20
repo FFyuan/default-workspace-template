@@ -64,8 +64,8 @@ grep "updating workspace" /tmp/update-self-inflight.txt
 ```
 
 If another agent holds a live `updating workspace` lease, stop and tell the
-user; if it looks abandoned, take it over per
-`.agents/shared/references/harden-contention.md`. Otherwise take it (each `tk`
+user; if its holder is gone, take it over as its lead, or supersede it once
+its worker is gone too, per `.agents/shared/references/harden-contention.md`. Otherwise take it (each `tk`
 call as its own command, never chained):
 
 ```bash
