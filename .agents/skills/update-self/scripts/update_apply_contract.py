@@ -37,8 +37,9 @@ SNAPSHOTS_DIRNAME = "snapshots"
 # update-self pass and the Imbue Studio app. The lead records the run's start here
 # (``run-status start``, once it holds the updating-workspace lease), the
 # worker it hands the merge to (``run-status delegate``), each wait on the
-# user and its clearing (``run-status hold`` / ``resume``), and its
-# one terminal verdict (``run-status verdict``); the apply mirrors its marker's
+# user and its clearing (``run-status hold`` / ``resume``), the chats and
+# workers it paused for the apply (``run-status stop-chats`` / ``resume-chats``),
+# and its one terminal verdict (``run-status verdict``); the apply mirrors its marker's
 # phase and restamp in alongside. The app's poll reads this file over ``mngr
 # exec`` together with the run's chat agent, and needs nothing else -- it never
 # opens the marker, and a run recorded here is visible to it whoever launched
@@ -440,6 +441,10 @@ RUN_VERDICT_STUCK = "STUCK"
 
 RUN_VERDICT_REFUSED = "REFUSED"
 
+# The update cannot keep something the user built: the run ends with the worker
+# stopped and its branch kept, and the user's answer in the lead chat re-lands it.
+RUN_VERDICT_NEEDS_DECISION = "NEEDS_DECISION"
+
 RUN_VERDICTS = (
     RUN_VERDICT_UPDATED,
     RUN_VERDICT_UPDATED_WITH_REBUILD_ITEMS,
@@ -447,7 +452,75 @@ RUN_VERDICTS = (
     RUN_VERDICT_NEEDS_RECREATION,
     RUN_VERDICT_STUCK,
     RUN_VERDICT_REFUSED,
+    RUN_VERDICT_NEEDS_DECISION,
 )
+
+# How a run was started, as the app's dispatcher records it in the last-dispatch
+# file beside the run record: by the workspace's own schedule, or by the user's
+# "Update now". The run record carries it so the app can tell the two apart; the
+# lead's prose never branches on it.
+STARTED_BY_SCHEDULED = "scheduled"
+
+STARTED_BY_IMMEDIATE = "immediate"
+
+STARTED_BY_VALUES = (STARTED_BY_SCHEDULED, STARTED_BY_IMMEDIATE)
+
+# Written by the app's in-workspace command and dispatcher whenever they create an
+# update chat; this side only reads it.
+LAST_DISPATCH_FILENAME = "last-dispatch.json"
+
+
+@dataclass
+class StoppedAgent:
+    """One chat or background worker ``run-status stop-chats`` paused for the apply.
+
+    ``chat_id`` is the chat the agent belongs to (a worker's own id, since a worker
+    is its own chat); a worker's ``lead_chat_id`` is the chat its lead runs in, which
+    is told on resume, because a restarted worker does not pick its work back up.
+    ``interrupted_tasks`` names the background commands that were stopped with it.
+    ``is_restarted`` and ``is_told`` are ``resume-chats``'s progress, so a re-run
+    restarts and tells only what is left.
+    """
+
+    id: str
+    name: str
+    chat_id: str
+    is_worker: bool = False
+    lead_chat_id: str = ""
+    interrupted_tasks: list[str] = field(default_factory=list)
+    is_restarted: bool = False
+    is_told: bool = False
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "chat_id": self.chat_id,
+            "is_worker": self.is_worker,
+            "lead_chat_id": self.lead_chat_id,
+            "interrupted_tasks": list(self.interrupted_tasks),
+            "is_restarted": self.is_restarted,
+            "is_told": self.is_told,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: object) -> "StoppedAgent | None":
+        """The entry, or ``None`` for one without an id (nothing could restart it)."""
+        if not isinstance(raw, dict) or not raw.get("id"):
+            return None
+        tasks = raw.get("interrupted_tasks")
+        return cls(
+            id=str(raw["id"]),
+            name=str(raw.get("name", "")),
+            chat_id=str(raw.get("chat_id", "")),
+            is_worker=bool(raw.get("is_worker", False)),
+            lead_chat_id=str(raw.get("lead_chat_id", "")),
+            interrupted_tasks=[str(task) for task in tasks]
+            if isinstance(tasks, list)
+            else [],
+            is_restarted=bool(raw.get("is_restarted", False)),
+            is_told=bool(raw.get("is_told", False)),
+        )
 
 
 @dataclass
@@ -472,6 +545,11 @@ class RunStatus:
       completed phase. Mirrored from the apply marker on its every restamp and
       cleared with it, so the app reads the apply's liveness from this one
       file and never has to know the marker exists.
+
+    ``started_by`` is how the run was started (``STARTED_BY_VALUES``), or
+    ``None`` when nothing recorded it, and is then left out of the file.
+    ``stopped_agents`` is what ``run-status stop-chats`` paused, for
+    ``resume-chats``.
     """
 
     chat_agent_name: str
@@ -487,26 +565,29 @@ class RunStatus:
     resulting_ref: str = ""
     in_place_compatible_ref: str = ""
     verdict_at: float | None = None
+    started_by: str | None = None
+    stopped_agents: list[StoppedAgent] = field(default_factory=list)
 
     def to_json(self) -> str:
-        return json.dumps(
-            {
-                "chat_agent_name": self.chat_agent_name,
-                "started_at": self.started_at,
-                "updated_at": self.updated_at,
-                "worker_agent_name": self.worker_agent_name,
-                "is_holding": self.is_holding,
-                "hold_detail": self.hold_detail,
-                "apply_phase": self.apply_phase,
-                "apply_updated_at": self.apply_updated_at,
-                "verdict": self.verdict,
-                "detail": self.detail,
-                "resulting_ref": self.resulting_ref,
-                "in_place_compatible_ref": self.in_place_compatible_ref,
-                "verdict_at": self.verdict_at,
-            },
-            indent=2,
-        )
+        payload: dict[str, object] = {
+            "chat_agent_name": self.chat_agent_name,
+            "started_at": self.started_at,
+            "updated_at": self.updated_at,
+            "worker_agent_name": self.worker_agent_name,
+            "is_holding": self.is_holding,
+            "hold_detail": self.hold_detail,
+            "apply_phase": self.apply_phase,
+            "apply_updated_at": self.apply_updated_at,
+            "verdict": self.verdict,
+            "detail": self.detail,
+            "resulting_ref": self.resulting_ref,
+            "in_place_compatible_ref": self.in_place_compatible_ref,
+            "verdict_at": self.verdict_at,
+            "stopped_agents": [agent.to_dict() for agent in self.stopped_agents],
+        }
+        if self.started_by is not None:
+            payload["started_by"] = self.started_by
+        return json.dumps(payload, indent=2)
 
     @classmethod
     def from_json(cls, text: str) -> "RunStatus":
@@ -518,6 +599,16 @@ class RunStatus:
         apply_updated_at = raw.get("apply_updated_at")
         verdict = raw.get("verdict")
         verdict_at = raw.get("verdict_at")
+        started_by = raw.get("started_by")
+        stopped = raw.get("stopped_agents")
+        stopped_agents = [
+            agent
+            for agent in (
+                StoppedAgent.from_dict(entry)
+                for entry in (stopped if isinstance(stopped, list) else [])
+            )
+            if agent is not None
+        ]
         return cls(
             chat_agent_name=str(raw.get("chat_agent_name", "")),
             started_at=float(raw.get("started_at", 0.0)),
@@ -536,11 +627,35 @@ class RunStatus:
             resulting_ref=str(raw.get("resulting_ref", "")),
             in_place_compatible_ref=str(raw.get("in_place_compatible_ref", "")),
             verdict_at=float(verdict_at) if verdict_at is not None else None,
+            started_by=str(started_by) if started_by in STARTED_BY_VALUES else None,
+            stopped_agents=stopped_agents,
         )
 
 
 def run_status_path(repo_root: Path) -> Path:
     return repo_root / STATE_DIR_REL / RUN_STATUS_FILENAME
+
+
+def last_dispatch_path(repo_root: Path) -> Path:
+    return repo_root / STATE_DIR_REL / LAST_DISPATCH_FILENAME
+
+
+def dispatched_started_by(repo_root: Path, chat_agent_name: str) -> str | None:
+    """How the app's last dispatch started ``chat_agent_name``'s run, or ``None``.
+
+    ``None`` unless the last-dispatch file names that very chat: a run started by
+    hand, or an older run's chat, was not started by that dispatch. A missing or
+    unreadable file is the same ``None``; the field is the app's to show, never a
+    reason to fail a run's start.
+    """
+    try:
+        raw = json.loads(last_dispatch_path(repo_root).read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, dict) or raw.get("chat_agent_name") != chat_agent_name:
+        return None
+    started_by = raw.get("started_by")
+    return started_by if started_by in STARTED_BY_VALUES else None
 
 
 def read_run_status(repo_root: Path) -> RunStatus | None:

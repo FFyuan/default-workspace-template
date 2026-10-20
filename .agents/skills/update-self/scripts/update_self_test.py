@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1639,6 +1640,227 @@ def test_skill_md_runs_its_scripts_from_the_staged_copy_below_step_3() -> None:
     staged = "data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py"
     strays = [line for line in invocations if staged not in line]
     assert strays == []
+
+
+_FENCED_BLOCK = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+
+
+def _skill_section(heading: str) -> str:
+    """One ``##``/``###`` section of SKILL.md, up to the next heading of the same or a higher level.
+
+    Lines inside fenced blocks are never headings: a bash comment starts with ``#`` too.
+    """
+    lines = (
+        (_MODULE_PATH.parent.parent / "SKILL.md")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    level = len(heading.split(" ", 1)[0])
+    start = next(index for index, line in enumerate(lines) if line.startswith(heading))
+    is_fenced = False
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.lstrip().startswith("```"):
+            is_fenced = not is_fenced
+            continue
+        hashes = len(line) - len(line.lstrip("#"))
+        if not is_fenced and 0 < hashes <= level and line[hashes : hashes + 1] == " ":
+            return "\n".join(lines[start:index])
+    return "\n".join(lines[start:])
+
+
+def _fenced_commands(text: str) -> list[str]:
+    """Every command line in the fenced blocks, continuation lines joined."""
+    return [
+        line.strip()
+        for block in _FENCED_BLOCK.findall(text)
+        for line in block.replace("\\\n", " ").splitlines()
+        if line.strip()
+    ]
+
+
+def _first_index(commands: list[str], needle: str) -> int:
+    matches = [index for index, command in enumerate(commands) if needle in command]
+    assert matches, f"no fenced command runs {needle!r}"
+    return matches[0]
+
+
+def test_every_update_self_invocation_in_the_prose_is_one_the_script_takes() -> None:
+    """The prose and the script move together: a subcommand or flag the prose reaches for that the
+    parser does not know fails exactly when a lead follows it. Every fenced ``update_self.py`` call in
+    SKILL.md and the references is parsed as written, with an unset pin expanding to nothing."""
+    skill_dir = _MODULE_PATH.parent.parent
+    prose = [skill_dir / "SKILL.md", *sorted((skill_dir / "references").glob("*.md"))]
+    parser = update_self.build_parser()
+    parsed = 0
+    for path in prose:
+        for command in _fenced_commands(path.read_text(encoding="utf-8")):
+            if "update_self.py " not in command:
+                continue
+            unpinned = re.sub(r"\$\{\w+:\+[^}]*\}", "", command)
+            words = shlex.split(
+                re.sub(r"<[^<>]*>", "PLACEHOLDER", unpinned), comments=True
+            )
+            argv = words[
+                next(
+                    i for i, word in enumerate(words) if word.endswith("update_self.py")
+                )
+                + 1 :
+            ]
+            for index, word in enumerate(argv):
+                if word in (">", "||", "&&", "|", ";"):
+                    argv = argv[:index]
+                    break
+            try:
+                parser.parse_args(argv)
+            except SystemExit as exc:
+                raise AssertionError(
+                    f"{path.name}: `{command}` does not parse"
+                ) from exc
+            parsed += 1
+    assert parsed >= 10, (
+        "the prose no longer runs update_self.py; this guard is vacuous"
+    )
+
+
+def _release_repos(tmp_path: Path) -> Path:
+    """An upstream carrying three releases, and a workspace made from the first with work of its own."""
+    upstream = tmp_path / "upstream"
+    _git_in(tmp_path, "init", "-q", "-b", "main", str(upstream))
+    for tag in ("minds-v0.1.0", "minds-v0.2.0", "minds-v0.3.0"):
+        _git_in(
+            upstream,
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "commit",
+            "--allow-empty",
+            "-q",
+            "-m",
+            tag,
+        )
+        _git_in(upstream, "tag", tag)
+    workspace = tmp_path / "workspace"
+    _git_in(tmp_path, "clone", "-q", "--no-tags", str(upstream), str(workspace))
+    _git_in(workspace, "remote", "rename", "origin", "upstream")
+    _git_in(workspace, "reset", "-q", "--hard", "upstream/main~2")
+    _git_in(
+        workspace,
+        "-c",
+        "user.email=t@example.com",
+        "-c",
+        "user.name=t",
+        "commit",
+        "--allow-empty",
+        "-q",
+        "-m",
+        "local work",
+    )
+    shutil.copytree(_SCRIPTS_DIR, workspace / update_self.SKILL_DIR_REL / "scripts")
+    return workspace
+
+
+def _run_step_2(
+    workspace: Path, tmp_path: Path, pin: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    """Step 2's resolve block exactly as SKILL.md has it, with the pin a lead fills in from the message."""
+    [block] = [
+        block
+        for block in _FENCED_BLOCK.findall(_skill_section("## 2. Resolve the target"))
+        if "resolve-target" in block
+    ]
+    for name, value in pin.items():
+        assert f'{name}=""' in block, f"Step 2 no longer sets {name}"
+        block = block.replace(f'{name}=""', f'{name}="{value}"')
+    block = block.replace("/tmp/update-self-target.json", str(tmp_path / "target.json"))
+    return subprocess.run(
+        ["bash", "-c", block],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_step_2_resolves_a_pinned_target_without_asking_the_app(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A pass the app pinned must resolve with the app unreachable (closed, on a sleeping laptop); the
+    same block with no pin asks the app, so the unreachable app is a fault there."""
+    _install_fake_latchkey(
+        monkeypatch, tmp_path / "bin", body="", status="", exit_code=7
+    )
+    workspace = _release_repos(tmp_path)
+
+    unpinned = _run_step_2(workspace, tmp_path, {})
+    assert unpinned.returncode != 0
+    assert "could not reach the Imbue Studio app" in unpinned.stderr
+
+    pinned = _run_step_2(workspace, tmp_path, {"PINNED_CEILING": "minds-v0.2.0"})
+    assert pinned.returncode == 0, pinned.stderr
+    target = json.loads((tmp_path / "target.json").read_text())
+    assert (target["ref"], target["ceiling"], target["exceeds_ceiling"]) == (
+        "minds-v0.2.0",
+        "minds-v0.2.0",
+        False,
+    )
+
+    # The user's own choice, named by the message's override note, rides beside the ceiling.
+    chosen = _run_step_2(
+        workspace,
+        tmp_path,
+        {"PINNED_CEILING": "minds-v0.2.0", "PINNED_OVERRIDE": "minds-v0.3.0"},
+    )
+    assert chosen.returncode == 0, chosen.stderr
+    target = json.loads((tmp_path / "target.json").read_text())
+    assert (target["ref"], target["exceeds_ceiling"]) == ("minds-v0.3.0", True)
+
+
+def test_step_5b_pauses_the_chats_saves_their_work_applies_then_resumes_them() -> None:
+    """The apply-time order: chats paused, their uncommitted work saved, the apply, and the chats back."""
+    commands = _fenced_commands(_skill_section("### 5b. Apply the update"))
+    order = [
+        _first_index(commands, "run-status stop-chats"),
+        _first_index(commands, "git commit -F /tmp/update-self-wip-message.txt"),
+        _first_index(commands, "update_self.py apply"),
+        _first_index(commands, "run-status resume-chats"),
+    ]
+    assert order == sorted(order)
+    # The fast-forward check comes before the pause too, so a catch-up for other chats' commits runs
+    # while they still work.
+    assert (
+        _first_index(commands, "git merge-base --is-ancestor HEAD mngr/update-self")
+        < order[0]
+    )
+
+
+def test_step_4_ends_a_hold_with_a_decision_keeping_the_worker() -> None:
+    """A customization the update cannot keep ends the pass: the verdict, the worker stopped and kept,
+    and the chats brought back by Step 6's opening, which runs on every terminal path."""
+    commands = _fenced_commands(_skill_section("## 4. Proxy the `question` gate"))
+    verdict = _first_index(commands, "run-status verdict NEEDS_DECISION")
+    assert verdict < _first_index(commands, "mngr stop update-self")
+    assert not any(
+        "mngr destroy" in command or "git branch" in command for command in commands
+    )
+    assert not any("run-status hold" in command for command in commands)
+    assert (
+        _first_index(
+            _fenced_commands(_skill_section("## 6. Teardown")),
+            "run-status resume-chats",
+        )
+        >= 0
+    )
+
+    relanding = _fenced_commands(_skill_section("## Resuming after a decision"))
+    order = [
+        _first_index(relanding, "run-status start"),
+        _first_index(relanding, "git merge-base --is-ancestor HEAD mngr/update-self"),
+        _first_index(relanding, "mngr start update-self"),
+        _first_index(relanding, "mngr message update-self"),
+    ]
+    assert order == sorted(order)
 
 
 # The atomic apply

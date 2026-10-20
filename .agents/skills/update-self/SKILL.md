@@ -20,12 +20,12 @@ atomic, rollback-on-failure **apply**.
 
 You are the **lead**, and the pass is **fully unattended**: resolve the target,
 dispatch the worker, answer its gates, audit its evidence, run the apply, then
-report. The user launches an update and walks away; they come back to a
-finished result and an offer to roll back anything they don't like. Three
-things still wait for the user: an `--override` past the version ceiling (asked
-at launch, while they are present), an update that cannot keep something they
-built (the Step 4 hold), and another chat's edit that still holds the update
-after an hour (5b's settle wait).
+report. Nobody is watching: the user comes back to a finished result and an
+offer to roll back anything they don't like. One question still waits for
+them inside a pass: an `--override` past the version ceiling (asked at
+launch, while they are present). An update that cannot keep something they
+built does not wait: the pass ends with a decision for them (Step 4), and
+their answer, whenever it comes, re-lands it.
 
 The default target is **the release the Imbue Studio app driving this workspace was
 built against**, and only that one: the template ships the code that app talks
@@ -54,6 +54,30 @@ pass**: note which it was, carry it into the results message as a caveat, and
 continue -- git still holds every version of the tree. Do not stop to ask for
 a go-ahead.
 
+**What this pass may do without asking.** The update is the user's request,
+so it carries their licence to clear the way for it. On your own judgment of
+what this run needs, with no confirmation and no preflight script, you may:
+
+- stop other chats and background agents, idle or running, through `run-status
+  stop-chats` (5b, and earlier with `--agent <name>` when memory runs short),
+  which records each so the end of the pass starts it again with a note;
+- stop the browser and the user apps no window is showing
+  (`python3 system/services/oom_priority/bin/memory_candidates.py` lists them;
+  a browser stops through the browser service, an app through `supervisorctl
+  stop <program>`);
+- prune the worktrees of workers that are gone (`git worktree list`, then `git
+  worktree remove` one whose agent `mngr list` no longer shows, never the
+  `update-self` worker's), apply snapshots under
+  `data/.state/update-apply/snapshots/` that no `marker.json`,
+  `emergency.json` or `last-good.json` beside them names, and tool caches
+  (`uv cache prune`, `npm cache clean --force`);
+- commit a dirty tree as one work-in-progress commit (below).
+
+Do what the run needs and no more, and name every one of these actions in the
+results message with its undo (`references/results-message.md`). This licence
+is this pass's alone: every other flow still asks first
+(`.agents/shared/references/freeing-memory.md`).
+
 **Take the "updating workspace" lease.** One update flow at a time (worker
 name, branch and runtime dir are fixed, and two applies must never interleave).
 Check for a foreign one first:
@@ -63,10 +87,15 @@ tk ready > /tmp/update-self-inflight.txt
 grep "updating workspace" /tmp/update-self-inflight.txt
 ```
 
-If another agent holds a live `updating workspace` lease, stop and tell the
-user; if it looks abandoned, take it over per
-`.agents/shared/references/harden-contention.md`. Otherwise take it (each `tk`
-call as its own command, never chained):
+A match is decided by rule, never by asking. `tk show <id>` names its holder
+(`Held by <name>`). It is **live** when `mngr list --format "{name}	{state}"`
+shows that agent `RUNNING` or `WAITING`: another update is running, so tell
+the user that one is already under way and end this pass, recording nothing
+(the run record is that pass's). Otherwise it is **abandoned**, and yours to
+take over: `tk close <id> "Superseded: its holder is gone."`, then take your
+own below; Step 3b clears the old pass's worker and branch. A lease held under
+your own name is this chat's from an earlier attempt: close it the same way.
+Then take it (each `tk` call as its own command, never chained):
 
 ```bash
 UPDATE_LEASE_ID=$(tk create "updating workspace" -t chore \
@@ -83,24 +112,51 @@ python3 .agents/skills/update-self/scripts/update_self.py run-status start
 ```
 
 This writes `data/.state/update-apply/run.json`, which the app polls. Besides
-the `hold`/`resume` pair around each wait on the user (Step 4's customization
-hold, 5b's settle wait), the pass owes that file exactly one more write, a
-`run-status verdict` when it ends; every terminal path below names its
-verdict, and a pass that ends without one shows the user "update failed". It
-comes after the lease check because there is one record per workspace, and a
-pass that stops because someone else is updating must leave the running pass's
-record alone.
+the `hold`/`resume` pair around the one wait on the user (the override
+confirmation in Steps 2 and 3a) and the chats 5b pauses and resumes, the pass
+owes that file exactly one more write, a `run-status verdict` when it ends;
+every terminal path below names its verdict, and a pass that ends without one
+shows the user "update failed". It comes after the lease check because there
+is one record per workspace, and a pass that stops because someone else is
+updating must leave the running pass's record alone.
 
-**Clean tree.** The worker branches off your `HEAD` and the rollback captures
-it. If `git status --porcelain` is non-empty, record `run-status verdict
-REFUSED --detail "<what is uncommitted, one plain line>"`, surface it, and
-stop.
+**Save uncommitted work.** The worker branches off your `HEAD` and the rollback
+captures it, so uncommitted changes would be left out of both. If `git status
+--porcelain` is non-empty, commit everything as one work-in-progress commit on
+the branch the workspace is on, its message listing the paths, and note the
+sha it prints for the results message:
+
+```bash
+git add -A
+{ echo "Save work in progress before the workspace update"; echo
+  echo "Uncommitted changes, saved as they stood so the update could run:"
+  git diff --cached --name-only | sed 's/^/- /'; } > /tmp/update-self-wip-message.txt
+git commit -F /tmp/update-self-wip-message.txt && git rev-parse HEAD
+```
+
+If a hook refuses the commit, take the file it names back out (`git reset --
+<path>`), commit the rest, and name the file left uncommitted in the results
+message.
 
 ## 2. Resolve the target
+
+**A pinned update.** The message that started this pass may pin the update:
+under "The Imbue Studio app pinned this update" it names a `Target:` and a
+`Ceiling:`. Then the ceiling comes from that message, not from the app: in the
+block below, set `PINNED_CEILING` to the `Ceiling:` ref, and `PINNED_OVERRIDE`
+to the `Target:` ref only when the message's override note names that target
+as the user's own choice. The message may also say to append `--ceiling <ref>`
+to `resolve-target`; that is the same pin, written for an older copy of this
+step, and `PINNED_CEILING` already does it. With a pin, `resolve-target` never
+asks the app for its version, and an app this pass cannot reach for anything
+else is not a fault: carry on. With no pin, leave both empty, and
+`resolve-target` asks the app.
 
 Ensure the remote exists, heal a shallow clone, fetch with tags, and resolve:
 
 ```bash
+PINNED_CEILING=""
+PINNED_OVERRIDE=""
 git remote get-url upstream 2>/dev/null || git remote add upstream "$(python3 -c "
 import tomllib
 with open('system/config/parent.toml', 'rb') as f:
@@ -115,13 +171,16 @@ fi
 git fetch upstream --tags --force
 
 python3 .agents/skills/update-self/scripts/update_self.py resolve-target --local-tags \
+    ${PINNED_CEILING:+--app-version "$PINNED_CEILING"} \
+    ${PINNED_OVERRIDE:+--override "$PINNED_OVERRIDE"} \
     > /tmp/update-self-target.json || exit 1
 cat /tmp/update-self-target.json
 REF=$(python3 -c 'import json; print(json.load(open("/tmp/update-self-target.json"))["ref"])')
 ```
 
-`--local-tags` reads the tags the fetch just landed. To honor a user override,
-append `--override main` or `--override minds-v0.3.6`. The `|| exit 1` leaves a
+`--local-tags` reads the tags the fetch just landed. To honor a user override
+given in chat, set `PINNED_OVERRIDE` to it (`main`, `minds-v0.3.6`). The
+`|| exit 1` leaves a
 refusal's `error:` line as the last thing printed. The output carries `ref`,
 `kind`, `ceiling` and `exceeds_ceiling`; an upstream branch name such as `main`
 resolves to `upstream/main`.
@@ -147,9 +206,21 @@ record the verdict it calls for -- never resolve a ref by hand:
 this app cannot vouch for. Do not dispatch on it silently: tell them what it
 risks and get an explicit go-ahead, unless the message that started this pass
 already carries that confirmation (the Imbue Studio app's "Update to a specific
-version" prompt says so). If they decline, record `run-status verdict REFUSED
---detail "<the version they asked for, and that they chose not to attempt
-it>"` and end the pass. Details in `references/version-ceiling.md`.
+version" prompt says so). While you wait for their answer, record the wait, so
+the app shows what the run is waiting on, and clear it once they answer:
+
+```bash
+python3 .agents/skills/update-self/scripts/update_self.py run-status hold \
+    --detail "<one plain line: that you are waiting for them to confirm that version>"
+```
+
+```bash
+python3 .agents/skills/update-self/scripts/update_self.py run-status resume
+```
+
+If they decline, record `run-status verdict REFUSED --detail "<the version they
+asked for, and that they chose not to attempt it>"` and end the pass. Details
+in `references/version-ceiling.md`.
 
 To preview what the release changes, diff from the merge base (`git diff
 --name-status "$(git merge-base HEAD "$REF")" "$REF"`), never from `HEAD`. A
@@ -193,24 +264,41 @@ reasons, and what an edit must preserve, are in
 ### 3a. Re-check the ceiling from the staged copy (first, before anything else)
 
 ```bash
+PINNED_CEILING=""
 python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
-    resolve-target --local-tags --override "$REF" > /tmp/update-self-recheck.json || exit 1
+    resolve-target --local-tags --override "$REF" \
+    ${PINNED_CEILING:+--app-version "$PINNED_CEILING"} > /tmp/update-self-recheck.json || exit 1
 cat /tmp/update-self-recheck.json
 ```
+
+Set `PINNED_CEILING` as Step 2 does: the `Ceiling:` of a message that pinned
+the update, else empty, so a pinned pass never asks the app here either.
 
 This is the only ceiling check that runs on a workspace updating *into* the
 ceiling for the first time (its local copy may predate the check). If
 `exceeds_ceiling` is `true` here, it matters who chose `$REF`.
 
 **Step 2 chose it, without `--override`:** the user never asked for it. Do not
-name it. Set `$REF` to the capped ref (re-run without `--override` to learn it;
-an error there is handled as in Step 2), tell the user that version is the one
+name it. Set `$REF` to the capped ref (re-run without `--override` to learn it,
+keeping the pin; an error there is handled as in Step 2), tell the user that version is the one
 you are updating to -- an initiator too old to know the ceiling has already
 announced the other -- and **re-run §2a** before dispatching, so the staged copy
 matches the target.
 
 **The user named it:** take the confirmation now as in Step 2, offering the
-capped ref; if they take it, set `$REF` to it and re-run §2a the same way. If
+capped ref, and record the wait the same way while it lasts:
+
+```bash
+python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+    run-status hold --detail "<one plain line: that you are waiting for them to confirm that version>"
+```
+
+```bash
+python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+    run-status resume
+```
+
+If they take the capped ref, set `$REF` to it and re-run §2a the same way. If
 they decline every option, record `run-status verdict REFUSED --detail "..."`.
 
 **Then bridge an old workspace to the target's history.** The template's
@@ -235,9 +323,8 @@ reason drops the bridge first (Step 6's opening command); a retry rebuilds it.
 
 ### 3b. Launch
 
-Do not open a window for your own chat: when the Imbue Studio app starts an
-update, the chat app already shows this conversation in the user's pinned chat
-window.
+Do not open a window for your own chat while the pass runs: Step 6 opens it
+once the results are ready.
 
 Open a tracking ticket (note the id it prints), then `tk start <ticket-id>` as
 its own tool call:
@@ -392,34 +479,43 @@ report, re-arm the poll.
    contains a real question of user intent.
 3. **A customization hold** (its §4b verdict): something the user built that
    the update **cannot keep**, after the worker genuinely tried to re-fit it.
-   This is the one gate that reaches the user; see below. A cosmetic shift
-   (the widget moved but still works) is not a hold: it applies unattended
-   and is named in the results message with an offer to restore.
+   This is the one gate that reaches the user, and it ends the pass; see
+   below. A cosmetic shift (the widget moved but still works) is not a hold:
+   it applies unattended and is named in the results message with an offer
+   to restore.
 
-For the hold, record it first, so the app can say what the workspace is waiting
-on (the detail line is shown in the app's modal, so write it for the user):
+**A hold ends the pass with a decision for the user.** Nothing waits for their
+answer holding a lease or a live worker, however long they take. In this order,
+each command on its own:
 
-```bash
-python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
-    run-status hold \
-    --detail "<one plain line: what they built that the update cannot keep>"
-```
+1. Record the verdict. The detail line is shown in the app, so write it for
+   the user:
 
-Then compose the question from their point of view per
-`references/results-message.md` (what they built, what the update does to it,
-the evidence, the choices with a recommendation, and that nothing has been
-applied) and **wait**: the pass holds, worker alive and leases held, until they
-answer. When they do:
+   ```bash
+   python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+       run-status verdict NEEDS_DECISION \
+       --detail "<one plain line: what they built that the update cannot keep>"
+   ```
 
-```bash
-python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
-    run-status resume
-```
+2. Stop the worker, keeping it. Its branch `mngr/update-self`, its worktree and
+   its conversation are what re-land the update once they decide, so never
+   destroy it or delete the branch here:
 
-If they skip the update, record `run-status verdict REFUSED --detail "<what the
-update could not keep, and that they chose to keep it instead>"` and tear down;
-without it the app reports a run that stalled for no reason. The other answers
-carry on into §5 and get their verdict there.
+   ```bash
+   mngr stop update-self
+   ```
+
+3. Run Step 6's opening commands (they drop the history bridge and bring back
+   any chat this pass paused), then release the `updating workspace` lease:
+   `tk close "$UPDATE_LEASE_ID" "Waiting on the user's decision."`. Leave the
+   tracking ticket open; the re-land closes it.
+
+4. Compose the decision message from their point of view per
+   `references/results-message.md` ("The decision message"), open this chat's
+   window as Step 6 ends, and end your turn.
+
+Their answer, whenever it comes, arrives in this chat: follow "Resuming after a
+decision" below.
 
 ## 5. Terminal status
 
@@ -498,60 +594,33 @@ anchored so `terminal` does not match `terminal-pty`'s lease), take them in
 name order (`tk create "editing
 critical app <name>" -t chore`, then `tk start` it, each as its own command),
 and if any is held by another agent, release the ones you took and surface it
-instead of proceeding. Take them right before the apply, once the settle wait
-and the fast-forward check below have passed, so no wait or catch-up round
+instead of proceeding. Take them right before the apply, once the chats are
+paused and the last fast-forward check below has passed, so no catch-up round
 runs while you hold them, and release them afterwards.
 
 The apply run from here keeps its own run record and raises no "recently
 updated" notice: `--keep-rollback-point` is the careful flow's, not this one's.
 
-**Before the apply, let other chats' work settle.** Other chats keep working
-while the worker runs. If the tree is dirty, or another agent holds an
-`editing service <name>` lease, a chat is mid-edit in the served tree: wait
-for it rather than refusing or re-dispatching. (An `editing critical app`
-lease is not a reason to wait: that flow edits in its own worktree, never the
-served tree, and the lease check above already covers the critical apps this
-update touches.) Wait in the background and end your turn; the result starts
-your next one:
+**Before the apply, bring the worker up to date, then pause the other chats.**
+Other chats keep working while the worker runs, and nothing waits on them:
+they are paused only now, right before the apply, for as long as it takes.
 
-```bash
-python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/run_in_background.py \
-    --description "Wait for other chats to finish their edits" -- \
-    bash -c 'for i in $(seq 1 360); do leases=$(tk ready) || { echo "tk ready failed"; exit 1; }; if [ -z "$(git status --porcelain)" ] && ! printf "%s\n" "$leases" | grep -q -- "- editing service "; then echo settled; exit 0; fi; sleep 10; done; echo "still busy after an hour"; git status --porcelain; printf "%s\n" "$leases" | grep -- "- editing service "; exit 1'
-```
-
-If it is still busy after the hour, record the hold so the app shows what the
-update is waiting on, then tell the user which chat's edit is holding the
-update and that nothing has been applied; a lease is broken only on their
-call:
-
-```bash
-python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
-    run-status hold \
-    --detail "<one plain line: which chat's unfinished edit is holding the update>"
-```
-
-When they answer, record `run-status resume` with the same staged script and
-run the settle wait again. If they skip the update instead, record `run-status
-verdict REFUSED --detail "<that another chat's edit was in progress, and they
-chose not to wait for it>"` and tear down, as Step 4's hold does.
-
-If it says `tk ready failed`, the leases could not be read: find out why
-and wait again. Once it settles, check whether those chats committed since the
-worker branched:
+First, while they still run, check whether they committed since the worker
+branched:
 
 ```bash
 git merge-base --is-ancestor HEAD mngr/update-self
 ```
 
-Exit 0 means the branch still fast-forwards: apply. Exit 1 means `HEAD` moved
-under the pass, and the apply would refuse it: **catch the worker up** instead
-of redoing the pass. Consume the `done` you are answering first (an older
+Exit 0 means the branch still fast-forwards. Exit 1 means `HEAD` moved under
+the pass, and the apply would refuse it: **catch the worker up** instead of
+redoing the pass. Consume the `done` you are answering first (an older
 launcher's `await` leaves it in place, and a re-armed poll would return it at
 once), then message the worker (it is still waiting, and holds the branch and
 any bundles it built), re-arm the poll as in Step 3b, and audit the `done` it
-sends back (5a). Plain `mngr message`, as Step 3b's cleanup uses plain `mngr`:
-the workspace's own launcher may predate a reply subcommand.
+sends back (5a) before you come back here. Plain `mngr message`, as Step 3b's
+cleanup uses plain `mngr`: the workspace's own launcher may predate a reply
+subcommand.
 
 ```bash
 mkdir -p data/.tasks/update-self/reports/consumed
@@ -576,6 +645,44 @@ A moved `HEAD` never calls for a fresh pass, so never destroy or stop the
 worker to make room for one: after a moved `HEAD`, a fresh pass (Step 3b) is
 only for a worker that is gone, or one that reports `stuck` on the catch-up
 and is not resumed ("Resuming after `stuck`" below).
+
+Once the branch fast-forwards, **pause** every chat and background agent that
+is busy (mid-turn, or waiting on a background command), other than this chat
+and the update's own worker. It records each one, so the resume below starts
+it again with a note:
+
+```bash
+python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+    run-status stop-chats
+```
+
+It prints a line per agent it paused; keep them for the results message. A
+non-zero exit names what it could not pause and why: a listing that failed
+paused nothing, so run it once more; an agent that would not stop keeps
+running, which only means its edits may land beside the apply, as they always
+could. Neither holds the apply back.
+
+Then **save what the chats left uncommitted**, as Step 1 does: one commit on
+the workspace's branch listing the paths. Note the sha it prints for the resume
+below:
+
+```bash
+git add -A
+{ echo "Save work in progress before updating to $REF"; echo
+  echo "Uncommitted changes, saved as they stood so the update could apply:"
+  git diff --cached --name-only | sed 's/^/- /'; } > /tmp/update-self-wip-message.txt
+git diff --cached --quiet || { git commit -F /tmp/update-self-wip-message.txt && git rev-parse HEAD; }
+```
+
+An `editing service <name>` lease another chat holds is no reason to wait: that
+chat is paused now, and its edit is in this commit. (An `editing critical app`
+lease is not one either: that flow edits in its own worktree, never the served
+tree, and the lease check above covers the critical apps this update touches.)
+
+A commit here, or one a chat made just before it paused, moves `HEAD` again:
+run the fast-forward check once more, and on exit 1 catch the worker up as
+above. The chats stay paused through that round, which covers only those
+commits.
 
 Run the apply from the staged copy, in the **foreground**: its output (refusal
 and resume messages, any provisioner warning, the `apply phase timings:` line)
@@ -617,22 +724,43 @@ Exit codes:
   is yours to close.
 - **`2` -- automatically rolled back.** The entire merge was reverted and the
   workspace confirmed healthy on the previous revision; the update did not
-  land. Record `run-status verdict REFUSED --detail "<what failed, one plain
-  line>"`.
+  land. You judge whether to retry, by what the stderr says failed: lessen a
+  local resource cause first, retry a network cause once, and clear a file of
+  the user's that blocked it with a minor change of your own
+  (`references/apply-outcomes.md`, "Exit 2", has the rules and what a retry
+  is). Nothing retries beyond that, and nothing retries unwatched: when your
+  best effort is spent, record `run-status verdict REFUSED --detail "<what
+  failed, one plain line>"` at once.
 - **`3` -- emergency.** Even the rollback could not restore health; escalate,
   with the kept pre-apply copies under `data/.state/update-apply/snapshots/`.
 - **`1` -- precondition; nothing changed** (dirty tree, `HEAD` moved under the
   pass, another apply in flight, this merge already landed and rolled back, or
   a merge that does not first revert an earlier update's rollback commit).
-  A dirty tree or a moved `HEAD` is the settle-and-catch-up case above:
-  release the `editing critical app` leases you took for this apply (5b takes
-  them again right before the next one), wait, and come back through the
-  fast-forward check, catching the worker up only if `HEAD` moved. Another
-  apply in flight is the same: wait for it to finish, then come back through
-  that check, since it has likely moved `HEAD`. A merge that leaves a
-  rollback in place, or one already landed and rolled back, needs a fresh
-  worker pass off the current `HEAD` (`references/apply-outcomes.md`); the
-  refusal names the commits to revert.
+  The chats stay paused. A dirty tree or a moved `HEAD` means something wrote
+  after the pause (the user, or a chat they woke): release the `editing
+  critical app` leases you took for this apply (5b takes them again right
+  before the next one), save the new changes the same way, and come back
+  through the fast-forward check, catching the worker up only if `HEAD` moved.
+  Another apply in flight is the same once it finishes, since it has likely
+  moved `HEAD`. A merge that leaves a rollback in place, or one already landed
+  and rolled back, needs a fresh worker pass off the current `HEAD`
+  (`references/apply-outcomes.md`); the refusal names the commits to revert.
+
+**Right after an apply that exits 0, 2 or 3, bring back what you paused**,
+naming the release when it landed (exit 0) and the commit that saved the
+uncommitted work, when there was one:
+
+```bash
+python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+    run-status resume-chats --landed "$REF" --wip-commit <sha>
+```
+
+Leave `--landed` out after exit 2 or 3, and `--wip-commit` when nothing was
+saved. Each chat is started again and told what changed while it was paused,
+in a notice the user sees labelled "Workspace updated"; a background agent is
+named to its lead chat, since it does not pick its work back up by itself. It
+is safe to re-run: a non-zero exit names what it could not start or tell, and
+the same command finishes the rest.
 
 What each outcome means for the user, the `provision-incomplete` and
 `emergency.json` records, an interrupted apply (re-run the same command; it
@@ -703,6 +831,63 @@ overrides a failure") says. This flow's preconditions, re-taken before the
 After the `reply`, `run-status delegate update-self` before the `await` poll,
 as Step 3b does.
 
+## Resuming after a decision
+
+When the user answers a needs-decision ending (Step 4) in this chat, minutes or
+days later, re-land the kept pass rather than starting a fresh one. The worker
+is stopped with its conversation intact and its branch `mngr/update-self`
+still holds the validated merge, so the decision is one more round of the
+Step 4 cycle, not a new pass.
+
+1. Check that the kept pass is still this chat's. If
+   `data/.state/update-apply/run.json` names another chat, or `git rev-parse
+   --verify --quiet refs/heads/mngr/update-self` prints nothing, a later
+   update has started since and set this one aside (its Step 3b archives the
+   branch): tell the user so, and that the newer update's own chat is where
+   it stands. Do nothing else.
+2. If they choose to skip the update, record `run-status verdict REFUSED
+   --detail "<what the update could not keep, and that they chose to keep
+   it>"` with the staged script and end; the worker stays stopped, and the
+   next pass's Step 3b sets its branch aside.
+3. Otherwise re-take the pass's preconditions, each `tk` call as its own
+   command: the `updating workspace` lease, exactly as Step 1 takes it; then
+   the run record and the target the task file carries:
+
+   ```bash
+   python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+       run-status start
+   REF=$(sed -n 's/^target_ref: //p' data/.tasks/update-self/task.md)
+   ```
+
+   then the history bridge, with Step 3a's two commands (the forced tag fetch,
+   then `bridge-history --ref "$REF"`).
+4. Check whether the kept branch still fast-forwards. It usually does not:
+   the workspace kept working while the decision waited.
+
+   ```bash
+   git merge-base --is-ancestor HEAD mngr/update-self
+   ```
+
+5. Start the worker and give it the decision, in the user's voice. On exit 1
+   above, ask in the same message for the catch-up 5b asks for, so it re-fits
+   and catches up in one round; on exit 0, send the decision alone:
+
+   ```bash
+   mngr start update-self
+   ```
+
+   ```bash
+   mngr message update-self \
+       -m "<their decision>. Then catch up to $(git rev-parse HEAD) per §7 of your worker guide, and report done."
+   ```
+
+   A failed send is handled as 5b's catch-up message says.
+6. `run-status delegate update-self`, then re-arm the `await` poll as Step 3b
+   does and end your turn. The `done` it brings takes Step 5 like any other:
+   the audit (with its Catch-up section), then 5b, whose fast-forward check
+   catches the worker up again if `HEAD` moved meanwhile, and a verdict at the
+   end.
+
 ## Migration-required updates
 
 An update that cannot be applied in place (the release restructures something
@@ -717,13 +902,23 @@ exists, offered in the same breath).
 
 ## 6. Teardown
 
-Drop the history bridge, whatever the outcome (a no-op when Step 3a built none;
-a retry rebuilds it):
+Whatever the outcome, a needs-decision ending included, drop the history
+bridge (a no-op when Step 3a built none; a retry rebuilds it) and bring back
+every chat and background agent this pass paused (a no-op when 5b's resume
+already did, or nothing was paused):
 
 ```bash
 python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
     bridge-history --drop
 ```
+
+```bash
+python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+    run-status resume-chats
+```
+
+After an apply that landed, give this resume 5b's `--landed` and
+`--wip-commit` too, so a chat it still had to tell hears the same news.
 
 If a stray preview of a critical app is registered (an older pass may have left
 one; the careful flow refuses its next pass on that app while one is), tear it
@@ -739,8 +934,8 @@ once `down` has deregistered the row the preview's window would stay on the desk
 pointing at a page nothing serves.
 
 **The rest is only for a successful apply (exit 0).** After a rollback the
-worker's branch, worktree and report are the retry path: keep them until the
-retry is resolved with the user, but release the leases either way.
+worker's branch, worktree and report are what a retry starts from: keep them
+until 5b's retry judgment is spent, but release the leases either way.
 
 Record the success verdict -- `UPDATED`, or `UPDATED_WITH_REBUILD_ITEMS` when
 §5c left something the user must actually do or decide. A purely-deferred item
@@ -773,6 +968,17 @@ close` each `editing critical app <name>` lease 5b took, then the
 finished."`), then `tk close <ticket-id> "Updated to <ref> -- worker branch
 merged and applied."`, adding the `archive/update-self-<timestamp>` name when
 Step 3b set a previous branch aside.
+
+**Last, whatever the outcome, show the user this chat** once its results (or
+its decision, or its `stuck` account) are ready to read, then end your turn
+with that message:
+
+```bash
+uv run --no-sync workspace-layout open chat --path "/?chat=${MINDS_CHAT_ID:-$MNGR_AGENT_ID}"
+```
+
+If the command fails (a tree from before it, a shell that is not up), carry on:
+the app's update row still leads the user here.
 
 ## To push local improvements back upstream
 

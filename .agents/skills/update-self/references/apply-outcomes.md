@@ -46,17 +46,37 @@ finish within <N>s`) is one cause: the apply never waits open-endedly on a
 hung `npm ci`, build, refresh, provisioner or restart, so treat that message
 as "it hung", with the timings line saying where.
 
+**You judge the retry; nobody is there to ask.** Read the cause from the
+stderr and the `apply phase timings:` line, then:
+
+- **A local resource cause** (a step shed for memory, a full disk, a step that
+  outlived its budget on a loaded workspace): lessen the load first, using
+  SKILL.md Step 1's licence (pause more chats with `run-status stop-chats
+  --agent <name>`, stop the browser and windowless apps, prune caches,
+  worktrees and old snapshots), then retry.
+- **A network cause** (a download, `npm ci` or `uv sync` that could not reach
+  its registry): retry once.
+- **A file of the user's blocking the apply** (an app of theirs whose
+  pre-flight or probe fails on a file the update did not touch, a stray file
+  where the update writes): make the smallest change that unblocks it and
+  conflicts with nothing they did (commit it on its own, saying what and why),
+  then retry, and name the change with its undo in the results message.
+- **Anything else**, or a retry that fails again: no retry.
+
+A retry is a fresh worker pass off the current `HEAD`, never a re-run of the
+same apply (below): `mngr stop update-self`, then SKILL.md Step 3b with the
+same `$REF`, the lease and the run record carried over. Nothing retries beyond
+these rules, and nothing retries unwatched: a pass that fails after your best
+effort records `run-status verdict REFUSED --detail "<what failed, one plain
+line>"` at once, so the app shows the failure immediately.
+
 The message you compose carries three things, in order: **the workspace is
 safe** ("the update hit a problem while being applied, so I automatically
 undid it -- everything is back exactly as it was, and nothing is broken");
 **what failed**, in plain terms, at whatever level of cause the stderr
-established; and **the way forward**. The retry path survives every rollback
-by design -- the worker's branch, worktree and report are kept -- so once the
-failure is diagnosed the re-land is quick: offer exactly that ("I can look into
-what went wrong and try again once it's fixed"), and never make the user feel
-the whole pass must be redone. If the closing line said the frontend was
-already broken beforehand, report that alongside. Record `run-status verdict
-REFUSED --detail "<what failed, one plain line>"`.
+established, with what you already tried; and **the way forward**: what would
+have to change before another attempt can succeed. If the closing line said the
+frontend was already broken beforehand, report that alongside.
 
 Because the rollback is a forward revert, the merge stays in history while its
 content does not, and re-running the apply of that same merge is refused. A
@@ -99,13 +119,13 @@ apply in flight; an interrupted apply of a *different* merge that needs
 `recover` first; or this merge having already been landed **and rolled back**
 (see exit 2).
 
-A dirty tree means another chat is mid-edit, and a refused fast-forward means
-one committed while the worker ran. Neither makes the worker's validation
-worthless: release the `editing critical app` leases you took for the apply
-(5b takes them again right before the next one), wait for the edit to settle
-(SKILL.md 5b's settle wait), then run 5b's fast-forward check again. If
-`HEAD` moved, catch the worker up to it as 5b does and apply its new `done`;
-if not, apply the branch as it is. Never destroy the worker to re-dispatch,
+With the other chats paused, a dirty tree or a refused fast-forward means
+something wrote after the pause (the user, or a chat they woke). Neither makes
+the worker's validation worthless: release the `editing critical app` leases
+you took for the apply (5b takes them again right before the next one), save
+the new changes as 5b saves the paused chats' work, then run 5b's
+fast-forward check again. If `HEAD` moved, catch the worker up to it as 5b
+does and apply its new `done`; if not, apply the branch as it is. Never destroy the worker to re-dispatch,
 and never build the catch-up merge yourself: the worker's merge is the one its
 validation covers. Another apply in flight is the same once it finishes, and
 so is an interrupted apply of a different merge once `recover` has rolled it
@@ -113,6 +133,24 @@ back, as the refusal says: either has likely moved `HEAD`, so come back
 through 5b's fast-forward check. A merge already landed and rolled back, or
 one that leaves an earlier update's rollback in place, needs a fresh worker
 pass off the current `HEAD`.
+
+## Needs a decision -- nothing applied
+
+The worker found something the user built that the update cannot keep (its
+§4b verdict), so the pass ended before any apply: the workspace is exactly as
+it was, and the `NEEDS_DECISION` verdict's detail is what the app shows. What
+the pass keeps for the decision is the stopped worker -- its branch
+`mngr/update-self` with the validated merge, its worktree and its conversation
+-- and this chat. It holds no lease and keeps no chat paused while it waits, so
+the workspace runs as usual, and the user can answer whenever they like.
+
+Their choices, as the decision message puts them (`results-message.md`): take
+the update and lose the customization, keep the customization and skip the
+update, or the worker's best adaptation. Skipping records `REFUSED`; either
+other answer re-lands the kept pass (SKILL.md, "Resuming after a decision"),
+catching the worker up first when the workspace moved on meanwhile. A later
+update started before they answer sets the kept pass aside (Step 3b archives
+its branch), and the decision is then that update's to ask again.
 
 ## An interrupted apply
 

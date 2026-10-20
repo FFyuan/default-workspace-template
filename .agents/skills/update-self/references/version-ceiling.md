@@ -3,8 +3,9 @@
 The default update target **is** the release the **Imbue Studio app driving this
 workspace** was built against, which `resolve-target` reads from the app itself
 (`GET /api/v1/app/version` through the latchkey gateway; `ceiling` in the
-output). The template carries the code that app talks to, so only that pairing
-was ever verified.
+output), or from the message that started the pass when the app pinned it
+there (`handoff-contract.md`, "The scheduled entry"). The template carries the
+code that app talks to, so only that pairing was ever verified.
 
 Three things leave that release out of reach, and all three are **faults**, not
 refusals: `resolve-target` fails, and what to do next is your call with the
