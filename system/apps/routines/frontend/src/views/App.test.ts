@@ -24,6 +24,14 @@ function host(): AppHost & { locations: [string, string][]; navigated: string[] 
   };
 }
 
+/** A routine's page, loaded: the server answers `detail` for every read until a test says otherwise. */
+async function loadedRoutinePage(detail = detailOf(), page: AppHost = host()): Promise<AppModel> {
+  answer = () => detail;
+  const model = new AppModel("/news-sync", page, () => undefined);
+  await model.load();
+  return model;
+}
+
 /** Let every pending fetch and the continuations after it run: an action, the reload it ends in, and
  * the parsing of a refusal's body each take a few ticks. */
 async function settle(): Promise<void> {
@@ -170,9 +178,7 @@ describe("AppModel", () => {
           answerRemoval = resolve;
         }),
     };
-    answer = () => detailOf();
-    const model = new AppModel("/news-sync", page, () => undefined);
-    await model.load();
+    const model = await loadedRoutinePage(detailOf(), page);
 
     model.remove();
     await settle();
@@ -190,9 +196,7 @@ describe("AppModel", () => {
 
   it("removes the routine and leaves for the list without reading the removed page", async () => {
     const page = host();
-    answer = () => detailOf();
-    const model = new AppModel("/news-sync", page, () => undefined);
-    await model.load();
+    const model = await loadedRoutinePage(detailOf(), page);
     answer = () => undefined;
 
     model.remove();
@@ -204,9 +208,7 @@ describe("AppModel", () => {
   });
 
   it("starts a run on request, busy until the page has been read again", async () => {
-    answer = () => detailOf();
-    const model = new AppModel("/news-sync", host(), () => undefined);
-    await model.load();
+    const model = await loadedRoutinePage();
 
     model.runNow();
     expect(model.isBusy).toBe(true);
@@ -223,9 +225,7 @@ describe("AppModel", () => {
   });
 
   it("switches the routine to the opposite of what the page shows", async () => {
-    answer = () => detailOf({ row: rowOf({ is_enabled: true }) });
-    const model = new AppModel("/news-sync", host(), () => undefined);
-    await model.load();
+    const model = await loadedRoutinePage(detailOf({ row: rowOf({ is_enabled: true }) }));
 
     model.toggleEnabled();
     await settle();
@@ -236,9 +236,7 @@ describe("AppModel", () => {
   });
 
   it("saves the schedule and closes the editor, or keeps the form up with the refusal's reason", async () => {
-    answer = () => detailOf();
-    const model = new AppModel("/news-sync", host(), () => undefined);
-    await model.load();
+    const model = await loadedRoutinePage();
     model.scheduleForm = scheduleFormOf({ count: "2", unit: "h", at: "", days: [] });
 
     model.saveSchedule();
@@ -262,9 +260,7 @@ describe("AppModel", () => {
   });
 
   it("opens a fix chat and says so", async () => {
-    answer = () => detailOf();
-    const model = new AppModel("/news-sync", host(), () => undefined);
-    await model.load();
+    const model = await loadedRoutinePage();
 
     model.fix();
     await settle();
@@ -277,9 +273,7 @@ describe("AppModel", () => {
   });
 
   it("reports a refused action with the server's reason and reads the page again", async () => {
-    answer = () => detailOf();
-    const model = new AppModel("/news-sync", host(), () => undefined);
-    await model.load();
+    const model = await loadedRoutinePage();
     refusal = { method: "POST", status: 409, detail: "A run of news-sync is already going." };
 
     model.runNow();
