@@ -172,18 +172,14 @@ class HttpChatApp(ChatAppInterface):
         return event_id if isinstance(event_id, str) else None
 
     def assistant_text_after(self, chat_id: str, cursor_event_id: str | None) -> str | None:
-        if cursor_event_id is not None:
-            try:
-                events = self._events(
-                    chat_id,
-                    f"after={urllib.parse.quote(cursor_event_id)}&limit={_EVENTS_PAGE_LIMIT}",
-                )
-            except ChatAppError as e:
-                # A cleared chat starts a fresh transcript, so the cursor is gone; the tail is the answer then.
-                logger.debug("Reading the chat {} from its tail: the cursor read failed ({})", chat_id, e)
-                events = self._events(chat_id, f"limit={_EVENTS_PAGE_LIMIT}")
-        else:
-            events = self._events(chat_id, f"limit={_EVENTS_PAGE_LIMIT}")
+        # The transcript answers an empty page for a cursor it cannot place, never a refusal: a cleared chat
+        # keeps its earlier events readable, so the cursor taken before the send stays good.
+        query = (
+            f"after={urllib.parse.quote(cursor_event_id)}&limit={_EVENTS_PAGE_LIMIT}"
+            if cursor_event_id is not None
+            else f"limit={_EVENTS_PAGE_LIMIT}"
+        )
+        events = self._events(chat_id, query)
         for event in reversed(events):
             if event.get("type") == _ASSISTANT_MESSAGE_TYPE and isinstance(event.get("text"), str):
                 return event["text"]

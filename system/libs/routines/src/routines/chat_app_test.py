@@ -85,16 +85,6 @@ def test_the_agents_newest_message_after_the_cursor_is_the_answer(
     assert chat_app.assistant_text_after("a", "e9") == "Done."
 
 
-def test_a_cursor_a_cleared_chat_no_longer_has_falls_back_to_the_tail(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
-) -> None:
-    http_server.answer("GET", "/api/chats/a/events?after=gone&limit=200", (404, {"detail": "no such event"}))
-    http_server.answer(
-        "GET", "/api/chats/a/events?limit=200", (200, {"events": [{"type": "assistant_message", "text": "Tail."}]})
-    )
-    assert _chat_app(tmp_path, http_server, clock).assistant_text_after("a", "gone") == "Tail."
-
-
 def test_an_unreachable_chat_app_is_an_error_not_a_crash(tmp_path: Path, clock: FakeClock) -> None:
     registry = tmp_path / "apps.toml"
     registry.write_text('[[apps]]\nname = "chat"\nurl = "http://127.0.0.1:9"\n')
