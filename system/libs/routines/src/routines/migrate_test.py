@@ -129,6 +129,26 @@ def test_migration_writes_definitions_carries_state_over_and_removes_both_copies
     assert again.converted == ()
 
 
+def test_an_entry_left_in_place_is_pointed_at_the_moved_env_wrapper_in_both_copies(
+    definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
+) -> None:
+    root = definitions.paths.repo_root
+    durable = root / "data" / ".state" / "cron.d"
+    durable.mkdir(parents=True)
+    live = tmp_path / "etc-cron-d"
+    live.mkdir()
+    entry = f"0 0 1 6 * root {WRAPPER} bash scripts/june_report.sh >> /var/log/supervisor/june.log 2>&1\n"
+    (durable / "june").write_text(entry)
+    (live / "june").write_text(entry)
+
+    report = migrate_cron_entries(root, definitions, states, live_cron_dir=live)
+
+    assert [skipped.file_name for skipped in report.skipped] == ["june"]
+    expected = entry.replace(WRAPPER, "/home/user/workspace/system/libs/routines/with_agent_env.sh")
+    assert (durable / "june").read_text() == expected
+    assert (live / "june").read_text() == expected
+
+
 class RefusingRepository(RecordingRepository):
     """A repository whose index another writer holds for good."""
 

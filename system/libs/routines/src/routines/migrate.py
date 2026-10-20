@@ -40,6 +40,10 @@ _RUN_AUTOMATION_SUFFIX: Final[str] = "run_automation.sh"
 _ENV_WRAPPER_SUFFIX: Final[str] = "with_agent_env.sh"
 _CARETAKER_CHECK_SUFFIX: Final[str] = "caretaker_check.sh"
 _CRON_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]+$")
+# Where every pre-routines cron line found the env wrapper, and where it lives now: an entry left in place
+# keeps running only if it names the wrapper where it is.
+LEGACY_ENV_WRAPPER_PATH: Final[str] = "/home/user/workspace/system/libs/automations/with_agent_env.sh"
+ENV_WRAPPER_PATH: Final[str] = "/home/user/workspace/system/libs/routines/with_agent_env.sh"
 
 
 class ConvertedEntry(FrozenModel):
@@ -204,6 +208,12 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
 
 
 @pure
+def rewrite_env_wrapper(text: str) -> str:
+    """The entry's text with the env wrapper named where it lives now, for an entry that stays with cron."""
+    return text.replace(LEGACY_ENV_WRAPPER_PATH, ENV_WRAPPER_PATH)
+
+
+@pure
 def convert_cron_entry(text: str, file_name: str) -> list[ConvertedEntry | SkippedEntry]:
     """Every job line of one entry file as a definition or a reason it stays."""
     results: list[ConvertedEntry | SkippedEntry] = []
@@ -282,6 +292,7 @@ def migrate_cron_entries(
                     entry_path.name,
                     failure.reason,
                 )
+            _leave_in_place(entry_path, text, live_cron_dir / entry_path.name)
             continue
         for result in results:
             assert isinstance(result, ConvertedEntry)
@@ -318,6 +329,21 @@ def migrate_cron_entries(
         enabled_caretaker=is_caretaker_enabled,
         skipped=tuple(skipped),
     )
+
+
+def _leave_in_place(entry_path: Path, text: str, live_copy: Path) -> None:
+    """Keep the entry with cron, naming the env wrapper where it lives now in both copies."""
+    rewritten = rewrite_env_wrapper(text)
+    if rewritten == text:
+        return
+    copies = [entry_path, live_copy] if live_copy.is_file() else [entry_path]
+    for copy in copies:
+        try:
+            copy.write_text(rewritten, encoding="utf-8")
+        except OSError as e:
+            logger.warning("Could not point the cron entry {} at the moved env wrapper: {}", copy, e)
+            continue
+        logger.info("Pointed the cron entry {} at the moved env wrapper", copy)
 
 
 def _carry_over_job_state(repo_root: Path, routine_id: RoutineId, states: StateStoreInterface) -> None:
