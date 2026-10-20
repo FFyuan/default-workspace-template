@@ -84,8 +84,11 @@ def _signed_in_claude_account_or_skip() -> Path:
     if account is None:
         pytest.skip("no Claude account in this workspace's account store")
     folder = account_dir(account.id, home)
-    if is_signed_in(HarnessType.CLAUDE, folder) is not SignedIn.YES:
-        pytest.skip(f"the Claude account in {folder} is not signed in")
+    signed_in = is_signed_in(HarnessType.CLAUDE, folder)
+    if signed_in is not SignedIn.YES:
+        pytest.skip(
+            f"the Claude account in {folder} is not confirmed signed in (its sign-in check answered {signed_in})"
+        )
     return folder
 
 
