@@ -6,6 +6,7 @@ from datetime import datetime
 from datetime import timedelta
 
 import pytest
+from pydantic import Field
 
 from chat_background_tasks.markers import is_pid_alive
 from chat_background_tasks.markers import process_start_time
@@ -312,6 +313,49 @@ def test_the_tick_closes_off_a_run_whose_process_is_gone(
     finished = ledger.events_of_run(SYNC, run_id)[-1]
     assert isinstance(finished, RunFinishedEvent)
     assert finished.outcome is RunOutcome.INTERRUPTED
+
+
+class OneRefusingStateStore(FileStateStore):
+    """A state store whose file for one routine cannot be opened."""
+
+    refused_id: RoutineId = Field(description="The routine whose state read fails")
+
+    def read(self, routine_id: RoutineId) -> RoutineState:
+        if routine_id == self.refused_id:
+            raise PermissionError(f"{routine_id}: state.json is not readable")
+        return super().read(routine_id)
+
+
+def test_the_tick_goes_on_past_a_routine_whose_state_cannot_be_read(
+    paths: RoutinesPaths,
+    definitions: FileDefinitionStore,
+    ledger: FileLedger,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+    clock: FakeClock,
+) -> None:
+    """One broken state file must not keep every other routine from being reaped or started, tick after tick."""
+    states = OneRefusingStateStore(paths=paths, refused_id=RoutineId("broken"))
+    definitions.add(
+        RoutineId("broken"),
+        RoutineDefinition.model_validate({"title": "B", "what": "W", "every": "1h", "command": ["true"]}),
+    )
+    _command_routine(definitions, "true", enabled=False)
+    _record_current_run(states, RunId.generate(), _dead_pid(), clock.now())
+    runner = Runner(
+        paths=paths,
+        definitions=definitions,
+        states=states,
+        ledger=ledger,
+        chat_app=chat_app,
+        notifier=notifier,
+        clock=clock,
+    )
+
+    report = runner.tick()
+
+    assert report.reaped == (SYNC,)
+    assert report.started == ()
 
 
 def test_the_tick_skips_a_routine_that_is_off_or_not_due(

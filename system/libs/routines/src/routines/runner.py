@@ -461,11 +461,22 @@ class Runner(MutableModel):
             self._housekeep()
             return TickReport(started=tuple(started), reaped=tuple(reaped), is_skipped=False)
 
+    def _state_or_none(self, routine_id: RoutineId) -> RoutineState | None:
+        """The routine's state, or None (logged) for a state file that cannot be opened: the tick serves every
+        routine, so one broken file keeps the rest from running only if it is let to."""
+        try:
+            return self.states.read(routine_id)
+        except OSError as e:
+            logger.warning("Skipping {} this tick: its state cannot be read ({})", routine_id, e)
+            return None
+
     def _reap_dead_runs(self, routines: list[LoadedRoutine]) -> list[RoutineId]:
         reaped: list[RoutineId] = []
         for loaded in routines:
             routine_id = loaded.routine_id
-            state = self.states.read(routine_id)
+            state = self._state_or_none(routine_id)
+            if state is None:
+                continue
             current = state.current_run
             if current is None or is_run_process_alive(current):
                 continue
@@ -517,8 +528,8 @@ class Runner(MutableModel):
         for loaded in routines:
             if loaded.definition is None:
                 continue
-            state = self.states.read(loaded.routine_id)
-            if not is_switched_on(loaded, state) or state.current_run is not None:
+            state = self._state_or_none(loaded.routine_id)
+            if state is None or not is_switched_on(loaded, state) or state.current_run is not None:
                 continue
             due = next_due(loaded.definition, state, now, zone)
             if due is None or due > now:
