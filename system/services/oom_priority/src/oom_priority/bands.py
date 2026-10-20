@@ -191,8 +191,8 @@ def chat_agent_oom_score_adj(
 # terminal) come first, then the UI and the chat app, then the sharing stack,
 # then the runtime-state sync (github-sync, opt-in) and the host backup, then
 # the job scheduler, then the browser stack (its X display, then the
-# coordinator), then the Files app, and last the two single-page apps
-# (Getting Started, then Memory & disk).
+# coordinator), then the Files app, then the two single-page apps (Getting
+# Started, then System Monitor), and last the System Monitor's resource sampler.
 # ``user`` is the single band every *user-created* service shares;
 # it sits above every built-in service so a user's own service is shed before any
 # built-in one, while staying below USER_AGENT.
