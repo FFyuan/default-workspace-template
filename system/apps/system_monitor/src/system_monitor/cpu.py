@@ -24,8 +24,6 @@ STRETCHES_PATH: Final[Path] = (
 FRESH_SECONDS: Final[float] = 30.0
 # The spans the history route serves and how far apart their points are.
 SPANS: Final[dict[str, tuple[int, int]]] = {"1h": (3600, 60), "24h": (24 * 3600, 300)}
-# A gap between minute lines wider than this is left blank on the graph.
-GAP_SECONDS: Final[int] = 180
 STRETCHES_WINDOW: Final[timedelta] = timedelta(hours=24)
 # Only the end of the stretch log is read: a day holds at most a few dozen stretches.
 STRETCHES_TAIL_BYTES: Final[int] = 256 * 1024
