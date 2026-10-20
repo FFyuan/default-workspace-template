@@ -102,7 +102,7 @@ inherited from an older workspace -- so name the failing command verbatim.
 Report concisely:
 
 - Which services are unhealthy (not `RUNNING`, or `RUNNING` but logging errors),
-  which scheduled jobs are not actually succeeding, and which of both are fine.
+  which routines are not actually succeeding, and which of both are fine.
 - For each problem: the error (e.g. the exception type and message), the log file
   and line where it appears, and the likely cause if it is clear from the trace.
 - Where you did **not** find anything, so the reader knows the survey was
