@@ -44,7 +44,13 @@ def _run(started_at: datetime) -> RunRecord:
 
 def test_the_brief_names_the_routine_its_failure_and_each_run_with_an_unambiguous_moment() -> None:
     definition = RoutineDefinition.model_validate(
-        {"title": "News sync", "what": "Pulls news.", "every": "6h", "command": ["python3", "sync.py"], "app": "news"}
+        {
+            "title": "News sync",
+            "what": "Pulls news.",
+            "every": "6h",
+            "command": ["python3", "sync.py", "--source", "top stories"],
+            "app": "news",
+        }
     )
     loaded = LoadedRoutine(routine_id=SYNC, definition=definition, error=None)
     state = RoutineState(consecutive_failures=2, last_started_at=TEST_NOW - timedelta(hours=2))
@@ -60,7 +66,8 @@ def test_the_brief_names_the_routine_its_failure_and_each_run_with_an_unambiguou
 
     assert brief.startswith('/assist The routine "News sync" is not working')
     assert "## Last run's output\n\n```\npulling...\nTraceback: the feed answered 500\n```" in brief
-    assert "- Command it runs: `python3 sync.py`" in brief
+    # Quoted as a shell would need it, so the fixing agent can run the line as it is.
+    assert "- Command it runs: `python3 sync.py --source 'top stories'`" in brief
     assert "- Belongs to the app: news" in brief
     assert "- Current state: Failing" in brief
     # The moment carries its zone, so the fixing agent cannot read it as local time.

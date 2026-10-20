@@ -1,5 +1,6 @@
 """The brief a Fix chat opens on: the routine, what is wrong, where to look, and its recent runs."""
 
+import shlex
 from datetime import timezone
 from typing import Final
 
@@ -59,7 +60,7 @@ def build_fix_brief(detail: RoutineDetail, routine_page_path: str, last_run_log:
         f"- Schedule: {row.schedule_text}",
     ]
     if definition is not None and definition.command is not None:
-        lines.append(f"- Command it runs: `{' '.join(definition.command)}`")
+        lines.append(f"- Command it runs: `{shlex.join(definition.command)}`")
     if definition is not None and definition.skill is not None:
         lines.append(f"- Skill it runs in its chat: `/{definition.skill}`")
     if row.app:
