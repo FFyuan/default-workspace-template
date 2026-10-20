@@ -438,6 +438,7 @@ describe("a framed page's scripted popups", () => {
     expect(open("/docs/intro", "_self")).toEqual({ closed: false });
     expect(open("http://localhost:5173/preview", "_SELF")).toBeNull();
     expect(open("https://example.com/docs", "_self")).toBeNull();
+    expect(open("slack://channel?id=C1", "_self")).toBeNull();
     expect(open("http://localhost:5173/preview", "preview")).toEqual({ closed: false });
     expect(open("/docs/intro", "preview")).toEqual({ closed: false });
     expect(nativeOpen.mock.calls).toEqual([
@@ -448,6 +449,7 @@ describe("a framed page's scripted popups", () => {
     expect(sentAfterConnect(parent)).toEqual([
       [{ type: SHELL_OPEN_LINK, url: "http://localhost:5173/preview" }, "*"],
       [{ type: SHELL_OPEN_LINK, url: "https://example.com/docs" }, "*"],
+      [{ type: SHELL_OPEN_LINK, url: "slack://channel?id=C1" }, "*"],
     ]);
     document.body.innerHTML = "";
   });
