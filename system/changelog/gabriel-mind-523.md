@@ -1,0 +1,1 @@
+`AGENTS.md`'s "Using crystallized skills" section gains a rule to follow a skill without naming it to the user, even when the harness says to announce which skills are in use, pointing at the new "Skills in particular" section of `.agents/shared/references/user-facing-language.md`.
