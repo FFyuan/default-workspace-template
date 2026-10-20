@@ -408,7 +408,7 @@ The definitions it writes are committed as every definition write is (section 4)
 ## 13. Documents, skills, and instructions
 
 - A `manage-routines` skill replaces `manage-scheduled-tasks`, `enable-caretaker`, and `disable-caretaker`: when to make something a routine, the `routines add` forms, how to describe one, and the timezone check it keeps.
-- `build-app` and `update-app`: periodic work in an app is a routine with `app = <name>`, never a loop or a thread inside the service; the scaffold's README says so.
+- `build-app` and `update-app`: periodic work in an app is a routine with `app = <name>`, never a loop or a thread inside the service; the comment the scaffold writes above `stop_when_no_windows` in the new app's `app.toml` says so.
 - `AGENTS.md`: the "Apps and services" paragraph names routines and the skill; the vocabulary paragraph says an automation is a skill routine.
 - `system/apps/README.md`, `system/libs/README.md`, `docs/system/workspace-internals.md`, `system/services/caretaker/README.md`, and the root README's creations list.
 - The library's README is the reference for the file formats; this spec is the design.
