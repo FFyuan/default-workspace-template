@@ -10,6 +10,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import tzinfo
 from typing import Final
+from typing import assert_never
 
 from imbue.imbue_common.pure import pure
 from routines.data_types import LoadedRoutine
@@ -158,6 +159,8 @@ def describe_cadence(cadence: Duration) -> str:
             return "Every week" if cadence.count == 1 else f"Every {cadence.count} weeks"
         case DurationUnit.MONTHS:
             return "Every month" if cadence.count == 1 else f"Every {cadence.count} months"
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 @pure
