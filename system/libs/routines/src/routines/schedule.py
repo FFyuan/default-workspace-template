@@ -12,6 +12,7 @@ from datetime import tzinfo
 from typing import Final
 
 from imbue.imbue_common.pure import pure
+from routines.data_types import LoadedRoutine
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineState
 from routines.primitives import Duration
@@ -37,6 +38,14 @@ _WEEKDAY_NAMES: Final[dict[Weekday, str]] = {
     Weekday.SUN: "Sunday",
 }
 _WORKING_WEEK: Final[frozenset[Weekday]] = frozenset((Weekday.MON, Weekday.TUE, Weekday.WED, Weekday.THU, Weekday.FRI))
+
+
+@pure
+def is_switched_on(loaded: LoadedRoutine, state: RoutineState) -> bool:
+    """Whether the routine runs: the switch in its state, else its definition's default, else on."""
+    if state.is_enabled is not None:
+        return state.is_enabled
+    return loaded.definition.enabled if loaded.definition is not None else True
 
 
 @pure

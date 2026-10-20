@@ -34,7 +34,7 @@ function row(patch: Partial<RoutineRow>): RoutineRow {
   };
 }
 
-function listing(rows: RoutineRow[]): RoutineListing {
+function listing(rows: RoutineRow[], appNames: Record<string, string> = {}): RoutineListing {
   return {
     routines: rows,
     summary: {
@@ -43,6 +43,7 @@ function listing(rows: RoutineRow[]): RoutineListing {
       running: 0,
       next_run_text: "today 8:00 am",
     },
+    app_names: appNames,
     generated_at: "2026-10-20T15:00:00+00:00",
   };
 }
@@ -76,7 +77,7 @@ describe("ListPage", () => {
       row({}),
     ];
     const root = mountView(() =>
-      m(ListPage, { listing: listing(rows), appNames: {}, onStartWithText: () => undefined }),
+      m(ListPage, { listing: listing(rows), onStartWithText: () => undefined }),
     );
 
     const links = [...root.querySelectorAll<HTMLAnchorElement>("a.routine-row")];
@@ -90,23 +91,38 @@ describe("ListPage", () => {
 
   it("shows a running routine as running", () => {
     const root = mountView(() =>
-      m(ListPage, { listing: listing([row({ is_running: true })]), appNames: {}, onStartWithText: () => undefined }),
+      m(ListPage, { listing: listing([row({ is_running: true })]), onStartWithText: () => undefined }),
     );
     expect(root.querySelector("[data-health]")?.getAttribute("data-health")).toBe("RUNNING");
   });
 
-  it("hands the add field's text to the shell with the add prefix", () => {
+  it("groups the rows under the apps' display names from the listing", () => {
+    const rows = [row({ routine_id: "a", app: null }), row({ routine_id: "b", app: "news" })];
+    const root = mountView(() =>
+      m(ListPage, { listing: listing(rows, { news: "Daily News" }), onStartWithText: () => undefined }),
+    );
+    expect([...root.querySelectorAll("[data-group]")].map((group) => group.getAttribute("data-group"))).toEqual([
+      "Daily News",
+      "Workspace",
+    ]);
+  });
+
+  it("hands the add field's text to the shell with the add prefix, keeping it across a redraw", () => {
     const started: string[] = [];
     const root = mountView(() =>
-      m(ListPage, { listing: listing([]), appNames: {}, onStartWithText: (text) => started.push(text) }),
+      m(ListPage, { listing: listing([]), onStartWithText: (text) => started.push(text) }),
     );
     const input = root.querySelector<HTMLInputElement>("[data-add-input]")!;
     input.value = "every weekday at 8, summarize my inbox";
     input.dispatchEvent(new Event("input", { bubbles: true }));
+    // A poll redraws the page between the typing and the submit.
+    m.redraw.sync();
     root
       .querySelector<HTMLFormElement>("[data-add-form]")!
       .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     expect(started).toEqual([`${ADD_PREFIX}every weekday at 8, summarize my inbox`]);
+    m.redraw.sync();
+    expect(root.querySelector<HTMLInputElement>("[data-add-input]")!.value).toBe("");
     expect(root.querySelector("[data-empty]")).not.toBeNull();
   });
 });

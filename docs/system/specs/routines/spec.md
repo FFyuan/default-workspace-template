@@ -161,7 +161,7 @@ The bootstrap writes one code-owned entry into `/etc/cron.d/routines` at every b
 `routines tick`:
 
 1. Takes the tick lock (`data/.state/routines/tick.lock`, `flock -n`) and exits silently if held.
-2. Reaps: for every state whose `current_run` names a pid that is gone, or that is no longer a `routines run <id>` process (read from `/proc/<pid>/cmdline`, so a reused pid never passes), writes a `run_finished` event with outcome `interrupted` and clears it (section 7.2).
+2. Reaps: for every state whose `current_run` names a pid that is gone, or whose start time (`/proc/<pid>/stat`, recorded beside the pid as `chat_background_tasks` records it for its markers, so a reused pid never passes) is not the one recorded, writes a `run_finished` event with outcome `interrupted` and clears it (section 7.2).
 3. Reads every definition.
    For each that is enabled, not running, and due, spawns `routines run <id> --trigger scheduled` detached (its own session, the run's log as stdout and stderr) and moves on.
 4. Once a day, by the stamp in `data/.state/routines/housekeeping.json`, rotates the ledger and prunes old run directories (section 7.2).
@@ -177,7 +177,7 @@ The tick's own output is a line per spawned run and a line per reaped run, nothi
 1. Takes the routine's lock (`data/.state/routines/<id>/lock`, `flock -n`).
    Held means a run is in flight: a scheduled run exits silently, a manual run exits 1 saying so.
    The switch gates scheduled runs only; a manual run of a routine that is off runs, since the user asked for exactly that.
-2. Mints a run id, creates the run directory `data/.state/routines/<id>/runs/<run_id>/`, writes `run_started` to the ledger, and records the run as `current_run` in the state with this process's pid.
+2. Takes the run id the tick or the app minted (or mints one), creates the run directory `data/.state/routines/<id>/runs/<run_id>/`, writes `run_started` to the ledger, and records the run as `current_run` in the state with this process's pid and start time.
 3. Runs the routine (6.3 or 6.4), streaming output to `<run_dir>/log` as it arrives.
 4. Reads `<run_dir>/result.json` if the routine wrote one (6.5).
 5. Writes `run_finished` with the outcome, updates the state, and applies the notification rules (section 8).
@@ -194,7 +194,7 @@ Exit 0 is `succeeded`; anything else is `failed`.
 ### 6.4 A skill run
 
 `skill = "<name>"` is sugar for `command = ["uv", "run", "--no-sync", "routines", "wake", "<name>"]`, and `routines wake` is what the Caretaker's check calls too.
-Inside a run (`ROUTINES_RUN_ID` set) the wake attaches the chat to that run; outside one it is a plain wake with its own exit code.
+Inside a run (`ROUTINES_RUN_ID` set) the wake attaches the chat to that run and records an agent that waits on the user on it exactly as a skill run does (`run_blocked`, the state, the notification); outside one it is a plain wake that only keeps the chat, with its own exit code.
 
 1. **Find the chat.** The routine's chat id is in its state.
    With none, or one the chat app no longer knows, create the agent as the automation script does today: `uv run mngr create <id> --template automation --no-connect --format json --label routine=<id> --label workspace=<workspace> --message /<skill>`, record the chat id, and go to step 4, where any agent message counts as the answer, since the chat starts empty.
@@ -286,6 +286,7 @@ The runner, at the end of every run, applies three rules against the state:
 1. **Failing.** When `consecutive_failures` reaches `notify_after_failures` and `is_failure_notified` is false, post a notification ("Morning inbox digest": "Failed 3 times in a row.") and set the flag.
    A streak notifies once.
 2. **Recovered.** When a run succeeds and `is_failure_notified` is true, post ("Working again.") and clear the flag.
+   The flag moves only when the app took the post; a post that did not go out is noted in the run's log and tried again after the next run.
 3. **Blocked.** On `run_blocked`, post ("Needs you: the agent is waiting for an answer.") once per run.
 
 A notification is `POST /api/v1/agents/<MNGR_AGENT_ID>/notifications` through the latchkey gateway, exactly as `notify_user.py` does, from the services agent's environment the env wrapper restores, headed by the routine's title and with a `destination` naming the routine's page (section 14).
@@ -320,7 +321,7 @@ Every subcommand answers `--format json` for scripts.
 
 ### 10.1 Manifest and program
 
-`system/apps/routines`, name `routines`, display name "Routines", `priority = "routines"` (a new band in `oom_priority`'s table between `files` at 75 and `getting-started` at 80: it stores nothing of its own, and a shed costs a reload), `critical = false`, `stop_when_no_windows = true`, `launcher_rank = 45`, `system = false`, `api_schema_path = "/api/schema"`, a default shortcut on `open` in `focus` mode, and a `[preview]` table over a copy of `data/.state/routines`.
+`system/apps/routines`, name `routines`, display name "Routines", `priority = "routines"` (a new band in `oom_priority`'s table between `files` at 75 and `getting-started` at 80: it stores nothing of its own, and a shed costs a reload), `critical = false`, `stop_when_no_windows = true`, `launcher_rank = 45`, `system = false`, `api_schema_path = "/api/schema"`, a default shortcut on `open` in `focus` mode, and a `[preview]` table over the live state, read-only (the library's state is nothing of the app's to copy).
 The program registers on port 8050 (no built-in uses it) and runs the `routines-app` entry point, like Memory & disk.
 The app depends on the library and imports nothing from mngr.
 
@@ -331,7 +332,7 @@ One document serves every page; the page routes on its path and reports it throu
 
 - **`/`, the list.** A summary strip (how many routines, how many need attention, the next run), then one row per routine: title and sentence, the schedule and "Next: tomorrow 7:30 am", a health pill, "Last run 3 hours ago, automatic", and the run's summary.
   Rows needing attention sort first, then by title.
-  Routines with an `app` group under that app's display name (from the registry), the rest under "Workspace".
+  Routines with an `app` group under that app's display name (the listing carries `app_names`, read from the registry), the rest under "Workspace".
   A text field at the top, "Describe a routine to add", hands "Add a routine: <the text>" to the shell through `startWithText`, so a chat opens on it and the agent, following the `manage-routines` skill, writes the definition.
 - **`/<id>`, the routine.** The definition in plain words, the controls (Run now, On/Off, Change schedule, Fix it, Remove), and the run history: one row per run with when, trigger, outcome, duration, summary, and for a skill run a link to its chat.
   Change schedule opens a dialog with the same fields as the CLI (a number and a unit, a time, weekdays, a day of the month) and previews the sentence it will read as.

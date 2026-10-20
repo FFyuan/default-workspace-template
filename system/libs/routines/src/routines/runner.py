@@ -15,6 +15,8 @@ from loguru import logger
 from pydantic import Field
 from pydantic import ValidationError
 
+from chat_background_tasks.markers import is_pid_alive
+from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.logging import format_nanosecond_iso_timestamp
 from imbue.imbue_common.logging import generate_log_event_id
@@ -45,13 +47,13 @@ from routines.interfaces import StateStoreInterface
 from routines.locks import held_lock
 from routines.locks import is_lock_held
 from routines.paths import RoutinesPaths
-from routines.presentation import is_switched_on
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunKind
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.primitives import RunWarning
+from routines.schedule import is_switched_on
 from routines.schedule import next_due
 from routines.wake import WakeOutcome
 from routines.wake import slash_command_of
@@ -108,20 +110,40 @@ def read_output_tail(log_path: Path) -> str:
         return ""
 
 
-def is_run_process_alive(pid: int, routine_id: RoutineId) -> bool:
-    """Whether the pid is still this routine's runner; a reused pid never passes."""
-    cmdline_path = Path(f"/proc/{pid}/cmdline")
-    if cmdline_path.exists():
-        try:
-            cmdline = cmdline_path.read_bytes()
-        except OSError:
-            return False
-        return b"routines" in cmdline and b"run" in cmdline and routine_id.encode() in cmdline
-    try:
-        os.kill(pid, 0)
-    except OSError:
+def is_run_process_alive(current: CurrentRun) -> bool:
+    """Whether the run's process still runs: its pid is alive and, where /proc can say, it is the process the
+    run recorded rather than a later one given its pid."""
+    if not is_pid_alive(current.pid):
         return False
-    return True
+    if not current.pid_start:
+        return True
+    return process_start_time(current.pid) in ("", current.pid_start)
+
+
+def spawn_run_process(paths: RoutinesPaths, routine_id: RoutineId, trigger: RunTrigger, run_id: RunId) -> None:
+    """A detached runner process for one run, its own output going to the run's log: a caller never waits on a run."""
+    log_path = paths.run_log_path(routine_id, run_id)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    argv = [
+        sys.executable,
+        "-m",
+        "routines.cli",
+        "run",
+        str(routine_id),
+        "--trigger",
+        trigger.lower(),
+        "--run-id",
+        str(run_id),
+    ]
+    with log_path.open("ab") as log_handle:
+        subprocess.Popen(
+            argv,
+            cwd=paths.repo_root,
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
 
 
 class Runner(MutableModel):
@@ -179,7 +201,13 @@ class Runner(MutableModel):
                 command=command,
             )
         )
-        current = CurrentRun(run_id=run_id, pid=os.getpid(), trigger=trigger, started_at=now)
+        current = CurrentRun(
+            run_id=run_id,
+            pid=os.getpid(),
+            pid_start=process_start_time(os.getpid()),
+            trigger=trigger,
+            started_at=now,
+        )
         self.states.update(
             routine_id,
             lambda state: state.model_copy_update(
@@ -253,7 +281,7 @@ class Runner(MutableModel):
                     chat_id=None,
                     warnings=(),
                 )
-        result = _read_result(self.paths.result_path(routine_id, run_id))
+        result = read_result(self.paths.result_path(routine_id, run_id))
         outcome = RunOutcome.SUCCEEDED if exit_code == 0 else RunOutcome.FAILED
         summary = result.summary or ""
         return _Execution(
@@ -266,9 +294,30 @@ class Runner(MutableModel):
 
     def _execute_skill(self, routine_id: RoutineId, run_id: RunId, definition: RoutineDefinition) -> _Execution:
         assert definition.skill is not None
-        state = self.states.read(routine_id)
+        wake = self.wake(
+            routine_id, run_id, str(definition.title), str(definition.skill), definition.timeout.timedelta
+        )
+        self._append_to_log(routine_id, run_id, f"{wake.outcome.lower()}: {wake.summary}\n")
+        return _Execution(
+            outcome=wake.outcome,
+            exit_code=None,
+            summary=wake.summary,
+            chat_id=wake.chat_id,
+            warnings=wake.warnings,
+        )
+
+    def wake(
+        self, routine_id: RoutineId, run_id: RunId | None, title: str, skill: str, timeout: timedelta
+    ) -> WakeOutcome:
+        """Wake the routine's chat with the skill and wait for the turn, keeping the chat on the routine's state.
+
+        Given the run this happens inside (a skill run's own, or the run of a command that calls ``routines
+        wake``), an agent that stops to wait on the user is recorded on the run and announced to the feed.
+        """
 
         def on_blocked() -> None:
+            if run_id is None:
+                return
             self.ledger.append(
                 RunBlockedEvent(
                     **_envelope(RUN_BLOCKED_EVENT, self.clock.now()),
@@ -277,7 +326,8 @@ class Runner(MutableModel):
                 )
             )
             self.states.update(routine_id, _mark_current_run_blocked)
-            self.notifier.notify(f"{definition.title} needs you.", routine_id)
+            if not self.notifier.notify(routine_id, title, f"{title} needs you."):
+                self._append_to_log(routine_id, run_id, "The notification that the agent is waiting did not go out.\n")
 
         def on_chat_known(chat_id: str) -> None:
             self.states.update(
@@ -285,27 +335,23 @@ class Runner(MutableModel):
                 lambda current: current.model_copy_update(to_update(current.field_ref().chat_id, chat_id)),
             )
 
-        wake: WakeOutcome = wake_skill(
+        return wake_skill(
             routine_id=routine_id,
-            title=str(definition.title),
-            skill=str(definition.skill),
-            known_chat_id=state.chat_id,
-            timeout=definition.timeout.timedelta,
+            title=title,
+            skill=skill,
+            known_chat_id=self.states.read(routine_id).chat_id,
+            timeout=timeout,
             chat_app=self.chat_app,
             clock=self.clock,
             on_blocked=on_blocked,
             on_chat_known=on_chat_known,
         )
+
+    def _append_to_log(self, routine_id: RoutineId, run_id: RunId, text: str) -> None:
         log_path = self.paths.run_log_path(routine_id, run_id)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as log_handle:
-            log_handle.write(f"{wake.outcome.lower()}: {wake.summary}\n")
-        return _Execution(
-            outcome=wake.outcome,
-            exit_code=None,
-            summary=wake.summary,
-            chat_id=wake.chat_id,
-            warnings=wake.warnings,
-        )
+            log_handle.write(text)
 
     def _record_finish(
         self,
@@ -356,25 +402,32 @@ class Runner(MutableModel):
             return state.model_copy_update(*updates)
 
         state = self.states.update(routine_id, close_books)
-        self._notify_after_run(routine_id, definition, state)
+        self._notify_after_run(routine_id, run_id, definition, state)
         return event
 
-    def _notify_after_run(self, routine_id: RoutineId, definition: RoutineDefinition, state: RoutineState) -> None:
+    def _notify_after_run(
+        self, routine_id: RoutineId, run_id: RunId, definition: RoutineDefinition, state: RoutineState
+    ) -> None:
         failures = int(state.consecutive_failures)
         threshold = int(definition.notify_after_failures)
         if failures == 0 and state.is_failure_notified:
-            self.notifier.notify(f"{definition.title} is working again.", routine_id)
-            self.states.update(
-                routine_id,
-                lambda current: current.model_copy_update(to_update(current.field_ref().is_failure_notified, False)),
-            )
+            self._announce(routine_id, run_id, definition, f"{definition.title} is working again.", False)
         elif failures > 0 and threshold > 0 and failures >= threshold and not state.is_failure_notified:
             times = "once" if failures == 1 else f"{failures} times in a row"
-            self.notifier.notify(f"{definition.title} has failed {times}.", routine_id)
-            self.states.update(
-                routine_id,
-                lambda current: current.model_copy_update(to_update(current.field_ref().is_failure_notified, True)),
-            )
+            self._announce(routine_id, run_id, definition, f"{definition.title} has failed {times}.", True)
+
+    def _announce(
+        self, routine_id: RoutineId, run_id: RunId, definition: RoutineDefinition, message: str, is_notified: bool
+    ) -> None:
+        """Tell the feed, and only then record that the streak's state has been told; a post that did not go out
+        is noted in the run's log and tried again after the next run."""
+        if not self.notifier.notify(routine_id, str(definition.title), message):
+            self._append_to_log(routine_id, run_id, f"The notification {message!r} did not go out.\n")
+            return
+        self.states.update(
+            routine_id,
+            lambda current: current.model_copy_update(to_update(current.field_ref().is_failure_notified, is_notified)),
+        )
 
     def tick(self) -> TickReport:
         """Section 6.1 of the spec: reap, start what is due, keep house once a day."""
@@ -393,7 +446,7 @@ class Runner(MutableModel):
             routine_id = loaded.routine_id
             state = self.states.read(routine_id)
             current = state.current_run
-            if current is None or is_run_process_alive(current.pid, routine_id):
+            if current is None or is_run_process_alive(current):
                 continue
             if is_lock_held(self.paths.run_lock_path(routine_id)):
                 continue
@@ -451,23 +504,8 @@ class Runner(MutableModel):
         return started
 
     def _spawn_run(self, routine_id: RoutineId) -> None:
-        """A detached runner process: a tick never waits on a run."""
-        argv = [
-            sys.executable,
-            "-m",
-            "routines.cli",
-            "run",
-            str(routine_id),
-            "--trigger",
-            "scheduled",
-        ]
         logger.info("Starting a scheduled run of {}", routine_id)
-        subprocess.Popen(
-            argv,
-            cwd=self.paths.repo_root,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        spawn_run_process(self.paths, routine_id, RunTrigger.SCHEDULED, RunId.generate())
 
     def _housekeep(self) -> None:
         now = self.clock.now()
@@ -515,7 +553,8 @@ def _mark_current_run_blocked(state: RoutineState) -> RoutineState:
     return state.model_copy_update(to_update(state.field_ref().current_run, blocked))
 
 
-def _read_result(path: Path) -> RunResult:
+def read_result(path: Path) -> RunResult:
+    """What the run left in its ``result.json``; an empty result when there is none or it does not parse."""
     if not path.is_file():
         return RunResult()
     try:

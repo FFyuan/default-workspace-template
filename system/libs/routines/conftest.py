@@ -1,7 +1,11 @@
-import subprocess
+import json
+import threading
+from collections.abc import Generator
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from http.server import BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -10,11 +14,14 @@ from routines.definitions import FileDefinitionStore
 from routines.ledger import FileLedger
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
+from routines.mock_http_server_test import FakeHttpServer
 from routines.mock_notifier_test import RecordingNotifier
 from routines.mock_repository_test import RecordingRepository
 from routines.paths import RoutinesPaths
 from routines.runner import Runner
 from routines.state import FileStateStore
+from routines.testing import init_git_workspace
+from routines.testing import make_workspace_paths
 
 # A fixed zone so the tests read the same everywhere: eight hours behind UTC, with no daylight saving.
 TEST_ZONE = timezone(timedelta(hours=-8))
@@ -23,21 +30,13 @@ TEST_NOW = datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
 
 @pytest.fixture
 def paths(tmp_path: Path) -> RoutinesPaths:
-    root = tmp_path / "workspace"
-    (root / "system" / "routines").mkdir(parents=True)
-    return RoutinesPaths(repo_root=root)
+    return make_workspace_paths(tmp_path / "workspace")
 
 
 @pytest.fixture
 def git_paths(paths: RoutinesPaths) -> RoutinesPaths:
     """The same root as a git repository with one commit, for the stores that commit."""
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=paths.repo_root, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=paths.repo_root, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=paths.repo_root, check=True)
-    (paths.repo_root / "README.md").write_text("a workspace\n")
-    subprocess.run(["git", "add", "README.md"], cwd=paths.repo_root, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=paths.repo_root, check=True)
-    return paths
+    return init_git_workspace(paths)
 
 
 @pytest.fixture
@@ -94,3 +93,42 @@ def runner(
         notifier=notifier,
         clock=clock,
     )
+
+
+@pytest.fixture
+def http_server() -> Generator[FakeHttpServer, None, None]:
+    holder: list[FakeHttpServer] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def _serve(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length else b""
+            body = json.loads(raw) if raw else None
+            status, answer = holder[0].take(
+                self.command, self.path, {key.lower(): value for key, value in self.headers.items()}, body
+            )
+            payload = json.dumps(answer).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_GET(self) -> None:
+            self._serve()
+
+        def do_POST(self) -> None:
+            self._serve()
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    holder.append(FakeHttpServer(url=f"http://127.0.0.1:{server.server_port}"))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield holder[0]
+    finally:
+        server.shutdown()
+        server.server_close()

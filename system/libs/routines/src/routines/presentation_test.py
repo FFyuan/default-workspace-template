@@ -135,7 +135,7 @@ def test_the_listing_puts_problems_first_and_counts_them() -> None:
     )
     off = build_row(_loaded(title="C off", enabled=False), RoutineState(), NOW, ZONE)
 
-    listing = build_listing([off, working, failing], NOW, ZONE)
+    listing = build_listing([off, working, failing], {}, NOW, ZONE)
 
     assert [row.title for row in listing.routines] == ["B failing", "A working", "C off"]
     assert listing.summary.needs_attention == 1

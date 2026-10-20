@@ -21,9 +21,9 @@ EVENTS_PATH: Final[Path] = Path("events/runs/events.jsonl")
 TICK_LOCK_FILENAME: Final[str] = "tick.lock"
 HOUSEKEEPING_FILENAME: Final[str] = "housekeeping.json"
 
-# Where the library runs from when nothing says otherwise: supervisord and the agents run from the repo root.
+# Names another checkout; absent, the repo root is the current directory, which supervisord, cron (through the
+# env wrapper) and the agents all set to the workspace checkout.
 REPO_ROOT_ENV: Final[str] = "ROUTINES_REPO_ROOT"
-WORKSPACE_ROOT: Final[Path] = Path("/home/user/workspace")
 
 
 class RoutinesPaths(FrozenModel):

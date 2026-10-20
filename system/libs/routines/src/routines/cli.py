@@ -5,6 +5,7 @@ import os
 import sys
 from collections.abc import Callable
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Final
 
 import click
@@ -14,15 +15,17 @@ from pydantic import ValidationError
 
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.logging import setup_logging
-from imbue.imbue_common.model_update import to_update
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineRow
 from routines.data_types import RunRecord
+from routines.data_types import RunResult
 from routines.data_types import RunStartReceipt
 from routines.definitions import describe_validation_error
 from routines.definitions import once_moment_from_text
 from routines.errors import RoutinesError
+from routines.errors import RunInFlightError
 from routines.migrate import migrate_cron_entries
+from routines.paths import RESULT_FILENAME
 from routines.paths import paths_from_environment
 from routines.primitives import Duration
 from routines.primitives import RoutineId
@@ -30,9 +33,11 @@ from routines.primitives import RunId
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.primitives import Weekday
+from routines.runner import ROUTINE_ID_ENV
+from routines.runner import RUN_DIR_ENV
+from routines.runner import RUN_ID_ENV
 from routines.service import RoutinesService
 from routines.service import build_service
-from routines.wake import wake_skill
 
 JSON_FORMAT: Final[str] = "json"
 HUMAN_FORMAT: Final[str] = "human"
@@ -331,8 +336,17 @@ def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | No
         return
     try:
         event = service.runner.run(RoutineId(routine_id), run_trigger, RunId(run_id) if run_id else None)
+    except RunInFlightError as e:
+        # The tick found the lock free a moment ago; a run that started since is the one that counts.
+        if run_trigger is RunTrigger.SCHEDULED:
+            return
+        _fail(e)
+        return
     except RoutinesError as e:
         _fail(e)
+        return
+    if run_id is not None:
+        # A spawned run's stdout is its own log, which already has what the run wrote.
         return
     click.echo(RunStartReceipt(routine_id=RoutineId(routine_id), run_id=event.run_id).model_dump_json())
     click.echo(
@@ -408,33 +422,22 @@ def remove_command(routine_id: str) -> None:
     help="How long to wait for the agent's turn",
 )
 def wake_command(skill: str, routine_id: str | None, title: str | None, timeout: str) -> None:
-    """Wake the routine's chat with /<skill> and wait for the turn; inside a run, records the chat on the run."""
+    """Wake the routine's chat with /<skill> and wait for the turn; inside a run, the chat and a waiting agent are
+    recorded on the run and the agent's summary becomes the run's."""
     service = _service()
-    wanted_id = RoutineId(routine_id or os.environ.get("ROUTINES_ROUTINE_ID") or skill)
-    state = service.states.read(wanted_id)
-
-    def remember_chat(chat_id: str) -> None:
-        service.states.update(
-            wanted_id,
-            lambda current: current.model_copy_update(to_update(current.field_ref().chat_id, chat_id)),
-        )
-
-    outcome = wake_skill(
-        routine_id=wanted_id,
-        title=title or wanted_id.replace("-", " ").capitalize(),
-        skill=skill,
-        known_chat_id=state.chat_id,
-        timeout=Duration(timeout).timedelta,
-        chat_app=service.chat_app,
-        clock=service.clock,
-        on_blocked=lambda: None,
-        on_chat_known=remember_chat,
+    wanted_id = RoutineId(routine_id or os.environ.get(ROUTINE_ID_ENV) or skill)
+    raw_run_id = os.environ.get(RUN_ID_ENV, "")
+    outcome = service.runner.wake(
+        wanted_id,
+        RunId(raw_run_id) if raw_run_id else None,
+        title or wanted_id.replace("-", " ").capitalize(),
+        skill,
+        Duration(timeout).timedelta,
     )
-    run_dir = os.environ.get("ROUTINES_RUN_DIR")
+    run_dir = os.environ.get(RUN_DIR_ENV, "")
     if run_dir:
-        result = {"summary": outcome.summary, "chat_id": outcome.chat_id}
-        with open(os.path.join(run_dir, "result.json"), "w", encoding="utf-8") as handle:
-            json.dump(result, handle)
+        result = RunResult(summary=outcome.summary, chat_id=outcome.chat_id)
+        (Path(run_dir) / RESULT_FILENAME).write_text(result.model_dump_json(), encoding="utf-8")
     click.echo(f"{outcome.outcome.lower()}: {outcome.summary}")
     sys.exit(0 if outcome.outcome is RunOutcome.SUCCEEDED else 1)
 

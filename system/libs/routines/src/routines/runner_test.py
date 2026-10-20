@@ -6,8 +6,11 @@ from datetime import timedelta
 
 import pytest
 
+from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
+from routines.data_types import RUN_EVENTS_SOURCE
+from routines.data_types import RUN_STARTED_EVENT
 from routines.data_types import RoutineDefinition
 from routines.data_types import RunFinishedEvent
 from routines.data_types import RunStartedEvent
@@ -22,6 +25,7 @@ from routines.mock_notifier_test import RecordingNotifier
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
 from routines.primitives import RunId
+from routines.primitives import RunKind
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.primitives import RunWarning
@@ -95,7 +99,7 @@ def test_a_failing_command_counts_toward_the_streak_and_tells_the_feed_at_the_th
     second = runner.run(SYNC, RunTrigger.SCHEDULED, None)
     assert second.outcome is RunOutcome.FAILED
     assert states.read(SYNC).consecutive_failures == 2
-    assert notifier.sent == [(SYNC, "Nightly sync has failed 2 times in a row.")]
+    assert notifier.sent == [(SYNC, "Nightly sync", "Nightly sync has failed 2 times in a row.")]
 
     runner.run(SYNC, RunTrigger.SCHEDULED, None)
     assert len(notifier.sent) == 1, "a streak notifies once"
@@ -113,7 +117,10 @@ def test_a_success_after_a_notified_streak_says_it_is_working_again(
     runner.run(SYNC, RunTrigger.SCHEDULED, None)
     runner.run(SYNC, RunTrigger.SCHEDULED, None)
 
-    assert notifier.sent == [(SYNC, "Nightly sync has failed once."), (SYNC, "Nightly sync is working again.")]
+    assert notifier.sent == [
+        (SYNC, "Nightly sync", "Nightly sync has failed once."),
+        (SYNC, "Nightly sync", "Nightly sync is working again."),
+    ]
     assert states.read(SYNC).is_failure_notified is False
 
 
@@ -178,7 +185,7 @@ def test_a_skill_run_whose_agent_waits_on_the_user_is_recorded_blocked_and_notif
     event = runner.run(SYNC, RunTrigger.SCHEDULED, None)
 
     assert event.outcome is RunOutcome.SUCCEEDED
-    assert notifier.sent == [(SYNC, "Morning digest needs you.")]
+    assert notifier.sent == [(SYNC, "Morning digest", "Morning digest needs you.")]
     assert [type(e).__name__ for e in ledger.events_of_run(SYNC, event.run_id)] == [
         "RunStartedEvent",
         "RunBlockedEvent",
@@ -262,3 +269,130 @@ def test_the_tick_keeps_house_once_a_day(runner: Runner, definitions: FileDefini
     clock.advance(timedelta(days=1))
     runner.tick()
     assert not old_run.exists()
+
+
+def test_a_wake_inside_a_command_run_records_the_waiting_agent_on_that_run(
+    runner: Runner,
+    definitions: FileDefinitionStore,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+    ledger: FileLedger,
+    states: FileStateStore,
+) -> None:
+    """What ``routines wake`` does from inside a command routine's run: the same books as a skill run's."""
+    _command_routine(definitions, "true")
+    chat_app.script("agent-created", (ChatStatusWord.ATTENTION, ChatStatusWord.IDLE), "Answered.")
+    run_id = RunId.generate()
+    ledger.append(
+        RunStartedEvent(
+            timestamp="2026-10-20T15:00:00.000000000+00:00",
+            type=RUN_STARTED_EVENT,
+            event_id="e1",
+            source=RUN_EVENTS_SOURCE,
+            routine_id=SYNC,
+            run_id=run_id,
+            trigger=RunTrigger.MANUAL,
+            kind=RunKind.COMMAND,
+            command="true",
+        )
+    )
+    states.update(
+        SYNC,
+        lambda state: state.model_copy_update(
+            to_update(
+                state.field_ref().current_run,
+                CurrentRun(run_id=run_id, pid=os.getpid(), trigger=RunTrigger.MANUAL, started_at=runner.clock.now()),
+            )
+        ),
+    )
+
+    outcome = runner.wake(SYNC, run_id, "Weekly check-up", "caretaker", timedelta(hours=1))
+
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+    assert notifier.sent == [(SYNC, "Weekly check-up", "Weekly check-up needs you.")]
+    assert [type(e).__name__ for e in ledger.events_of_run(SYNC, run_id)] == ["RunStartedEvent", "RunBlockedEvent"]
+    state = states.read(SYNC)
+    assert state.chat_id == "agent-created"
+    assert state.current_run is not None and state.current_run.is_blocked
+
+
+def test_a_wake_outside_any_run_only_keeps_the_chat(
+    runner: Runner, chat_app: ScriptedChatApp, notifier: RecordingNotifier, ledger: FileLedger, states: FileStateStore
+) -> None:
+    chat_app.script("agent-created", (ChatStatusWord.ATTENTION, ChatStatusWord.IDLE), "Answered.")
+
+    outcome = runner.wake(SYNC, None, "Weekly check-up", "caretaker", timedelta(hours=1))
+
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+    assert notifier.sent == []
+    assert ledger.recent_events(SYNC, 5) == []
+    assert states.read(SYNC).chat_id == "agent-created"
+
+
+def test_a_notification_the_feed_did_not_take_is_tried_again_after_the_next_run(
+    runner: Runner, definitions: FileDefinitionStore, notifier: RecordingNotifier, states: FileStateStore
+) -> None:
+    _command_routine(definitions, "false", notify_after_failures=1)
+    notifier.is_accepting = False
+
+    first = runner.run(SYNC, RunTrigger.SCHEDULED, None)
+    assert states.read(SYNC).is_failure_notified is False
+    assert "did not go out" in runner.paths.run_log_path(SYNC, first.run_id).read_text()
+
+    notifier.is_accepting = True
+    runner.run(SYNC, RunTrigger.SCHEDULED, None)
+    assert states.read(SYNC).is_failure_notified is True
+    assert [message for _, _, message in notifier.sent] == [
+        "Nightly sync has failed once.",
+        "Nightly sync has failed 2 times in a row.",
+    ]
+
+
+def test_the_tick_closes_off_a_run_whose_pid_now_belongs_to_another_process(
+    runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, clock: FakeClock
+) -> None:
+    """This process is alive, but the run recorded a start time that is not its own: a recycled pid."""
+    _command_routine(definitions, "true", enabled=False)
+    run_id = RunId.generate()
+    states.update(
+        SYNC,
+        lambda state: state.model_copy_update(
+            to_update(
+                state.field_ref().current_run,
+                CurrentRun(
+                    run_id=run_id,
+                    pid=os.getpid(),
+                    pid_start="1",
+                    trigger=RunTrigger.SCHEDULED,
+                    started_at=clock.now(),
+                ),
+            )
+        ),
+    )
+
+    assert runner.tick().reaped == (SYNC,)
+    assert states.read(SYNC).current_run is None
+
+
+def test_a_run_in_flight_in_this_very_process_is_left_alone(
+    runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, clock: FakeClock
+) -> None:
+    _command_routine(definitions, "true", enabled=False)
+    states.update(
+        SYNC,
+        lambda state: state.model_copy_update(
+            to_update(
+                state.field_ref().current_run,
+                CurrentRun(
+                    run_id=RunId.generate(),
+                    pid=os.getpid(),
+                    pid_start=process_start_time(os.getpid()),
+                    trigger=RunTrigger.SCHEDULED,
+                    started_at=clock.now(),
+                ),
+            )
+        ),
+    )
+
+    assert runner.tick().reaped == ()
+    assert states.read(SYNC).current_run is not None

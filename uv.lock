@@ -3424,6 +3424,8 @@ name = "routines"
 version = "0.1.0"
 source = { editable = "system/libs/routines" }
 dependencies = [
+    { name = "app-manifest" },
+    { name = "chat-background-tasks" },
     { name = "click" },
     { name = "httpx" },
     { name = "imbue-common" },
@@ -3441,6 +3443,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "app-manifest", editable = "system/libs/app_manifest" },
+    { name = "chat-background-tasks", editable = "system/libs/chat_background_tasks" },
     { name = "click", specifier = ">=8.1" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "imbue-common", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fimbue_common&rev=a7172101244d43d2ad624caf988c9d2e17d9d8d7" },

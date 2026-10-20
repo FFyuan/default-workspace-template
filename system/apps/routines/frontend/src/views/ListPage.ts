@@ -14,8 +14,6 @@ import { healthPill } from "./healthPill";
 
 export interface ListPageAttrs {
   listing: RoutineListing;
-  /** The display names of the registered apps, by name, for the group headings. */
-  appNames: Record<string, string>;
   onStartWithText: (text: string) => void;
 }
 
@@ -78,17 +76,19 @@ function row(routine: RoutineRow): m.Vnode {
   );
 }
 
-export const ListPage: m.Component<ListPageAttrs> = {
-  view({ attrs: { listing, appNames, onStartWithText } }) {
-    let draft = "";
-    const submit = (): void => {
-      const text = draft.trim();
-      if (text === "") return;
-      onStartWithText(ADD_PREFIX + text);
-      draft = "";
-    };
-    const { summary } = listing;
-    return m("div", { class: "mx-auto flex max-w-[1040px] flex-col gap-6 px-4 py-6 sm:px-7" }, [
+export const ListPage: m.ClosureComponent<ListPageAttrs> = () => {
+  // The field's text outlives a redraw (every poll is one), so it lives in the closure, not the view.
+  let draft = "";
+  return {
+    view({ attrs: { listing, onStartWithText } }) {
+      const submit = (): void => {
+        const text = draft.trim();
+        if (text === "") return;
+        onStartWithText(ADD_PREFIX + text);
+        draft = "";
+      };
+      const { summary } = listing;
+      return m("div", { class: "mx-auto flex max-w-[1040px] flex-col gap-6 px-4 py-6 sm:px-7" }, [
       m("header", { class: "flex flex-col gap-1" }, [
         m("h1", { class: "type-heading-lg text-primary" }, "Routines"),
         m("p", { class: "type-body text-secondary" }, "Everything in your workspace that runs on its own."),
@@ -107,6 +107,7 @@ export const ListPage: m.Component<ListPageAttrs> = {
           m("input", {
             class: inputClass(),
             type: "text",
+            value: draft,
             placeholder: "Describe a routine to add: every weekday at 8, summarize my inbox",
             "aria-label": "Describe a routine to add",
             "data-add-input": "",
@@ -129,12 +130,13 @@ export const ListPage: m.Component<ListPageAttrs> = {
             { class: "type-body py-6 text-faint", "data-empty": "" },
             "Nothing runs on its own yet. Describe one above to add it.",
           )
-        : groupRows(listing.routines, appNames).map(([heading, rows]) =>
+        : groupRows(listing.routines, listing.app_names).map(([heading, rows]) =>
             m("section", { "data-group": heading }, [
               m("h2", { class: "type-section mt-2 mb-1 text-faint" }, heading),
               rows.map(row),
             ]),
           ),
     ]);
-  },
+    },
+  };
 };

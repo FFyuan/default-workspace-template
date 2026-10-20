@@ -23,7 +23,7 @@ class GatewayNotifier(NotifierInterface):
 
     environ: dict[str, str] = Field(frozen=True, description="The process environment the gateway is named in")
 
-    def notify(self, message: str, routine_id: RoutineId) -> bool:
+    def notify(self, routine_id: RoutineId, title: str, message: str) -> bool:
         gateway = self.environ.get(GATEWAY_ENV, "")
         password = self.environ.get(GATEWAY_PASSWORD_ENV, "")
         agent_id = self.environ.get(AGENT_ID_ENV, "")
@@ -38,6 +38,7 @@ class GatewayNotifier(NotifierInterface):
         if permissions:
             headers["X-Latchkey-Gateway-Permissions-Override"] = permissions
         payload = {
+            "title": title,
             "message": message,
             "destination": {
                 "type": SHOW_ROUTINE_MESSAGE_TYPE,

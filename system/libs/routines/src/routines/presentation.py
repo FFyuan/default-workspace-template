@@ -28,6 +28,7 @@ from routines.schedule import describe_duration
 from routines.schedule import describe_moment
 from routines.schedule import describe_schedule
 from routines.schedule import is_overdue
+from routines.schedule import is_switched_on
 from routines.schedule import next_due
 
 _HEALTH_RANK: Final[dict[RoutineHealth, int]] = {
@@ -100,13 +101,6 @@ def trigger_text(trigger: RunTrigger) -> str:
             return "manual"
         case _ as unreachable:
             assert_never(unreachable)
-
-
-@pure
-def is_switched_on(loaded: LoadedRoutine, state: RoutineState) -> bool:
-    if state.is_enabled is not None:
-        return state.is_enabled
-    return loaded.definition.enabled if loaded.definition is not None else True
 
 
 @pure
@@ -234,7 +228,9 @@ def sort_rows(rows: Sequence[RoutineRow]) -> list[RoutineRow]:
 
 
 @pure
-def build_listing(rows: Sequence[RoutineRow], now: datetime, zone: tzinfo) -> RoutineListing:
+def build_listing(
+    rows: Sequence[RoutineRow], app_names: dict[str, str], now: datetime, zone: tzinfo
+) -> RoutineListing:
     ordered = sort_rows(rows)
     upcoming = [row.next_due_at for row in ordered if row.next_due_at is not None and row.is_enabled]
     if not upcoming:
@@ -248,7 +244,7 @@ def build_listing(rows: Sequence[RoutineRow], now: datetime, zone: tzinfo) -> Ro
         running=sum(1 for row in ordered if row.is_running),
         next_run_text=next_run_text,
     )
-    return RoutineListing(routines=tuple(ordered), summary=summary, generated_at=now)
+    return RoutineListing(routines=tuple(ordered), summary=summary, app_names=app_names, generated_at=now)
 
 
 @pure

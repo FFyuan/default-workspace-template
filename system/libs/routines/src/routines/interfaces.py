@@ -155,5 +155,5 @@ class NotifierInterface(MutableModel, ABC):
     """The Imbue Studio app's notification feed, as far as the runner posts to it."""
 
     @abstractmethod
-    def notify(self, message: str, routine_id: RoutineId) -> bool:
-        """Post one notification landing on the routine's page; answers whether the app took it."""
+    def notify(self, routine_id: RoutineId, title: str, message: str) -> bool:
+        """Post one notification headed by the title and landing on the routine's page; answers whether the app took it."""

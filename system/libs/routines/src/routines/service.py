@@ -1,8 +1,6 @@
 """What the command and the app both do: the one place a routine is listed, changed, run, or removed."""
 
 import os
-import subprocess
-import sys
 from pathlib import Path
 from typing import Final
 
@@ -43,9 +41,12 @@ from routines.presentation import fold_run_events
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunTrigger
+from routines.registry import app_display_names
+from routines.registry import registry_path_of
 from routines.repository import GitRepository
 from routines.runner import Runner
-from routines.runner import _read_result
+from routines.runner import read_result
+from routines.runner import spawn_run_process
 from routines.state import FileStateStore
 
 DEFAULT_RUN_LIMIT: Final[int] = 25
@@ -56,6 +57,7 @@ class RoutinesService(MutableModel):
     """The library's front door, over the stores and the runner."""
 
     paths: RoutinesPaths = Field(frozen=True, description="Where everything lives")
+    registry_path: Path = Field(frozen=True, description="The app registry, for the apps' display names")
     definitions: DefinitionStoreInterface = Field(frozen=True, description="The definition files")
     states: StateStoreInterface = Field(frozen=True, description="The state files")
     ledger: LedgerInterface = Field(frozen=True, description="The run events")
@@ -70,7 +72,7 @@ class RoutinesService(MutableModel):
             build_row(loaded, self.states.read(loaded.routine_id), now, zone)
             for loaded in self.definitions.list_routines()
         ]
-        return build_listing(rows, now, zone)
+        return build_listing(rows, app_display_names(self.registry_path), now, zone)
 
     def row(self, routine_id: RoutineId) -> RoutineRow:
         loaded = self.definitions.load(routine_id)
@@ -103,7 +105,7 @@ class RoutinesService(MutableModel):
         if not records:
             raise RunNotFoundError(run_id)
         log, is_truncated = self.log_tail(routine_id, run_id)
-        result: RunResult = _read_result(self.paths.result_path(routine_id, run_id))
+        result: RunResult = read_result(self.paths.result_path(routine_id, run_id))
         return RunDetail(run=records[0], log=log, is_log_truncated=is_truncated, links=result.links)
 
     def log_tail(self, routine_id: RoutineId, run_id: RunId) -> tuple[str, bool]:
@@ -186,34 +188,19 @@ class RoutinesService(MutableModel):
         if self.is_running(routine_id):
             raise RunInFlightError(f"A run of {routine_id} is already going.")
         run_id = RunId.generate()
-        argv = [
-            sys.executable,
-            "-m",
-            "routines.cli",
-            "run",
-            str(routine_id),
-            "--trigger",
-            RunTrigger.MANUAL.lower(),
-            "--run-id",
-            str(run_id),
-        ]
-        subprocess.Popen(
-            argv,
-            cwd=self.paths.repo_root,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        spawn_run_process(self.paths, routine_id, RunTrigger.MANUAL, run_id)
         return RunStartReceipt(routine_id=routine_id, run_id=run_id)
 
 
 def build_service(paths: RoutinesPaths, environ: dict[str, str]) -> RoutinesService:
     """The service over the real stores, the chat app on loopback, the gateway, and the machine's clock."""
     clock = SystemClock()
+    registry_path = registry_path_of(paths.repo_root, environ)
     repository = GitRepository(repo_root=paths.repo_root, clock=clock)
     definitions = FileDefinitionStore(paths=paths, repository=repository)
     states = FileStateStore(paths=paths)
     ledger = FileLedger(paths=paths)
-    chat_app = HttpChatApp(repo_root=paths.repo_root, environ=environ, clock=clock)
+    chat_app = HttpChatApp(repo_root=paths.repo_root, registry_path=registry_path, environ=environ, clock=clock)
     notifier: NotifierInterface = GatewayNotifier(environ=environ)
     runner = Runner(
         paths=paths,
@@ -226,6 +213,7 @@ def build_service(paths: RoutinesPaths, environ: dict[str, str]) -> RoutinesServ
     )
     return RoutinesService(
         paths=paths,
+        registry_path=registry_path,
         definitions=definitions,
         states=states,
         ledger=ledger,

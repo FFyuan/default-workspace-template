@@ -1,4 +1,8 @@
-"""Converting the cron entries a workspace wrote before routines existed into definitions, once."""
+"""Converting the cron entries a workspace wrote before routines existed into definitions, once.
+
+CLEANUP: remove this module, its ``migrate-cron`` command and the bootstrap's call to it once every workspace
+has booted a release with routines (the migration leaves nothing behind for a second pass to find).
+"""
 
 import re
 from datetime import datetime

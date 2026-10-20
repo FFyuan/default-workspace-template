@@ -59,7 +59,7 @@ function bootstrap(): void {
   );
   m.mount(root, {
     view: () => [
-      m(App, { model, appNames: {} }),
+      m(App, { model }),
       pendingRemoval === null
         ? null
         : m(DestroyConfirmDialog, {

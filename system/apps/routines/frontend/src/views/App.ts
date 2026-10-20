@@ -190,11 +190,10 @@ export class AppModel {
 
 export interface AppAttrs {
   model: AppModel;
-  appNames: Record<string, string>;
 }
 
 export const App: m.Component<AppAttrs> = {
-  view({ attrs: { model, appNames } }) {
+  view({ attrs: { model } }) {
     const { loaded } = model;
     let body: m.Children;
     switch (loaded.kind) {
@@ -211,7 +210,6 @@ export const App: m.Component<AppAttrs> = {
       case "list":
         body = m(ListPage, {
           listing: loaded.listing,
-          appNames,
           onStartWithText: (text) => model.startWithText(text),
         });
         break;

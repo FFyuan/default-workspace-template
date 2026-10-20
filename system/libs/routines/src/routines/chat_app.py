@@ -3,7 +3,6 @@
 import json
 import os
 import subprocess
-import tomllib
 import urllib.parse
 from pathlib import Path
 from typing import Any
@@ -20,11 +19,8 @@ from routines.interfaces import ChatAppInterface
 from routines.interfaces import ClockInterface
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
+from routines.registry import chat_app_url
 
-APPS_FILE_ENV: Final[str] = "MINDS_APPS_FILE"
-DEFAULT_APPS_FILE: Final[Path] = Path("data/.state/apps.toml")
-CHAT_APP_NAME: Final[str] = "chat"
-CHAT_APP_FALLBACK_URL: Final[str] = "http://127.0.0.1:8010"
 # The create template every routine's chat is made from: the one the automation runner used.
 AUTOMATION_TEMPLATE: Final[str] = "automation"
 CONNECT_TIMEOUT_SECONDS: Final[float] = 3.0
@@ -37,19 +33,6 @@ NOT_READY_RETRY_PAUSE_SECONDS: Final[float] = 1.0
 CREATE_TIMEOUT_SECONDS: Final[float] = 300.0
 _EVENTS_PAGE_LIMIT: Final[int] = 200
 _ASSISTANT_MESSAGE_TYPE: Final[str] = "assistant_message"
-
-
-def chat_app_url(repo_root: Path, environ: dict[str, str]) -> str:
-    """The chat app's address from the app registry, else its fixed port."""
-    registry = Path(environ.get(APPS_FILE_ENV) or (repo_root / DEFAULT_APPS_FILE))
-    try:
-        raw = tomllib.loads(registry.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        return CHAT_APP_FALLBACK_URL
-    for row in raw.get("apps", []):
-        if isinstance(row, dict) and row.get("name") == CHAT_APP_NAME and isinstance(row.get("url"), str):
-            return row["url"].rstrip("/")
-    return CHAT_APP_FALLBACK_URL
 
 
 def workspace_label(environ: dict[str, str]) -> str:
@@ -87,15 +70,13 @@ def _created_agent_id(stdout: str) -> str:
 class HttpChatApp(ChatAppInterface):
     """The chat app reached on loopback, found through the app registry."""
 
-    repo_root: Path = Field(
-        frozen=True,
-        description="The workspace checkout, where the registry is read from",
-    )
+    repo_root: Path = Field(frozen=True, description="The workspace checkout, which a create runs from")
+    registry_path: Path = Field(frozen=True, description="The app registry, where the chat app's address is")
     environ: dict[str, str] = Field(frozen=True, description="The process environment")
     clock: ClockInterface = Field(frozen=True, description="For the pauses between not-ready retries")
 
     def _base_url(self) -> str:
-        return chat_app_url(self.repo_root, self.environ)
+        return chat_app_url(self.registry_path)
 
     def _request(self, method: str, path: str, body: dict[str, Any] | None, read_timeout: float) -> httpx.Response:
         url = f"{self._base_url()}{path}"

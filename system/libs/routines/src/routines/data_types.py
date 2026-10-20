@@ -122,6 +122,11 @@ class CurrentRun(FrozenModel):
 
     run_id: RunId = Field(description="The run")
     pid: int = Field(description="The runner process")
+    pid_start: str = Field(
+        default="",
+        description="When that process started, as /proc reports it, so a pid reused after a reboot is not taken "
+        "for the runner; empty where /proc has no answer",
+    )
     trigger: RunTrigger = Field(description="What started it")
     started_at: datetime = Field(description="When it started")
     is_blocked: bool = Field(default=False, description="Whether a skill run's agent is waiting on the user")
@@ -264,6 +269,9 @@ class RoutineListing(FrozenModel):
 
     routines: tuple[RoutineRow, ...] = Field(description="The rows, problems first")
     summary: ListingSummary = Field(description="The strip")
+    app_names: dict[str, str] = Field(
+        description="The display name of each registered app, by name, for the headings the rows group under"
+    )
     generated_at: datetime = Field(description="When the listing was built")
 
 

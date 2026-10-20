@@ -568,6 +568,8 @@ def _write_routines_tick_cron_entry(target_dir: Path = Path("/etc/cron.d")) -> N
 def _migrate_cron_entries_to_routines() -> None:
     """Convert the cron entries a workspace wrote before routines existed; a no-op once there are none.
 
+    CLEANUP: remove with ``routines.migrate`` once every workspace has booted a release with routines.
+
     Runs ``routines migrate-cron`` as a subprocess from the root venv rather than importing the
     library, so a workspace whose venv is mid-rebuild still boots; the migration then happens
     on the next boot. Best-effort: the boot must reach supervisord either way.
@@ -585,7 +587,10 @@ def _migrate_cron_entries_to_routines() -> None:
         logger.warning("Skipped the cron-to-routines migration: {}", e)
         return
     if completed.returncode != 0:
-        logger.warning("The cron-to-routines migration failed: {}", (completed.stderr or completed.stdout).strip())
+        logger.warning(
+            "The cron-to-routines migration failed: {}",
+            (completed.stderr or completed.stdout).strip(),
+        )
         return
     for line in completed.stdout.splitlines():
         logger.info("routines migrate-cron: {}", line)

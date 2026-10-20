@@ -61,6 +61,8 @@ export interface ListingSummary {
 export interface RoutineListing {
   routines: RoutineRow[];
   summary: ListingSummary;
+  /** The display name of each registered app, by name, for the group headings. */
+  app_names: Record<string, string>;
   generated_at: string;
 }
 
