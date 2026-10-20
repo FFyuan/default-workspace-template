@@ -932,7 +932,7 @@ def test_a_message_sent_to_a_chat_still_called_chat_n_names_it(
         manager._agents[agent_id] = AgentStateItem(
             id=agent_id, name="Chat-4", state="RUNNING", labels={"display_name": "Chat 4"}, work_dir=None
         )
-    completion = ScriptedOneShotCompletion(["Rome trip: plan five days in May"])
+    completion = ScriptedOneShotCompletion(["Five days in Rome"])
     renames: list[tuple[ChatId, str]] = []
     namer = ChatNamer(
         chat_files_root=tmp_path / "chats",
@@ -951,7 +951,7 @@ def test_a_message_sent_to_a_chat_still_called_chat_n_names_it(
 
     assert response.status_code == 200
     assert completion.prompts == [chat_naming_prompt("Help me plan 5 days in Rome")]
-    assert renames == [(ChatId(agent_id), "Rome trip: plan five days in May")]
+    assert renames == [(ChatId(agent_id), "Five days in Rome")]
 
 
 def _client_with_account_labeled_chat(

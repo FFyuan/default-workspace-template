@@ -23,13 +23,13 @@ def test_a_pi_account_is_asked_for_a_chat_name_on_its_haiku_with_nothing_but_the
     # pi's bundled model catalog, not one refreshed over the network.
     monkeypatch.setenv("PI_OFFLINE", "1")
 
-    with StandInAnthropicApi(reply_for=lambda _body: "Rome trip: plan five days") as api:
+    with StandInAnthropicApi(reply_for=lambda _body: "Five days in Rome") as api:
         (account_dir / "models.json").write_text(json.dumps({"providers": {"anthropic": {"baseUrl": api.base_url}}}))
         answer = PiOneShotCompletion().complete(
             account_dir, CHAT_NAMING_SYSTEM_PROMPT, chat_naming_prompt("Plan Rome")
         )
 
-    assert answer == "Rome trip: plan five days"
+    assert answer == "Five days in Rome"
     [request] = api.captured
     body = request["body"]
     assert request["x-api-key"] == "sk-ant-5813"

@@ -432,8 +432,8 @@ over the model bar explains it.
 A new chat is minted as "Chat N". Its first message is sent, in the background
 and outside the chat, to the cheapest model the chat's account offers
 (`chat_naming.py`, through the harness's `OneShotCompletion`, from an empty
-directory with no session kept), and the answer, in the form "Short name: brief
-description", renames the chat the way the rail's rename does. Models are named
+directory with no session kept), and the answer, a short title such as "Simple
+map app", renames the chat the way the rail's rename does. Models are named
 by family rather than by id, so a change to a provider's model list moves the
 call to the new model instead of breaking it:
 
@@ -455,9 +455,11 @@ call to the new model instead of breaking it:
 
 The message goes to the model inside `<message>` tags, with the instruction
 repeated after it, and the system prompt says it is text to title: a small model
-handed a bare "what's 2+2?" answers "4" rather than naming the chat. A leading
-label naming the form itself ("Short name: ", "Title: ") is dropped from the
-answer.
+handed a bare "what's 2+2?" answers "4" rather than naming the chat. The title
+names the subject in two to five words, short enough for the chat list to show
+whole. A leading label ("Title: ") is dropped from the answer, and an answer
+with a colon is refused: it is the older "Short name: description" form, whose
+two halves restate each other ("Map app: build a simple map application").
 
 Names are ASCII. A chat's true name is the ASCII part of its name, so a name in
 another script would leave it a fragment ("React 待办应用" -> "React") or nothing,
@@ -467,19 +469,20 @@ in English; the parser drops whatever accents remain, spells typographic quotes
 and dashes in ASCII ("é" -> "e", "’" -> "'"), and refuses the rest.
 
 The question goes out alongside the send, not after it: the account is known
-from the moment a create starts (`resolve_chat_account_binding`), so a chat still
-coming up is asked about too. The answer is shown in the chat list as soon as it
-arrives (`show_automatic_title`), ahead of the slower `mngr rename` that makes it
-the chat's own name; a rename that does not land takes the shown name back. The
-name is set once and does not follow the chat as its topic drifts. An opening
-with no clear subject ("hi") leaves "Chat N" and the next message is tried, up to
-three messages. Only a chat still wearing a name nobody chose is renamed: exactly
-"Chat N", or a seeded chat's seed title (the Mind app's "Welcome"), named from
-the first message the user sends in it. A name the user or an agent chose is left
-alone. What has been tried is kept in `naming.json` in the chat's folder, so a
-restart neither renames a named chat nor retries past the limit. A harness with
-no `OneShotCompletion` (Antigravity, OpenCode) keeps the minted name, and a
-secondary chat names nothing.
+from the moment a create starts (`resolve_chat_account_binding`), so a chat
+still coming up is asked about too. The answer is shown in the chat list as soon
+as it arrives (`show_automatic_title`), ahead of the slower `mngr rename` that
+makes it the chat's own name; a rename that does not land takes the shown name
+back. The name is set once and does not follow the chat as its topic drifts. An
+opening with no clear subject ("hi") leaves "Chat N" and the next message is
+tried, up to three messages. A title another chat already has gets the first
+free number after it ("Simple map app 2"), up to 9. Only a chat still wearing a
+name nobody chose is renamed: exactly "Chat N", or a seeded chat's seed title
+(the Mind app's "Welcome"), named from the first message the user sends in it. A
+name the user or an agent chose is left alone. What has been tried is kept in
+`naming.json` in the chat's folder, so a restart neither renames a named chat
+nor retries past the limit. A harness with no `OneShotCompletion` (Antigravity,
+OpenCode) keeps the minted name, and a secondary chat names nothing.
 
 ## Compaction
 
