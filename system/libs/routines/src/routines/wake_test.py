@@ -197,7 +197,9 @@ def test_a_turn_past_the_timeout_is_interrupted(chat_app: ScriptedChatApp, clock
     assert chat_app.verbs == [("agent-1", "interrupt")]
 
 
-def test_an_interrupt_the_chat_app_refuses_leaves_the_run_timed_out(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
+def test_an_interrupt_the_chat_app_refuses_leaves_the_run_timed_out(
+    chat_app: ScriptedChatApp, clock: FakeClock
+) -> None:
     """The turn may end between the last poll and the interrupt; the run still took longer than its time."""
     chat_app.script("agent-1", (ChatStatusWord.IDLE, ChatStatusWord.WORKING), None)
     chat_app.is_interrupt_refused = True
