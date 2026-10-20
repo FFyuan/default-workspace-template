@@ -102,18 +102,19 @@ worker side:
     agent goes, the runtime dirs of the workers *it* dispatched are pulled out
     of its worktree into the caller's tree at the same repo-relative paths, so
     the task files and consumed reports of the whole subtree survive.
-    Unmerged commits and a dirty worktree are printed as a warning, never a
-    refusal. Worker branches (``mngr/<name>`` by default, or whatever
-    ``--branch`` resolved to) survive unless ``--delete-branches`` is passed,
-    which deletes only a branch mngr created, and refuses before destroying
-    anything while any destroyed agent's branch holds commits that neither
-    HEAD nor any other local branch has -- a pre-existing branch mngr would
-    keep included, since the listing cannot tell the two apart
+    Unmerged commits and a dirty worktree are printed as a warning. Worker
+    branches (``mngr/<name>`` by default, or whatever ``--branch`` resolved
+    to) survive unless ``--delete-branches`` is passed, which deletes only a
+    branch mngr created, and refuses (exit 2) before destroying anything
+    while any destroyed agent's branch holds commits that neither HEAD nor
+    any other local branch has -- a pre-existing branch mngr would keep
+    included, since the listing cannot tell the two apart
     (``--discard-unmerged`` overrides it); mngr
     preserves each destroyed agent's transcript under
     ``$MNGR_HOST_DIR/preserved/``. One outcome line per agent goes to stderr;
-    the exit code is non-zero if any agent failed. ``--no-recursive`` destroys
-    the one agent and names each descendant it leaves behind.
+    otherwise the exit code is non-zero if any agent failed.
+    ``--no-recursive`` destroys the one agent and names each descendant it
+    leaves behind.
 
 ``stop``
     Stops the worker agent and, by default, its whole subtree (children first)
@@ -677,8 +678,9 @@ _MNGR_LIFECYCLE_TIMEOUT_SECONDS = 300.0
 def _git_output(argv: Sequence[str], runner: Runner) -> str | None:
     """``argv``'s stdout, stripped -- or ``None`` when the command failed.
 
-    Every git probe here is advisory (a failure means "no evidence", never a
-    refusal), so the failure mode folds into the return value.
+    The failure mode folds into the return value and each caller decides what
+    it means: most probes are advisory (no evidence, never a refusal), while
+    ``_branch_deletion_refusal`` fails closed on it.
     """
     try:
         result = runner.run(
