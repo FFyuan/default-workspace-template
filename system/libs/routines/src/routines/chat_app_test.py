@@ -29,6 +29,21 @@ def test_the_status_is_read_from_the_chat_list_and_unknown_words_read_as_unknown
     assert chat_app.chat_status("c") is None
 
 
+def test_a_status_read_waits_out_a_not_ready_answer_too(
+    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+) -> None:
+    """A chat app that has restarted answers 503 until its agent list is known; a poll is not a refusal then."""
+    http_server.answer(
+        "GET",
+        "/api/chats",
+        (503, {"detail": "agent list not known yet"}),
+        (200, {"chats": [{"chat_id": "a", "status": "idle"}]}),
+    )
+    chat_app = _chat_app(tmp_path, http_server, clock)
+    assert chat_app.chat_status("a") is ChatStatusWord.IDLE
+    assert [request.path for request in http_server.requests] == ["/api/chats", "/api/chats"]
+
+
 def test_a_send_waits_out_a_not_ready_answer_and_a_refusal_is_an_error_in_the_apps_words(
     tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
 ) -> None:

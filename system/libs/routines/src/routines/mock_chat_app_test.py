@@ -26,12 +26,18 @@ class ScriptedChatApp(ChatAppInterface):
     next_created_id: str = Field(default="agent-created", description="The id the next create answers")
     is_create_refused: bool = Field(default=False, description="Whether creates fail")
     event_ids: dict[str, str] = Field(default_factory=dict, description="The latest event id per chat")
+    unlisted_polls_by_chat: dict[str, int] = Field(
+        default_factory=dict, description="How many status polls a chat is left out of the list for, as a fresh one is"
+    )
 
     def script(self, chat_id: str, statuses: tuple[ChatStatusWord, ...], reply: str | None) -> None:
         self.chats[chat_id] = ScriptedChat(statuses=statuses, reply=reply)
         self.polls_by_chat[chat_id] = 0
 
     def chat_status(self, chat_id: str) -> ChatStatusWord | None:
+        if self.unlisted_polls_by_chat.get(chat_id, 0) > 0:
+            self.unlisted_polls_by_chat[chat_id] -= 1
+            return None
         chat = self.chats.get(chat_id)
         if chat is None:
             return None

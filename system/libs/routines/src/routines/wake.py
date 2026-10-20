@@ -3,11 +3,13 @@
 from collections.abc import Callable
 from datetime import datetime
 from datetime import timedelta
+from enum import auto
 from typing import Final
 
 from loguru import logger
 from pydantic import Field
 
+from imbue.imbue_common.enums import UpperCaseStrEnum
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.pure import pure
 from routines.errors import ChatAppError
@@ -20,7 +22,8 @@ from routines.primitives import RunOutcome
 from routines.primitives import RunWarning
 
 POLL_PAUSE_SECONDS: Final[float] = 1.0
-# A chat that neither works nor answers this long after the send never started.
+# A chat that neither works nor answers this long after the send never started; a chat the app does not list
+# yet this long after its create, or after a restart, is gone rather than still being registered.
 START_DEADLINE: Final[timedelta] = timedelta(seconds=60)
 SUMMARY_MAX_CHARS: Final[int] = 200
 CLEAR_COMMAND: Final[str] = "/clear"
@@ -28,6 +31,17 @@ NEVER_STARTED_SUMMARY: Final[str] = "The agent never started on the message."
 _BUSY_STATUSES: Final[frozenset[ChatStatusWord]] = frozenset(
     (ChatStatusWord.WORKING, ChatStatusWord.BACKGROUND, ChatStatusWord.ATTENTION)
 )
+_GONE_STATUSES: Final[frozenset[ChatStatusWord | None]] = frozenset(
+    (None, ChatStatusWord.STOPPED, ChatStatusWord.ERROR)
+)
+
+
+class RestartVerdict(UpperCaseStrEnum):
+    """How a restarted chat came back: ready, gone for good, or not within the run's time."""
+
+    IDLE = auto()
+    GONE = auto()
+    TIMED_OUT = auto()
 
 
 class WakeOutcome(FrozenModel):
@@ -56,13 +70,19 @@ def slash_command_of(skill: str) -> str:
     return f"/{skill}"
 
 
-def _wait_until_idle(chat_app: ChatAppInterface, clock: ClockInterface, chat_id: str, deadline: datetime) -> bool:
-    """Whether the chat reached idle before the deadline."""
+def _wait_until_idle(
+    chat_app: ChatAppInterface, clock: ClockInterface, chat_id: str, deadline: datetime
+) -> RestartVerdict:
+    """Poll a restarted chat until it is idle; one still unlisted, stopped or in error past the start grace is gone."""
+    grace_until = clock.now() + START_DEADLINE
     while clock.now() < deadline:
-        if chat_app.chat_status(chat_id) is ChatStatusWord.IDLE:
-            return True
+        status = chat_app.chat_status(chat_id)
+        if status is ChatStatusWord.IDLE:
+            return RestartVerdict.IDLE
+        if status in _GONE_STATUSES and clock.now() >= grace_until:
+            return RestartVerdict.GONE
         clock.pause(POLL_PAUSE_SECONDS)
-    return False
+    return RestartVerdict.TIMED_OUT
 
 
 def wake_skill(
@@ -110,13 +130,23 @@ def wake_skill(
                 chat_app.stop_chat(chat_id)
                 chat_app.start_chat(chat_id)
                 warnings.append(RunWarning.RESTARTED_PREVIOUS_RUN)
-                if not _wait_until_idle(chat_app, clock, chat_id, deadline):
-                    return WakeOutcome(
-                        outcome=RunOutcome.TIMED_OUT,
-                        summary="The chat did not come back after a restart.",
-                        chat_id=chat_id,
-                        warnings=tuple(warnings),
-                    )
+                match _wait_until_idle(chat_app, clock, chat_id, deadline):
+                    case RestartVerdict.IDLE:
+                        pass
+                    case RestartVerdict.GONE:
+                        return WakeOutcome(
+                            outcome=RunOutcome.FAILED,
+                            summary="The agent stopped after the restart.",
+                            chat_id=chat_id,
+                            warnings=tuple(warnings),
+                        )
+                    case RestartVerdict.TIMED_OUT:
+                        return WakeOutcome(
+                            outcome=RunOutcome.TIMED_OUT,
+                            summary="The chat did not come back after a restart.",
+                            chat_id=chat_id,
+                            warnings=tuple(warnings),
+                        )
             # Start fresh: the send answers once the harness has accepted the text.
             chat_app.send_message(chat_id, CLEAR_COMMAND)
             cursor = chat_app.latest_event_id(chat_id)
@@ -129,7 +159,12 @@ def wake_skill(
         now = clock.now()
         while now <= deadline:
             status = chat_app.chat_status(chat_id)
-            if status is None or status is ChatStatusWord.STOPPED or status is ChatStatusWord.ERROR:
+            if status is None and is_fresh_chat and now - sent_at <= START_DEADLINE:
+                # The chat app lists a just-created agent once its follower has seen it.
+                clock.pause(POLL_PAUSE_SECONDS)
+                now = clock.now()
+                continue
+            if status in _GONE_STATUSES:
                 return WakeOutcome(
                     outcome=RunOutcome.FAILED,
                     summary="The agent stopped before it finished.",

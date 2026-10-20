@@ -86,13 +86,15 @@ class HttpChatApp(ChatAppInterface):
         except httpx.HTTPError as e:
             raise ChatAppError(f"The chat app could not be reached ({e}).") from e
 
-    def _post_until_ready(self, path: str, body: dict[str, Any], read_timeout: float) -> httpx.Response:
-        """POST, retrying a 503 (the chat app up but not ready) for a bounded window."""
+    def _request_until_ready(
+        self, method: str, path: str, body: dict[str, Any] | None, read_timeout: float
+    ) -> httpx.Response:
+        """Request, retrying a 503 (the chat app up but not ready) for a bounded window."""
         deadline = self.clock.now().timestamp() + NOT_READY_RETRY_WINDOW_SECONDS
-        response = self._request("POST", path, body, read_timeout)
+        response = self._request(method, path, body, read_timeout)
         while response.status_code == 503 and self.clock.now().timestamp() < deadline:
             self.clock.pause(NOT_READY_RETRY_PAUSE_SECONDS)
-            response = self._request("POST", path, body, read_timeout)
+            response = self._request(method, path, body, read_timeout)
         return response
 
     def _detail(self, response: httpx.Response) -> str:
@@ -107,7 +109,7 @@ class HttpChatApp(ChatAppInterface):
         return response.text.strip()[:200]
 
     def chat_status(self, chat_id: str) -> ChatStatusWord | None:
-        response = self._request("GET", "/api/chats", None, READ_TIMEOUT_SECONDS)
+        response = self._request_until_ready("GET", "/api/chats", None, READ_TIMEOUT_SECONDS)
         if response.status_code != 200:
             raise ChatAppError(f"The chat app answered {response.status_code} for the chat list.")
         try:
@@ -121,7 +123,9 @@ class HttpChatApp(ChatAppInterface):
         return None
 
     def _post_verb(self, chat_id: str, verb: str) -> None:
-        response = self._post_until_ready(f"/api/chats/{urllib.parse.quote(chat_id)}/{verb}", {}, READ_TIMEOUT_SECONDS)
+        response = self._request_until_ready(
+            "POST", f"/api/chats/{urllib.parse.quote(chat_id)}/{verb}", {}, READ_TIMEOUT_SECONDS
+        )
         if response.status_code >= 300:
             raise ChatAppError(f"The chat app refused to {verb} the chat: {self._detail(response)}")
 
@@ -136,7 +140,8 @@ class HttpChatApp(ChatAppInterface):
 
     def send_message(self, chat_id: str, text: str) -> None:
         body = {"message": text, "message_id": uuid4().hex}
-        response = self._post_until_ready(
+        response = self._request_until_ready(
+            "POST",
             f"/api/chats/{urllib.parse.quote(chat_id)}/message",
             body,
             SEND_READ_TIMEOUT_SECONDS,
@@ -145,7 +150,7 @@ class HttpChatApp(ChatAppInterface):
             raise ChatAppError(f"The chat app refused the message: {self._detail(response)}")
 
     def _events(self, chat_id: str, query: str) -> list[dict[str, Any]]:
-        response = self._request(
+        response = self._request_until_ready(
             "GET",
             f"/api/chats/{urllib.parse.quote(chat_id)}/events?{query}",
             None,
