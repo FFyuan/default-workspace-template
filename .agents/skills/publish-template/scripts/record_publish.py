@@ -44,6 +44,7 @@ _WORKSPACE_HEADING = "## Workspace"
 # two-space gap instead of landing flush against its sha.
 _NOTE_WIDTH = 35
 _VERSION_PATTERN = re.compile(r"^- v(\d+)\s")
+_ENTRY_PATTERN = re.compile(r"^- v\d+  \S+  (?P<note>.*?)\s+(?P<sha>\S+)$")
 
 
 class RecordPublishError(Exception):
@@ -63,6 +64,16 @@ def template_line(version: int, date: str, note: str, sha: str) -> str:
     if len(padded) - len(note) < 2:
         padded = note + "  "
     return f"- v{version}  {date}  {padded}{sha}"
+
+
+def _records(line: str, note: str, sha: str) -> bool:
+    """Whether an entry line records exactly this note at this sha, at any version."""
+    match = _ENTRY_PATTERN.match(line)
+    return (
+        match is not None
+        and match.group("sha") == sha
+        and match.group("note").strip() == note.strip()
+    )
 
 
 def _next_heading(lines: list[str], start: int, prefixes: tuple[str, ...]) -> int:
@@ -97,9 +108,8 @@ def add_template_entry(
 
     block_end = _next_heading(lines, heading + 1, ("## ", "### "))
     entries = [index for index in range(heading + 1, block_end) if lines[index].strip()]
-    for index in entries:
-        if lines[index].endswith(sha) and f"  {note}" in lines[index]:
-            return None
+    if any(_records(lines[index], note, sha) for index in entries):
+        return None
     versions = [
         int(match.group(1))
         for match in (_VERSION_PATTERN.match(lines[index]) for index in entries)

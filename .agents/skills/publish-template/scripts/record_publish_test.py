@@ -128,6 +128,22 @@ def test_an_update_appends_the_next_version_under_the_same_heading(
     )
 
 
+def test_a_shorter_note_at_the_same_sha_is_a_new_version_not_a_retry(
+    workspace: Path,
+) -> None:
+    """Only the exact note counts as already recorded, not one it is a part of."""
+    source = git(workspace, "rev-parse", "HEAD")
+    assert _record(workspace, "adds a reminders column", sha=source).returncode == 0
+
+    completed = _record(workspace, "adds a reminders", sha=source)
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "v2"
+    assert git(workspace, "log", "-1", "--format=%s") == (
+        "version history: updated template inbox to v2"
+    )
+
+
 def test_two_templates_from_one_commit_are_recorded_separately(
     workspace: Path,
 ) -> None:
