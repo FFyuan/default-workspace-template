@@ -27,6 +27,27 @@ describe("RunPage", () => {
     ]);
   });
 
+  it("keeps the end of a growing log in view, unless the reader scrolled up", () => {
+    let log = "line 1\n";
+    const root = mountView(() => m(RunPage, { detail: runDetailOf({ log }), routineTitle: "News sync" }));
+    const pre = root.querySelector<HTMLPreElement>("[data-log]")!;
+    // jsdom lays nothing out, so the log's geometry is stubbed: 500px of text in a 100px box.
+    let scrollTop = 0;
+    Object.defineProperty(pre, "scrollHeight", { get: () => 500 });
+    Object.defineProperty(pre, "clientHeight", { get: () => 100 });
+    Object.defineProperty(pre, "scrollTop", { get: () => scrollTop, set: (value: number) => (scrollTop = value) });
+
+    scrollTop = 400;
+    log = "line 1\nline 2\n";
+    m.redraw.sync();
+    expect(scrollTop).toBe(500);
+
+    scrollTop = 120;
+    log = "line 1\nline 2\nline 3\n";
+    m.redraw.sync();
+    expect(scrollTop).toBe(120);
+  });
+
   it("links the chat and the result's links, and says when only the end of the log is shown", () => {
     const root = mountView(() =>
       m(RunPage, {
