@@ -420,13 +420,19 @@ def stop_runner(pid: int) -> None:
 
 
 def merge_stopped(existing: list[StoppedAgent], stopped: StoppedAgent) -> None:
-    """Add ``stopped`` to the record, or reopen its entry when an earlier round already paused it."""
+    """Add ``stopped`` to the record, or reopen its entry when an earlier round already paused it.
+
+    The earlier round's interrupted commands ride along only until a resume has told the chat
+    about them.
+    """
     for index, entry in enumerate(existing):
         if entry.id == stopped.id:
-            tasks = list(
-                dict.fromkeys([*entry.interrupted_tasks, *stopped.interrupted_tasks])
-            )
-            stopped.interrupted_tasks = tasks
+            if not entry.is_told:
+                stopped.interrupted_tasks = list(
+                    dict.fromkeys(
+                        [*entry.interrupted_tasks, *stopped.interrupted_tasks]
+                    )
+                )
             existing[index] = stopped
             return
     existing.append(stopped)

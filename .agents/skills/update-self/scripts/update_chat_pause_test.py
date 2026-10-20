@@ -163,6 +163,42 @@ def test_the_next_run_brings_back_the_chats_a_lead_that_ended_left_paused(
     assert set(fake_agents.notes()) == {"agent-a"}
 
 
+def test_a_second_pause_tells_a_chat_only_about_what_it_has_not_heard() -> None:
+    told = update_apply_contract.StoppedAgent(
+        id="agent-a",
+        name="Chat-A",
+        chat_id="agent-a",
+        interrupted_tasks=["Run the test suite"],
+        is_restarted=True,
+        is_told=True,
+    )
+    untold = update_apply_contract.StoppedAgent(
+        id="agent-b",
+        name="Chat-B",
+        chat_id="agent-b",
+        interrupted_tasks=["Build the docs"],
+    )
+    record = [told, untold]
+
+    update_chat_pause.merge_stopped(
+        record,
+        update_apply_contract.StoppedAgent(
+            id="agent-a", name="Chat-A", chat_id="agent-a"
+        ),
+    )
+    update_chat_pause.merge_stopped(
+        record,
+        update_apply_contract.StoppedAgent(
+            id="agent-b", name="Chat-B", chat_id="agent-b", interrupted_tasks=["Lint"]
+        ),
+    )
+
+    assert [(entry.id, entry.interrupted_tasks, entry.is_told) for entry in record] == [
+        ("agent-a", [], False),
+        ("agent-b", ["Build the docs", "Lint"], False),
+    ]
+
+
 def test_stop_chats_pauses_from_a_listing_that_exited_non_zero(
     tmp_path: Path, fake_agents: FakeAgents
 ) -> None:
