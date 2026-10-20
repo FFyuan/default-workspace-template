@@ -76,9 +76,7 @@ describe("ListPage", () => {
       }),
       row({}),
     ];
-    const root = mountView(() =>
-      m(ListPage, { listing: listing(rows), onStartWithText: () => undefined }),
-    );
+    const root = mountView(() => m(ListPage, { listing: listing(rows), onStartWithText: () => undefined }));
 
     const links = [...root.querySelectorAll<HTMLAnchorElement>("a.routine-row")];
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["/digest", "/news-sync"]);
@@ -109,9 +107,7 @@ describe("ListPage", () => {
 
   it("hands the add field's text to the shell with the add prefix, keeping it across a redraw", () => {
     const started: string[] = [];
-    const root = mountView(() =>
-      m(ListPage, { listing: listing([]), onStartWithText: (text) => started.push(text) }),
-    );
+    const root = mountView(() => m(ListPage, { listing: listing([]), onStartWithText: (text) => started.push(text) }));
     const input = root.querySelector<HTMLInputElement>("[data-add-input]")!;
     input.value = "every weekday at 8, summarize my inbox";
     input.dispatchEvent(new Event("input", { bubbles: true }));

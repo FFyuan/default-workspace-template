@@ -89,54 +89,54 @@ export const ListPage: m.ClosureComponent<ListPageAttrs> = () => {
       };
       const { summary } = listing;
       return m("div", { class: "mx-auto flex max-w-[1040px] flex-col gap-6 px-4 py-6 sm:px-7" }, [
-      m("header", { class: "flex flex-col gap-1" }, [
-        m("h1", { class: "type-heading-lg text-primary" }, "Routines"),
-        m("p", { class: "type-body text-secondary" }, "Everything in your workspace that runs on its own."),
-      ]),
-      m(
-        "form",
-        {
-          class: "flex gap-2",
-          "data-add-form": "",
-          onsubmit: (event: Event) => {
-            event.preventDefault();
-            submit();
-          },
-        },
-        [
-          m("input", {
-            class: inputClass(),
-            type: "text",
-            value: draft,
-            placeholder: "Describe a routine to add: every weekday at 8, summarize my inbox",
-            "aria-label": "Describe a routine to add",
-            "data-add-input": "",
-            oninput: (event: Event) => {
-              draft = (event.target as HTMLInputElement).value;
+        m("header", { class: "flex flex-col gap-1" }, [
+          m("h1", { class: "type-heading-lg text-primary" }, "Routines"),
+          m("p", { class: "type-body text-secondary" }, "Everything in your workspace that runs on its own."),
+        ]),
+        m(
+          "form",
+          {
+            class: "flex gap-2",
+            "data-add-form": "",
+            onsubmit: (event: Event) => {
+              event.preventDefault();
+              submit();
             },
-          }),
-          m(Button, { variant: "primary", type: "submit" }, "Add"),
-        ],
-      ),
-      m("div", { class: "flex gap-7 border-b border-default pb-4", "data-summary": "" }, [
-        stat(summary.total, "Routines", false),
-        stat(summary.needs_attention, "Need attention", summary.needs_attention > 0),
-        stat(summary.running, "Running", false),
-        stat(summary.next_run_text, "Next run", false),
-      ]),
-      listing.routines.length === 0
-        ? m(
-            "p",
-            { class: "type-body py-6 text-faint", "data-empty": "" },
-            "Nothing runs on its own yet. Describe one above to add it.",
-          )
-        : groupRows(listing.routines, listing.app_names).map(([heading, rows]) =>
-            m("section", { "data-group": heading }, [
-              m("h2", { class: "type-section mt-2 mb-1 text-faint" }, heading),
-              rows.map(row),
-            ]),
-          ),
-    ]);
+          },
+          [
+            m("input", {
+              class: inputClass(),
+              type: "text",
+              value: draft,
+              placeholder: "Describe a routine to add: every weekday at 8, summarize my inbox",
+              "aria-label": "Describe a routine to add",
+              "data-add-input": "",
+              oninput: (event: Event) => {
+                draft = (event.target as HTMLInputElement).value;
+              },
+            }),
+            m(Button, { variant: "primary", type: "submit" }, "Add"),
+          ],
+        ),
+        m("div", { class: "flex gap-7 border-b border-default pb-4", "data-summary": "" }, [
+          stat(summary.total, "Routines", false),
+          stat(summary.needs_attention, "Need attention", summary.needs_attention > 0),
+          stat(summary.running, "Running", false),
+          stat(summary.next_run_text, "Next run", false),
+        ]),
+        listing.routines.length === 0
+          ? m(
+              "p",
+              { class: "type-body py-6 text-faint", "data-empty": "" },
+              "Nothing runs on its own yet. Describe one above to add it.",
+            )
+          : groupRows(listing.routines, listing.app_names).map(([heading, rows]) =>
+              m("section", { "data-group": heading }, [
+                m("h2", { class: "type-section mt-2 mb-1 text-faint" }, heading),
+                rows.map(row),
+              ]),
+            ),
+      ]);
     },
   };
 };
