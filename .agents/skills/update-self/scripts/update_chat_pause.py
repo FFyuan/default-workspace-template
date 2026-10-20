@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from run_in_background import (
+    EXIT_CHAT_GONE,
     EXIT_DELIVERED,
     EXIT_DELIVERED_BUT_BLOCKED,
     messenger_argv,
@@ -512,6 +513,13 @@ def resume(
             restarted_workers=recipient.workers,
         )
         completed = deliver(chat_id, note)
+        if completed.returncode == EXIT_CHAT_GONE:
+            # No later try can deliver to a chat that no longer exists.
+            print(f"Chat {chat_id} no longer exists, so nothing is left to tell it.")
+            for entry in recipient.entries:
+                entry.is_told = True
+            save()
+            continue
         if completed.returncode not in (EXIT_DELIVERED, EXIT_DELIVERED_BUT_BLOCKED):
             problems.append(
                 f"could not send chat {chat_id} the resume note: exit {completed.returncode}: "

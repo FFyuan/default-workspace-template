@@ -52,7 +52,8 @@ argv = sys.argv[1:]
 text = open(argv[argv.index("--message-file") + 1]).read()
 with open(record_path, "a") as handle:
     handle.write(json.dumps({{"tool": "message_chat", "chat_id": argv[0], "text": text}}) + "\\n")
-sys.exit(1 if argv[0] in json.load(open(failures_path)).get("message", []) else 0)
+failures = json.load(open(failures_path))
+sys.exit(8 if argv[0] in failures.get("gone", []) else 1 if argv[0] in failures.get("message", []) else 0)
 """
 
 
@@ -103,7 +104,8 @@ class FakeAgents:
 
     def fail(self, failures: dict[str, list[str]]) -> None:
         """Make ``mngr stop``/``start`` fail for these agent ids, or a note to these chat ids
-        (``{"stop": [...], "start": [...], "message": [...]}``); a ``list`` key makes the
+        (``{"stop": [...], "start": [...], "message": [...]}``), or answer a note to these
+        chat ids as sent to a chat that no longer exists (``"gone"``); a ``list`` key makes the
         listing exit non-zero after printing every agent, as one provider's failure does."""
         self._failures.write_text(json.dumps(failures))
 

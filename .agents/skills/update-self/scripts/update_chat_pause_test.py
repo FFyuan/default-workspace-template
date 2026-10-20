@@ -147,6 +147,31 @@ def test_stop_chats_pauses_from_a_listing_that_exited_non_zero(
     assert fake_agents.states()["Chat-A"] == "STOPPED"
 
 
+def test_a_worker_whose_lead_chat_is_gone_is_resumed_without_holding_the_resume_open(
+    tmp_path: Path, fake_agents: FakeAgents
+) -> None:
+    """No later try can tell a chat that no longer exists, so that is not left for a re-run."""
+    fake_agents.set_agents(
+        [
+            chat("agent-lead", _LEAD, "RUNNING"),
+            worker("agent-w", "orphan-tests", "RUNNING", lead_agent="agent-gone"),
+        ]
+    )
+    assert _main(tmp_path, "run-status", "start") == 0
+    assert _main(tmp_path, "run-status", "stop-chats") == 0
+    fake_agents.fail({"gone": ["agent-gone"]})
+
+    assert (
+        _main(tmp_path, "run-status", "resume-chats", "--landed", "minds-v0.9.0") == 0
+    )
+
+    assert fake_agents.states()["orphan-tests"] == "WAITING"
+    assert [
+        (entry.is_restarted, entry.is_told)
+        for entry in _record(tmp_path).stopped_agents
+    ] == [(True, True)]
+
+
 def test_resume_chats_finishes_only_what_an_earlier_run_left_undone(
     tmp_path: Path, fake_agents: FakeAgents
 ) -> None:
