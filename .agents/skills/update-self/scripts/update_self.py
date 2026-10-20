@@ -134,8 +134,8 @@ verdict and record the Imbue Studio app, bootstrap and the system interface read
 ``update_history_bridge``, ``update_apply`` (the apply and recover
 orchestration), ``update_chat_pause`` (``run-status stop-chats`` /
 ``resume-chats``) and ``update_resume_note`` (the note a resumed chat is
-sent). All of it is covered by ``update_self_test.py`` and
-``test_update_history_bridge.py``.
+sent). All of it is covered by ``update_self_test.py``,
+``test_update_history_bridge.py`` and ``update_chat_pause_test.py``.
 """
 
 from __future__ import annotations
