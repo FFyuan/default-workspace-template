@@ -12,28 +12,21 @@ from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
 
 
-def _chat_app(tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock) -> HttpChatApp:
-    registry = tmp_path / "apps.toml"
-    registry.write_text(f'[[apps]]\nname = "chat"\nurl = "{http_server.url}"\n')
-    return HttpChatApp(repo_root=tmp_path, registry_path=registry, environ={}, clock=clock)
-
-
 def test_the_status_is_read_from_the_chat_list_and_unknown_words_read_as_unknown(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
 ) -> None:
     http_server.answer(
         "GET",
         "/api/chats",
         (200, {"chats": [{"chat_id": "a", "status": "working"}, {"chat_id": "b", "status": "dreaming"}]}),
     )
-    chat_app = _chat_app(tmp_path, http_server, clock)
-    assert chat_app.chat_status("a") is ChatStatusWord.WORKING
-    assert chat_app.chat_status("b") is ChatStatusWord.UNKNOWN
-    assert chat_app.chat_status("c") is None
+    assert http_chat_app.chat_status("a") is ChatStatusWord.WORKING
+    assert http_chat_app.chat_status("b") is ChatStatusWord.UNKNOWN
+    assert http_chat_app.chat_status("c") is None
 
 
 def test_a_status_read_waits_out_a_not_ready_answer_too(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
 ) -> None:
     """A chat app that has restarted answers 503 until its agent list is known; a poll is not a refusal then."""
     http_server.answer(
@@ -42,38 +35,35 @@ def test_a_status_read_waits_out_a_not_ready_answer_too(
         (503, {"detail": "agent list not known yet"}),
         (200, {"chats": [{"chat_id": "a", "status": "idle"}]}),
     )
-    chat_app = _chat_app(tmp_path, http_server, clock)
-    assert chat_app.chat_status("a") is ChatStatusWord.IDLE
+    assert http_chat_app.chat_status("a") is ChatStatusWord.IDLE
     assert [request.path for request in http_server.requests] == ["/api/chats", "/api/chats"]
 
 
 def test_a_send_waits_out_a_not_ready_answer_and_a_refusal_is_an_error_in_the_apps_words(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
 ) -> None:
     http_server.answer("POST", "/api/chats/a/message", (503, {"detail": "starting"}), (200, {}))
     http_server.answer("POST", "/api/chats/b/message", (409, {"detail": "the chat moved on"}))
-    chat_app = _chat_app(tmp_path, http_server, clock)
 
-    chat_app.send_message("a", "/digest")
+    http_chat_app.send_message("a", "/digest")
     assert [request.path for request in http_server.requests] == ["/api/chats/a/message", "/api/chats/a/message"]
     body = http_server.requests[0].body
     assert body is not None and body["message"] == "/digest"
     with pytest.raises(ChatAppError, match="the chat moved on"):
-        chat_app.send_message("b", "/digest")
+        http_chat_app.send_message("b", "/digest")
 
 
 def test_the_chat_verbs_post_to_the_chat_waiting_out_a_not_ready_answer_and_a_refusal_is_an_error(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
 ) -> None:
     http_server.answer("POST", "/api/chats/a/stop", (200, {}))
     http_server.answer("POST", "/api/chats/a/start", (503, {"detail": "starting"}), (200, {}))
     http_server.answer("POST", "/api/chats/a/interrupt", (409, {"detail": "nothing is going"}))
-    chat_app = _chat_app(tmp_path, http_server, clock)
 
-    chat_app.stop_chat("a")
-    chat_app.start_chat("a")
+    http_chat_app.stop_chat("a")
+    http_chat_app.start_chat("a")
     with pytest.raises(ChatAppError, match="refused to interrupt the chat: nothing is going"):
-        chat_app.interrupt_chat("a")
+        http_chat_app.interrupt_chat("a")
 
     assert [(request.method, request.path) for request in http_server.requests] == [
         ("POST", "/api/chats/a/stop"),
@@ -84,20 +74,19 @@ def test_the_chat_verbs_post_to_the_chat_waiting_out_a_not_ready_answer_and_a_re
 
 
 def test_a_refusals_reason_is_its_error_field_or_its_body_when_it_is_not_an_object(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
 ) -> None:
     http_server.answer("POST", "/api/chats/a/stop", (500, {"error": "the harness is gone"}))
     http_server.answer("POST", "/api/chats/b/stop", (400, ["not", "an", "object"]))
-    chat_app = _chat_app(tmp_path, http_server, clock)
 
     with pytest.raises(ChatAppError, match="the harness is gone"):
-        chat_app.stop_chat("a")
+        http_chat_app.stop_chat("a")
     with pytest.raises(ChatAppError, match=r'\["not", "an", "object"\]'):
-        chat_app.stop_chat("b")
+        http_chat_app.stop_chat("b")
 
 
 def test_the_agents_newest_message_after_the_cursor_is_the_answer(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
 ) -> None:
     http_server.answer("GET", "/api/chats/a/events?limit=1", (200, {"events": [{"event_id": "e9"}]}))
     http_server.answer(
@@ -114,13 +103,12 @@ def test_the_agents_newest_message_after_the_cursor_is_the_answer(
             },
         ),
     )
-    chat_app = _chat_app(tmp_path, http_server, clock)
-    assert chat_app.latest_event_id("a") == "e9"
-    assert chat_app.assistant_text_after("a", "e9") == "Done."
+    assert http_chat_app.latest_event_id("a") == "e9"
+    assert http_chat_app.assistant_text_after("a", "e9") == "Done."
 
 
 def test_a_turn_longer_than_a_page_is_read_to_its_end_for_the_newest_message(
-    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
 ) -> None:
     """A page after the cursor holds the events that follow it, so the answer may sit past the first page."""
     first_page = [{"event_id": f"e{index}", "type": "tool_use", "text": "x"} for index in range(10, 210)]
@@ -131,8 +119,7 @@ def test_a_turn_longer_than_a_page_is_read_to_its_end_for_the_newest_message(
         "/api/chats/a/events?after=e209&limit=200",
         (200, {"events": [{"event_id": "e210", "type": "assistant_message", "text": "Done."}]}),
     )
-    chat_app = _chat_app(tmp_path, http_server, clock)
-    assert chat_app.assistant_text_after("a", "e9") == "Done."
+    assert http_chat_app.assistant_text_after("a", "e9") == "Done."
     assert [request.path for request in http_server.requests] == [
         "/api/chats/a/events?after=e9&limit=200",
         "/api/chats/a/events?after=e209&limit=200",

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from routines.chat_app import HttpChatApp
 from routines.definitions import FileDefinitionStore
 from routines.ledger import FileLedger
 from routines.migrate import LEGACY_CRON_DIR
@@ -119,6 +120,14 @@ def runner(
         notifier=notifier,
         clock=clock,
     )
+
+
+@pytest.fixture
+def http_chat_app(tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock) -> HttpChatApp:
+    """The chat app over the fake server, found through a registry that names it."""
+    registry = tmp_path / "apps.toml"
+    registry.write_text(f'[[apps]]\nname = "chat"\nurl = "{http_server.url}"\n')
+    return HttpChatApp(repo_root=tmp_path, registry_path=registry, environ={}, clock=clock)
 
 
 @pytest.fixture
