@@ -46,6 +46,13 @@ def test_a_runner_entry_becomes_a_command_routine_with_its_cadence_and_hour() ->
     )
 
 
+def test_a_redirect_written_without_a_space_is_not_part_of_the_command() -> None:
+    line = f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py >>/var/log/x.log 2>/dev/null\n"
+    (converted,) = convert_cron_entry(line, "news-sync")
+    assert isinstance(converted, ConvertedEntry)
+    assert converted.definition.command == ("python3", "sync.py")
+
+
 def test_an_automation_entry_becomes_a_skill_routine() -> None:
     line = f"* * * * *   root   {WRAPPER} {RUN_JOB} news --every 1d --at 9 bash {RUN_AUTOMATION} news >> /var/log/supervisor/news-job.log 2>&1\n"
     (converted,) = convert_cron_entry(line, "news")

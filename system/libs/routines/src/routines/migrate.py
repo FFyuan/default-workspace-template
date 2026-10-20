@@ -84,7 +84,7 @@ def _strip_redirect(tokens: list[str]) -> list[str]:
         if token in (">>", ">") and index + 1 < len(tokens):
             index += 2
             continue
-        if token == "2>&1" or token.startswith("2>"):
+        if token.startswith(">") or token.startswith("2>"):
             index += 1
             continue
         cleaned.append(token)
