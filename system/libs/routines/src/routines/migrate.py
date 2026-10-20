@@ -5,6 +5,7 @@ has booted a release with routines (the migration leaves nothing behind for a se
 """
 
 import re
+from collections.abc import Mapping
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
@@ -35,6 +36,8 @@ from routines.primitives import Weekday
 LEGACY_CRON_DIR: Final[Path] = Path("data/.state/cron.d")
 LEGACY_JOB_STATE_DIR: Final[Path] = Path("data/.state/jobs")
 LIVE_CRON_DIR: Final[Path] = Path("/etc/cron.d")
+# Where a test points the live cron directory; unset in a workspace.
+LIVE_CRON_DIR_ENV: Final[str] = "ROUTINES_LIVE_CRON_DIR"
 CARETAKER_ROUTINE_ID: Final[RoutineId] = RoutineId("caretaker")
 _RUN_JOB_SUFFIX: Final[str] = "run_job.sh"
 _RUN_AUTOMATION_SUFFIX: Final[str] = "run_automation.sh"
@@ -305,6 +308,12 @@ def _read_count(path: Path) -> int:
     except (OSError, ValueError) as e:
         logger.warning("Ignoring the legacy job state file {}: {}", path, e)
         return 0
+
+
+def live_cron_dir_from_environment(environ: Mapping[str, str]) -> Path:
+    """The live cron directory: /etc/cron.d, or the one the environment names."""
+    named = environ.get(LIVE_CRON_DIR_ENV)
+    return Path(named) if named else LIVE_CRON_DIR
 
 
 def migrate_cron_entries(

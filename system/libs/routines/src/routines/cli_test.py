@@ -17,6 +17,7 @@ from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
 from routines.data_types import WakeOutcome
 from routines.migrate import LEGACY_ENV_WRAPPER_PATH
+from routines.migrate import LIVE_CRON_DIR_ENV
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
@@ -28,9 +29,10 @@ from routines.testing import TEST_NOW
 from routines.testing import wait_for_last_run
 
 
-def _invoke(paths: RoutinesPaths, *args: str) -> Result:
+def _invoke(paths: RoutinesPaths, *args: str, environ: dict[str, str] | None = None) -> Result:
     runner = CliRunner()
-    return runner.invoke(routines, list(args), env={REPO_ROOT_ENV: str(paths.repo_root)}, catch_exceptions=False)
+    env = {REPO_ROOT_ENV: str(paths.repo_root), **(environ or {})}
+    return runner.invoke(routines, list(args), env=env, catch_exceptions=False)
 
 
 def _add_command_routine(paths: RoutinesPaths, *command: str, every: str = "1h", **flags: str) -> Result:
@@ -171,21 +173,26 @@ def test_tick_names_what_it_started_and_says_nothing_when_nothing_is_due(git_pat
 
 
 def test_migrate_cron_prints_what_it_converted_and_what_it_left(
-    git_paths: RoutinesPaths, legacy_cron_dir: Path
+    git_paths: RoutinesPaths, legacy_cron_dir: Path, live_cron_dir: Path
 ) -> None:
     wrapper = LEGACY_ENV_WRAPPER_PATH
-    (legacy_cron_dir / "news-sync").write_text(
+    converted_line = (
         f"* * * * * root {wrapper} /home/user/workspace/system/libs/automations/run_job.sh news-sync "
         "--every 6h python3 sync.py\n"
     )
+    (legacy_cron_dir / "news-sync").write_text(converted_line)
+    (live_cron_dir / "news-sync").write_text(converted_line)
     (legacy_cron_dir / "june").write_text(f"0 0 1 6 * root {wrapper} cmd\n")
+    environ = {LIVE_CRON_DIR_ENV: str(live_cron_dir)}
 
-    result = _invoke(git_paths, "migrate-cron")
+    result = _invoke(git_paths, "migrate-cron", environ=environ)
 
     assert result.exit_code == 0
     assert result.stdout == "converted news-sync\nleft june in place: a schedule naming a month has no routine form\n"
     assert "news-sync" in _invoke(git_paths, "list").output
-    assert _invoke(git_paths, "migrate-cron").stdout == (
+    # The live copy of a converted entry goes with the durable one; the machine's own /etc/cron.d is never touched.
+    assert not (live_cron_dir / "news-sync").exists()
+    assert _invoke(git_paths, "migrate-cron", environ=environ).stdout == (
         "left june in place: a schedule naming a month has no routine form\n"
     )
 

@@ -34,6 +34,7 @@ from routines.errors import RoutineNotFoundError
 from routines.errors import RoutinesError
 from routines.errors import RunInFlightError
 from routines.errors import RunNotFoundError
+from routines.migrate import live_cron_dir_from_environment
 from routines.migrate import migrate_cron_entries
 from routines.paths import RESULT_FILENAME
 from routines.paths import paths_from_environment
@@ -538,7 +539,12 @@ def migrate_cron_command() -> None:
     """Convert the cron entries written before routines existed into definitions; a no-op once there are none."""
     service = _service()
     try:
-        report = migrate_cron_entries(service.paths.repo_root, service.definitions, service.states)
+        report = migrate_cron_entries(
+            service.paths.repo_root,
+            service.definitions,
+            service.states,
+            live_cron_dir=live_cron_dir_from_environment(os.environ),
+        )
     except RoutinesError as e:
         _fail(str(e))
     for routine_id in report.converted:
