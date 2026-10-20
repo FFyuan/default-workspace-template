@@ -9,7 +9,6 @@ from routines.data_types import CurrentRun
 from routines.data_types import LastRun
 from routines.data_types import LoadedRoutine
 from routines.data_types import RUN_BLOCKED_EVENT
-from routines.data_types import RUN_EVENTS_SOURCE
 from routines.data_types import RUN_STARTED_EVENT
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineState
@@ -18,6 +17,7 @@ from routines.data_types import RunStartedEvent
 from routines.presentation import build_listing
 from routines.presentation import build_row
 from routines.presentation import fold_run_events
+from routines.primitives import RUN_EVENTS_SOURCE
 from routines.primitives import RoutineHealth
 from routines.primitives import RunId
 from routines.primitives import RunKind

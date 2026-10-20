@@ -4,13 +4,13 @@ from datetime import timedelta
 
 from imbue.imbue_common.logging import format_nanosecond_iso_timestamp
 from imbue.imbue_common.logging import generate_log_event_id
-from routines.data_types import RUN_EVENTS_SOURCE
 from routines.data_types import RUN_FINISHED_EVENT
 from routines.data_types import RUN_STARTED_EVENT
 from routines.data_types import RunFinishedEvent
 from routines.data_types import RunStartedEvent
 from routines.ledger import FileLedger
 from routines.ledger import LEDGER_SIZE_CAP_BYTES
+from routines.primitives import RUN_EVENTS_SOURCE
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunKind

@@ -30,8 +30,6 @@ DEFAULT_TIMEOUT: Final[Duration] = Duration("1h")
 DEFAULT_RETRY_AFTER: Final[Duration] = Duration("2m")
 DEFAULT_NOTIFY_AFTER_FAILURES: Final[int] = 3
 
-# The ledger's source: the folder under data/.state/routines/events/ the run events live in.
-RUN_EVENTS_SOURCE: Final[str] = "runs"
 RUN_STARTED_EVENT: Final[str] = "run_started"
 RUN_BLOCKED_EVENT: Final[str] = "run_blocked"
 RUN_FINISHED_EVENT: Final[str] = "run_finished"

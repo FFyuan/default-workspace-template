@@ -14,6 +14,9 @@ from routines.errors import InvalidTimeOfDayError
 ROUTINE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 # The run ledger's directory under the state dir, beside the routines' own; no routine may take the name.
 LEDGER_DIRNAME: Final[str] = "events"
+# The ledger's source: the folder under the ledger's directory the run events live in, and the ``source`` every
+# event's envelope names.
+RUN_EVENTS_SOURCE: Final[str] = "runs"
 _DURATION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^(\d+)(mo|m|h|d|w|s)$")
 _TIME_OF_DAY_PATTERN: Final[re.Pattern[str]] = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 

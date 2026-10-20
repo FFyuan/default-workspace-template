@@ -6,6 +6,7 @@ from pydantic import Field
 
 from imbue.imbue_common.frozen_model import FrozenModel
 from routines.primitives import LEDGER_DIRNAME
+from routines.primitives import RUN_EVENTS_SOURCE
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 
@@ -18,7 +19,7 @@ STATE_LOCK_FILENAME: Final[str] = "state.lock"
 RUNS_DIRNAME: Final[str] = "runs"
 RUN_LOG_FILENAME: Final[str] = "log"
 RESULT_FILENAME: Final[str] = "result.json"
-EVENTS_PATH: Final[Path] = Path(LEDGER_DIRNAME) / "runs" / "events.jsonl"
+EVENTS_PATH: Final[Path] = Path(LEDGER_DIRNAME) / RUN_EVENTS_SOURCE / "events.jsonl"
 TICK_LOCK_FILENAME: Final[str] = "tick.lock"
 HOUSEKEEPING_FILENAME: Final[str] = "housekeeping.json"
 

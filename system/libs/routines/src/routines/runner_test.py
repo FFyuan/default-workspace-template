@@ -15,7 +15,6 @@ from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
 from routines.data_types import LastRun
-from routines.data_types import RUN_EVENTS_SOURCE
 from routines.data_types import RUN_STARTED_EVENT
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineState
@@ -35,6 +34,7 @@ from routines.mock_state_store_test import OneRefusingStateStore
 from routines.mock_state_store_test import StaleReadStateStore
 from routines.paths import RoutinesPaths
 from routines.primitives import ChatStatusWord
+from routines.primitives import RUN_EVENTS_SOURCE
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunKind

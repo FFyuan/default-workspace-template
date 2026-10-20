@@ -29,7 +29,6 @@ from routines.data_types import CurrentRun
 from routines.data_types import LastRun
 from routines.data_types import LoadedRoutine
 from routines.data_types import RUN_BLOCKED_EVENT
-from routines.data_types import RUN_EVENTS_SOURCE
 from routines.data_types import RUN_FINISHED_EVENT
 from routines.data_types import RUN_STARTED_EVENT
 from routines.data_types import RoutineDefinition
@@ -52,6 +51,7 @@ from routines.locks import tried_lock
 from routines.paths import RUNS_DIRNAME
 from routines.paths import RoutinesPaths
 from routines.primitives import LEDGER_DIRNAME
+from routines.primitives import RUN_EVENTS_SOURCE
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunKind
