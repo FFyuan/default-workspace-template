@@ -100,10 +100,13 @@ def _envelope(event_type: str, now: datetime) -> dict[str, str]:
 
 
 def read_output_tail(log_path: Path) -> str:
-    """The log's last part for the finish event; empty for a run that wrote no log."""
+    """The log's last part for the finish event; empty for a run that wrote no log, or one whose log cannot be read."""
     try:
         text, _ = read_tail(log_path, OUTPUT_TAIL_BYTES)
-    except OSError:
+    except FileNotFoundError:
+        return ""
+    except OSError as e:
+        logger.warning("Recording the run without its output: the log {} could not be read ({})", log_path, e)
         return ""
     return text
 
