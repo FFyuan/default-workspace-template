@@ -27,7 +27,6 @@ from flask import send_from_directory
 from flask.typing import ResponseReturnValue
 from loguru import logger
 from pydantic import ValidationError
-from werkzeug.exceptions import NotFound
 from werkzeug.serving import run_simple
 
 from app_manifest.content_security_policy import attach_document_policy
@@ -179,10 +178,7 @@ def create_app(
     @app.get("/assets/<path:filename>")
     def asset(filename: str) -> ResponseReturnValue:
         """One file of the pages' built bundle, by name."""
-        try:
-            return send_from_directory((static_directory / "assets").absolute(), filename)
-        except NotFound:
-            return Response(status=HTTP_NOT_FOUND)
+        return send_from_directory((static_directory / "assets").absolute(), filename)
 
     @app.get(HEALTH_PATH)
     def health() -> ResponseReturnValue:
