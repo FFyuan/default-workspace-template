@@ -20,10 +20,10 @@ FixChatStarter = Callable[[str, str], str]
 
 def subprocess_fix_chat_starter(repo_root: Path) -> FixChatStarter:
     """The starter the served app uses: the workspace's chat script, run from the repo root."""
-    return lambda brief, name: start_fix_chat(brief, name, repo_root)
+    return lambda brief, name: _start_fix_chat(brief, name, repo_root)
 
 
-def start_fix_chat(brief: str, name: str, repo_root: Path) -> str:
+def _start_fix_chat(brief: str, name: str, repo_root: Path) -> str:
     """Create the chat with the brief as its first message and the window surfaced; answers its id or raises."""
     argv = [
         "python3",
