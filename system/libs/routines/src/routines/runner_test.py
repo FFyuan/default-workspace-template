@@ -351,8 +351,10 @@ def test_the_tick_keeps_house_once_a_day(runner: Runner, definitions: FileDefini
     old_run = runner.paths.run_dir(SYNC, RunId.generate())
     # A routine whose definition is gone keeps its state directory; its old runs go too.
     old_run_of_removed = runner.paths.run_dir(RoutineId("retired"), RunId.generate())
+    # The ledger's directory sits beside the routines' own and is no routine's: nothing under it is pruned.
+    old_ledger_dir = runner.paths.events_path.parent / "archive"
     ninety_one_days_ago = (clock.now() - timedelta(days=91)).timestamp()
-    for run_dir in (old_run, old_run_of_removed):
+    for run_dir in (old_run, old_run_of_removed, old_ledger_dir):
         run_dir.mkdir(parents=True)
         os.utime(run_dir, (ninety_one_days_ago, ninety_one_days_ago))
 
@@ -363,6 +365,7 @@ def test_the_tick_keeps_house_once_a_day(runner: Runner, definitions: FileDefini
     runner.tick()
     assert not old_run.exists()
     assert not old_run_of_removed.exists()
+    assert old_ledger_dir.exists()
 
 
 @pytest.mark.parametrize("stamp", ["not json", "[1, 2]", '{"day": "2026-10-20"}'])

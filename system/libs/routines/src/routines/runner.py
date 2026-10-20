@@ -51,6 +51,7 @@ from routines.locks import held_lock
 from routines.locks import tried_lock
 from routines.paths import RUNS_DIRNAME
 from routines.paths import RoutinesPaths
+from routines.primitives import LEDGER_DIRNAME
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunKind
@@ -580,6 +581,8 @@ class Runner(MutableModel):
         if not self.paths.state_dir.is_dir():
             return
         for routine_dir in self.paths.state_dir.iterdir():
+            if routine_dir.name == LEDGER_DIRNAME:
+                continue
             runs_dir = routine_dir / RUNS_DIRNAME
             if not runs_dir.is_dir():
                 continue
