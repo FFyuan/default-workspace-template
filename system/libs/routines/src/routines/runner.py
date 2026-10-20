@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -536,7 +537,7 @@ class Runner(MutableModel):
             for run_dir in runs_dir.iterdir():
                 try:
                     if run_dir.is_dir() and run_dir.stat().st_mtime < cutoff:
-                        _remove_tree(run_dir)
+                        shutil.rmtree(run_dir)
                 except OSError as e:
                     logger.warning("Could not prune the run directory {}: {}", run_dir, e)
 
@@ -610,12 +611,3 @@ def _is_process_group_alive(pgid: int) -> bool:
     except PermissionError:
         return True
     return True
-
-
-def _remove_tree(path: Path) -> None:
-    for child in path.iterdir():
-        if child.is_dir() and not child.is_symlink():
-            _remove_tree(child)
-        else:
-            child.unlink()
-    path.rmdir()
