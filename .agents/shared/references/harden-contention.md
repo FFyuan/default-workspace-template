@@ -322,10 +322,11 @@ merge:
   own branch, so deleting the worker branch does not take it back out. The
   hardening done after that milestone is unmerged work like any other, and the
   new pass carries it.
-- **A reverted milestone must be reinstated or superseded.** If you rolled a
+- **A reverted milestone must be reinstated or rebuilt.** If you rolled a
   provisional merge back with `git revert -m 1 <merge-commit>`, the reverted
   commits are still ancestors of HEAD, so any later merge from that branch --
-  and any catch-up into it -- silently omits them. Reinstate them with `git
-  revert <revert-commit>` before merging from that branch or catching it up,
-  or supersede the pass so a fresh one rebuilds the work from the current
-  base.
+  a catch-up into it, or a new pass carrying it -- silently omits them, and
+  `git log HEAD..<branch>` does not list them. Reinstate them with `git
+  revert <revert-commit>` before merging from that branch, catching it up, or
+  carrying it. Otherwise say in the new pass's task that the milestone was
+  reverted and its work must be rebuilt from the current base.
