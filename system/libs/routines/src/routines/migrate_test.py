@@ -152,6 +152,27 @@ def test_migration_writes_definitions_carries_state_over_and_removes_both_copies
     assert again.converted == ()
 
 
+def test_an_entry_whose_id_is_already_a_routine_stays_in_place(
+    definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
+) -> None:
+    root = definitions.paths.repo_root
+    durable = root / "data" / ".state" / "cron.d"
+    durable.mkdir(parents=True)
+    entry = f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py\n"
+    (durable / "news-sync").write_text(entry)
+    first = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+    assert first.converted == (RoutineId("news-sync"),)
+    (durable / "news-sync").write_text(entry)
+
+    again = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+
+    assert again.converted == ()
+    assert [(skipped.file_name, skipped.reason) for skipped in again.skipped] == [
+        ("news-sync", "the routine news-sync exists")
+    ]
+    assert (durable / "news-sync").exists()
+
+
 def test_an_entry_left_in_place_is_pointed_at_the_moved_env_wrapper_in_both_copies(
     definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
 ) -> None:

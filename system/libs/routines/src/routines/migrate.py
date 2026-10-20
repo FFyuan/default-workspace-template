@@ -327,6 +327,7 @@ def migrate_cron_entries(
                 )
             _leave_in_place(entry_path, text, live_cron_dir / entry_path.name)
             continue
+        collisions: list[SkippedEntry] = []
         for result in results:
             assert isinstance(result, ConvertedEntry)
             if result.is_caretaker_switch:
@@ -340,17 +341,20 @@ def migrate_cron_entries(
             try:
                 definitions.add(result.routine_id, result.definition)
             except RoutineExistsError:
-                logger.warning(
-                    "Not converting the cron entry {}: the routine {} exists",
-                    entry_path.name,
-                    result.routine_id,
-                )
+                reason = f"the routine {result.routine_id} exists"
+                logger.warning("Leaving the cron entry {} in place: {}", entry_path.name, reason)
+                collisions.append(SkippedEntry(file_name=entry_path.name, reason=reason))
                 continue
             except DefinitionCommitError as e:
                 # The file is written and the routine runs from it; the next write of the file commits both.
                 logger.warning("Converted the cron entry {} but could not commit it: {}", entry_path.name, e)
             _carry_over_job_state(repo_root, result.legacy_job_name, result.routine_id, states)
             converted.append(result.routine_id)
+        if collisions:
+            # Nothing replaced the colliding line, so the entry stays with cron, as any skipped one does.
+            skipped.extend(collisions)
+            _leave_in_place(entry_path, text, live_cron_dir / entry_path.name)
+            continue
         entry_path.unlink()
         live_copy = live_cron_dir / entry_path.name
         try:
