@@ -5,7 +5,7 @@ day-to-day, but every part is inspectable and the agent maintains it.
 
 - `apps/` - Everything you can open as a tab: the built-in apps and the apps
   your agent builds for you.
-- `services/` - Standalone background services (supervised or cron-driven).
+- `services/` - Standalone background services, supervised by supervisord (scheduled work is a routine).
 - `libs/` - Support libraries, including the first-boot bootstrap and the
   routines library (everything that runs on a schedule).
 - `scripts/` - Provisioning and utility scripts (image build, boot, Claude
