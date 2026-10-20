@@ -174,6 +174,16 @@ class DiffSummary(FrozenModel):
         "the fork point, or the merge base of the diff base and the fork point when a commit of the "
         "pass's before the fork point changed the lock; null without a fork point",
     )
+    incoming_base: NonEmptyStr | None = Field(
+        description="The commit after which the lead's commits reached the branch through a merge of "
+        "the branch's own (a catch-up) rather than being on the lead's line when the branch departed "
+        "from it; null when the branch merged in none of the lead's commits within the window",
+    )
+    incoming: tuple[RepoRelativePath, ...] = Field(
+        description="The changed files that those lead commits, from incoming_base to the fork point, "
+        "changed. They run the suites of the pass's creations they reach, since those suites have not "
+        "yet run against them together with the pass's own work; empty without an incoming base",
+    )
 
 
 class CreationScope(FrozenModel):
@@ -572,6 +582,13 @@ class PassOwnChanges(FrozenModel):
     lockfile_base: NonEmptyStr = Field(
         description="The commit before every change of the pass's to uv.lock"
     )
+    incoming_base: NonEmptyStr | None = Field(
+        description="Where the lead's commits the branch merged in after it departed begin; None when "
+        "it merged none"
+    )
+    incoming_files: frozenset[RepoRelativePath] = Field(
+        description="Every file those commits changed, up to the fork point"
+    )
 
 
 def find_departure_point(repo_root: Path, lead_ref: str, ref: str) -> NonEmptyStr:
@@ -640,26 +657,47 @@ def find_pass_own_changes(
     of a commit the lead made in the window before the fork point that touched a creation in the
     pass, which is how the change being hardened reached the branch. Another chat's commit that
     touched none of them is not the pass's. When one of the pass's commits before the fork point
-    changed ``uv.lock``, the lock is compared from the window's start, so that upgrade counts."""
+    changed ``uv.lock``, the lock is compared from the window's start, so that upgrade counts.
+    The files of the lead's commits in the window that the branch merged in after it departed
+    are recorded as incoming."""
     fork_point = find_fork_point(repo_root, lead_ref, diff_ref)
     window_start = NonEmptyStr(_run_git(repo_root, ("merge-base", diff_base, fork_point)).strip())
     before_fork = set(list_footprint_commit_files(repo_root, window_start, fork_point, creations))
-    branch_commits = _list_first_parent_commits(
-        repo_root, find_departure_point(repo_root, lead_ref, diff_ref), diff_ref
-    )
+    departure_point = find_departure_point(repo_root, lead_ref, diff_ref)
+    branch_commits = _list_first_parent_commits(repo_root, departure_point, diff_ref)
     after_fork = frozenset(
         _run_git(repo_root, ("rev-list", "--first-parent", f"{fork_point}..{diff_ref}")).split()
     )
     for sha, changed in branch_commits:
         if sha not in after_fork:
             before_fork.update(changed)
+    incoming_base = _find_incoming_base(repo_root, departure_point, window_start, fork_point)
     return PassOwnChanges(
         fork_point=fork_point,
         files=frozenset(list_changed_files(repo_root, fork_point, diff_ref).files)
         | before_fork
         | frozenset(path for _, changed in branch_commits for path in changed),
         lockfile_base=window_start if LOCKFILE in before_fork else fork_point,
+        incoming_base=incoming_base,
+        incoming_files=(
+            frozenset()
+            if incoming_base is None
+            else frozenset(list_changed_files(repo_root, incoming_base, fork_point).files)
+        ),
     )
+
+
+def _find_incoming_base(
+    repo_root: Path, departure_point: str, window_start: str, fork_point: str
+) -> NonEmptyStr | None:
+    """The newer of where the branch departed from the lead's line and where the window starts:
+    the lead's commits after it and up to the fork point are in the window and reached the branch
+    through its own merges. None when that is the fork point itself, so nothing did."""
+    is_departure_older = (
+        _run_git(repo_root, ("merge-base", departure_point, window_start)).strip() == departure_point
+    )
+    incoming_base = window_start if is_departure_older else departure_point
+    return None if incoming_base == fork_point else NonEmptyStr(incoming_base)
 
 
 def list_tracked_files(repo_root: Path) -> tuple[RepoRelativePath, ...]:
@@ -741,6 +779,8 @@ def _summarize_diff(
             fork_point=None,
             others=(),
             lockfile_base=None,
+            incoming_base=None,
+            incoming=(),
         )
     own_files = own.files
     inside_files = frozenset(inside_footprint)
@@ -755,6 +795,8 @@ def _summarize_diff(
             path for path in changed.files if path not in inside_files and path not in own_files
         ),
         lockfile_base=own.lockfile_base,
+        incoming_base=own.incoming_base,
+        incoming=tuple(path for path in changed.files if path in own.incoming_files),
     )
 
 

@@ -279,7 +279,8 @@ def _lookup_row(repo_root: Path, match: ManifestReferenceMatch) -> ReferenceLook
     default=None,
     help="A harden pass's scope file, written by pass-scope with --diff-base and --lead-ref: the "
     "change is what its footprints account for and what the pass itself changed, not the other "
-    "work in its diff. Instead of a diff or paths.",
+    "work in its diff, though the lead's work the branch merged in runs the suites of the pass's "
+    "creations it reaches. Instead of a diff or paths.",
 )
 @click.option(
     "--format",

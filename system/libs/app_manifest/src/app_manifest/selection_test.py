@@ -38,7 +38,7 @@ _FRONTEND_BUILD = ["(cd system && npm ci)", "(cd system && npm run build)"]
 def _select(
     repo_root: Path, paths: list[str], lockfile_texts: tuple[str, str] | None = None
 ) -> SuiteSelection:
-    return select_tests(load_repo_layout(repo_root), paths, lockfile_texts)
+    return select_tests(load_repo_layout(repo_root), paths, lockfile_texts, None)
 
 
 def _command_lines(selection: SuiteSelection) -> list[str]:

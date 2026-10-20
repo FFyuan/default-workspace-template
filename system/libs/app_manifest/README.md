@@ -206,8 +206,9 @@ goes to stdout; with it, the parent directories are created.
   file, a reference, or a `context` entry's `app.toml`, and `outside_footprint`,
   the changed files under none of those. A file matched by `exclude` is in
   neither. A non-empty `outside_footprint` means either a missing reference or a
-  change that does not belong on the branch. `fork_point` and `lockfile_base`
-  are null and `others` empty: they are `pass-scope --lead-ref`'s (below).
+  change that does not belong on the branch. `fork_point`, `lockfile_base` and
+  `incoming_base` are null and `others` and `incoming` empty: they are
+  `pass-scope --lead-ref`'s (below).
 
 `app-manifest pass-scope` writes the scope file for a harden pass, which covers
 every creation one change touched:
@@ -238,8 +239,12 @@ fork point; a lead commit the branch merged in does, so what came in with it
 is the lead's, while the branch's own commits from before that merge stay its own. `lockfile_base` is the commit a changed `uv.lock` is compared
 against to tell what the pass upgraded: the fork point, or the merge base of the
 diff base and the fork point when one of the pass's commits before the fork
-point changed the lock. Without `--lead-ref`, `fork_point` and `lockfile_base`
-are null and `others` empty.
+point changed the lock. `incoming` lists the changed files of the lead's
+commits the branch merged in after it left the lead's line (a catch-up): those
+from `incoming_base`, the newer of where it left and the window's start, to
+the fork point. `incoming_base` is null, and `incoming` empty, when it merged
+none within the window. Without `--lead-ref`, `fork_point`, `lockfile_base` and
+`incoming_base` are null and `others` and `incoming` empty.
 A service has `type` `service`, its directory as
 `primary`, and as `wiring` the program named after its package (`host_backup`
 runs as `host-backup`) and every `<name>-<role>` one; an app directory with no
@@ -279,7 +284,13 @@ against. With `--scope-file`, a harden pass's file from `pass-scope
 --diff-base REF --lead-ref REF`, the change is every file of its diff except
 `others`: what the pass's footprints account for and the pass's own changes,
 but not the other work that landed in the window. A changed `uv.lock`
-is then compared against the file's `lockfile_base`. A `--diff-base` selection that runs to
+is then compared against the file's `lockfile_base`. Each `incoming` file also
+selects whatever it would of the pass's creations' own suites and npm
+packages, and nothing else: no suite has yet run those creations against that
+work and the pass's together, while the rest of what it reaches was tested
+where it was committed. An incoming `uv.lock` is compared from
+`incoming_base` to the fork point; when that cannot be read, every creation's
+own suite runs. A `--diff-base` selection that runs to
 the checked-out commit refuses to run while the working tree holds uncommitted
 or untracked changes, and names them, since the tests would run against
 changes the diff leaves out; a `--scope-file` selection always does, and also

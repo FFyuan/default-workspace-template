@@ -741,6 +741,7 @@ def test_a_milestone_the_lead_merged_does_not_move_the_passs_fork_point(tmp_path
     assert scope.diff.inside_footprint == ("system/apps/news/runner.py", "system/apps/news/runner_test.py")
     assert scope.diff.outside_footprint == ("system/scripts/helper.sh",)
     assert scope.diff.others == ("docs/system/unrelated.md",)
+    assert scope.diff.incoming_base is None
 
 
 def test_a_milestone_stays_the_passs_after_the_worker_merges_the_lead_that_merged_it(tmp_path: Path) -> None:
@@ -763,8 +764,9 @@ def test_after_merging_the_leads_head_its_commits_are_the_leads_and_not_the_pass
     """Once a worker merges the lead's later HEAD into its branch, the pass forks from that commit:
     over the window since the worker's tip before the merge, what the merge brought into the
     creation is inside the footprint, a file both sides changed is the pass's own, and the rest
-    of what came in is other work."""
-    diff_base, _ = _news_lead_with_a_change(tmp_path)
+    of what came in is other work. Everything the merge brought in is incoming, from where the
+    worker last held the lead's line."""
+    diff_base, fork = _news_lead_with_a_change(tmp_path)
     run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
     before_merge = commit_changes(
         tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "worker edit"
@@ -792,8 +794,15 @@ def test_after_merging_the_leads_head_its_commits_are_the_leads_and_not_the_pass
     assert scope.diff.inside_footprint == ("system/apps/news/runner.py",)
     assert scope.diff.outside_footprint == ("system/scripts/helper.sh",)
     assert scope.diff.others == ("docs/system/unrelated.md",)
+    assert scope.diff.incoming_base == fork
+    assert scope.diff.incoming == (
+        "docs/system/unrelated.md",
+        "system/apps/news/runner.py",
+        "system/scripts/helper.sh",
+    )
     assert whole_pass.diff is not None
     assert whole_pass.diff.outside_footprint == ("system/scripts/helper.sh",)
+    assert whole_pass.diff.incoming_base == fork
 
 
 def test_a_lead_ref_the_branch_never_forked_from_is_refused(tmp_path: Path) -> None:

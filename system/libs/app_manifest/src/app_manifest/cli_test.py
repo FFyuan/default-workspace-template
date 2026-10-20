@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 from click.testing import Result
 
@@ -645,6 +646,97 @@ def test_a_pass_gate_runs_what_the_hardened_changes_own_lock_upgrade_reaches(tmp
     assert scope["diff"]["outside_footprint"] == ["uv.lock"]
     assert "uv run pytest system/libs/corelib" in commands
     assert "uv run pytest system/libs/midlib" in commands
+
+
+@pytest.mark.parametrize(
+    ("creation", "worker_change", "lead_change", "reached", "not_reached"),
+    [
+        (
+            "app:notes",
+            "system/apps/notes/src/notes/core.py",
+            {"system/libs/midlib/src/midlib/core.py": "VALUE = 2\n"},
+            ["uv run pytest system/apps/notes"],
+            "uv run pytest system/libs/midlib",
+        ),
+        (
+            "app:notes",
+            "system/apps/notes/src/notes/core.py",
+            {"uv.lock": selection_lock("2.1")},
+            ["uv run pytest system/apps/notes"],
+            "uv run pytest system/libs/corelib",
+        ),
+        (
+            "app:chat",
+            "system/apps/chat/imbue/chat/server.py",
+            {"system/libs/ui/src/index.ts": "export const x = 2;\n"},
+            [
+                "(cd system && npm test --workspace=apps/chat/frontend)",
+                "(cd system/apps/chat && uv run pytest --no-cov -m 'browser or frontend')",
+            ],
+            "--workspace=libs/ui",
+        ),
+    ],
+)
+def test_a_catch_up_gate_runs_a_creations_own_suite_when_what_came_in_reaches_it(
+    tmp_path: Path,
+    creation: str,
+    worker_change: str,
+    lead_change: dict[str, str],
+    reached: list[str],
+    not_reached: str,
+) -> None:
+    """The lead's commits a worker merges in after its gate passed can change something its
+    creation depends on without touching the creation: a package, a lock upgrade, a shared
+    frontend. The creation's own suite has never run against that change and the pass's together,
+    so the catch-up gate runs it; the changed package's own suite, its other dependents, and the
+    rest of what came in are not the pass's."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = commit_changes(repo_root, {"uv.lock": selection_lock("2.0")}, "lock")
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(repo_root, {worker_change: "VALUE = 2\n"}, "harden")
+    run_git(repo_root, ("checkout", "-q", "main"))
+    commit_changes(repo_root, {**lead_change, "system/scripts/forward_port.py": "PORT = 2\n"}, "other chats")
+    run_git(repo_root, ("checkout", "-q", "worker"))
+    pre = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    run_git(repo_root, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
+    scope_path = tmp_path / "catch-up-scope.json"
+
+    scope = _write_pass_scope(repo_root, scope_path, [creation], pre, "main")
+    commands = _selected_commands(repo_root, scope_path)
+    whole_pass = _write_pass_scope(repo_root, tmp_path / "scope.json", [creation], diff_base, "main")
+
+    assert sorted(scope["diff"]["incoming"]) == sorted([*lead_change, "system/scripts/forward_port.py"])
+    assert set(reached) <= set(commands)
+    assert not any(not_reached in command for command in commands)
+    assert "uv run pytest" not in commands
+    assert whole_pass["diff"]["incoming_base"] == diff_base
+
+
+def test_a_pass_gate_runs_nothing_for_what_reached_its_creation_before_the_branch_departed(
+    tmp_path: Path,
+) -> None:
+    """Another chat's change to a package the creation depends on, landed before the worker
+    branched, is in the tree the worker's gate already ran on, so it adds nothing to that gate."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "the chat's change")
+    commit_changes(repo_root, {"system/libs/midlib/src/midlib/core.py": "VALUE = 2\n"}, "another chat")
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(
+        repo_root,
+        {".agents/skills/refresh/scripts/refresh_test.py": "def test_refresh_twice() -> None:\n    pass\n"},
+        "harden refresh",
+    )
+    scope_path = tmp_path / "scope.json"
+
+    scope = _write_pass_scope(repo_root, scope_path, ["skill:refresh", "app:notes"], diff_base, "main")
+    commands = _selected_commands(repo_root, scope_path)
+
+    assert scope["diff"]["incoming_base"] is None
+    assert scope["diff"]["incoming"] == []
+    assert "uv run pytest system/apps/notes" not in commands
 
 
 def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_the_tree(tmp_path: Path) -> None:

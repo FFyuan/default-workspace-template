@@ -225,6 +225,20 @@ class SuiteSelection(FrozenModel):
     )
 
 
+class CreationReach(FrozenModel):
+    """Changed paths that select only the suites of some creations: the lead's work a harden pass
+    merged in, whose effect on the pass's creations no suite has yet checked together with the
+    pass's own work, and whose other suites are not the pass's to run."""
+
+    paths: tuple[RepoRelativePath, ...] = Field(description="The changed paths")
+    lockfile_texts: tuple[str, str] | None = Field(
+        description="uv.lock before and after those changes, when they could be read"
+    )
+    creation_directories: tuple[RepoRelativePath, ...] = Field(
+        description="The creations' own directories; only a suite or npm package beneath one runs"
+    )
+
+
 class RepoLayout(FrozenModel):
     """Everything the selection reads off the tree, read once."""
 
@@ -720,6 +734,59 @@ def _select_for_lockfile(context: _SelectionContext, path: str) -> _PathOutcome:
     )
 
 
+def _read_lockfile_change(
+    paths: Sequence[str], lockfile_texts: tuple[str, str] | None
+) -> tuple[LockfileChange | None, str | None]:
+    """What a changed ``uv.lock`` upgraded, or why that could not be read; neither when it did
+    not change."""
+    if LOCKFILE not in paths:
+        return None, None
+    if lockfile_texts is None:
+        return None, "uv.lock changed, but there is no base to compare it against"
+    try:
+        return classify_lockfile_change(*lockfile_texts), None
+    except SuiteSelectionError as e:
+        return None, str(e)
+
+
+def _select_for_reach(
+    context: _SelectionContext, reach: CreationReach
+) -> tuple[list[_PytestRequest], list[_FrontendRequest], list[str]]:
+    """The creations' own pytest runs and npm checks that the reach's paths call for. When its
+    ``uv.lock`` change cannot be read, every creation's suite runs, with a note saying why."""
+    lockfile, lockfile_failure = _read_lockfile_change(reach.paths, reach.lockfile_texts)
+    reach_context = _SelectionContext(
+        layout=context.layout,
+        python_consumers=context.python_consumers,
+        npm_consumers=context.npm_consumers,
+        lockfile=lockfile,
+    )
+
+    def is_creations(directory: str) -> bool:
+        return any(is_path_covered_by(creation, directory) for creation in reach.creation_directories)
+
+    pytest_requests: list[_PytestRequest] = []
+    frontend_requests: list[_FrontendRequest] = []
+    for path in reach.paths:
+        if is_docs_path(path):
+            continue
+        outcome = _select_for_path(reach_context, path)
+        pytest_requests.extend(request for request in outcome.pytest_requests if is_creations(request.group))
+        frontend_requests.extend(
+            request for request in outcome.frontend_requests if is_creations(request.package_directory)
+        )
+    if lockfile_failure is None:
+        return pytest_requests, frontend_requests, []
+    reason = _reason(LOCKFILE, ChangedPathClass.LOCKFILE, "came in, and could not be compared")
+    pytest_requests.extend(
+        _present(
+            _whole_request(context.layout, directory.rstrip("/"), marker_scope=MarkerScope.DEFAULT, reason=reason)
+            for directory in reach.creation_directories
+        )
+    )
+    return pytest_requests, frontend_requests, [f"{lockfile_failure}; every creation's own suite runs"]
+
+
 def _always_run_files(layout: RepoLayout) -> tuple[str, ...]:
     guards = [
         path
@@ -945,15 +1012,27 @@ def select_tests(
     layout: RepoLayout,
     changed_paths: Sequence[str],
     lockfile_texts: tuple[str, str] | None,
+    reach: CreationReach | None,
 ) -> SuiteSelection:
-    """The commands a set of changed paths calls for.
+    """The commands a set of changed paths calls for, plus the creations' own suites that
+    ``reach``'s paths call for.
 
     ``lockfile_texts`` is the ``uv.lock`` before and after the change, when the caller could
     read both; a changed lockfile without them brings in the full root suite. A set made
-    entirely of documentation selects nothing.
+    entirely of documentation selects nothing but what ``reach`` calls for.
     """
     paths = sorted(dict.fromkeys(changed_paths))
-    if all(is_docs_path(path) for path in paths):
+    lockfile, lockfile_failure = _read_lockfile_change(paths, lockfile_texts)
+    context = _SelectionContext(
+        layout=layout,
+        python_consumers=python_consumers(layout.python_members),
+        npm_consumers=npm_consumers(layout.npm_packages),
+        lockfile=lockfile,
+    )
+    reached_pytest, reached_frontend, notes = (
+        ([], [], []) if reach is None else _select_for_reach(context, reach)
+    )
+    if all(is_docs_path(path) for path in paths) and not reached_pytest and not reached_frontend:
         return SuiteSelection(
             commands=(),
             paths=tuple(
@@ -961,31 +1040,15 @@ def select_tests(
                 for path in paths
             ),
             is_full_root=False,
-            notes=(),
+            notes=tuple(notes),
         )
 
-    lockfile: LockfileChange | None = None
-    notes: list[str] = []
-    if LOCKFILE in paths:
-        if lockfile_texts is None:
-            notes.append(
-                "uv.lock changed, but there is no base to compare it against, so the full root suite runs"
-            )
-        else:
-            try:
-                lockfile = classify_lockfile_change(*lockfile_texts)
-            except SuiteSelectionError as e:
-                notes.append(f"{e}; the full root suite runs")
-    context = _SelectionContext(
-        layout=layout,
-        python_consumers=python_consumers(layout.python_members),
-        npm_consumers=npm_consumers(layout.npm_packages),
-        lockfile=lockfile,
-    )
+    if lockfile_failure is not None:
+        notes.append(f"{lockfile_failure}; the full root suite runs")
 
     classified: list[ClassifiedPath] = []
-    pytest_requests: list[_PytestRequest] = []
-    frontend_requests: list[_FrontendRequest] = []
+    pytest_requests: list[_PytestRequest] = list(reached_pytest)
+    frontend_requests: list[_FrontendRequest] = list(reached_frontend)
     full_root_reasons: list[SelectionReason] = []
     for path in paths:
         if is_docs_path(path):
@@ -1021,11 +1084,13 @@ def select_tests(
             for entry in classified
             if ChangedPathClass.DOCS not in entry.classes
         )
-        commands.append(
-            _command(
-                SuiteKind.ALWAYS_RUN, ROOT_DIRECTORY, ("uv", "run", "pytest", *always_run), root_reasons
+        # Only what the reach called for runs when every changed path is documentation.
+        if root_reasons:
+            commands.append(
+                _command(
+                    SuiteKind.ALWAYS_RUN, ROOT_DIRECTORY, ("uv", "run", "pytest", *always_run), root_reasons
+                )
             )
-        )
     commands.extend(_pytest_commands(layout, pytest_requests, set(always_run), is_full_root))
     return SuiteSelection(
         commands=tuple(commands),
@@ -1065,6 +1130,7 @@ def select_tests_for_diff(repo_root: Path, diff_base: str, diff_ref: str) -> Sui
         load_repo_layout(repo_root),
         changed.files,
         read_lockfile_texts(repo_root, changed.merge_base, changed.ref),
+        None,
     )
 
 
@@ -1082,7 +1148,9 @@ def select_tests_for_pass_scope(repo_root: Path, scope: PassScope) -> SuiteSelec
     """The selection for a harden pass, read from its scope file: every file in the diff some
     footprint accounts for or that is the pass's own change, and none of the other work that
     landed in the window. A changed ``uv.lock`` is compared against the scope file's
-    ``lockfile_base``, so only what the pass upgraded counts.
+    ``lockfile_base``, so only what the pass upgraded counts. What the branch merged in from the
+    lead after it departed (the scope file's ``incoming``) also runs the suites of the pass's
+    creations it reaches through a declared dependency, and nothing else.
 
     Raises SuiteSelectionError when the scope file cannot tell the pass's changes from other
     work (it has no diff, or no fork point), or no longer describes the tree the tests run
@@ -1103,10 +1171,20 @@ def select_tests_for_pass_scope(repo_root: Path, scope: PassScope) -> SuiteSelec
         )
     _refuse_uncommitted_changes(repo_root)
     others = frozenset(diff.others)
+    reach = (
+        None
+        if diff.incoming_base is None
+        else CreationReach(
+            paths=diff.incoming,
+            lockfile_texts=read_lockfile_texts(repo_root, diff.incoming_base, diff.fork_point),
+            creation_directories=tuple(path for creation in scope.creations for path in creation.primary),
+        )
+    )
     return select_tests(
         load_repo_layout(repo_root),
         [path for path in diff.files if path not in others],
         read_lockfile_texts(repo_root, diff.lockfile_base, diff.ref),
+        reach,
     )
 
 
@@ -1120,6 +1198,7 @@ def select_tests_for_paths(
         load_repo_layout(repo_root),
         [RepoRelativePath(path.removeprefix("./")) for path in paths],
         read_lockfile_texts(repo_root, lockfile_base, None),
+        None,
     )
 
 
@@ -1142,9 +1221,9 @@ def _render_reasons(reasons: Sequence[SelectionReason]) -> str:
 @pure
 def render_selection(selection: SuiteSelection) -> str:
     """The selection as shell lines, each command under a comment saying why it runs."""
-    if not selection.paths:
-        return "# nothing changed, so nothing to run\n"
     if not selection.commands:
+        if not selection.paths:
+            return "# nothing changed, so nothing to run\n"
         return "# every changed path is documentation, so nothing to run\n"
     lines: list[str] = []
     for command in selection.commands:
