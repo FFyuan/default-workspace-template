@@ -1080,4 +1080,7 @@ def test_routines_tick_cron_entry_runs_through_the_env_wrapper_and_logs_to_the_s
 def test_routines_tick_cron_entry_tolerates_an_unwritable_target(
     tmp_path: Path,
 ) -> None:
+    # The target is not made on the way: the boot goes on, and the entry waits for a boot that can write it.
     _write_routines_tick_cron_entry(target_dir=tmp_path / "missing")
+
+    assert not (tmp_path / "missing").exists()
