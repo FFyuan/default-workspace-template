@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
@@ -12,6 +13,14 @@ from routines_app.errors import FixChatError
 MESSAGE_CHAT_SCRIPT: Final[Path] = Path("system/scripts/message_chat.py")
 # The create makes an agent and waits on the chat app; a couple of minutes is the ceiling.
 CREATE_TIMEOUT_SECONDS: Final[float] = 120.0
+
+# What the app's fix route calls: the brief and the chat's name in, the chat's id out, FixChatError when none.
+FixChatStarter = Callable[[str, str], str]
+
+
+def subprocess_fix_chat_starter(repo_root: Path) -> FixChatStarter:
+    """The starter the served app uses: the workspace's chat script, run from the repo root."""
+    return lambda brief, name: start_fix_chat(brief, name, repo_root)
 
 
 def start_fix_chat(brief: str, name: str, repo_root: Path) -> str:
@@ -37,16 +46,20 @@ def start_fix_chat(brief: str, name: str, repo_root: Path) -> str:
         detail = (completed.stderr or completed.stdout).strip()
         logger.warning("Starting a fix chat failed (rc={}): {}", completed.returncode, detail)
         raise FixChatError(detail or "The chat could not be started.")
-    return chat_id_from_output(completed.stdout)
+    chat_id = chat_id_from_output(completed.stdout)
+    if chat_id is None:
+        logger.warning("The fix chat create printed no chat id: {}", completed.stdout.strip()[:200])
+        raise FixChatError("The chat was started but its id could not be read.")
+    return chat_id
 
 
-def chat_id_from_output(stdout: str) -> str:
-    """The chat id from the create's JSON line; empty when the line is missing, since the chat exists either way."""
+def chat_id_from_output(stdout: str) -> str | None:
+    """The chat id from the create's JSON line (the script always prints one on success); None when it is missing."""
     for line in reversed(stdout.strip().splitlines()):
         try:
             parsed = json.loads(line)
         except ValueError:
             continue
-        if isinstance(parsed, dict) and isinstance(parsed.get("chat_id"), str):
+        if isinstance(parsed, dict) and isinstance(parsed.get("chat_id"), str) and parsed["chat_id"]:
             return parsed["chat_id"]
-    return ""
+    return None

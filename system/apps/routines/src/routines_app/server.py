@@ -68,7 +68,8 @@ from routines_app.data_types import FixChatResponse
 from routines_app.data_types import HealthResponse
 from routines_app.documents import inject_chat_label_meta_tag
 from routines_app.errors import FixChatError
-from routines_app.fix_chat import start_fix_chat
+from routines_app.fix_chat import FixChatStarter
+from routines_app.fix_chat import subprocess_fix_chat_starter
 
 HOST: Final[str] = os.environ.get("ROUTINES_APP_HOST", "127.0.0.1")
 PORT: Final[int] = int(os.environ.get("ROUTINES_APP_PORT", "8050"))
@@ -133,7 +134,9 @@ def _run_id(raw: str) -> RunId | None:
         return None
 
 
-def create_app(service: RoutinesService, static_directory: Path, is_preview: bool) -> Flask:
+def create_app(
+    service: RoutinesService, static_directory: Path, is_preview: bool, start_fix_chat: FixChatStarter
+) -> Flask:
     app = Flask("routines_app", static_folder=None)
     register_api_schema_route(
         app, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION, route_table=ROUTE_TABLE
@@ -302,7 +305,7 @@ def create_app(service: RoutinesService, static_directory: Path, is_preview: boo
             return not_found(routine_id)
         brief = build_fix_brief(routine_detail, f"/{wanted}")
         try:
-            chat_id = start_fix_chat(brief, fix_chat_name(routine_detail.row.title), service.paths.repo_root)
+            chat_id = start_fix_chat(brief, fix_chat_name(routine_detail.row.title))
         except FixChatError as e:
             return error_response(str(e), HTTP_BAD_GATEWAY)
         return model_response(FixChatResponse(chat_id=chat_id))
@@ -330,7 +333,7 @@ def main() -> None:
     setup_logging(level=os.environ.get("ROUTINES_APP_LOG_LEVEL", "INFO"))
     paths: RoutinesPaths = paths_from_environment()
     service = build_service(paths, dict(os.environ))
-    app = create_app(service, STATIC_DIR, IS_PREVIEW)
+    app = create_app(service, STATIC_DIR, IS_PREVIEW, subprocess_fix_chat_starter(paths.repo_root))
     logger.info("Serving the Routines app at http://{}:{}/", HOST, PORT)
     run_simple(HOST, PORT, app, threaded=True, use_reloader=False, use_debugger=False)
 

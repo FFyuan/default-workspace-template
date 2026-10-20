@@ -14,6 +14,7 @@ from routines.testing import TEST_ZONE
 from routines.testing import build_test_service
 from routines.testing import init_git_workspace
 from routines.testing import make_workspace_paths
+from routines_app.mock_fix_chat_test import RecordingFixChatStarter
 from routines_app.server import create_app
 
 
@@ -55,10 +56,17 @@ def static_directory(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def client(service: RoutinesService, static_directory: Path) -> FlaskClient:
-    return create_app(service, static_directory, is_preview=False).test_client()
+def fix_chat_starter() -> RecordingFixChatStarter:
+    return RecordingFixChatStarter()
 
 
 @pytest.fixture
-def preview_client(service: RoutinesService, static_directory: Path) -> FlaskClient:
-    return create_app(service, static_directory, is_preview=True).test_client()
+def client(service: RoutinesService, static_directory: Path, fix_chat_starter: RecordingFixChatStarter) -> FlaskClient:
+    return create_app(service, static_directory, is_preview=False, start_fix_chat=fix_chat_starter).test_client()
+
+
+@pytest.fixture
+def preview_client(
+    service: RoutinesService, static_directory: Path, fix_chat_starter: RecordingFixChatStarter
+) -> FlaskClient:
+    return create_app(service, static_directory, is_preview=True, start_fix_chat=fix_chat_starter).test_client()

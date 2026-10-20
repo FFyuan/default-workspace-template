@@ -12,19 +12,19 @@ from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.service import RoutinesService
 from routines.testing import TEST_NOW
+from routines_app.mock_fix_chat_test import RecordingFixChatStarter
 
 MANIFEST_PATH = Path(__file__).resolve().parents[2] / "app.toml"
 SYNC = RoutineId("news-sync")
 
 
-def _add(service: RoutinesService, **fields: object) -> None:
+def _add(service: RoutinesService) -> None:
     values: dict[str, object] = {
         "title": "News sync",
         "what": "Pulls the headlines.",
         "every": "1h",
         "command": ["sh", "-c", "echo ran"],
     }
-    values.update(fields)
     service.add(SYNC, RoutineDefinition.model_validate(values))
 
 
@@ -142,13 +142,44 @@ def test_removing_a_routine_deletes_it_once_no_run_is_going(client: FlaskClient,
     assert client.delete("/api/routines/news-sync").status_code == 404
 
 
-def test_a_preview_refuses_every_change(preview_client: FlaskClient, service: RoutinesService) -> None:
+def test_the_fix_route_opens_a_chat_briefed_on_the_routine_and_answers_its_id(
+    client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter
+) -> None:
+    _add(service)
+    response = client.post("/api/routines/news-sync/fix", json={})
+    assert response.status_code == 200
+    assert response.get_json() == {"chat_id": "agent-fix"}
+    ((brief, name),) = fix_chat_starter.started
+    assert name == "Fix News sync"
+    assert '"News sync"' in brief
+    assert "/news-sync" in brief
+    assert client.post("/api/routines/nothing/fix", json={}).status_code == 404
+
+
+def test_a_fix_chat_that_could_not_start_is_a_bad_gateway_with_the_reason(
+    client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter
+) -> None:
+    _add(service)
+    fix_chat_starter.refusal = "sign in to a provider first"
+    response = client.post("/api/routines/news-sync/fix", json={})
+    assert response.status_code == 502
+    assert "sign in" in response.get_json()["detail"]
+
+
+def test_a_preview_refuses_every_change(
+    preview_client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter
+) -> None:
     _add(service)
     assert preview_client.get("/api/routines").status_code == 200
     assert preview_client.post("/api/routines/news-sync/run", json={}).status_code == 409
     assert preview_client.put("/api/routines/news-sync/enabled", json={"is_enabled": False}).status_code == 409
+    schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
+    assert preview_client.put("/api/routines/news-sync/schedule", json=schedule).status_code == 409
+    assert preview_client.post("/api/routines/news-sync/fix", json={}).status_code == 409
     assert preview_client.delete("/api/routines/news-sync").status_code == 409
     assert service.detail(SYNC).row.is_enabled
+    assert service.detail(SYNC).row.schedule_text == "Every hour"
+    assert fix_chat_starter.started == []
 
 
 def test_the_health_probe_says_whether_the_pages_are_built(client: FlaskClient) -> None:
