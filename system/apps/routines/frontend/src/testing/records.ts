@@ -8,6 +8,7 @@ import type {
   RunDetail,
   RunRecord,
 } from "../models/api";
+import type { ScheduleForm } from "../models/schedule";
 
 export function rowOf(patch: Partial<RoutineRow> = {}): RoutineRow {
   return {
@@ -102,4 +103,9 @@ export function detailOf(patch: Partial<RoutineDetail> = {}): RoutineDetail {
 
 export function runDetailOf(patch: Partial<RunDetail> = {}): RunDetail {
   return { run: runOf(), log: "pulling...\ndone\n", is_log_truncated: false, links: [], ...patch };
+}
+
+/** The schedule editor's form as the tests start it: daily at 7:30 on Mondays. */
+export function scheduleFormOf(patch: Partial<ScheduleForm> = {}): ScheduleForm {
+  return { mode: "every", count: "1", unit: "d", at: "07:30", days: ["mon"], dayOfMonth: "", once: "", ...patch };
 }

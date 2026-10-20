@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { scheduleFormOf } from "../testing/records";
 import type { RoutineDefinition } from "./api";
 import { changeOf, formOf, offersTimeOfDay, problemOf, sentenceOf, type ScheduleForm } from "./schedule";
 
@@ -20,8 +21,9 @@ const DEFINITION: RoutineDefinition = {
   app: null,
 };
 
+/** The shared form with no time of day and no weekdays, which most cases here start from. */
 function form(patch: Partial<ScheduleForm>): ScheduleForm {
-  return { mode: "every", count: "1", unit: "d", at: "", days: [], dayOfMonth: "", once: "", ...patch };
+  return scheduleFormOf({ at: "", days: [], ...patch });
 }
 
 describe("formOf", () => {

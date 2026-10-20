@@ -4,19 +4,15 @@ import { mountView, unmountViews } from "@imbue/workspace-ui/src/testing/mount";
 import m from "mithril";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ScheduleForm } from "../models/schedule";
+import { scheduleFormOf } from "../testing/records";
 import { ScheduleDialog, type ScheduleDialogAttrs } from "./ScheduleDialog";
 
 afterEach(() => unmountViews());
 
-function formOf(patch: Partial<ScheduleForm> = {}): ScheduleForm {
-  return { mode: "every", count: "1", unit: "d", at: "07:30", days: ["mon"], dayOfMonth: "", once: "", ...patch };
-}
-
 function mount(attrs: Partial<ScheduleDialogAttrs>): HTMLElement {
   return mountView(() =>
     m(ScheduleDialog, {
-      form: formOf(),
+      form: scheduleFormOf(),
       isSaving: false,
       onChange: () => undefined,
       onSave: () => undefined,
@@ -40,12 +36,12 @@ describe("ScheduleDialog", () => {
   });
 
   it("hides the time of day under a day's cadence and offers the day of the month on a monthly one", () => {
-    const minutes = mount({ form: formOf({ unit: "m", count: "15" }) });
+    const minutes = mount({ form: scheduleFormOf({ unit: "m", count: "15" }) });
     expect(minutes.querySelector("[data-at]")).toBeNull();
     expect(minutes.querySelector("[data-reads]")?.textContent).toBe("Every 15 minutes on Monday.");
 
     unmountViews();
-    const monthly = mount({ form: formOf({ unit: "mo", dayOfMonth: "1" }) });
+    const monthly = mount({ form: scheduleFormOf({ unit: "mo", dayOfMonth: "1" }) });
     // Weekdays go with any cadence, so the picker stays.
     expect(monthly.querySelector("[data-day='mon']")?.getAttribute("aria-pressed")).toBe("true");
     expect(monthly.querySelector("[data-day-of-month]")).not.toBeNull();
@@ -53,7 +49,7 @@ describe("ScheduleDialog", () => {
   });
 
   it("refuses to save a form with a problem and says what it is", () => {
-    const root = mount({ form: formOf({ count: "0" }) });
+    const root = mount({ form: scheduleFormOf({ count: "0" }) });
     expect(root.querySelector("[data-reads]")?.textContent).toBe("How often has to be a whole number, at least 1.");
     expect(root.querySelector<HTMLButtonElement>("[data-save]")!.disabled).toBe(true);
   });
@@ -62,15 +58,15 @@ describe("ScheduleDialog", () => {
     const onChange = vi.fn();
     const root = mount({ onChange });
     root.querySelector<HTMLButtonElement>("[data-day='fri']")!.click();
-    expect(onChange).toHaveBeenLastCalledWith(formOf({ days: ["mon", "fri"] }));
+    expect(onChange).toHaveBeenLastCalledWith(scheduleFormOf({ days: ["mon", "fri"] }));
     const count = root.querySelector<HTMLInputElement>("[data-count]")!;
     count.value = "2";
     count.dispatchEvent(new Event("input", { bubbles: true }));
-    expect(onChange).toHaveBeenLastCalledWith(formOf({ count: "2" }));
+    expect(onChange).toHaveBeenLastCalledWith(scheduleFormOf({ count: "2" }));
   });
 
   it("asks for a moment alone when the routine runs once", () => {
-    const root = mount({ form: formOf({ mode: "once", once: "2026-11-03T15:00" }) });
+    const root = mount({ form: scheduleFormOf({ mode: "once", once: "2026-11-03T15:00" }) });
     expect(root.querySelector("[data-once]")).not.toBeNull();
     expect(root.querySelector("[data-count]")).toBeNull();
     expect(root.querySelector("[data-reads]")?.textContent).toBe("Once, Nov 3 at 3:00 pm.");

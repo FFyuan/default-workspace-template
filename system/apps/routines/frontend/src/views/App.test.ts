@@ -2,7 +2,7 @@
 import "@imbue/workspace-ui/src/testing/dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { detailOf, listingOf, rowOf, runDetailOf, runOf } from "../testing/records";
+import { detailOf, listingOf, rowOf, runDetailOf, runOf, scheduleFormOf } from "../testing/records";
 import { AppModel, IDLE_REFRESH_MS, RUNNING_REFRESH_MS, type AppHost } from "./App";
 
 const requests: string[] = [];
