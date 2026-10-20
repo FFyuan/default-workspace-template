@@ -2612,7 +2612,8 @@ def test_destroy_prints_unmerged_commits_and_a_dirty_worktree(
 
 @dataclass
 class _RealGitRunner(_RecordingRunner):
-    """Runs ``git`` for real in ``repo``; records and stubs everything else."""
+    """Runs ``git`` for real in ``repo`` under ``_hermetic_git_env``; records
+    and stubs everything else."""
 
     repo: Path = Path(".")
 
@@ -2620,7 +2621,7 @@ class _RealGitRunner(_RecordingRunner):
         if argv[0] != "git":
             return super().run(argv, **kwargs)
         self.calls.append(_RecordedCall(argv=list(argv), kwargs=kwargs))
-        return subprocess.run(argv, cwd=self.repo, **kwargs)
+        return subprocess.run(argv, cwd=self.repo, env=_hermetic_git_env(), **kwargs)
 
 
 def _repo_with_a_pass(tmp_path: Path, root: str) -> tuple[Path, str]:
@@ -2665,7 +2666,7 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     # commit is merged into it.
     keep = f"git branch superseded/{root}-2 mngr/{root}"
     assert keep in err
-    subprocess.run(keep.split(), cwd=repo, check=True)
+    _git(repo, *keep.split()[1:])
     runner = _RealGitRunner(repo=repo)
     runner.respond(("mngr", "list"), listing)
 
@@ -4378,26 +4379,29 @@ _CREATION_FILENAME = "skill.md"
 _CREATION_BASE_TEXT = "".join(f"line{i}\n" for i in range(1, 10))
 
 
-def _git(repo: Path, *args: str) -> str:
-    """Run one git command in ``repo`` and return its trimmed stdout.
+def _hermetic_git_env() -> dict[str, str]:
+    """The environment for a test's git: identity pinned and the user's git
+    config disabled, so a developer's gpgsign or hooks cannot make it flaky."""
+    return {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_AUTHOR_NAME": "Test Lead",
+        "GIT_AUTHOR_EMAIL": "lead@example.invalid",
+        "GIT_COMMITTER_NAME": "Test Lead",
+        "GIT_COMMITTER_EMAIL": "lead@example.invalid",
+    }
 
-    Identity is pinned and the user's git config disabled, so a developer's
-    gpgsign or hooks cannot make the test flaky.
-    """
+
+def _git(repo: Path, *args: str) -> str:
+    """Run one git command in ``repo`` under ``_hermetic_git_env`` and return
+    its trimmed stdout."""
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
         check=True,
-        env={
-            **os.environ,
-            "GIT_CONFIG_GLOBAL": os.devnull,
-            "GIT_CONFIG_SYSTEM": os.devnull,
-            "GIT_AUTHOR_NAME": "Test Lead",
-            "GIT_AUTHOR_EMAIL": "lead@example.invalid",
-            "GIT_COMMITTER_NAME": "Test Lead",
-            "GIT_COMMITTER_EMAIL": "lead@example.invalid",
-        },
+        env=_hermetic_git_env(),
     )
     return result.stdout.strip()
 
