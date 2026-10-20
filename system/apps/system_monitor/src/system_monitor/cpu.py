@@ -3,12 +3,12 @@
 reading with each process's share, the last 10 minutes, the day of minute lines, and the busy stretches."""
 
 import json
-import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Final, NamedTuple
 
+from imbue.imbue_common.event_envelope import parse_iso_timestamp
 from oom_priority import resource_sampler
 
 from system_monitor.tail import read_tail
@@ -27,7 +27,6 @@ SPANS: Final[dict[str, tuple[int, int]]] = {"1h": (3600, 60), "24h": (24 * 3600,
 STRETCHES_WINDOW: Final[timedelta] = timedelta(hours=24)
 # Only the end of the stretch log is read: a day holds at most a few dozen stretches.
 STRETCHES_TAIL_BYTES: Final[int] = 256 * 1024
-_FRACTION = re.compile(r"\.(\d{6})\d*")
 
 
 class RecentReading(NamedTuple):
@@ -134,16 +133,6 @@ def _read_lines(path: Path) -> list[dict[str, Any]]:
     return lines
 
 
-def parse_event_time(text: str) -> datetime | None:
-    """An envelope timestamp (nanosecond precision, ``Z``) as a datetime; None when it is not one."""
-    try:
-        return datetime.fromisoformat(
-            _FRACTION.sub(r".\1", text).replace("Z", "+00:00")
-        )
-    except ValueError:
-        return None
-
-
 def recent_stretches(
     path: Path = STRETCHES_PATH,
     now: datetime | None = None,
@@ -169,7 +158,7 @@ def recent_stretches(
             or record.get("type") != resource_sampler.STRETCH_EVENT_TYPE
         ):
             continue
-        started = parse_event_time(str(record.get("started_at", "")))
+        started = parse_iso_timestamp(str(record.get("started_at", "")))
         duration = record.get("duration_seconds")
         if (
             started is None

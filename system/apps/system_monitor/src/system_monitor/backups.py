@@ -8,8 +8,8 @@ from typing import Any, Final
 
 from host_backup import config as backup_config
 from host_backup import events as backup_events
+from imbue.imbue_common.event_envelope import parse_iso_timestamp
 
-from system_monitor.cpu import parse_event_time
 from system_monitor.tail import read_tail
 
 README_PATH: Final[str] = "/home/user/workspace/system/services/host_backup/README.md"
@@ -82,7 +82,7 @@ def summarize(
 def _event_time(event: dict[str, object] | None) -> datetime | None:
     if event is None:
         return None
-    return parse_event_time(str(event.get("timestamp", "")))
+    return parse_iso_timestamp(str(event.get("timestamp", "")))
 
 
 def _failures_since(events_path: Path, since: datetime) -> int:
@@ -98,7 +98,7 @@ def _failures_since(events_path: Path, since: datetime) -> int:
             continue
         if not isinstance(event, dict) or event.get("type") not in _FAILURE_TYPES:
             continue
-        at = parse_event_time(str(event.get("timestamp", "")))
+        at = parse_iso_timestamp(str(event.get("timestamp", "")))
         if at is not None and at >= since:
             count += 1
     return count

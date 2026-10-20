@@ -152,7 +152,3 @@ def test_a_stretch_with_an_unknown_chat_is_still_described() -> None:
         cpu.describe_stretch(59, [{"name": "a chat", "share": 0.5}])
         == "CPU above 90% for 1 minute (mostly a chat)"
     )
-    assert cpu.parse_event_time("2026-10-20T15:12:04.123456789Z") == datetime(
-        2026, 10, 20, 15, 12, 4, 123456, tzinfo=timezone.utc
-    )
-    assert cpu.parse_event_time("nope") is None
