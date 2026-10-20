@@ -1,5 +1,6 @@
 """The brief a Fix chat opens on: the routine, what is wrong, where to look, and its recent runs."""
 
+from datetime import timezone
 from typing import Final
 
 from imbue.imbue_common.pure import pure
@@ -17,7 +18,10 @@ def _run_lines(runs: tuple[RunRecord, ...]) -> list[str]:
     lines = ["## Recent runs", "", "Newest first."]
     for run in runs[:RUNS_IN_BRIEF]:
         verdict = run.outcome_text if run.outcome is not None else "still going"
-        lines.append(f"- {run.started_at:%b %-d %H:%M} · {run.trigger.lower()} · {verdict}")
+        lines.append(
+            f"- {run.when_text} ({run.started_at.astimezone(timezone.utc):%Y-%m-%d %H:%M} UTC) · "
+            f"{run.trigger.lower()} · {verdict}"
+        )
         if run.summary:
             lines.append(f"  {run.summary}")
     return lines
