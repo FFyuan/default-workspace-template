@@ -24,7 +24,6 @@ mode = "focus"
 [[message_handlers]]
 type = "minds:show-routine"
 show = "/{routine_id}"
-showing = ["/{routine_id}"]
 
 # A preview serves the pages on a free port over the live state, read-only: it refuses to start runs or rewrite
 # definitions, which would reach the live workspace, and the library's state is nothing of this app's to copy.
