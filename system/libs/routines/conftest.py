@@ -1,9 +1,6 @@
 import json
 import threading
 from collections.abc import Generator
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -20,12 +17,10 @@ from routines.mock_repository_test import RecordingRepository
 from routines.paths import RoutinesPaths
 from routines.runner import Runner
 from routines.state import FileStateStore
+from routines.testing import TEST_NOW
+from routines.testing import TEST_ZONE
 from routines.testing import init_git_workspace
 from routines.testing import make_workspace_paths
-
-# A fixed zone so the tests read the same everywhere: eight hours behind UTC, with no daylight saving.
-TEST_ZONE = timezone(timedelta(hours=-8))
-TEST_NOW = datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture

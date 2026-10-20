@@ -2,7 +2,11 @@
 and a service over the real stores with the time, the chat app and the feed handed in."""
 
 import subprocess
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from pathlib import Path
+from typing import Final
 
 from routines.definitions import FileDefinitionStore
 from routines.interfaces import ChatAppInterface
@@ -14,6 +18,11 @@ from routines.paths import RoutinesPaths
 from routines.runner import Runner
 from routines.service import RoutinesService
 from routines.state import FileStateStore
+
+# The tests' clock: a fixed zone eight hours behind UTC with no daylight saving, so the schedules read the
+# same everywhere, and a moment that is 07:00 local on a Tuesday.
+TEST_ZONE: Final[timezone] = timezone(timedelta(hours=-8))
+TEST_NOW: Final[datetime] = datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
 
 
 def make_workspace_paths(root: Path) -> RoutinesPaths:

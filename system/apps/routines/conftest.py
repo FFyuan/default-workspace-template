@@ -1,6 +1,3 @@
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 
 import pytest
@@ -12,13 +9,12 @@ from routines.mock_notifier_test import RecordingNotifier
 from routines.paths import RoutinesPaths
 from routines.repository import GitRepository
 from routines.service import RoutinesService
+from routines.testing import TEST_NOW
+from routines.testing import TEST_ZONE
 from routines.testing import build_test_service
 from routines.testing import init_git_workspace
 from routines.testing import make_workspace_paths
 from routines_app.server import create_app
-
-TEST_ZONE = timezone(timedelta(hours=-8))
-TEST_NOW = datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
