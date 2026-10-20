@@ -16,7 +16,6 @@ from typing import Final
 
 from loguru import logger
 from pydantic import Field
-from pydantic import ValidationError
 
 from chat_background_tasks.markers import is_process_live
 from chat_background_tasks.markers import process_start_time
@@ -635,7 +634,7 @@ def read_result(path: Path) -> RunResult:
         return RunResult()
     try:
         return RunResult.model_validate_json(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, ValidationError) as e:
+    except (OSError, ValueError) as e:
         logger.warning("Ignoring the run's result file: {}", e)
         return RunResult()
 
