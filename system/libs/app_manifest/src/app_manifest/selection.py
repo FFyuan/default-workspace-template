@@ -801,13 +801,22 @@ def _select_for_reach(
             request for request in outcome.frontend_requests if is_under_a_creation(request.package_directory)
         )
         if outcome.is_root_dependency:
-            reason = _reason(path, outcome.classes[-1], "the root project depends on it")
+            is_root_config = ChangedPathClass.ROOT_CONFIG in outcome.classes
             pytest_requests.extend(
                 _present(
-                    _whole_request(layout, directory, marker_scope=MarkerScope.DEFAULT, reason=reason)
-                    for directory in (
-                        root_collected if ChangedPathClass.ROOT_CONFIG in outcome.classes else on_root_project
+                    _whole_request(
+                        layout,
+                        directory,
+                        marker_scope=MarkerScope.DEFAULT,
+                        reason=_reason(
+                            path,
+                            outcome.classes[-1],
+                            f"the root project collects {directory}"
+                            if is_root_config
+                            else f"{directory} runs on the root project, which depends on it",
+                        ),
                     )
+                    for directory in (root_collected if is_root_config else on_root_project)
                 )
             )
     if lockfile_failure is None:
