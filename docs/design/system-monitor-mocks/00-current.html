@@ -71,7 +71,8 @@
   $("mem-used").textContent = M.size(m.used); $("mem-total").textContent = M.size(m.total);
   $("mem-free").textContent = `${M.size(m.available)} free`; $("mem-pct").textContent = `${mp}% used`;
   $("mem-bar").style.width = `${mp}%`;
-  M.drawSpark($("spark"), [{ name: "In use", samples: M.history.mem10, color: "var(--c-text-primary)", area: false }], { windowMs: 10 * 60e3, h: 100, gapMs: 15000 });
+  // The shipped graph has no hover readout.
+  M.drawSpark($("spark"), [{ name: "In use", samples: M.history.mem10, color: "var(--c-text-primary)", area: false }], { windowMs: 10 * 60e3, h: 100, gapMs: 15000, labels: false });
   const n = M.stops.length;
   $("mem-note").innerHTML = `<strong>Memory is ${mp}% full.</strong> The workspace stopped ${n} program${n > 1 ? "s" : ""} in the last 24 hours.`;
 
