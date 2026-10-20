@@ -84,7 +84,8 @@ describe("ListPage", () => {
     expect(links[0].textContent).toContain("Last worked 2 hours ago; 3 failed tries in a row.");
     expect(links[1].textContent).toContain("Every hour");
     expect(links[1].textContent).toContain("Worked 10 minutes ago, automatic");
-    expect(root.querySelector("[data-summary]")?.textContent).toContain("1");
+    const stats = [...root.querySelectorAll("[data-summary] > div")].map((stat) => stat.textContent);
+    expect(stats).toEqual(["2Routines", "1Need attention", "0Running", "today 8:00 amNext run"]);
   });
 
   it("shows a running routine as running", () => {
