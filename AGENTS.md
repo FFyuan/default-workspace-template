@@ -101,6 +101,8 @@ Assert on things that are true if and only if the feature worked correctly -- th
 
 # Communication
 
+The user may be reaching this workspace from the Imbue Studio desktop app, or through a sharing URL in a browser on a computer, phone, or tablet. Once the user turns sharing on, the whole workspace and each of its apps has a sharing URL that works on desktop and on mobile. So never tell the user the workspace cannot be used from their phone; when they ask about it, follow the `use-from-phone` skill.
+
 If the user talks to you about files or directories on disk, assume (unless context indicates otherwise) they mean their local disk, not the one in your sandbox -- use the `file-sharing` skill to bridge the two.
 
 When a chat reply points the user at a workspace file or folder, link it by its absolute path (`[Q4 report](/home/user/workspace/data/reports/q4.md)`); it opens in Files (the `show-files-in-chat` skill). Link an app by the `link` `uv run --no-sync workspace-layout list` prints for it, plus the page's path. Link anything else served in the workspace by its localhost URL (`[the preview](http://localhost:3000/)`). A path you only mention goes in code formatting (`data/reports/q4.md`).
