@@ -106,8 +106,10 @@ worker side:
     refusal. Worker branches (``mngr/<name>`` by default, or whatever
     ``--branch`` resolved to) survive unless ``--delete-branches`` is passed,
     which deletes only a branch mngr created, and refuses before destroying
-    anything while one of those branches holds commits that neither HEAD nor
-    any other local branch has (``--discard-unmerged`` overrides it); mngr
+    anything while any destroyed agent's branch holds commits that neither
+    HEAD nor any other local branch has -- a pre-existing branch mngr would
+    keep included, since the listing cannot tell the two apart
+    (``--discard-unmerged`` overrides it); mngr
     preserves each destroyed agent's transcript under
     ``$MNGR_HOST_DIR/preserved/``. One outcome line per agent goes to stderr;
     the exit code is non-zero if any agent failed. ``--no-recursive`` destroys
@@ -1992,8 +1994,8 @@ def _branch_deletion_refusal(branches: Sequence[str], runner: Runner) -> str | N
     if not lines:
         return None
     return (
-        "these branches hold commits that neither HEAD nor any branch the "
-        "destroy keeps has:\n" + "\n".join(lines) + "\nKeep each one (the "
+        "these branches hold commits that neither HEAD nor any other local "
+        "branch has:\n" + "\n".join(lines) + "\nKeep each one (the "
         "commands above) and run the destroy again; or pass --discard-unmerged "
         "if the user has said the work is not wanted."
     )
@@ -2070,7 +2072,7 @@ def destroy(
     RUNNING descendants are destroyed too -- a superseded pass's in-flight
     siblings are exactly what needs to go. Branches survive unless
     ``delete_branches`` adds ``-b``, and then nothing is destroyed while a
-    branch it would delete holds commits no kept branch has, unless
+    destroyed agent's branch holds commits no other branch has, unless
     ``discard_unmerged`` says to. A worker's branch is ``mngr/<name>`` unless
     ``launch`` was given a ``--branch`` spec; ``read_worker_branch`` reports
     whichever it is, but only while the agent still exists -- so read it before
