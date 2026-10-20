@@ -700,3 +700,21 @@ def test_a_pass_that_names_a_creation_twice_is_refused(tmp_path: Path) -> None:
 
     with pytest.raises(ScopeComputationError, match="names app:news more than once"):
         compute_pass_scope(tmp_path, [news, parse_creation_spec("skill:news-refresh"), news], None, "HEAD")
+
+
+def test_a_pass_that_names_one_app_by_its_registered_name_and_by_its_package_is_refused(
+    tmp_path: Path,
+) -> None:
+    build_news_workspace(tmp_path)
+    write_app_manifest(
+        tmp_path,
+        "daily_digest",
+        'name = "daily-digest"\ndisplay_name = "Daily digest"\nicon = "icon.svg"\n',
+        is_icon_written=True,
+    )
+    specs = [parse_creation_spec(spec) for spec in ("app:daily-digest", "app:news", "app:daily_digest")]
+
+    with pytest.raises(
+        ScopeComputationError, match="names app:daily-digest and app:daily_digest, which are one creation"
+    ):
+        compute_pass_scope(tmp_path, specs, None, "HEAD")

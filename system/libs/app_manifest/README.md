@@ -223,7 +223,9 @@ for (and that creation does not exclude) and whose `outside_footprint` is
 every changed file none does. A service has `type` `service`, its directory as
 `primary`, and as `wiring` the program named after its package (`host_backup`
 runs as `host-backup`) and every `<name>-<role>` one; an app directory with no
-`app.toml` yet is scoped the same way.
+`app.toml` yet is scoped the same way. A pass that names one creation twice is
+refused, including an app named by both its registered name and its package
+directory.
 
 `app-manifest references --for-path <path>` prints one JSON object per line
 (`app`, `manifest`, `path`, `note`) for every app whose manifest claims that

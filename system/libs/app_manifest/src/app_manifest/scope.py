@@ -737,16 +737,36 @@ def compute_pass_scope(
     """The scope of a pass over ``specs``, with its diff when ``diff_base`` is given."""
     if not specs:
         raise ScopeComputationError("a pass covers at least one creation")
-    repeated = sorted({f"{spec.type}:{spec.name}" for spec in specs if specs.count(spec) > 1})
-    if repeated:
-        raise ScopeComputationError(f"a pass names {', '.join(repeated)} more than once")
     creations = tuple(compute_creation_scope(repo_root, spec) for spec in specs)
+    _refuse_repeated_creations(specs, creations)
     if diff_base is None:
         return PassScope(creations=creations, diff=None)
     return PassScope(
         creations=creations,
         diff=_summarize_diff(list_changed_files(repo_root.resolve(), diff_base, diff_ref), creations),
     )
+
+
+@pure
+def _refuse_repeated_creations(specs: Sequence[CreationSpec], creations: Sequence[CreationScope]) -> None:
+    """Raise when two specs resolve to one creation: the same spec twice, or an app named by
+    both its registered name and its package directory."""
+    specs_by_creation: dict[tuple[CreationType, tuple[RepoRelativePath, ...]], list[str]] = {}
+    for spec, creation in zip(specs, creations, strict=True):
+        specs_by_creation.setdefault((creation.creation.type, creation.primary), []).append(
+            f"{spec.type}:{spec.name}"
+        )
+    repeats: list[str] = []
+    for named_as in specs_by_creation.values():
+        if len(named_as) == 1:
+            continue
+        distinct = list(dict.fromkeys(named_as))
+        if len(distinct) == 1:
+            repeats.append(f"{distinct[0]} more than once")
+        else:
+            repeats.append(f"{' and '.join(distinct)}, which are one creation")
+    if repeats:
+        raise ScopeComputationError(f"a pass names {'; '.join(repeats)}")
 
 
 @pure
