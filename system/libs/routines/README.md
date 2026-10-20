@@ -80,7 +80,7 @@ routines run <id> [--wait]
 routines runs <id> [--limit N] [--format json]
 routines log <id> [<run id>]
 routines remove <id>
-routines wake <skill> [--routine <id>]
+routines wake <skill> [--routine <id>] [--title "..."] [--timeout 1h]
 routines tick
 routines migrate-cron
 ```
