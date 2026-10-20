@@ -53,14 +53,6 @@ class ChatCreateError(RoutinesError, RuntimeError):
     """The routine's chat could not be created."""
 
 
-class NotificationError(RoutinesError, RuntimeError):
-    """The Imbue Studio app did not take a notification."""
-
-
-class MigrationError(RoutinesError, RuntimeError):
-    """A cron entry could not be converted."""
-
-
 class RunNotFoundError(RoutinesError, KeyError):
     """No run by that id."""
 
