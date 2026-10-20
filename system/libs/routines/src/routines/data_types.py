@@ -198,6 +198,12 @@ class RunResult(FrozenModel):
     summary: str | None = Field(default=None, description="One line about the run")
     links: tuple[ResultLink, ...] = Field(default=(), description="Links for the run page")
     chat_id: str | None = Field(default=None, description="The chat a wake inside the run used")
+    outcome: RunOutcome | None = Field(
+        default=None,
+        description="How the work ended when the command knows better than its exit code (a wake's TIMED_OUT); "
+        "read only for a non-zero exit, and never as a success",
+    )
+    warnings: tuple[RunWarning, ...] = Field(default=(), description="What a wake inside the run had to say")
 
 
 class RunEvent(EventEnvelope):

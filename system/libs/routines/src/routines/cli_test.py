@@ -28,6 +28,7 @@ from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
+from routines.primitives import RunWarning
 from routines.runner import ROUTINE_ID_ENV
 from routines.runner import RUN_DIR_ENV
 from routines.runner import RUN_ID_ENV
@@ -272,9 +273,16 @@ def test_the_run_a_wake_is_inside_is_the_one_its_environment_names() -> None:
 
 
 def test_a_wake_leaves_its_chat_on_the_run_only_when_the_chat_is_the_runs_own_routines() -> None:
-    outcome = WakeOutcome(outcome=RunOutcome.SUCCEEDED, summary="Checked.", chat_id="agent-1", warnings=())
+    outcome = WakeOutcome(
+        outcome=RunOutcome.TIMED_OUT,
+        summary="Checked.",
+        chat_id="agent-1",
+        warnings=(RunWarning.RESTARTED_PREVIOUS_RUN,),
+    )
     own = wake_run_result(outcome, RoutineId("caretaker"), "caretaker")
     assert (own.summary, own.chat_id) == ("Checked.", "agent-1")
+    # How the wake ended, and what it had to say, are the run's too.
+    assert (own.outcome, own.warnings) == (RunOutcome.TIMED_OUT, (RunWarning.RESTARTED_PREVIOUS_RUN,))
     # A command routine that wakes another routine's chat does not adopt that chat.
     other = wake_run_result(outcome, RoutineId("caretaker"), "nightly-check")
     assert (other.summary, other.chat_id) == ("Checked.", None)
@@ -322,4 +330,4 @@ def test_a_wake_inside_a_run_wakes_the_routines_chat_and_leaves_its_result_for_t
     sent = [request.body["message"] for request in http_server.requests if request.method == "POST" and request.body]
     assert sent == ["/clear", "/digest"]
     written = RunResult.model_validate_json((run_dir / "result.json").read_text())
-    assert written == RunResult(summary="Done: 3 summarized.", chat_id="c1")
+    assert written == RunResult(summary="Done: 3 summarized.", chat_id="c1", outcome=RunOutcome.SUCCEEDED)

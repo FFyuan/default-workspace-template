@@ -49,9 +49,12 @@ or manual, is refused), writes `run_started` to the ledger, streams the
 command's output to `data/.state/routines/<id>/runs/<run id>/log`, and writes
 `run_finished` with the outcome (`SUCCEEDED`, `FAILED`, `TIMED_OUT` or
 `INTERRUPTED`). A command may leave `$ROUTINES_RUN_DIR/result.json` with a
-one-line `summary`, `links` for the run page, and the `chat_id` of a chat it
-used (`routines wake` writes one, so the run and the routine's state keep the
-chat).
+one-line `summary`, `links` for the run page, the `chat_id` of a chat it
+used, an `outcome` that says how a failed run ended better than its exit code
+(`TIMED_OUT`; a non-zero exit is never a success), and `warnings`
+(`routines wake` writes all of these, so a run that wakes a chat keeps the
+chat, a timed-out wake is a timed-out run, and a restarted chat shows as the
+run's warning).
 
 A skill run asks the chat app for the routine's chat (creating it from the
 `automation` template on the first run), restarts it if the previous run is

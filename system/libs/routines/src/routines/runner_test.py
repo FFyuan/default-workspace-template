@@ -123,6 +123,32 @@ def test_a_command_sees_its_run_directory_and_its_result_file_becomes_the_summar
     assert runner.paths.result_path(SYNC, event.run_id).is_file()
 
 
+def test_a_result_file_can_name_how_a_failed_run_ended_and_what_it_had_to_say(
+    runner: Runner, definitions: FileDefinitionStore
+) -> None:
+    """What a wake inside the run leaves: a timed-out wake is a timed-out run, and its warning is the run's."""
+    result = '{"summary": "Still going", "outcome": "TIMED_OUT", "warnings": ["RESTARTED_PREVIOUS_RUN"]}'
+    _command_routine(definitions, "sh", "-c", f"printf '{result}' > \"$ROUTINES_RUN_DIR/result.json\"; exit 1")
+
+    event = runner.run(SYNC, RunTrigger.SCHEDULED, None)
+
+    assert event.outcome is RunOutcome.TIMED_OUT
+    assert event.warnings == (RunWarning.RESTARTED_PREVIOUS_RUN,)
+    assert event.summary == "Still going"
+
+
+def test_a_result_file_cannot_turn_a_failed_exit_into_a_success(
+    runner: Runner, definitions: FileDefinitionStore
+) -> None:
+    _command_routine(
+        definitions, "sh", "-c", 'printf \'{"outcome": "SUCCEEDED"}\' > "$ROUTINES_RUN_DIR/result.json"; exit 1'
+    )
+
+    event = runner.run(SYNC, RunTrigger.SCHEDULED, None)
+
+    assert event.outcome is RunOutcome.FAILED
+
+
 def test_a_failing_command_counts_toward_the_streak_and_tells_the_feed_at_the_threshold(
     runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, notifier: RecordingNotifier
 ) -> None:

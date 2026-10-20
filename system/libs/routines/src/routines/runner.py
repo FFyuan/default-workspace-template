@@ -305,14 +305,12 @@ class Runner(MutableModel):
                     warnings=(),
                 )
         result = read_result(self.paths.result_path(routine_id, run_id))
-        outcome = RunOutcome.SUCCEEDED if exit_code == 0 else RunOutcome.FAILED
-        summary = result.summary or ""
         return _Execution(
-            outcome=outcome,
+            outcome=_command_outcome(exit_code, result),
             exit_code=exit_code,
-            summary=summary,
+            summary=result.summary or "",
             chat_id=result.chat_id,
-            warnings=(),
+            warnings=result.warnings,
         )
 
     def _execute_skill(self, routine_id: RoutineId, run_id: RunId, definition: RoutineDefinition) -> _Execution:
@@ -629,6 +627,15 @@ def _mark_current_run_blocked(state: RoutineState) -> RoutineState:
         return state
     blocked = state.current_run.model_copy_update(to_update(state.current_run.field_ref().is_blocked, True))
     return state.model_copy_update(to_update(state.field_ref().current_run, blocked))
+
+
+def _command_outcome(exit_code: int, result: RunResult) -> RunOutcome:
+    """Exit 0 is a success; otherwise the failure kind the result names (a wake's TIMED_OUT), else FAILED."""
+    if exit_code == 0:
+        return RunOutcome.SUCCEEDED
+    if result.outcome is None or result.outcome is RunOutcome.SUCCEEDED:
+        return RunOutcome.FAILED
+    return result.outcome
 
 
 def read_result(path: Path) -> RunResult:

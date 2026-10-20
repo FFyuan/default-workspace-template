@@ -97,10 +97,16 @@ def wait_within_run(
 
 @pure
 def wake_run_result(outcome: WakeOutcome, wanted_id: RoutineId, run_routine_id: str) -> RunResult:
-    """What the wake leaves for the run it happened inside: the agent's summary, and the chat only when the wake
-    was of the run's own routine, since the runner records the result's chat on that routine."""
+    """What the wake leaves for the run it happened inside: the agent's summary, how the wake ended and what it
+    had to say (so a timed-out wake is a timed-out run), and the chat only when the wake was of the run's own
+    routine, since the runner records the result's chat on that routine."""
     is_own_chat = str(wanted_id) == run_routine_id
-    return RunResult(summary=outcome.summary, chat_id=outcome.chat_id if is_own_chat else None)
+    return RunResult(
+        summary=outcome.summary,
+        chat_id=outcome.chat_id if is_own_chat else None,
+        outcome=outcome.outcome,
+        warnings=outcome.warnings,
+    )
 
 
 @pure
