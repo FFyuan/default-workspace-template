@@ -36,6 +36,9 @@ def _workspace_agents() -> list[dict[str, object]]:
     return [
         chat("agent-lead", _LEAD, "RUNNING"),
         worker("agent-update-self", "update-self", "RUNNING", lead_agent="agent-lead"),
+        worker(
+            "agent-sub", "update-self-tests", "RUNNING", lead_agent="agent-update-self"
+        ),
         {
             "id": "agent-services",
             "name": "main",
@@ -58,11 +61,13 @@ def test_stop_chats_pauses_what_is_busy_and_resume_brings_each_back_with_one_not
 
     assert _main(tmp_path, "run-status", "stop-chats") == 0
 
-    # Only the busy chat and the other chat's busy worker are paused: never the lead, its own
-    # worker, the services agent, an automation, or a chat that has ended its turn.
+    # Only the busy chat and the other chat's busy worker are paused: never the lead, anything
+    # in the dispatch tree under it, the services agent, an automation, or a chat that has
+    # ended its turn.
     assert fake_agents.states() == {
         _LEAD: "RUNNING",
         "update-self": "RUNNING",
+        "update-self-tests": "RUNNING",
         "main": "RUNNING",
         "nightly": "RUNNING",
         "Fix-the-login": "STOPPED",

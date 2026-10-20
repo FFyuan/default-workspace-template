@@ -272,14 +272,31 @@ def read_background_runners(proc_dir: Path) -> list[BackgroundRunner]:
     return runners
 
 
-def _is_the_leads_own(agent: ListedAgent, lead: LeadIdentity) -> bool:
+def _is_the_leads_own(
+    agent: ListedAgent, lead: LeadIdentity, by_id: Mapping[str, ListedAgent]
+) -> bool:
+    """Whether ``agent`` is the lead, a member of its chat, or anywhere in the dispatch tree under it."""
     if agent.id == lead.agent_id or (lead.agent_name and agent.name == lead.agent_name):
         return True
     if lead.chat_id and agent.chat_id == lead.chat_id:
         return True
-    if agent.is_worker and lead.agent_id and agent.lead_agent_id == lead.agent_id:
+    if agent.name == UPDATE_WORKER_NAME:
         return True
-    return agent.name == UPDATE_WORKER_NAME
+    seen: set[str] = set()
+    current = agent
+    while (
+        current.is_worker
+        and current.lead_agent_id
+        and current.lead_agent_id not in seen
+    ):
+        if current.lead_agent_id == lead.agent_id:
+            return True
+        seen.add(current.lead_agent_id)
+        parent = by_id.get(current.lead_agent_id)
+        if parent is None:
+            return False
+        current = parent
+    return False
 
 
 def _lead_chat_id(worker: ListedAgent, agents: Sequence[ListedAgent]) -> str:
@@ -299,12 +316,13 @@ def select_pause_targets(
     A named agent that is not a live chat or worker of this workspace (or is the lead's own) is
     refused rather than skipped, so a typo cannot read as a pause that happened.
     """
+    by_id = {agent.id: agent for agent in agents}
     candidates = [
         agent
         for agent in agents
         if (agent.is_chat or agent.is_worker)
         and not agent.is_primary
-        and not _is_the_leads_own(agent, lead)
+        and not _is_the_leads_own(agent, lead, by_id)
     ]
     runners_by_chat: dict[str, list[BackgroundRunner]] = {}
     for runner in runners:

@@ -647,8 +647,8 @@ and is not resumed ("Resuming after `stuck`" below).
 
 Once the branch fast-forwards, **pause** every chat and background agent that
 is busy (mid-turn, or waiting on a background command), other than this chat
-and the update's own worker. It records each one, so the resume below starts
-it again with a note:
+and the update's own worker and anything under it. It records each one, so the
+resume below starts it again with a note:
 
 ```bash
 python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
