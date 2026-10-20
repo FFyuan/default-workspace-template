@@ -1,6 +1,10 @@
+import subprocess
+
 import pytest
 
+from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.model_update import to_update
+from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
 from routines.errors import DefinitionCommitError
 from routines.errors import RunInFlightError
@@ -11,6 +15,8 @@ from routines.mock_notifier_test import RecordingNotifier
 from routines.mock_repository_test import RecordingRepository
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
+from routines.primitives import RunId
+from routines.primitives import RunTrigger
 from routines.state import FileStateStore
 from routines.testing import build_test_service
 
@@ -36,6 +42,39 @@ def test_a_removal_whose_commit_is_refused_still_stops_the_chat_and_drops_the_st
 
     assert chat_app.verbs == [("agent-1", "stop")]
     assert not paths.routine_state_dir(SYNC).exists()
+    assert not paths.definition_path(SYNC).exists()
+
+
+def test_a_run_record_a_dead_runner_left_is_not_a_run_in_flight(
+    paths: RoutinesPaths,
+    repository: RecordingRepository,
+    clock: FakeClock,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+) -> None:
+    """Until the tick reaps it, the state still names the run; neither Run now nor a removal waits on it."""
+    service = build_test_service(paths, repository, FileStateStore(paths=paths), clock, chat_app, notifier)
+    service.add(
+        SYNC,
+        RoutineDefinition.model_validate(
+            {"title": "Nightly sync", "what": "Syncs.", "every": "1d", "command": ["true"]}
+        ),
+    )
+    gone = subprocess.Popen(["sleep", "30"])
+    stale = CurrentRun(
+        run_id=RunId.generate(),
+        pid=gone.pid,
+        pid_start=process_start_time(gone.pid),
+        trigger=RunTrigger.SCHEDULED,
+        started_at=clock.now(),
+    )
+    gone.kill()
+    gone.wait()
+    service.states.update(SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, stale)))
+
+    assert not service.is_running(SYNC)
+    service.remove(SYNC)
+
     assert not paths.definition_path(SYNC).exists()
 
 

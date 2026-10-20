@@ -45,6 +45,7 @@ from routines.registry import app_display_names
 from routines.registry import registry_path_of
 from routines.repository import GitRepository
 from routines.runner import Runner
+from routines.runner import is_run_process_alive
 from routines.runner import read_result
 from routines.runner import spawn_run_process
 from routines.state import FileStateStore
@@ -168,7 +169,7 @@ class RoutinesService(MutableModel):
         self.definitions.load(routine_id)
         with held_lock(self.paths.run_lock_path(routine_id), f"A run of {routine_id}"):
             state = self.states.read(routine_id)
-            if state.current_run is not None:
+            if state.current_run is not None and is_run_process_alive(state.current_run):
                 raise RunInFlightError(f"A run of {routine_id} is going; wait for it to finish or stop it first.")
             if state.chat_id is not None:
                 try:
@@ -184,9 +185,12 @@ class RoutinesService(MutableModel):
             self.definitions.remove(routine_id)
 
     def is_running(self, routine_id: RoutineId) -> bool:
-        return self.states.read(routine_id).current_run is not None or is_lock_held(
-            self.paths.run_lock_path(routine_id)
-        )
+        """Whether a run is going: its lock is held, or the state records a run whose process still runs (the
+        record a killed runner left behind is the tick's to reap, not a run)."""
+        current = self.states.read(routine_id).current_run
+        if current is not None and is_run_process_alive(current):
+            return True
+        return is_lock_held(self.paths.run_lock_path(routine_id))
 
     def start_run_detached(self, routine_id: RoutineId) -> RunStartReceipt:
         """A manual run in a process of its own; raises RunInFlightError when one is already going."""

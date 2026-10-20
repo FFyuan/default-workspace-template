@@ -111,7 +111,7 @@ def _read_output_tail(log_path: Path) -> str:
     return text
 
 
-def _is_run_process_alive(current: CurrentRun) -> bool:
+def is_run_process_alive(current: CurrentRun) -> bool:
     """Whether the run's process still runs: the process the run recorded, not a later one given its pid."""
     return is_process_live(current.pid, current.pid_start)
 
@@ -499,7 +499,7 @@ class Runner(MutableModel):
             if state is None:
                 continue
             current = state.current_run
-            if current is None or _is_run_process_alive(current):
+            if current is None or is_run_process_alive(current):
                 continue
             now = self.clock.now()
             kind = loaded.definition.kind if loaded.definition is not None else RunKind.COMMAND
