@@ -31,10 +31,15 @@ Users make "creations". There are conventions for the common kinds:
 - a **skill**: teaches the agent how to do work the user cares about (including
   scripts and CLI tools, which ship inside the skill that knows how to use
   them). A skill that is automatically run on a schedule is called an
-  "automation" -- the machinery that runs automations lives in
-  `system/libs/automations/`, and the weekly Caretaker
-  (`system/services/caretaker/`) is the built-in example. Lives under
+  "automation": a routine with a `skill`, run by `system/libs/routines/`;
+  the weekly Caretaker (`system/routines/caretaker.toml`, its check in
+  `system/services/caretaker/`) is the built-in example. Lives under
   `.agents/skills/<name>/`.
+- a **routine**: something that runs on a schedule and then exits, a command
+  or a skill. One TOML file under `system/routines/<id>.toml` (the root
+  `routines` symlink), made and changed with the `routines` command (the
+  manage-routines skill) and shown by the Routines app
+  (`system/apps/routines/`); see `docs/system/specs/routines/spec.md`.
 - **data**: documents, images, notes, or data created by apps and skills.
   Lives under `data/`.
 - **customizations**: changes to any of the above -- everything in the
@@ -48,8 +53,8 @@ in that app's folder and is named `<app>-<role>`.
 ## Structure
 
 - `CLAUDE.md` - Agent instructions
-- `apps` / `skills` - Top-level symlinks to `system/apps/` and
-  `.agents/skills/` for discoverability
+- `apps` / `skills` / `routines` - Top-level symlinks to `system/apps/`,
+  `.agents/skills/` and `system/routines/` for discoverability
 - `system/config/parent.toml` - Upstream repo for pulling updates
 - `.mngr/settings.toml` - Agent types, create templates, command defaults
 - `.agents/skills/` - Agent skills (task delegation, app building, self-update)
@@ -68,8 +73,9 @@ in that app's folder and is named `<app>-<role>`.
   `share_gateway/`, `host_backup/`, `env_converge/`, `oom_priority/`)
 - `system/libs/` - Support libraries, including `bootstrap/` (first-boot
   setup, then launches supervisord to supervise the apps and services),
-  `app_manifest/` (the manifest and registry models), and `automations/`
-  (the machinery that runs skills on a schedule)
+  `app_manifest/` (the manifest and registry models), and `routines/`
+  (everything that runs on a schedule: the definitions, the runner and the
+  `routines` command)
 - `data/` - Gitignored workspace data: documents and project folders, uploads,
   memories, tickets, secrets, machine state, and per-app data (see
   `data/README.md`)

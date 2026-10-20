@@ -87,7 +87,7 @@ Scheduled jobs are not supervised programs, so `supervisorctl status` says
 nothing about them, and a job that has failed on every run still shows a tidy
 cron entry. For each entry under the system cron directory (`/etc/cron.d`),
 find the log it writes (the redirect at the end of its command line, or the
-`manage-scheduled-tasks` skill's convention) and check that its **most recent
+`manage-routines` skill's convention) and check that its **most recent
 run succeeded** -- a last line describing the work done, not an error, and a
 timestamp consistent with the schedule.
 

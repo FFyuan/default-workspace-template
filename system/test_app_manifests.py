@@ -14,9 +14,7 @@ from pathlib import Path
 import pytest
 from app_manifest.manifest import MANIFEST_FILENAME, load_manifest
 from app_manifest.primitives import RESERVED_APP_NAMES
-from app_manifest.scope import APP_CONVENTIONS
-from app_manifest.scope import SKILL_CONVENTIONS
-from app_manifest.scope import compute_app_scope
+from app_manifest.scope import APP_CONVENTIONS, SKILL_CONVENTIONS, compute_app_scope
 from oom_priority import bands
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +32,7 @@ _BUILT_IN_APP_PACKAGES = (
     "chat",
     "files",
     "getting_started",
+    "routines",
     "system_interface",
     "system_monitor",
     "terminal",
@@ -393,6 +392,7 @@ def test_built_in_manifests_agree_with_the_contract_table() -> None:
         "files": True,
         "browser": False,
         "getting-started": True,
+        "routines": True,
         "system-monitor": True,
     }
     # Where the minds Share tab lists each built-in: never for an internal one, under its System group for the
@@ -408,6 +408,7 @@ def test_built_in_manifests_agree_with_the_contract_table() -> None:
         "files": "app",
         "browser": "system",
         "getting-started": "system",
+        "routines": "app",
         "system-monitor": "system",
     }
     # Getting Started (launcher-and-getting-started plan section 3.6): one window is what it is for, so its shortcut
@@ -435,7 +436,7 @@ def test_built_in_manifests_agree_with_the_contract_table() -> None:
     # One order for the built-ins: the desktop seeds its shortcuts in it and the launcher lists its apps in it.
     assert sorted(
         (manifest.launcher_rank, manifest.name) for manifest in by_name.values() if manifest.launcher_rank is not None
-    ) == [(10, "chat"), (15, "getting-started"), (20, "files"), (30, "browser"), (40, "terminal"), (50, "system-monitor")]
+    ) == [(10, "chat"), (15, "getting-started"), (20, "files"), (30, "browser"), (40, "terminal"), (45, "routines"), (50, "system-monitor")]
     # Every seeded shortcut opens a new window of its app; the one browser is focused instead
     # (docs/system/specs/window-bound-resources.md section 3.1).
     for name, mode in (("chat", "new"), ("terminal", "new"), ("files", "new"), ("browser", "focus")):

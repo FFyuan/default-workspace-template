@@ -1732,16 +1732,11 @@ setting__extend = [
 # system/libs/automations/run_automation.sh, and labelled automation=caretaker
 # so it can be found as a singleton (the agent surfaces its own chat window via
 # uv run --no-sync workspace-layout after its first message).
-[create_templates.caretaker]
-transfer = "none"
-env__extend = ["MNGR_AGENT_ROLE=caretaker"]
-append_system_prompt__extend = ["You are the Caretaker: a maintenance agent for this workspace, woken about once a week when a scheduled check finds something worth reporting. When you are messaged to run, follow the `caretaker` skill (.agents/skills/caretaker/SKILL.md) exactly. Always speak to the user in plain, non-technical, user-experience terms. Apart from one look-only scan on your very first run -- which you always do to introduce yourself, and which never changes anything -- never scan logs or apply fixes without the permission recorded in data/.state/caretaker/permissions.md, and never apply a fix on that first run."]
-
-# Automation: the reusable base for any skill run on a cadence (the Caretaker
-# above is a tailored instance). system/libs/automations/run_automation.sh
-# <skill> spawns one per skill, labels it automation=<skill>, and messages it
-# `/<skill>` on every run -- so a new automation (e.g. a morning news digest)
-# needs only a skill plus a cron entry, no new template.
+# Automation: the agent a skill routine runs in (system/libs/routines). The
+# routines runner creates one per routine on its first run, labels it
+# routine=<id>, and on every later run clears its chat and sends `/<skill>` --
+# so a new automation (e.g. a morning news digest) needs only a skill plus a
+# routine definition, no new template. The Caretaker is one such routine.
 [create_templates.automation]
 transfer = "none"
 env__extend = ["MNGR_AGENT_ROLE=automation"]

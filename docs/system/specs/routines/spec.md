@@ -1,6 +1,6 @@
 # Routines
 
-Status: agreed design (2026-10-20), not yet implemented.
+Status: agreed design (2026-10-20), implemented on `mngr/add-routines-app`.
 Audience: implementers of the routines library (`system/libs/routines`), the Routines app (`system/apps/routines`), the bootstrap, the Caretaker, the `build-app` and `update-app` skills, and the one change in the Imbue Studio desktop app.
 
 A routine is something in a workspace that runs on a schedule.
@@ -89,7 +89,7 @@ Every field:
 |---|---|---|
 | `title` | yes | What the user sees it called. |
 | `what` | yes | One sentence saying what it does for the user. |
-| `every` | one of `every`, `once` | The cadence: a whole number and a unit, `m`, `h`, `d`, `w`, or `mo`. |
+| `every` | one of `every`, `once` | The cadence: a whole number and a unit, `m`, `h`, `d`, `w`, or `mo`; a minute or longer. |
 | `at` | no | The local time of day a run is due, `HH:MM`; only with a cadence of a day or longer. |
 | `days` | no | The weekdays a run may start, `mon` to `sun`; with any cadence. |
 | `day_of_month` | no | The day of the month a run is due, 1 to 31; only with a cadence in months. |
@@ -97,7 +97,7 @@ Every field:
 | `command` | one of `command`, `skill` | The argv to run from the repo root. |
 | `skill` | one of `command`, `skill` | The skill to run in the routine's chat. |
 | `enabled` | no | The default switch, `true` unless set. |
-| `timeout` | no | How long a run may take, a duration as above; `1h` unless set. |
+| `timeout` | no | How long a run may take, a duration as above (`s` is allowed here); `1h` unless set. |
 | `retry_after` | no | How long after a failed run the next attempt may start; `2m` unless set. |
 | `notify_after_failures` | no | Consecutive failures before the feed is told; `3` unless set, `0` never. |
 | `app` | no | The name of the app this routine belongs to, for grouping and for the Fix brief. |
@@ -107,7 +107,8 @@ The library validates a definition with a pydantic model on every read; a file t
 Writes go through `tomlkit` so a comment an agent left survives an edit.
 A definition is written only by the library, which the CLI (section 9) and the app (section 10) both call, and the library commits each write it makes, staging that one file, with a message naming the routine and the change ("routines: change the schedule of inbox-digest").
 The app's schedule editor has no agent to commit for it, and an agent that calls the CLI gets the commit for free; git is invisible plumbing to the user either way.
-A commit that fails (no git, a lock held) leaves the file written and logs a warning.
+The commit stages that one file and commits it with `git commit --only`, so another agent's half-staged work is never swept up; a commit refused because the index is locked or a merge is in progress is retried once after a second, and when it still fails the file stays written and the user sees "Couldn't save that change because something else is saving right now. Try again in a moment." (the next write of the file commits both).
+The commit identity is the library's own, not whichever chat happens to be open.
 
 ## 5. Schedules and due computation
 
@@ -282,12 +283,12 @@ Whether a run is in flight is a separate flag beside the health, because a faili
 
 The runner, at the end of every run, applies three rules against the state:
 
-1. **Failing.** When `consecutive_failures` reaches `notify_after_failures` and `is_failure_notified` is false, post a notification ("Morning inbox digest has failed 3 times in a row.") and set the flag.
+1. **Failing.** When `consecutive_failures` reaches `notify_after_failures` and `is_failure_notified` is false, post a notification ("Morning inbox digest": "Failed 3 times in a row.") and set the flag.
    A streak notifies once.
-2. **Recovered.** When a run succeeds and `is_failure_notified` is true, post ("Morning inbox digest is working again.") and clear the flag.
-3. **Blocked.** On `run_blocked`, post ("Morning inbox digest needs you.") once per run.
+2. **Recovered.** When a run succeeds and `is_failure_notified` is true, post ("Working again.") and clear the flag.
+3. **Blocked.** On `run_blocked`, post ("Needs you: the agent is waiting for an answer.") once per run.
 
-A notification is `POST /api/v1/agents/<MNGR_AGENT_ID>/notifications` through the latchkey gateway, exactly as `notify_user.py` does, from the services agent's environment the env wrapper restores, with a `destination` naming the routine's page (section 14).
+A notification is `POST /api/v1/agents/<MNGR_AGENT_ID>/notifications` through the latchkey gateway, exactly as `notify_user.py` does, from the services agent's environment the env wrapper restores, headed by the routine's title and with a `destination` naming the routine's page (section 14).
 The services agent is not a chat, so the desktop must not treat the entry as a chat's message; section 14 covers that.
 A gateway that is not there, or an app that refuses, is a warning in the run's log and nothing else; a notification never fails a run.
 
@@ -407,10 +408,11 @@ The definitions it writes are committed as every definition write is (section 4)
 
 ## 14. Changes outside this repo
 
-One, in the Imbue Studio app (`apps/minds` in the mngr repo): `AgentNotificationRequest` gains an optional `destination`, `{"app": "<app name>", "path": "/<path>"}`.
-The feed entry carries it, and opening the entry lands the user on that app's page in the workspace rather than in a chat; an entry from an agent that is not a chat (the services agent) and names no destination raises the workspace.
+One, in the Imbue Studio app (`apps/minds` in the mngr repo): `AgentNotificationRequest` gains an optional `destination`, a workspace message `{"type": "minds:show-routine", "routine_id": "<id>"}` (the type lowercase `prefix:kebab-name`, every other field a string).
+The feed entry carries it, and opening the entry raises the workspace and posts the message into its shell, which shows the page of the app whose manifest registers the type (the Routines manifest's `[[message_handlers]]` with `show = "/{routine_id}"`), rather than a chat; an entry from an agent that is not a chat (the services agent) and names no destination raises the workspace.
 A desktop that does not know the field keeps today's behaviour, so the runner sends it unconditionally.
-The latchkey gateway's per-agent grant for the notifications route must cover the services agent; if it does not, that grant is part of the same change.
+The runner sends the routine's title as the notification's `title`, which heads the entry when the sender is not a chat; the message is the body.
+The desktop already registers every agent of a managed host with the gateway, the services agent included, so no grant changes.
 That change is its own PR on the mngr repo and lands before the template's.
 
 ## 15. Testing

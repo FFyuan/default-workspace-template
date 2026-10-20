@@ -20,6 +20,8 @@ from bootstrap.manager import (
     BOOTSTRAP_EVENTS_RELATIVE_PATH,
     BOOTSTRAP_STEP_COMPLETED_EVENT,
     BOOTSTRAP_STEP_STARTED_EVENT,
+    ROUTINES_ENV_WRAPPER,
+    ROUTINES_TICK_CRON_NAME,
     UPDATE_APPLY_MARKER,
     UPDATE_APPLY_SCRIPT,
     UPDATE_RECOVER_CRON_NAME,
@@ -38,6 +40,7 @@ from bootstrap.manager import (
     _recover_interrupted_update,
     _set_container_timezone,
     _wake_update_dri_agent,
+    _write_routines_tick_cron_entry,
     _write_update_recovery_cron_entry,
     main,
 )
@@ -903,7 +906,11 @@ def test_main_announces_each_boot_step_to_the_agent_events_in_order(
 
     main()
 
-    lines = (_agent_state_dir(tmp_path) / BOOTSTRAP_EVENTS_RELATIVE_PATH).read_text().splitlines()
+    lines = (
+        (_agent_state_dir(tmp_path) / BOOTSTRAP_EVENTS_RELATIVE_PATH)
+        .read_text()
+        .splitlines()
+    )
     events = [json.loads(line) for line in lines]
     assert all(event["source"] == "bootstrap" for event in events)
     assert all(
@@ -972,3 +979,46 @@ def test_recover_names_nobody_when_the_marker_recorded_no_agent(
 
     assert len(stub.calls) == 1  # the recover invocation, and no mngr calls
     assert not UPDATE_APPLY_MARKER.exists()
+
+
+# _write_routines_tick_cron_entry
+
+
+def test_routines_tick_cron_entry_is_rewritten_every_boot(tmp_path: Path) -> None:
+    # Like the recovery guard: /etc/cron.d does not survive container recreation, and a stale
+    # entry from an older image has to be replaced rather than left alone.
+    target = tmp_path / "etc-cron-d"
+    target.mkdir()
+    installed = target / ROUTINES_TICK_CRON_NAME
+    installed.write_text("* * * * * root true  # a stale entry\n")
+
+    _write_routines_tick_cron_entry(target_dir=target)
+
+    entry = installed.read_text()
+    assert "stale entry" not in entry
+    assert entry.startswith("* * * * * root ")
+    assert (
+        f"{WORKSPACE_ROOT_DIR / ROUTINES_ENV_WRAPPER} uv run --no-sync routines tick"
+        in entry
+    )
+    assert (installed.stat().st_mode & 0o777) == 0o644
+
+
+def test_routines_tick_cron_entry_runs_through_the_env_wrapper_and_logs_to_the_supervisor_dir(
+    tmp_path: Path,
+) -> None:
+    # cron hands a drop-in a bare environment; the wrapper restores the services agent's and runs
+    # from the repo root, which is what lets `uv run` find the venv and the library find its files.
+    target = tmp_path / "etc-cron-d"
+    target.mkdir()
+    _write_routines_tick_cron_entry(target_dir=target)
+    entry = (target / ROUTINES_TICK_CRON_NAME).read_text()
+    assert entry.count("\n") == 1
+    assert ">> /var/log/supervisor/routines-tick.log 2>&1" in entry
+    assert (WORKSPACE_ROOT_DIR / ROUTINES_ENV_WRAPPER).name == "with_agent_env.sh"
+
+
+def test_routines_tick_cron_entry_tolerates_an_unwritable_target(
+    tmp_path: Path,
+) -> None:
+    _write_routines_tick_cron_entry(target_dir=tmp_path / "missing")
