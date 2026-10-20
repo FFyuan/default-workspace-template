@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime
 from datetime import timedelta
 
 import pytest
@@ -51,6 +52,26 @@ def _skill_routine(definitions: FileDefinitionStore, **fields: object) -> None:
     values: dict[str, object] = {"title": "Morning digest", "what": "Digests.", "every": "1d", "skill": "digest"}
     values.update(fields)
     definitions.add(SYNC, RoutineDefinition.model_validate(values))
+
+
+def _dead_pid() -> int:
+    """The pid of a process that has already exited, for a run whose runner is gone."""
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    return dead.pid
+
+
+def _record_current_run(
+    states: FileStateStore,
+    run_id: RunId,
+    pid: int,
+    started_at: datetime,
+    trigger: RunTrigger = RunTrigger.SCHEDULED,
+    pid_start: str = "",
+) -> None:
+    """Write a run in flight into the routine's state, as the runner does when it starts one."""
+    current = CurrentRun(run_id=run_id, pid=pid, pid_start=pid_start, trigger=trigger, started_at=started_at)
+    states.update(SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, current)))
 
 
 def test_a_command_run_streams_its_output_records_both_events_and_updates_the_state(
@@ -261,18 +282,8 @@ def test_the_tick_closes_off_a_run_whose_process_is_gone(
     runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, ledger: FileLedger, clock: FakeClock
 ) -> None:
     _command_routine(definitions, "true", enabled=False)
-    dead = subprocess.Popen([sys.executable, "-c", "pass"])
-    dead.wait()
     run_id = RunId.generate()
-    states.update(
-        SYNC,
-        lambda state: state.model_copy_update(
-            to_update(
-                state.field_ref().current_run,
-                CurrentRun(run_id=run_id, pid=dead.pid, trigger=RunTrigger.SCHEDULED, started_at=clock.now()),
-            )
-        ),
-    )
+    _record_current_run(states, run_id, _dead_pid(), clock.now())
 
     report = runner.tick()
 
@@ -356,15 +367,7 @@ def test_a_wake_inside_a_command_run_records_the_waiting_agent_on_that_run(
             command="true",
         )
     )
-    states.update(
-        SYNC,
-        lambda state: state.model_copy_update(
-            to_update(
-                state.field_ref().current_run,
-                CurrentRun(run_id=run_id, pid=os.getpid(), trigger=RunTrigger.MANUAL, started_at=runner.clock.now()),
-            )
-        ),
-    )
+    _record_current_run(states, run_id, os.getpid(), runner.clock.now(), trigger=RunTrigger.MANUAL)
 
     outcome = runner.wake(SYNC, run_id, "Weekly check-up", "caretaker", timedelta(hours=1))
 
@@ -460,8 +463,6 @@ def test_the_tick_leaves_a_run_that_finished_while_it_was_looking_alone(
     clock: FakeClock,
 ) -> None:
     _command_routine(definitions, "true", enabled=False)
-    dead = subprocess.Popen([sys.executable, "-c", "pass"])
-    dead.wait()
     run_id = RunId.generate()
     finished = LastRun(
         run_id=run_id,
@@ -475,7 +476,7 @@ def test_the_tick_leaves_a_run_that_finished_while_it_was_looking_alone(
     states = StaleReadStateStore(paths=paths)
     states.update(SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().last_run, finished)))
     states.stale = RoutineState(
-        current_run=CurrentRun(run_id=run_id, pid=dead.pid, trigger=RunTrigger.SCHEDULED, started_at=clock.now())
+        current_run=CurrentRun(run_id=run_id, pid=_dead_pid(), trigger=RunTrigger.SCHEDULED, started_at=clock.now())
     )
     runner = Runner(
         paths=paths,
@@ -500,21 +501,7 @@ def test_the_tick_closes_off_a_run_whose_pid_now_belongs_to_another_process(
     """This process is alive, but the run recorded a start time that is not its own: a recycled pid."""
     _command_routine(definitions, "true", enabled=False)
     run_id = RunId.generate()
-    states.update(
-        SYNC,
-        lambda state: state.model_copy_update(
-            to_update(
-                state.field_ref().current_run,
-                CurrentRun(
-                    run_id=run_id,
-                    pid=os.getpid(),
-                    pid_start="1",
-                    trigger=RunTrigger.SCHEDULED,
-                    started_at=clock.now(),
-                ),
-            )
-        ),
-    )
+    _record_current_run(states, run_id, os.getpid(), clock.now(), pid_start="1")
 
     assert runner.tick().reaped == (SYNC,)
     assert states.read(SYNC).current_run is None
@@ -524,21 +511,7 @@ def test_a_run_in_flight_in_this_very_process_is_left_alone(
     runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, clock: FakeClock
 ) -> None:
     _command_routine(definitions, "true", enabled=False)
-    states.update(
-        SYNC,
-        lambda state: state.model_copy_update(
-            to_update(
-                state.field_ref().current_run,
-                CurrentRun(
-                    run_id=RunId.generate(),
-                    pid=os.getpid(),
-                    pid_start=process_start_time(os.getpid()),
-                    trigger=RunTrigger.SCHEDULED,
-                    started_at=clock.now(),
-                ),
-            )
-        ),
-    )
+    _record_current_run(states, RunId.generate(), os.getpid(), clock.now(), pid_start=process_start_time(os.getpid()))
 
     assert runner.tick().reaped == ()
     assert states.read(SYNC).current_run is not None
