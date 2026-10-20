@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from pathlib import Path
 
 from flask.testing import FlaskClient
@@ -7,6 +9,7 @@ from app_schema.testing import assert_api_schema_describes_app
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
+from routines.locks import held_lock
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunTrigger
@@ -111,6 +114,38 @@ def test_a_run_and_its_log_are_read_back(client: FlaskClient, service: RoutinesS
     detail = client.get("/api/routines/news-sync").get_json()
     assert [run["run_id"] for run in detail["runs"]] == [event.run_id]
     assert detail["row"]["last_run_text"].startswith("Worked")
+
+
+def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_holds_the_lock(
+    client: FlaskClient, service: RoutinesService
+) -> None:
+    _add(service)
+    with held_lock(service.paths.run_lock_path(SYNC), "A run"):
+        refused = client.post("/api/routines/news-sync/run", json={})
+        assert refused.status_code == 409
+        assert "already going" in refused.get_json()["detail"]
+
+    started = client.post("/api/routines/news-sync/run", json={})
+
+    assert started.status_code == 200, started.get_json()
+    receipt = started.get_json()
+    assert receipt["routine_id"] == "news-sync"
+    assert receipt["run_id"].startswith("run-")
+    # The run goes on in a process of its own; its books close without the app.
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline and service.states.read(SYNC).last_run is None:
+        threading.Event().wait(0.1)
+    last_run = service.states.read(SYNC).last_run
+    assert last_run is not None, "the spawned run never finished"
+    assert str(last_run.run_id) == receipt["run_id"]
+    assert last_run.trigger == "MANUAL"
+    assert client.post("/api/routines/nothing/run", json={}).status_code == 404
+
+
+def test_the_switch_and_the_schedule_of_an_unknown_routine_are_not_found(client: FlaskClient) -> None:
+    assert client.put("/api/routines/nothing/enabled", json={"is_enabled": False}).status_code == 404
+    schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
+    assert client.put("/api/routines/nothing/schedule", json=schedule).status_code == 404
 
 
 def test_a_broken_definition_cannot_be_run_and_the_reason_is_a_bad_request(
