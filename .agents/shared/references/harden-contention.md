@@ -18,7 +18,8 @@ Three principles drive every rule below:
   just makes that pass stale, and staleness is handled here.
 - **A stale pass is caught up, not redone.** Its worker brings its branch up
   to the new base and verifies what moved in, so the work it already verified
-  is kept. A fresh pass replaces it only when the worker is gone.
+  is kept. A fresh pass replaces it only when the worker is gone, or when
+  no one who can receive its reports is left to lead it.
 
 ## Before dispatch: one pass per creation (single-flight)
 
@@ -43,15 +44,22 @@ grep -E "(update|heal) $TARGET" /tmp/harden-inflight.txt
 
   ```bash
   mngr list --format jsonl > /tmp/harden-agents.jsonl
-  jq -c 'select(.name == "<holder>" or .name == "<worker-name>")
-      | {name, state, archived_at: .labels.archived_at}' /tmp/harden-agents.jsonl
+  LEAD_ID=$(jq -r 'select(.name == "<worker-name>") | .labels.lead_agent // empty' /tmp/harden-agents.jsonl)
+  jq -c --arg lead "$LEAD_ID" \
+      'select(.name == "<holder>" or .name == "<worker-name>" or ($lead != "" and .id == $lead))
+      | {name, id, state, archived_at: .labels.archived_at}' /tmp/harden-agents.jsonl
   ```
 
-  The holder is running when its state is RUNNING or WAITING. The worker is
-  there when it has a record with no `archived_at` (a STOPPED one without it
-  crashed, and the next message restarts it; see
+  The holder is running when its state is RUNNING or WAITING, found either by
+  the ticket's name or by the id in the worker's `lead_agent` label: a chat
+  renamed since it took the ticket has no record under the old name, but
+  keeps its id. The worker is
+  there when it has a record whose `archived_at` is absent or empty (a
+  revived worker's is blanked; a STOPPED one without it crashed, and the next
+  message restarts it; see
   `.agents/skills/launch-task/references/dead-worker-recovery.md`). No record,
-  or one stopped on purpose (`archived_at` set), means the worker is gone.
+  or one stopped on purpose (a non-empty `archived_at`), means the worker is
+  gone.
   Then:
   - **Live** (holder running): do NOT dispatch a second pass. Leave a note on
     their ticket so the owner covers your change at merge time, and stop --
@@ -223,7 +231,10 @@ A pass whose holder stopped while its worker is still there is neither stale
 nor abandoned: the worker holds verified work and is waiting for a lead, often
 on a gate nobody relayed. Become that lead; do not replace the pass.
 
-1. Its task file is `data/.tasks/harden/<worker-name>/task.md`. Its
+1. Its task file is the one the calling skill writes:
+   `data/.tasks/harden/<worker-name>/task.md` for an update or heal pass,
+   `data/.tasks/update-self/task.md` for update-self,
+   `data/.tasks/migrate-workspace/task.md` for migrate-workspace. Its
    `lead_work_dir` must be your own checkout (`$MNGR_AGENT_WORK_DIR`; the chats
    of one workspace share it), since the worker delivers every report there.
    If it names another checkout, you cannot receive its reports: supersede the
@@ -236,6 +247,14 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
 
    ```bash
    tk add-note <their-ticket-id> "Holder <holder> is gone; taken over by $MNGR_AGENT_NAME. Commits <range> also change $TARGET."
+   ```
+
+   Then label the worker as yours. The `lead_agent` label is how the check
+   above finds you once you are renamed, and how the user's chat list files
+   the worker under the chat leading it:
+
+   ```bash
+   mngr label <worker-name> -l lead_agent=$MNGR_AGENT_ID
    ```
 3. Find what the worker last said. A report waiting at the task file's
    `finish_report_path` is unread, and the poll in step 4 hands it to you.
@@ -256,7 +275,9 @@ When there is no worker left to catch up -- an abandoned pass, or one stopped
 after a failure (a `stuck` on the catch-up itself included) whose user did not
 override it -- replace it with **one** new pass. A worker the user's override
 resumes is kept (`lead-proxy.md`, "Resuming after the user overrides a
-failure").
+failure"). An orphaned pass whose task file names another checkout as
+`lead_work_dir` is replaced the same way although its worker is still there:
+its reports can never reach you, so no one here can lead it.
 
 A pass that is gone can still have left work no one merged: commits on its
 branch or a sub-worker's, a fix it finished before its holder stopped
@@ -297,13 +318,17 @@ answering. That work is never dropped. The new pass carries it:
    (`harden-creation.md`, "Carried work from a superseded pass"). They are
    merged there and not into your branch, because nothing has verified them
    yet. One superseding pass validates the union of all pending changes
-   together -- which is the only combination that will actually run.
+   together -- which is the only combination that will actually run. A worker
+   that follows its own guide rather than `harden-creation.md` (update-self's,
+   migrate-workspace's) has no such step, so its new pass carries nothing:
+   leave each kept branch for the user to decide on, and say so in step 4.
 4. **Tell the user** what was kept, in a sentence about the work itself (from
    the commit subjects), and that the new pass is finishing it.
-5. **Once you merge the new pass's `done`**, delete each kept branch with `git
-   branch -d superseded/<name>`. The lowercase `-d` refuses a branch your
-   `HEAD` does not contain, which would mean the worker never merged it: ask
-   it why rather than forcing the delete.
+5. **Once you merge the new pass's `done`**, delete each branch you named
+   under `## Carried work` with `git branch -d superseded/<name>`. The
+   lowercase `-d` refuses a branch your `HEAD` does not contain, which would
+   mean the worker never merged it: ask it why rather than forcing the delete.
+   A kept branch you left for the user stays until they decide.
 
 Two wrinkles when the pass had already delivered a provisional milestone
 merge:
@@ -312,10 +337,11 @@ merge:
   own branch, so deleting the worker branch does not take it back out. The
   hardening done after that milestone is unmerged work like any other, and the
   new pass carries it.
-- **A reverted milestone must be reinstated or superseded.** If you rolled a
+- **A reverted milestone must be reinstated or rebuilt.** If you rolled a
   provisional merge back with `git revert -m 1 <merge-commit>`, the reverted
   commits are still ancestors of HEAD, so any later merge from that branch --
-  and any catch-up into it -- silently omits them. Reinstate them with `git
-  revert <revert-commit>` before merging from that branch or catching it up,
-  or supersede the pass so a fresh one rebuilds the work from the current
-  base.
+  a catch-up into it, or a new pass carrying it -- silently omits them, and
+  `git log HEAD..<branch>` does not list them. Reinstate them with `git
+  revert <revert-commit>` before merging from that branch, catching it up, or
+  carrying it. Otherwise say in the new pass's task that the milestone was
+  reverted and its work must be rebuilt from the current base.

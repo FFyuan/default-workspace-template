@@ -71,8 +71,8 @@ in [`.agents/shared/references/harden-contention.md`](../../shared/references/ha
 if another agent's pass is live, leave the note it describes on their ticket
 and stop -- the catch-up forced at their merge time covers your change.
 If its holder is gone but its worker is not, take it over as its lead there
-instead of dispatching. Only dispatch if no pass is in flight, or you
-superseded an abandoned one.
+instead of dispatching. Only dispatch if no pass is in flight, or that
+reference had you supersede the one that was.
 
 ```bash
 mkdir -p data/.tasks/harden/update-$TARGET

@@ -239,9 +239,11 @@ branch -- `done` included -- would **silently omit** them. First reinstate:
 git revert <revert-commit>
 ```
 
-or supersede the pass per `.agents/shared/references/harden-contention.md`.
-Reinstate it before asking the worker to catch up, too: the catch-up merges
-your `HEAD`, revert included, into its branch.
+A pass is superseded instead only once its worker is gone, and then its new
+task says the milestone was reverted and its work must be rebuilt
+(`.agents/shared/references/harden-contention.md`, "Superseding a pass whose
+worker is gone"). Reinstate it before asking the worker to catch up, too: the
+catch-up merges your `HEAD`, revert included, into its branch.
 
 ## Terminal status: act and stop polling
 

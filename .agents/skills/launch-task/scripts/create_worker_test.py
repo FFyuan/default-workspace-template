@@ -2612,7 +2612,8 @@ def test_destroy_prints_unmerged_commits_and_a_dirty_worktree(
 
 @dataclass
 class _RealGitRunner(_RecordingRunner):
-    """Runs ``git`` for real in ``repo``; records and stubs everything else."""
+    """Runs ``git`` for real in ``repo`` under ``_hermetic_git_env``; records
+    and stubs everything else."""
 
     repo: Path = Path(".")
 
@@ -2620,23 +2621,15 @@ class _RealGitRunner(_RecordingRunner):
         if argv[0] != "git":
             return super().run(argv, **kwargs)
         self.calls.append(_RecordedCall(argv=list(argv), kwargs=kwargs))
-        return subprocess.run(argv, cwd=self.repo, **kwargs)
-
-
-def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+        return subprocess.run(argv, cwd=self.repo, env=_hermetic_git_env(), **kwargs)
 
 
 def _repo_with_a_pass(tmp_path: Path, root: str) -> tuple[Path, str]:
     """A repo on ``main`` whose pass branch ``mngr/<root>`` holds two commits
     ``main`` lacks, one of them from a sub-worker branch merged into it."""
     repo = tmp_path / "repo"
-    subprocess.run(["git", "init", "--quiet", "-b", "main", str(repo)], check=True)
+    repo.mkdir()
+    _git(repo, "init", "--quiet", "--initial-branch=main")
     _git(repo, "commit", "--allow-empty", "-m", "base")
     child = f"{root}-child"
     _git(repo, "branch", f"mngr/{root}")
@@ -2646,6 +2639,13 @@ def _repo_with_a_pass(tmp_path: Path, root: str) -> tuple[Path, str]:
     _git(repo, "merge", "--quiet", "--no-ff", f"mngr/{child}", "-m", "merge sub-worker")
     _git(repo, "checkout", "--quiet", "main")
     return repo, child
+
+
+def _real_git_runner(repo: Path, listing: _StubResult) -> _RealGitRunner:
+    """A ``_RealGitRunner`` in ``repo`` whose ``mngr list`` prints ``listing``."""
+    runner = _RealGitRunner(repo=repo)
+    runner.respond(("mngr", "list"), listing)
+    return runner
 
 
 def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
@@ -2659,8 +2659,7 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     )
     # An earlier supersede of the same creation already holds the plain name.
     _git(repo, "branch", f"superseded/{root}")
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(("mngr", "list"), listing)
+    runner = _real_git_runner(repo, listing)
 
     rc = create_worker_mod.destroy(root, runner, delete_branches=True)
 
@@ -2668,14 +2667,13 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     assert _lifecycle_argvs(runner) == []
     err = capsys.readouterr().err
     assert f"mngr/{root}: 2 commit(s)" in err
-    assert f"mngr/{child}: 1 commit(s)" in err
-    # Keeping the pass's branch alone lets the destroy through: the sub-worker's
-    # commit is merged into it.
+    # The sub-worker's commit is merged into the pass's branch, so keeping that
+    # one alone keeps it and lets the destroy through.
+    assert f"mngr/{child}" not in err
     keep = f"git branch superseded/{root}-2 mngr/{root}"
     assert keep in err
-    subprocess.run(keep.split(), cwd=repo, check=True)
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(("mngr", "list"), listing)
+    _git(repo, *keep.split()[1:])
+    runner = _real_git_runner(repo, listing)
 
     rc = create_worker_mod.destroy(root, runner, delete_branches=True)
 
@@ -2686,13 +2684,42 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     ]
 
 
+def test_delete_branches_names_a_distinct_keep_branch_for_each_doomed_branch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _unique("root")
+    repo, _ = _repo_with_a_pass(tmp_path, root)
+    # A sub-worker launched on the pre-existing branch ``<root>`` shares the
+    # pass's keep-name stem.
+    sibling = f"{root}-sibling"
+    _git(repo, "checkout", "--quiet", "-b", root)
+    _git(repo, "commit", "--allow-empty", "-m", "sibling fix")
+    _git(repo, "checkout", "--quiet", "main")
+    runner = _real_git_runner(
+        repo,
+        _listing(
+            _agent_record(root, "STOPPED"),
+            {
+                **_agent_record(sibling, "STOPPED", lead_agent=root),
+                "initial_branch": root,
+            },
+        ),
+    )
+
+    rc = create_worker_mod.destroy(root, runner, delete_branches=True)
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert f"git branch superseded/{root} mngr/{root}\n" in err
+    assert f"git branch superseded/{root}-2 {root}\n" in err
+
+
 def test_delete_branches_goes_ahead_once_the_pass_is_merged(tmp_path: Path) -> None:
     root = _unique("root")
     repo, child = _repo_with_a_pass(tmp_path, root)
     _git(repo, "merge", "--quiet", "--no-ff", f"mngr/{root}", "-m", "merge the pass")
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(
-        ("mngr", "list"),
+    runner = _real_git_runner(
+        repo,
         _listing(
             _agent_record(root, "WAITING"),
             _agent_record(child, "STOPPED", lead_agent=root),
@@ -2705,18 +2732,55 @@ def test_delete_branches_goes_ahead_once_the_pass_is_merged(tmp_path: Path) -> N
     assert [argv[2] for argv in _destroy_argvs(runner)] == [child, root]
 
 
-def test_discard_unmerged_deletes_branches_holding_work(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("failing_probe", "reason"),
+    [
+        (("git", "for-each-ref"), "could not list the local branches"),
+        (("git", "rev-list", "--count"), "could not count the commits"),
+    ],
+)
+def test_delete_branches_refuses_when_git_cannot_prove_the_work_is_safe(
+    failing_probe: tuple[str, ...], reason: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     root = _unique("root")
-    repo, _ = _repo_with_a_pass(tmp_path, root)
-    runner = _RealGitRunner(repo=repo)
-
-    rc = create_worker_mod.main(
-        ["destroy", "--name", root, "--no-recursive", "--delete-branches", "--discard-unmerged"],
-        runner=runner,
+    runner = _RecordingRunner()
+    runner.respond(("mngr", "list"), _listing(_agent_record(root, "STOPPED")))
+    runner.respond(
+        ("git", "for-each-ref"), _StubResult(stdout=f"refs/heads/mngr/{root}\n")
     )
+    runner.respond(failing_probe, _StubResult(returncode=128))
+
+    rc = create_worker_mod.destroy(root, runner, delete_branches=True)
+
+    assert rc == 2
+    assert _lifecycle_argvs(runner) == []
+    assert reason in capsys.readouterr().err
+
+
+def test_discard_unmerged_deletes_branches_holding_work(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _unique("root")
+    repo, child = _repo_with_a_pass(tmp_path, root)
+    listing = _listing(
+        _agent_record(root, "STOPPED"),
+        _agent_record(child, "STOPPED", lead_agent=root),
+    )
+    argv = ["destroy", "--name", root, "--no-recursive", "--delete-branches"]
+    runner = _real_git_runner(repo, listing)
+
+    rc = create_worker_mod.main(argv, runner=runner)
+
+    assert rc == 2
+    assert _lifecycle_argvs(runner) == []
+    assert "without its 1 descendant" not in capsys.readouterr().err
+    runner = _real_git_runner(repo, listing)
+
+    rc = create_worker_mod.main([*argv, "--discard-unmerged"], runner=runner)
 
     assert rc == 0
     assert _destroy_argvs(runner) == [["mngr", "destroy", root, "--force", "-b"]]
+    assert f"{root} destroyed without its 1 descendant" in capsys.readouterr().err
 
 
 def test_destroy_with_no_listing_still_destroys_the_named_agent() -> None:
@@ -4344,26 +4408,29 @@ _CREATION_FILENAME = "skill.md"
 _CREATION_BASE_TEXT = "".join(f"line{i}\n" for i in range(1, 10))
 
 
-def _git(repo: Path, *args: str) -> str:
-    """Run one git command in ``repo`` and return its trimmed stdout.
+def _hermetic_git_env() -> dict[str, str]:
+    """The environment for a test's git: identity pinned and the user's git
+    config disabled, so a developer's gpgsign or hooks cannot make it flaky."""
+    return {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_AUTHOR_NAME": "Test Lead",
+        "GIT_AUTHOR_EMAIL": "lead@example.invalid",
+        "GIT_COMMITTER_NAME": "Test Lead",
+        "GIT_COMMITTER_EMAIL": "lead@example.invalid",
+    }
 
-    Identity is pinned and the user's git config disabled, so a developer's
-    gpgsign or hooks cannot make the test flaky.
-    """
+
+def _git(repo: Path, *args: str) -> str:
+    """Run one git command in ``repo`` under ``_hermetic_git_env`` and return
+    its trimmed stdout."""
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
         check=True,
-        env={
-            **os.environ,
-            "GIT_CONFIG_GLOBAL": os.devnull,
-            "GIT_CONFIG_SYSTEM": os.devnull,
-            "GIT_AUTHOR_NAME": "Test Lead",
-            "GIT_AUTHOR_EMAIL": "lead@example.invalid",
-            "GIT_COMMITTER_NAME": "Test Lead",
-            "GIT_COMMITTER_EMAIL": "lead@example.invalid",
-        },
+        env=_hermetic_git_env(),
     )
     return result.stdout.strip()
 
@@ -4422,7 +4489,7 @@ def test_provisional_merge_advances_the_merge_base_so_done_brings_the_rest(
 
     # Before the worker's next commit, the merge-base is the milestone commit
     # and the lead has made no foreground edit of its own: the creation is
-    # fresh, so the pass would not be superseded.
+    # fresh, so the pass would not need a catch-up.
     assert _git(lead, "merge-base", "HEAD", "mngr/demo") == milestone_sha
     assert (
         _git(

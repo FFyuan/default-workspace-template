@@ -91,11 +91,12 @@ A match is decided by rule, never by asking. `tk show <id>` names its holder
 (`Held by <name>`). It is **live** when `mngr list --format "{name}	{state}"`
 shows that agent `RUNNING` or `WAITING`: another update is running, so tell
 the user that one is already under way and end this pass, recording nothing
-(the run record is that pass's). Otherwise it is **abandoned**, and yours to
-take over: `tk close <id> "Superseded: its holder is gone."`, then take your
-own below; Step 3b clears the old pass's worker and branch. A lease held under
-your own name is this chat's from an earlier attempt: close it the same way.
-Then take it (each `tk` call as its own command, never chained):
+(the run record is that pass's). Otherwise its holder is gone: take the pass
+over as its lead, or supersede it once its worker is gone too, per
+`.agents/shared/references/harden-contention.md`, without stopping to ask. A
+lease held under your own name is this chat's from an earlier attempt: close it
+(`tk close <id> "Superseded: its holder is gone."`) and take your own.
+Otherwise take it (each `tk` call as its own command, never chained):
 
 ```bash
 UPDATE_LEASE_ID=$(tk create "updating workspace" -t chore \
