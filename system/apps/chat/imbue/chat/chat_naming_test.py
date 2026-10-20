@@ -128,6 +128,8 @@ def test_parse_generated_chat_name_keeps_a_short_title(answer: str, expected: st
     "answer",
     [
         "NONE",
+        "NONE.",
+        "None",
         "",
         "Map app: build a simple map application",
         "Five days in Rome\nA second line",

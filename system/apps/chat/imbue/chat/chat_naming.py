@@ -173,10 +173,10 @@ def parse_generated_chat_name(answer: str) -> str | None:
     if form_label is not None:
         line = line[form_label.end() :].strip("\"'").strip()
     # A colon is the old "Short name: description" form, whose two halves restate each other.
-    if line == _NO_NAME_ANSWER or "\n" in line or ":" in line or not line.isascii():
+    if "\n" in line or ":" in line or not line.isascii():
         return None
     name = line.rstrip(".").strip()
-    if not name or len(name) > _MAX_NAME_LENGTH or not canonical_agent_name(name):
+    if not name or name.upper() == _NO_NAME_ANSWER or len(name) > _MAX_NAME_LENGTH or not canonical_agent_name(name):
         return None
     return name
 
