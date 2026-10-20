@@ -2,6 +2,7 @@ from datetime import datetime
 from datetime import timezone
 from pathlib import Path
 
+import pytest
 from inline_snapshot import snapshot
 
 from routines.definitions import FileDefinitionStore
@@ -85,34 +86,41 @@ def test_the_caretaker_entry_is_recognized_as_the_switch_on_the_shipped_routine(
     assert converted.is_caretaker_switch
 
 
-def test_plain_cron_lines_in_the_shapes_a_definition_can_say_are_converted() -> None:
-    cases = {
-        "*/15 * * * * root cmd": ("15m", None, ()),
-        "0 */2 * * * root cmd": ("2h", None, ()),
-        "30 9 * * * root cmd": ("1d", "09:30", ()),
-        "30 9 * * 1 root cmd": ("1d", "09:30", (Weekday.MON,)),
-        "30 9 * * 1-5 root cmd": ("1d", "09:30", (Weekday.MON, Weekday.TUE, Weekday.WED, Weekday.THU, Weekday.FRI)),
-        "0 8 * * 1,3,5 root cmd": ("1d", "08:00", (Weekday.MON, Weekday.WED, Weekday.FRI)),
-        "0 8 * * 0,7 root cmd": ("1d", "08:00", (Weekday.SUN,)),
-        "0 0 1 * * root cmd": ("1mo", "00:00", ()),
-    }
-    for line, (every, at, days) in cases.items():
-        (converted,) = convert_cron_entry(line + "\n", "weekly_report")
-        assert isinstance(converted, ConvertedEntry), line
-        assert str(converted.definition.every) == every
-        assert converted.definition.at == at
-        assert converted.definition.days == days
-        assert converted.routine_id == RoutineId("weekly-report")
+@pytest.mark.parametrize(
+    ("line", "every", "at", "days"),
+    [
+        ("*/15 * * * * root cmd", "15m", None, ()),
+        ("0 */2 * * * root cmd", "2h", None, ()),
+        ("30 9 * * * root cmd", "1d", "09:30", ()),
+        ("30 9 * * 1 root cmd", "1d", "09:30", (Weekday.MON,)),
+        ("30 9 * * 1-5 root cmd", "1d", "09:30", (Weekday.MON, Weekday.TUE, Weekday.WED, Weekday.THU, Weekday.FRI)),
+        ("0 8 * * 1,3,5 root cmd", "1d", "08:00", (Weekday.MON, Weekday.WED, Weekday.FRI)),
+        ("0 8 * * 0,7 root cmd", "1d", "08:00", (Weekday.SUN,)),
+        ("0 0 1 * * root cmd", "1mo", "00:00", ()),
+    ],
+)
+def test_plain_cron_lines_in_the_shapes_a_definition_can_say_are_converted(
+    line: str, every: str, at: str | None, days: tuple[Weekday, ...]
+) -> None:
+    (converted,) = convert_cron_entry(line + "\n", "weekly_report")
+    assert isinstance(converted, ConvertedEntry)
+    assert str(converted.definition.every) == every
+    assert converted.definition.at == at
+    assert converted.definition.days == days
+    assert converted.routine_id == RoutineId("weekly-report")
 
 
-def test_a_cron_shape_with_no_routine_form_is_left_with_a_reason() -> None:
+def test_a_cron_line_naming_a_month_is_left_with_that_reason() -> None:
     (skipped,) = convert_cron_entry("0 0 1 6 * root cmd\n", "june")
     assert isinstance(skipped, SkippedEntry)
     assert skipped.reason == "a schedule naming a month has no routine form"
-    for field in ("*/2", "mon-fri", "1-8", "5-", "5-1"):
-        (skipped,) = convert_cron_entry(f"0 8 * * {field} root cmd\n", "odd")
-        assert isinstance(skipped, SkippedEntry), field
-        assert skipped.reason == "the schedule has no routine form"
+
+
+@pytest.mark.parametrize("weekday_field", ["*/2", "mon-fri", "1-8", "5-", "5-1"])
+def test_a_weekday_field_with_no_routine_form_is_left_with_a_reason(weekday_field: str) -> None:
+    (skipped,) = convert_cron_entry(f"0 8 * * {weekday_field} root cmd\n", "odd")
+    assert isinstance(skipped, SkippedEntry)
+    assert skipped.reason == "the schedule has no routine form"
 
 
 def test_a_cron_field_a_duration_or_a_time_of_day_refuses_leaves_the_line_with_its_reason() -> None:
