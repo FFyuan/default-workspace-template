@@ -629,11 +629,11 @@ def _signal_group_and_drain(process: subprocess.Popen[bytes], signal_number: sig
         process.wait(timeout=TERMINATE_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         return False
-    deadline = threading.Event()
+    sleeper = threading.Event()
     for _ in range(int(TERMINATE_GRACE_SECONDS / _GROUP_DRAIN_POLL_SECONDS)):
         if not _is_process_group_alive(process.pid):
             return True
-        deadline.wait(_GROUP_DRAIN_POLL_SECONDS)
+        sleeper.wait(_GROUP_DRAIN_POLL_SECONDS)
     return not _is_process_group_alive(process.pid)
 
 
