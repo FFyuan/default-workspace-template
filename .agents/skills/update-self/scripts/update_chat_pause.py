@@ -497,9 +497,10 @@ def resume(
             continue
         chat_id = entry.lead_chat_id if entry.is_worker else entry.chat_id
         if not chat_id:
-            problems.append(
-                f"{entry.name} was started again, but has no lead chat to tell"
-            )
+            # A worker from before the lead_agent label names no chat, so no re-run could tell one.
+            print(f"Started {entry.name} again; it names no lead chat to tell.")
+            entry.is_told = True
+            save()
             continue
         recipient = recipients.setdefault(chat_id, _NoteRecipient(False, [], [], []))
         recipient.entries.append(entry)

@@ -150,6 +150,34 @@ def test_resume_chats_finishes_only_what_an_earlier_run_left_undone(
     assert set(fake_agents.notes()) == {"agent-a", "agent-b"}
 
 
+def test_a_worker_naming_no_lead_chat_is_resumed_without_holding_the_resume_open(
+    tmp_path: Path, fake_agents: FakeAgents
+) -> None:
+    """A worker from before the lead_agent label has no chat to tell; that is not left for a re-run."""
+    fake_agents.set_agents(
+        [
+            chat("agent-lead", _LEAD, "RUNNING"),
+            {
+                "id": "agent-orphan",
+                "name": "old-worker",
+                "state": "RUNNING",
+                "labels": {"agent_created": "true"},
+            },
+        ]
+    )
+    assert _main(tmp_path, "run-status", "start") == 0
+    assert _main(tmp_path, "run-status", "stop-chats") == 0
+    assert fake_agents.states()["old-worker"] == "STOPPED"
+
+    assert _main(tmp_path, "run-status", "resume-chats") == 0
+
+    assert fake_agents.states()["old-worker"] == "WAITING"
+    assert fake_agents.notes() == {}
+    fake_agents.clear_calls()
+    assert _main(tmp_path, "run-status", "resume-chats") == 0
+    assert fake_agents.mngr_verbs() == []
+
+
 def test_stop_chats_pauses_a_named_agent_for_memory_and_refuses_one_it_may_not(
     tmp_path: Path, fake_agents: FakeAgents
 ) -> None:
