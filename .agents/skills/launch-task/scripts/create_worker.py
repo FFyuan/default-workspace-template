@@ -1978,7 +1978,15 @@ def _branch_deletion_refusal(branches: Sequence[str], runner: Runner) -> str | N
     lines: list[str] = []
     for branch in doomed:
         count = _git_output(
-            ["git", "rev-list", "--count", f"refs/heads/{branch}", "--not", "HEAD", *kept],
+            [
+                "git",
+                "rev-list",
+                "--count",
+                f"refs/heads/{branch}",
+                "--not",
+                "HEAD",
+                *kept,
+            ],
             runner,
         )
         if count is None:
