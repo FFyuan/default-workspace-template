@@ -95,6 +95,29 @@ name it in your final report under `Outside footprint:`, one line each on why it
 changed on this branch. A skill run's one sanctioned edit inside an app
 directory, the `[[references]]` entry it adds to that app's manifest, sits under
 the scope file's `context` and is counted as inside the footprint.
+
+## Carried work from a superseded pass
+
+A task body with a `## Carried work` section replaces an earlier pass that
+ended without being merged, and names the branches its lead kept that pass's
+commits on (`harden-contention.md`, "Superseding a pass whose worker is
+gone"). That work is part of your change. Merge each branch into yours before
+you start hardening:
+
+```bash
+git merge --no-ff <the carried branch> -m "Carry over <the carried branch>"
+```
+
+Resolve a conflict as a catch-up does (step 2 of "Catching up to a moved
+base"), except that here your side is the newer one: the carried commits are
+older work to fit around what the user has done since. Then harden them under
+this whole contract like the rest of the change. Keep each one that still
+holds, fix one that does not, and `git revert` one the current base has made
+wrong, so every carried commit ends up merged either way. From then on they
+are commits on your branch, so the scope file's diff and the test gate cover
+them with nothing extra. Your `done` report gets a `Carried:` section: each
+carried commit, and whether you kept, changed or reverted it, and why.
+
 ## Splitting the pass across sub-workers
 
 Split the pass across sibling sub-workers when the creation has two or more
@@ -422,19 +445,38 @@ starting over.
    reference requires of a change (a critical app's bundles are rebuilt and
    re-reported, `type-app.md`). Commits that touch nothing of the creation
    need nothing from you.
-4. **Re-run the test gate over exactly what the catch-up changed**, after
-   committing, from your branch's tip before the catch-up merge (that merge's
-   first parent):
+4. **Re-run the test gate over what the catch-up changed for the creation**,
+   after committing. Not over everything since `$PRE`, your branch's tip
+   before the catch-up merge: in a shared workspace most of what came in is
+   other chats' work on other creations, which step 3 leaves alone. The
+   changed paths are those the creation's footprint accounts for among
+   everything since `$PRE`, every path both sides of the merge changed (every
+   conflict is one), and everything you committed after the merge:
 
    ```bash
-   PRE=$(git rev-parse "$(git log --first-parent --merges -1 --format=%H --fixed-strings \
-       --grep "Catch up to")^1")
-   uv run app-manifest select-tests --diff-base "$PRE"
+   MERGE=$(git log --first-parent --merges -1 --format=%H --fixed-strings --grep "Catch up to")
+   PRE=$(git rev-parse "$MERGE^1")
+   MB=$(git merge-base "$MERGE^1" "$MERGE^2")
+   CAUGHT_UP=$(mktemp)
+   # TYPE app; a skill passes --for-path .agents/skills/<name> instead, as in "The scope file":
+   uv run app-manifest footprint system/apps/<package>/app.toml \
+       --diff-base "$PRE" --out "$CAUGHT_UP.json" || exit 1
+   { jq -r '.diff.inside_footprint[]' "$CAUGHT_UP.json"
+     comm -12 <(git diff --name-only "$MB" "$MERGE^1" | sort) \
+              <(git diff --name-only "$MB" "$MERGE^2" | sort)
+     git diff --name-only "$MERGE" HEAD; } | sort -u > "$CAUGHT_UP"
+   [ -s "$CAUGHT_UP" ] && uv run app-manifest select-tests --diff-base "$PRE" \
+       $(sed 's/^/--path /' "$CAUGHT_UP")
    ```
 
-   That covers what the merge brought in, your conflict resolutions, and
-   anything you committed since. Do not re-run the gate over `$DIFF_BASE`:
-   what it already passed still stands. For a test that fails in this run,
+   A creation with no scope file swaps the `footprint` and `jq` lines for
+   `git diff --name-only "$PRE" HEAD -- <its directory>
+   system/supervisord.conf.d/<name>.conf`. With `--path`, `--diff-base` only
+   names the revision a changed `uv.lock` is compared against, and the
+   selector still adds the suites of whatever depends on these paths. An
+   empty set prints nothing and needs nothing: no part of the creation moved.
+   Do not re-run the gate over `$DIFF_BASE` either: what it already passed
+   still stands. For a test that fails in this run,
    the tree before your change ("A failing test you would change") is the
    commit you merged, the catch-up merge's second parent, not `$DIFF_BASE`: a
    test that fails there was already failing at the lead's `HEAD`, and one

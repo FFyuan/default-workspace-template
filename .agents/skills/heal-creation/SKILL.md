@@ -48,7 +48,9 @@ flight (counting `update` passes on the same target). Run the pre-dispatch
 check in [`.agents/shared/references/harden-contention.md`](../../shared/references/harden-contention.md);
 if another agent's pass is live, leave the note it describes on their ticket
 and stop -- the catch-up forced at their merge time covers your fix.
-Only dispatch if no pass is live (or you took over an abandoned one).
+If its holder is gone but its worker is not, take it over as its lead there
+instead of dispatching. Only dispatch if no pass is in flight, or you
+superseded an abandoned one.
 
 ```bash
 mkdir -p data/.tasks/harden/heal-$TARGET
