@@ -1,0 +1,470 @@
+"""``routines``: the agent-facing command, and what the tick and the app's buttons run."""
+
+import json
+import os
+import sys
+from collections.abc import Callable
+from collections.abc import Sequence
+from typing import Final
+
+import click
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import ValidationError
+
+from imbue.imbue_common.frozen_model import FrozenModel
+from imbue.imbue_common.logging import setup_logging
+from imbue.imbue_common.model_update import to_update
+from routines.data_types import RoutineDefinition
+from routines.data_types import RoutineRow
+from routines.data_types import RunRecord
+from routines.data_types import RunStartReceipt
+from routines.definitions import describe_validation_error
+from routines.definitions import once_moment_from_text
+from routines.errors import RoutinesError
+from routines.migrate import migrate_cron_entries
+from routines.paths import paths_from_environment
+from routines.primitives import Duration
+from routines.primitives import RoutineId
+from routines.primitives import RunId
+from routines.primitives import RunOutcome
+from routines.primitives import RunTrigger
+from routines.primitives import Weekday
+from routines.service import RoutinesService
+from routines.service import build_service
+from routines.wake import wake_skill
+
+JSON_FORMAT: Final[str] = "json"
+HUMAN_FORMAT: Final[str] = "human"
+_FORMAT_OPTION = click.option(
+    "--format",
+    "output_format",
+    type=click.Choice([HUMAN_FORMAT, JSON_FORMAT]),
+    default=HUMAN_FORMAT,
+    show_default=True,
+)
+
+
+def _service() -> RoutinesService:
+    return build_service(paths_from_environment(), dict(os.environ))
+
+
+def _print_json(model: BaseModel | Sequence[BaseModel]) -> None:
+    if isinstance(model, BaseModel):
+        click.echo(model.model_dump_json(indent=2))
+    else:
+        click.echo(json.dumps([item.model_dump(mode="json") for item in model], indent=2))
+
+
+def _row_line(row: RoutineRow) -> str:
+    next_text = f"  next: {row.next_run_text}" if row.next_run_text else ""
+    return f"{row.routine_id:28} {row.health_text:12} {row.schedule_text:32} last: {row.last_run_text}{next_text}"
+
+
+def _run_line(run: RunRecord) -> str:
+    summary = f"  {run.summary}" if run.summary else ""
+    return f"{run.run_id}  {run.started_at:%Y-%m-%d %H:%M}  {run.trigger.lower():9} {run.outcome_text:14} {run.duration_text}{summary}"
+
+
+def _fail(error: Exception) -> None:
+    click.echo(f"error: {error}", err=True)
+    sys.exit(1)
+
+
+@click.group()
+def routines() -> None:
+    """Everything in this workspace that runs on a schedule."""
+    setup_logging(level=os.environ.get("ROUTINES_LOG_LEVEL", "INFO"))
+
+
+@routines.command("list")
+@_FORMAT_OPTION
+def list_command(output_format: str) -> None:
+    """Every routine with its health, schedule, next run and last run."""
+    listing = _service().listing()
+    if output_format == JSON_FORMAT:
+        _print_json(listing)
+        return
+    if not listing.routines:
+        click.echo("No routines yet. `routines add` makes one.")
+        return
+    for row in listing.routines:
+        click.echo(_row_line(row))
+    click.echo(f"{listing.summary.total} routines, {listing.summary.needs_attention} need attention")
+
+
+@routines.command("show")
+@click.argument("routine_id")
+@_FORMAT_OPTION
+def show_command(routine_id: str, output_format: str) -> None:
+    """One routine with its recent runs."""
+    try:
+        detail = _service().detail(RoutineId(routine_id))
+    except RoutinesError as e:
+        _fail(e)
+        return
+    if output_format == JSON_FORMAT:
+        _print_json(detail)
+        return
+    row = detail.row
+    click.echo(f"{row.title} ({row.routine_id})")
+    click.echo(f"  {row.what}")
+    click.echo(f"  schedule: {row.schedule_text}" + (f"  next: {row.next_run_text}" if row.next_run_text else ""))
+    click.echo(f"  health:   {row.health_text}" + (f" ({row.health_detail})" if row.health_detail else ""))
+    click.echo(f"  last run: {row.last_run_text}")
+    if row.chat_id:
+        click.echo(f"  chat:     {row.chat_id}")
+    click.echo(f"  file:     {detail.definition_path}")
+    if detail.runs:
+        click.echo("  runs:")
+        for run in detail.runs:
+            click.echo(f"    {_run_line(run)}")
+
+
+def _definition_options(command: Callable[..., None]) -> Callable[..., None]:
+    options = [
+        click.option("--title", default=None, help="What the user sees it called"),
+        click.option("--what", default=None, help="One sentence saying what it does"),
+        click.option("--every", default=None, help="The cadence: 15m, 3h, 1d, 2w, 1mo"),
+        click.option("--once", default=None, help="A single local moment, YYYY-MM-DDTHH:MM"),
+        click.option("--at", "at_time", default=None, help="The local time of day, HH:MM"),
+        click.option(
+            "--days",
+            default=None,
+            help="Weekdays a run may start, comma separated: mon,wed,fri",
+        ),
+        click.option(
+            "--day-of-month",
+            type=int,
+            default=None,
+            help="The day a monthly run is due",
+        ),
+        click.option("--skill", default=None, help="The skill to run in the routine's chat"),
+        click.option("--app", "app_name", default=None, help="The app this routine belongs to"),
+        click.option("--timeout", default=None, help="How long a run may take"),
+        click.option("--retry-after", default=None, help="The gap before a failed run is retried"),
+        click.option(
+            "--notify-after-failures",
+            type=int,
+            default=None,
+            help="Failures in a row before the feed is told",
+        ),
+        click.option("--disabled", is_flag=True, default=False, help="Start switched off"),
+        click.argument("command", nargs=-1),
+    ]
+    for option in reversed(options):
+        command = option(command)
+    return command
+
+
+def _parse_days(text: str | None) -> tuple[Weekday, ...] | None:
+    if text is None:
+        return None
+    if not text.strip():
+        return ()
+    return tuple(Weekday(part.strip().upper()) for part in text.split(","))
+
+
+class DefinitionOptions(FrozenModel):
+    """The definition flags of ``routines add`` and ``routines edit``, as click hands them over."""
+
+    title: str | None = Field(description="What the user sees it called")
+    what: str | None = Field(description="One sentence saying what it does")
+    every: str | None = Field(description="The cadence")
+    once: str | None = Field(description="A single local moment")
+    at_time: str | None = Field(description="The local time of day")
+    days: str | None = Field(description="Weekdays, comma separated")
+    day_of_month: int | None = Field(description="The day a monthly run is due")
+    skill: str | None = Field(description="The skill to run")
+    command: tuple[str, ...] = Field(description="The command to run")
+    app_name: str | None = Field(description="The app it belongs to")
+    timeout: str | None = Field(description="How long a run may take")
+    retry_after: str | None = Field(description="The gap before a retry")
+    notify_after_failures: int | None = Field(description="Failures before the feed is told")
+    disabled: bool = Field(description="Whether to start switched off")
+
+
+def _definition_from_options(base: RoutineDefinition | None, options: DefinitionOptions) -> RoutineDefinition:
+    """A definition from the flags, over the existing one for an edit; raises ValidationError with the problem."""
+    title = options.title
+    what = options.what
+    every = options.every
+    once = options.once
+    at_time = options.at_time
+    days = options.days
+    day_of_month = options.day_of_month
+    skill = options.skill
+    command = options.command
+    app_name = options.app_name
+    timeout = options.timeout
+    retry_after = options.retry_after
+    notify_after_failures = options.notify_after_failures
+    is_disabled = options.disabled
+    values: dict[str, object] = base.model_dump() if base is not None else {}
+    if title is not None:
+        values["title"] = title
+    if what is not None:
+        values["what"] = what
+    if every is not None:
+        values["every"] = every
+        values["once"] = None
+    if once is not None:
+        values["once"] = once_moment_from_text(once)
+        values["every"] = None
+        values["at"] = None
+        values["days"] = ()
+        values["day_of_month"] = None
+    if at_time is not None:
+        values["at"] = at_time or None
+    parsed_days = _parse_days(days)
+    if parsed_days is not None:
+        values["days"] = parsed_days
+    if day_of_month is not None:
+        values["day_of_month"] = day_of_month
+    if skill is not None:
+        values["skill"] = skill
+        values["command"] = None
+    if command:
+        values["command"] = tuple(command)
+        values["skill"] = None
+    if app_name is not None:
+        values["app"] = app_name or None
+    if timeout is not None:
+        values["timeout"] = timeout
+    if retry_after is not None:
+        values["retry_after"] = retry_after
+    if notify_after_failures is not None:
+        values["notify_after_failures"] = notify_after_failures
+    if is_disabled:
+        values["enabled"] = False
+    return RoutineDefinition.model_validate(values)
+
+
+@routines.command("add")
+@click.argument("routine_id")
+@_definition_options
+def add_command(routine_id: str, **options: object) -> None:
+    """Write a new routine's definition. The command to run goes after `--`, or pass --skill."""
+    try:
+        definition = _definition_from_options(None, DefinitionOptions.model_validate(options))
+        path = _service().add(RoutineId(routine_id), definition)
+    except ValidationError as e:
+        _fail(ValueError(describe_validation_error(e)))
+        return
+    except RoutinesError as e:
+        _fail(e)
+        return
+    click.echo(f"Added {routine_id} at {path}")
+
+
+@routines.command("edit")
+@click.argument("routine_id")
+@_definition_options
+def edit_command(routine_id: str, **options: object) -> None:
+    """Rewrite the named fields of a routine, keeping the rest."""
+    service = _service()
+    try:
+        loaded = service.definitions.load(RoutineId(routine_id))
+        base = loaded.definition
+        definition = _definition_from_options(base, DefinitionOptions.model_validate(options))
+        path = service.replace(RoutineId(routine_id), definition, "edit")
+    except ValidationError as e:
+        _fail(ValueError(describe_validation_error(e)))
+        return
+    except RoutinesError as e:
+        _fail(e)
+        return
+    click.echo(f"Updated {routine_id} at {path}")
+
+
+@routines.command("enable")
+@click.argument("routine_id")
+def enable_command(routine_id: str) -> None:
+    """Turn a routine on."""
+    try:
+        _service().set_enabled(RoutineId(routine_id), True)
+    except RoutinesError as e:
+        _fail(e)
+        return
+    click.echo(f"Turned {routine_id} on")
+
+
+@routines.command("disable")
+@click.argument("routine_id")
+def disable_command(routine_id: str) -> None:
+    """Turn a routine off; nothing runs until it is turned on again."""
+    try:
+        _service().set_enabled(RoutineId(routine_id), False)
+    except RoutinesError as e:
+        _fail(e)
+        return
+    click.echo(f"Turned {routine_id} off")
+
+
+@routines.command("run")
+@click.argument("routine_id")
+@click.option(
+    "--wait",
+    "is_waited",
+    is_flag=True,
+    default=False,
+    help="Run in this process and report the outcome",
+)
+@click.option(
+    "--trigger",
+    type=click.Choice([trigger.lower() for trigger in RunTrigger]),
+    default=RunTrigger.MANUAL.lower(),
+    hidden=True,
+)
+@click.option("--run-id", default=None, hidden=True)
+def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | None) -> None:
+    """Run a routine now. Without --wait the run goes on in the background and its id is printed."""
+    service = _service()
+    run_trigger = RunTrigger(trigger.upper())
+    if not is_waited and run_trigger is RunTrigger.MANUAL and run_id is None:
+        try:
+            receipt = service.start_run_detached(RoutineId(routine_id))
+        except RoutinesError as e:
+            _fail(e)
+            return
+        click.echo(receipt.model_dump_json())
+        return
+    try:
+        event = service.runner.run(RoutineId(routine_id), run_trigger, RunId(run_id) if run_id else None)
+    except RoutinesError as e:
+        _fail(e)
+        return
+    click.echo(RunStartReceipt(routine_id=RoutineId(routine_id), run_id=event.run_id).model_dump_json())
+    click.echo(
+        f"{event.outcome.lower()}: {event.summary}" if event.summary else event.outcome.lower(),
+        err=True,
+    )
+    sys.exit(0 if event.outcome is RunOutcome.SUCCEEDED else 1)
+
+
+@routines.command("runs")
+@click.argument("routine_id")
+@click.option("--limit", type=int, default=25, show_default=True, help="How many recent runs")
+@_FORMAT_OPTION
+def runs_command(routine_id: str, limit: int, output_format: str) -> None:
+    """A routine's recent runs, newest first."""
+    try:
+        records = _service().runs(RoutineId(routine_id), limit)
+    except RoutinesError as e:
+        _fail(e)
+        return
+    if output_format == JSON_FORMAT:
+        _print_json(records)
+        return
+    for run in records:
+        click.echo(_run_line(run))
+
+
+@routines.command("log")
+@click.argument("routine_id")
+@click.argument("run_id", required=False)
+def log_command(routine_id: str, run_id: str | None) -> None:
+    """A run's log, the latest run's by default."""
+    service = _service()
+    try:
+        wanted = RunId(run_id) if run_id else service.last_run_id(RoutineId(routine_id))
+        if wanted is None:
+            click.echo("No runs yet.")
+            return
+        text, is_truncated = service.log_tail(RoutineId(routine_id), wanted)
+    except RoutinesError as e:
+        _fail(e)
+        return
+    if is_truncated:
+        click.echo("... (earlier output left out)")
+    click.echo(text, nl=False)
+
+
+@routines.command("remove")
+@click.argument("routine_id")
+def remove_command(routine_id: str) -> None:
+    """Delete a routine's definition and state; its runs stay in the ledger and its chat stays in the list."""
+    try:
+        _service().remove(RoutineId(routine_id))
+    except RoutinesError as e:
+        _fail(e)
+        return
+    click.echo(f"Removed {routine_id}")
+
+
+@routines.command("wake")
+@click.argument("skill")
+@click.option(
+    "--routine",
+    "routine_id",
+    default=None,
+    help="The routine whose chat to use; the skill's name by default",
+)
+@click.option("--title", default=None, help="What the chat is called when it has to be made")
+@click.option(
+    "--timeout",
+    default="1h",
+    show_default=True,
+    help="How long to wait for the agent's turn",
+)
+def wake_command(skill: str, routine_id: str | None, title: str | None, timeout: str) -> None:
+    """Wake the routine's chat with /<skill> and wait for the turn; inside a run, records the chat on the run."""
+    service = _service()
+    wanted_id = RoutineId(routine_id or os.environ.get("ROUTINES_ROUTINE_ID") or skill)
+    state = service.states.read(wanted_id)
+
+    def remember_chat(chat_id: str) -> None:
+        service.states.update(
+            wanted_id,
+            lambda current: current.model_copy_update(to_update(current.field_ref().chat_id, chat_id)),
+        )
+
+    outcome = wake_skill(
+        routine_id=wanted_id,
+        title=title or wanted_id.replace("-", " ").capitalize(),
+        skill=skill,
+        known_chat_id=state.chat_id,
+        timeout=Duration(timeout).timedelta,
+        chat_app=service.chat_app,
+        clock=service.clock,
+        on_blocked=lambda: None,
+        on_chat_known=remember_chat,
+    )
+    run_dir = os.environ.get("ROUTINES_RUN_DIR")
+    if run_dir:
+        result = {"summary": outcome.summary, "chat_id": outcome.chat_id}
+        with open(os.path.join(run_dir, "result.json"), "w", encoding="utf-8") as handle:
+            json.dump(result, handle)
+    click.echo(f"{outcome.outcome.lower()}: {outcome.summary}")
+    sys.exit(0 if outcome.outcome is RunOutcome.SUCCEEDED else 1)
+
+
+@routines.command("tick")
+def tick_command() -> None:
+    """Start every run that is due; what cron runs once a minute."""
+    report = _service().runner.tick()
+    for started in report.started:
+        click.echo(f"started {started}")
+    for reaped in report.reaped:
+        click.echo(f"closed off the dead run of {reaped}")
+
+
+@routines.command("migrate-cron")
+def migrate_cron_command() -> None:
+    """Convert the cron entries written before routines existed into definitions; a no-op once there are none."""
+    service = _service()
+    report = migrate_cron_entries(service.paths.repo_root, service.definitions, service.states)
+    for routine_id in report.converted:
+        click.echo(f"converted {routine_id}")
+    if report.enabled_caretaker:
+        click.echo("turned the caretaker on")
+    for skipped in report.skipped:
+        click.echo(f"left {skipped.file_name} in place: {skipped.reason}")
+
+
+def main() -> None:
+    routines()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,323 @@
+"""Converting the cron entries a workspace wrote before routines existed into definitions, once."""
+
+import re
+from datetime import datetime
+from datetime import timezone
+from pathlib import Path
+from typing import Final
+
+from loguru import logger
+from pydantic import Field
+from pydantic import ValidationError
+
+from imbue.imbue_common.frozen_model import FrozenModel
+from imbue.imbue_common.model_update import to_update
+from imbue.imbue_common.primitives import NonNegativeInt
+from imbue.imbue_common.pure import pure
+from routines.data_types import RoutineDefinition
+from routines.data_types import RoutineState
+from routines.definitions import describe_validation_error
+from routines.errors import InvalidDurationError
+from routines.errors import InvalidRoutineIdError
+from routines.errors import RoutineExistsError
+from routines.interfaces import DefinitionStoreInterface
+from routines.interfaces import StateStoreInterface
+from routines.primitives import Duration
+from routines.primitives import RoutineId
+from routines.primitives import TimeOfDay
+from routines.primitives import WEEKDAYS_IN_ORDER
+
+LEGACY_CRON_DIR: Final[Path] = Path("data/.state/cron.d")
+LEGACY_JOB_STATE_DIR: Final[Path] = Path("data/.state/jobs")
+LIVE_CRON_DIR: Final[Path] = Path("/etc/cron.d")
+CARETAKER_ROUTINE_ID: Final[RoutineId] = RoutineId("caretaker")
+_RUN_JOB_SUFFIX: Final[str] = "run_job.sh"
+_RUN_AUTOMATION_SUFFIX: Final[str] = "run_automation.sh"
+_ENV_WRAPPER_SUFFIX: Final[str] = "with_agent_env.sh"
+_CARETAKER_CHECK_SUFFIX: Final[str] = "caretaker_check.sh"
+_CRON_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+class ConvertedEntry(FrozenModel):
+    """One cron entry as a definition."""
+
+    routine_id: RoutineId = Field(description="The routine it became")
+    definition: RoutineDefinition = Field(description="What it says")
+    is_caretaker_switch: bool = Field(
+        description="Whether it was the Caretaker's entry, which only turns the shipped one on"
+    )
+
+
+class SkippedEntry(FrozenModel):
+    """One cron entry left where it was."""
+
+    file_name: str = Field(description="The entry file")
+    reason: str = Field(description="Why it could not be converted")
+
+
+class MigrationReport(FrozenModel):
+    """What one migration pass did."""
+
+    converted: tuple[RoutineId, ...] = Field(description="The routines written")
+    enabled_caretaker: bool = Field(description="Whether the Caretaker's entry turned the shipped routine on")
+    skipped: tuple[SkippedEntry, ...] = Field(description="The entries left in place")
+
+
+@pure
+def _strip_redirect(tokens: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in (">>", ">") and index + 1 < len(tokens):
+            index += 2
+            continue
+        if token == "2>&1" or token.startswith("2>"):
+            index += 1
+            continue
+        cleaned.append(token)
+        index += 1
+    return cleaned
+
+
+@pure
+def _humanize(routine_id: str) -> str:
+    words = routine_id.replace("_", " ").replace("-", " ").split()
+    return " ".join([words[0].capitalize(), *words[1:]]) if words else routine_id
+
+
+@pure
+def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | SkippedEntry:
+    """``<id> --every N [--at H] [--retry-after N] <command...>`` after the runner's name."""
+    if not tokens:
+        return SkippedEntry(file_name=file_name, reason="the runner line names no job")
+    try:
+        routine_id = RoutineId(tokens[0])
+    except InvalidRoutineIdError as e:
+        return SkippedEntry(file_name=file_name, reason=str(e))
+    rest = tokens[1:]
+    every: Duration | None = None
+    at: TimeOfDay | None = None
+    retry_after: Duration | None = None
+    index = 0
+    try:
+        while index + 1 < len(rest) and rest[index].startswith("--"):
+            flag, value = rest[index], rest[index + 1]
+            if flag == "--every":
+                every = Duration(value)
+            elif flag == "--at":
+                at = TimeOfDay(f"{int(value):02d}:00")
+            elif flag == "--retry-after":
+                retry_after = Duration(value)
+            else:
+                return SkippedEntry(file_name=file_name, reason=f"the runner flag {flag} is unknown")
+            index += 2
+    except (InvalidDurationError, ValueError) as e:
+        return SkippedEntry(file_name=file_name, reason=str(e))
+    command = rest[index:]
+    if every is None or not command:
+        return SkippedEntry(file_name=file_name, reason="the runner line has no cadence or no command")
+    if at is not None and every.approximate_seconds < 86400:
+        logger.warning("Dropping the due hour of {}: its cadence is shorter than a day", routine_id)
+        at = None
+    is_caretaker = routine_id == CARETAKER_ROUTINE_ID and any(
+        token.endswith(_CARETAKER_CHECK_SUFFIX) for token in command
+    )
+    skill = _skill_of(command)
+    fields: dict[str, object] = {
+        "title": _humanize(routine_id),
+        "what": " ".join(command),
+        "every": every,
+        "at": at,
+    }
+    if skill is not None:
+        fields["skill"] = skill
+    else:
+        fields["command"] = tuple(command)
+    if retry_after is not None:
+        fields["retry_after"] = retry_after
+    try:
+        definition = RoutineDefinition.model_validate(fields)
+    except ValidationError as e:
+        return SkippedEntry(file_name=file_name, reason=describe_validation_error(e))
+    return ConvertedEntry(routine_id=routine_id, definition=definition, is_caretaker_switch=is_caretaker)
+
+
+@pure
+def _skill_of(command: list[str]) -> str | None:
+    """``bash .../run_automation.sh <skill>`` names a skill; anything else is a command."""
+    for index, token in enumerate(command):
+        if token.endswith(_RUN_AUTOMATION_SUFFIX) and index + 1 < len(command):
+            return command[index + 1]
+    return None
+
+
+@pure
+def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -> ConvertedEntry | SkippedEntry:
+    """The cron shapes a definition can say: every N minutes or hours, daily at a time, weekly, monthly."""
+    minute, hour, day_of_month, month, day_of_week = fields
+    try:
+        routine_id = RoutineId(file_name.lower().replace("_", "-"))
+    except InvalidRoutineIdError as e:
+        return SkippedEntry(file_name=file_name, reason=str(e))
+    values: dict[str, object] = {
+        "title": _humanize(file_name),
+        "what": " ".join(command),
+        "command": tuple(command),
+    }
+    if month != "*":
+        return SkippedEntry(file_name=file_name, reason="a schedule naming a month has no routine form")
+    if minute.startswith("*/") and minute[2:].isdigit() and hour == "*" and day_of_month == "*" and day_of_week == "*":
+        values["every"] = Duration(f"{int(minute[2:])}m")
+    elif (
+        hour.startswith("*/")
+        and hour[2:].isdigit()
+        and minute.isdigit()
+        and day_of_month == "*"
+        and day_of_week == "*"
+    ):
+        values["every"] = Duration(f"{int(hour[2:])}h")
+    elif minute == "*" and hour == "*" and day_of_month == "*" and day_of_week == "*":
+        values["every"] = Duration("1m")
+    elif minute.isdigit() and hour == "*" and day_of_month == "*" and day_of_week == "*":
+        values["every"] = Duration("1h")
+    elif minute.isdigit() and hour.isdigit():
+        at = TimeOfDay(f"{int(hour):02d}:{int(minute):02d}")
+        if day_of_month == "*" and day_of_week == "*":
+            values.update({"every": Duration("1d"), "at": at})
+        elif day_of_month == "*" and day_of_week.isdigit():
+            weekday = WEEKDAYS_IN_ORDER[(int(day_of_week) + 6) % 7]
+            values.update({"every": Duration("1d"), "at": at, "days": (weekday,)})
+        elif day_of_month.isdigit() and day_of_week == "*":
+            values.update({"every": Duration("1mo"), "at": at, "day_of_month": int(day_of_month)})
+        else:
+            return SkippedEntry(file_name=file_name, reason="the schedule has no routine form")
+    else:
+        return SkippedEntry(file_name=file_name, reason="the schedule has no routine form")
+    try:
+        definition = RoutineDefinition.model_validate(values)
+    except ValidationError as e:
+        return SkippedEntry(file_name=file_name, reason=describe_validation_error(e))
+    return ConvertedEntry(routine_id=routine_id, definition=definition, is_caretaker_switch=False)
+
+
+@pure
+def convert_cron_entry(text: str, file_name: str) -> list[ConvertedEntry | SkippedEntry]:
+    """Every job line of one entry file as a definition or a reason it stays."""
+    results: list[ConvertedEntry | SkippedEntry] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" in stripped.split()[0]:
+            continue
+        tokens = stripped.split()
+        if len(tokens) < 7:
+            results.append(SkippedEntry(file_name=file_name, reason="the line is not a cron job"))
+            continue
+        fields, command = tokens[:5], _strip_redirect(tokens[6:])
+        if command and command[0].endswith(_ENV_WRAPPER_SUFFIX):
+            command = command[1:]
+        runner_index = next(
+            (index for index, token in enumerate(command) if token.endswith(_RUN_JOB_SUFFIX)),
+            None,
+        )
+        if runner_index is not None:
+            results.append(_convert_run_job(command[runner_index + 1 :], file_name))
+        else:
+            results.append(_convert_plain_line(fields, command, file_name))
+    return results
+
+
+def _read_epoch(path: Path) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(int(path.read_text().strip()), tz=timezone.utc)
+    except (OSError, ValueError):
+        return None
+
+
+def _read_count(path: Path) -> int:
+    try:
+        return int(path.read_text().strip())
+    except (OSError, ValueError):
+        return 0
+
+
+def migrate_cron_entries(
+    repo_root: Path,
+    definitions: DefinitionStoreInterface,
+    states: StateStoreInterface,
+    live_cron_dir: Path = LIVE_CRON_DIR,
+) -> MigrationReport:
+    """Convert every entry under data/.state/cron.d, carry the runner's state over, and remove both copies."""
+    durable_dir = repo_root / LEGACY_CRON_DIR
+    if not durable_dir.is_dir():
+        return MigrationReport(converted=(), enabled_caretaker=False, skipped=())
+    converted: list[RoutineId] = []
+    skipped: list[SkippedEntry] = []
+    is_caretaker_enabled = False
+    for entry_path in sorted(durable_dir.iterdir()):
+        if not entry_path.is_file() or not _CRON_NAME_PATTERN.fullmatch(entry_path.name):
+            continue
+        try:
+            text = entry_path.read_text(encoding="utf-8")
+        except OSError as e:
+            skipped.append(SkippedEntry(file_name=entry_path.name, reason=str(e)))
+            continue
+        results = convert_cron_entry(text, entry_path.name)
+        failures = [result for result in results if isinstance(result, SkippedEntry)]
+        if failures or not results:
+            skipped.extend(failures or [SkippedEntry(file_name=entry_path.name, reason="the entry has no job line")])
+            for failure in failures:
+                logger.warning(
+                    "Leaving the cron entry {} in place: {}",
+                    entry_path.name,
+                    failure.reason,
+                )
+            continue
+        for result in results:
+            assert isinstance(result, ConvertedEntry)
+            if result.is_caretaker_switch:
+                states.update(
+                    CARETAKER_ROUTINE_ID,
+                    lambda state: state.model_copy_update(to_update(state.field_ref().is_enabled, True)),
+                )
+                _carry_over_job_state(repo_root, CARETAKER_ROUTINE_ID, states)
+                is_caretaker_enabled = True
+                continue
+            try:
+                definitions.add(result.routine_id, result.definition)
+            except RoutineExistsError:
+                logger.warning(
+                    "Not converting the cron entry {}: the routine {} exists",
+                    entry_path.name,
+                    result.routine_id,
+                )
+                continue
+            _carry_over_job_state(repo_root, result.routine_id, states)
+            converted.append(result.routine_id)
+        entry_path.unlink()
+        live_copy = live_cron_dir / entry_path.name
+        try:
+            live_copy.unlink(missing_ok=True)
+        except OSError as e:
+            logger.warning("Could not remove the live cron entry {}: {}", live_copy, e)
+    return MigrationReport(
+        converted=tuple(converted),
+        enabled_caretaker=is_caretaker_enabled,
+        skipped=tuple(skipped),
+    )
+
+
+def _carry_over_job_state(repo_root: Path, routine_id: RoutineId, states: StateStoreInterface) -> None:
+    job_dir = repo_root / LEGACY_JOB_STATE_DIR / routine_id
+    if not job_dir.is_dir():
+        return
+    last_success = _read_epoch(job_dir / "last_success")
+    failures = NonNegativeInt(_read_count(job_dir / "failures"))
+
+    def carry(state: RoutineState) -> RoutineState:
+        return state.model_copy_update(
+            to_update(state.field_ref().last_succeeded_at, last_success),
+            to_update(state.field_ref().consecutive_failures, failures),
+        )
+
+    states.update(routine_id, carry)
