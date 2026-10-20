@@ -78,24 +78,14 @@ const popOutBridge: PopOutBridge = {
   reportDetachedWindows: (windows) => sendToEmbedder(DETACHED_WINDOWS, { windows: [...windows] }),
 };
 
-let appLaunchFrame: HTMLIFrameElement | null = null;
-
-/** A fresh hidden frame per launch: an older Imbue Studio crashes on a reused frame's next navigation, which Electron
- *  hands a frame it has already disposed. */
-function launchInSystemApp(url: string): void {
-  appLaunchFrame?.remove();
-  appLaunchFrame = document.createElement("iframe");
-  appLaunchFrame.hidden = true;
-  appLaunchFrame.src = url;
-  document.body.append(appLaunchFrame);
-}
-
 /** Where an external link no app takes opens: through the chrome, or in a new tab of the browser this shell is in,
- *  a custom-scheme link in its app of the user's system. */
+ *  a custom-scheme link in its app of the user's system. A custom-scheme link navigates this page itself, which a
+ *  browser hands to the app without leaving the page: the page's own ``frame-src`` admits no custom scheme, so a
+ *  hidden frame of it could not launch one. */
 const outsideLinks: OutsideLinkOpener = {
   openInEmbedder: (url) => sendToEmbedder(OPEN_EXTERNAL, { url }),
   openInBrowser: (url) => void window.open(url, "_blank", "noopener,noreferrer"),
-  launchInSystemApp,
+  launchInSystemApp: (url) => window.location.assign(url),
 };
 
 function bootstrap(): void {
