@@ -1,5 +1,7 @@
 import json
 import subprocess
+import threading
+import time
 from datetime import timedelta
 
 from click.testing import CliRunner
@@ -18,6 +20,7 @@ from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunTrigger
+from routines.state import FileStateStore
 from routines.testing import TEST_NOW
 
 
@@ -138,6 +141,43 @@ def test_run_with_a_mistyped_run_id_says_so(git_paths: RoutinesPaths) -> None:
     result = _invoke(git_paths, "run", "x", "--wait", "--run-id", "not-a-run")
     assert result.exit_code == 1
     assert "There is no run called 'not-a-run'" in result.output
+
+
+def test_tick_names_what_it_started_and_says_nothing_when_nothing_is_due(git_paths: RoutinesPaths) -> None:
+    _add_command_routine(git_paths, "true")
+    assert _invoke(git_paths, "disable", "x").exit_code == 0
+    assert _invoke(git_paths, "tick").stdout == ""
+
+    # A switched-on routine that never ran is due at once; the run it spawns is waited for so nothing leaks.
+    assert _invoke(git_paths, "enable", "x").exit_code == 0
+    tick = _invoke(git_paths, "tick")
+    assert tick.exit_code == 0
+    assert tick.stdout == "started x\n"
+    states = FileStateStore(paths=git_paths)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline and states.read(RoutineId("x")).last_run is None:
+        threading.Event().wait(0.1)
+    assert states.read(RoutineId("x")).last_run is not None, "the spawned run never finished"
+
+
+def test_migrate_cron_prints_what_it_converted_and_what_it_left(git_paths: RoutinesPaths) -> None:
+    durable = git_paths.repo_root / "data" / ".state" / "cron.d"
+    durable.mkdir(parents=True)
+    wrapper = "/home/user/workspace/system/libs/automations/with_agent_env.sh"
+    (durable / "news-sync").write_text(
+        f"* * * * * root {wrapper} /home/user/workspace/system/libs/automations/run_job.sh news-sync "
+        "--every 6h python3 sync.py\n"
+    )
+    (durable / "june").write_text(f"0 0 1 6 * root {wrapper} cmd\n")
+
+    result = _invoke(git_paths, "migrate-cron")
+
+    assert result.exit_code == 0
+    assert result.stdout == "converted news-sync\nleft june in place: a schedule naming a month has no routine form\n"
+    assert "news-sync" in _invoke(git_paths, "list").output
+    assert _invoke(git_paths, "migrate-cron").stdout == (
+        "left june in place: a schedule naming a month has no routine form\n"
+    )
 
 
 def test_show_of_a_missing_routine_says_so(git_paths: RoutinesPaths) -> None:
