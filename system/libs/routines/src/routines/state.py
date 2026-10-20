@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import Final
 
 from loguru import logger
-from pydantic import ValidationError
 
 from routines.data_types import RoutineState
 from routines.interfaces import StateStoreInterface
@@ -33,7 +32,7 @@ class FileStateStore(StateStoreInterface):
             return RoutineState(), None
         try:
             return RoutineState.model_validate_json(path.read_text(encoding="utf-8")), None
-        except (ValueError, ValidationError) as e:
+        except ValueError as e:
             logger.warning(
                 "Reading {} as a fresh state: its state file does not parse ({})",
                 routine_id,
