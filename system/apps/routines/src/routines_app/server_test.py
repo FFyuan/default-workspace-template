@@ -6,7 +6,6 @@ from flask.testing import FlaskClient
 from app_schema.testing import assert_api_schema_describes_app
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
-from routines.data_types import RoutineDefinition
 from routines.locks import held_lock
 from routines.primitives import RoutineId
 from routines.primitives import RunId
@@ -19,16 +18,6 @@ from routines_app.server import create_app
 
 MANIFEST_PATH = Path(__file__).resolve().parents[2] / "app.toml"
 SYNC = RoutineId("news-sync")
-
-
-def _add(service: RoutinesService) -> None:
-    values: dict[str, object] = {
-        "title": "News sync",
-        "what": "Pulls the headlines.",
-        "every": "1h",
-        "command": ["sh", "-c", "echo ran"],
-    }
-    service.add(SYNC, RoutineDefinition.model_validate(values))
 
 
 def test_the_api_document_describes_every_route(client: FlaskClient) -> None:
@@ -57,8 +46,9 @@ def test_the_document_carries_no_chat_label_before_the_chat_app_registers(client
     assert b'<meta name="routines-chat-label" content="">' in client.get("/").data
 
 
-def test_the_listing_and_the_detail_answer_the_library_shapes(client: FlaskClient, service: RoutinesService) -> None:
-    _add(service)
+def test_the_listing_and_the_detail_answer_the_library_shapes(
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
+) -> None:
     listing = client.get("/api/routines").get_json()
     assert [row["routine_id"] for row in listing["routines"]] == ["news-sync"]
     assert listing["routines"][0]["health"] == "NOT_RUN_YET"
@@ -74,9 +64,8 @@ def test_the_listing_and_the_detail_answer_the_library_shapes(client: FlaskClien
 
 
 def test_the_switch_and_the_schedule_change_answer_the_updated_row(
-    client: FlaskClient, service: RoutinesService
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    _add(service)
     off = client.put("/api/routines/news-sync/enabled", json={"is_enabled": False})
     assert off.status_code == 200
     assert off.get_json()["health"] == "OFF"
@@ -97,8 +86,9 @@ def test_the_switch_and_the_schedule_change_answer_the_updated_row(
     assert "a day or longer" in refused.get_json()["detail"]
 
 
-def test_a_run_and_its_log_are_read_back(client: FlaskClient, service: RoutinesService) -> None:
-    _add(service)
+def test_a_run_and_its_log_are_read_back(
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
+) -> None:
     event = service.runner.run(SYNC, RunTrigger.MANUAL, None)
 
     run = client.get(f"/api/routines/news-sync/runs/{event.run_id}")
@@ -117,9 +107,8 @@ def test_a_run_and_its_log_are_read_back(client: FlaskClient, service: RoutinesS
 
 
 def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_holds_the_lock(
-    client: FlaskClient, service: RoutinesService
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    _add(service)
     with held_lock(service.paths.run_lock_path(SYNC), "A run"):
         refused = client.post("/api/routines/news-sync/run", json={})
         assert refused.status_code == 409
@@ -145,17 +134,17 @@ def test_the_switch_and_the_schedule_of_an_unknown_routine_are_not_found(client:
 
 
 def test_a_broken_definition_cannot_be_run_and_the_reason_is_a_bad_request(
-    client: FlaskClient, service: RoutinesService
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    _add(service)
     (service.paths.definitions_dir / "news-sync.toml").write_text('title = "News sync"\n')
     refused = client.post("/api/routines/news-sync/run", json={})
     assert refused.status_code == 400
     assert "cannot run" in refused.get_json()["detail"]
 
 
-def test_removing_a_routine_deletes_it_once_no_run_is_going(client: FlaskClient, service: RoutinesService) -> None:
-    _add(service)
+def test_removing_a_routine_deletes_it_once_no_run_is_going(
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
+) -> None:
     in_flight = CurrentRun(
         run_id=RunId.generate(), pid=os.getpid(), pid_start="", trigger=RunTrigger.MANUAL, started_at=TEST_NOW
     )
@@ -174,9 +163,8 @@ def test_removing_a_routine_deletes_it_once_no_run_is_going(client: FlaskClient,
 
 
 def test_the_fix_route_opens_a_chat_briefed_on_the_routine_and_answers_its_id(
-    client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter
+    client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter, sync_routine: RoutineId
 ) -> None:
-    _add(service)
     service.runner.run(SYNC, RunTrigger.MANUAL, None)
     response = client.post("/api/routines/news-sync/fix", json={})
     assert response.status_code == 200
@@ -191,9 +179,8 @@ def test_the_fix_route_opens_a_chat_briefed_on_the_routine_and_answers_its_id(
 
 
 def test_a_fix_chat_that_could_not_start_is_a_bad_gateway_with_the_reason(
-    client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter
+    client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter, sync_routine: RoutineId
 ) -> None:
-    _add(service)
     fix_chat_starter.refusal = "sign in to a provider first"
     response = client.post("/api/routines/news-sync/fix", json={})
     assert response.status_code == 502
@@ -201,9 +188,11 @@ def test_a_fix_chat_that_could_not_start_is_a_bad_gateway_with_the_reason(
 
 
 def test_a_preview_refuses_every_change(
-    preview_client: FlaskClient, service: RoutinesService, fix_chat_starter: RecordingFixChatStarter
+    preview_client: FlaskClient,
+    service: RoutinesService,
+    fix_chat_starter: RecordingFixChatStarter,
+    sync_routine: RoutineId,
 ) -> None:
-    _add(service)
     assert preview_client.get("/api/routines").status_code == 200
     assert preview_client.post("/api/routines/news-sync/run", json={}).status_code == 403
     assert preview_client.put("/api/routines/news-sync/enabled", json={"is_enabled": False}).status_code == 403
@@ -231,8 +220,9 @@ def test_an_unbuilt_frontend_serves_the_not_built_page_and_says_so_in_the_health
     assert client.get("/api/health").get_json() == {"status": "ok", "is_frontend_built": False}
 
 
-def test_a_schedule_body_the_model_refuses_is_a_bad_request(client: FlaskClient, service: RoutinesService) -> None:
-    _add(service)
+def test_a_schedule_body_the_model_refuses_is_a_bad_request(
+    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
+) -> None:
     for body in ({"every": "15x", "at": None, "days": [], "day_of_month": None, "once": None}, ["not", "a", "body"]):
         refused = client.put("/api/routines/news-sync/schedule", json=body)
         assert refused.status_code == 400, body

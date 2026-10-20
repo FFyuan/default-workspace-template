@@ -3,10 +3,12 @@ from pathlib import Path
 import pytest
 from flask.testing import FlaskClient
 
+from routines.data_types import RoutineDefinition
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.mock_notifier_test import RecordingNotifier
 from routines.paths import RoutinesPaths
+from routines.primitives import RoutineId
 from routines.repository import GitRepository
 from routines.service import RoutinesService
 from routines.testing import TEST_NOW
@@ -44,6 +46,20 @@ def service(
 ) -> RoutinesService:
     repository = GitRepository(repo_root=git_paths.repo_root, clock=clock)
     return build_test_service(git_paths, repository, clock, chat_app, notifier)
+
+
+@pytest.fixture
+def sync_routine(service: RoutinesService) -> RoutineId:
+    """One hourly command routine, news-sync, added to the service."""
+    routine_id = RoutineId("news-sync")
+    values: dict[str, object] = {
+        "title": "News sync",
+        "what": "Pulls the headlines.",
+        "every": "1h",
+        "command": ["sh", "-c", "echo ran"],
+    }
+    service.add(routine_id, RoutineDefinition.model_validate(values))
+    return routine_id
 
 
 @pytest.fixture
