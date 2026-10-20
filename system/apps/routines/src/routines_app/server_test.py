@@ -25,6 +25,8 @@ from routines_app.mock_fix_chat_test import RecordingFixChatStarter
 from routines_app.server import create_app
 
 MANIFEST_PATH = Path(__file__).resolve().parents[2] / "app.toml"
+# A schedule change as the page sends it: every field, the unused ones null.
+DAILY_SCHEDULE_BODY: dict[str, object] = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
 
 
 def test_the_api_document_describes_every_route(client: FlaskClient) -> None:
@@ -79,7 +81,7 @@ def test_the_switch_and_the_schedule_change_answer_the_updated_row(
 
     changed = client.put(
         f"/api/routines/{sync_routine}/schedule",
-        json={"every": "1d", "at": "07:30", "days": ["mon", "fri"], "day_of_month": None, "once": None},
+        json={**DAILY_SCHEDULE_BODY, "days": ["mon", "fri"]},
     )
     assert changed.status_code == 200, changed.get_json()
     assert changed.get_json()["schedule_text"] == "Every Monday and Friday at 7:30 am"
@@ -137,8 +139,7 @@ def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_holds_the_
 
 def test_the_switch_and_the_schedule_of_an_unknown_routine_are_not_found(client: FlaskClient) -> None:
     assert client.put("/api/routines/nothing/enabled", json={"is_enabled": False}).status_code == 404
-    schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
-    assert client.put("/api/routines/nothing/schedule", json=schedule).status_code == 404
+    assert client.put("/api/routines/nothing/schedule", json=DAILY_SCHEDULE_BODY).status_code == 404
 
 
 def test_a_broken_definition_cannot_be_run_and_the_reason_is_a_bad_request(
@@ -208,9 +209,8 @@ def test_a_schedule_change_whose_commit_is_refused_is_a_conflict_in_the_reposito
     client: FlaskClient, repository: RecordingRepository, sync_routine: RoutineId
 ) -> None:
     repository.is_refusing = True
-    schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
 
-    refused = client.put(f"/api/routines/{sync_routine}/schedule", json=schedule)
+    refused = client.put(f"/api/routines/{sync_routine}/schedule", json=DAILY_SCHEDULE_BODY)
 
     assert refused.status_code == 409
     assert "something else is saving" in refused.get_json()["detail"]
@@ -250,8 +250,7 @@ def test_a_preview_refuses_every_change(
     assert preview_client.get("/api/routines").status_code == 200
     assert preview_client.post(f"/api/routines/{sync_routine}/run", json={}).status_code == 403
     assert preview_client.put(f"/api/routines/{sync_routine}/enabled", json={"is_enabled": False}).status_code == 403
-    schedule = {"every": "1d", "at": "07:30", "days": [], "day_of_month": None, "once": None}
-    assert preview_client.put(f"/api/routines/{sync_routine}/schedule", json=schedule).status_code == 403
+    assert preview_client.put(f"/api/routines/{sync_routine}/schedule", json=DAILY_SCHEDULE_BODY).status_code == 403
     assert preview_client.post(f"/api/routines/{sync_routine}/fix", json={}).status_code == 403
     assert preview_client.delete(f"/api/routines/{sync_routine}").status_code == 403
     assert service.detail(sync_routine).row.is_enabled
