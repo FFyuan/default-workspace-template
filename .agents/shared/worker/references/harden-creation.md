@@ -462,16 +462,18 @@ starting over.
    uv run app-manifest footprint system/apps/<package>/app.toml \
        --diff-base "$PRE" --out "$CAUGHT_UP.json" || exit 1
    { jq -r '.diff.inside_footprint[]' "$CAUGHT_UP.json"
-     comm -12 <(git diff --name-only "$MB" "$MERGE^1" | sort) \
-              <(git diff --name-only "$MB" "$MERGE^2" | sort)
-     git diff --name-only "$MERGE" HEAD; } | sort -u > "$CAUGHT_UP"
+     comm -12 <(git diff --name-only --no-renames "$MB" "$MERGE^1" | sort) \
+              <(git diff --name-only --no-renames "$MB" "$MERGE^2" | sort)
+     git diff --name-only --no-renames "$MERGE" HEAD; } | sort -u > "$CAUGHT_UP"
    [ -s "$CAUGHT_UP" ] && uv run app-manifest select-tests --diff-base "$PRE" \
        $(sed 's/^/--path /' "$CAUGHT_UP")
    ```
 
    A creation with no scope file swaps the `footprint` and `jq` lines for
-   `git diff --name-only "$PRE" HEAD -- <its directory>
-   system/supervisord.conf.d/<name>.conf`. With `--path`, `--diff-base` only
+   `git diff --name-only --no-renames "$PRE" HEAD -- <its directory>
+   system/supervisord.conf.d/<name>.conf`. `--no-renames` lists a renamed
+   file under both its paths, so a rename on either side still meets the
+   other side's change to the same file. With `--path`, `--diff-base` only
    names the revision a changed `uv.lock` is compared against, and the
    selector still adds the suites of whatever depends on these paths. An
    empty set prints nothing and needs nothing: no part of the creation moved.
