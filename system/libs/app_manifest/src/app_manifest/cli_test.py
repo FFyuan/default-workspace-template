@@ -684,6 +684,20 @@ def test_a_pass_gate_refuses_a_scope_file_written_without_the_leads_branch(tmp_p
     assert "--lead-ref" in result.output
 
 
+def test_a_pass_gate_refuses_a_footprint_file_in_place_of_a_pass_scope_file(tmp_path: Path) -> None:
+    build_news_workspace(tmp_path)
+    footprint_path = tmp_path / "footprint.json"
+    written = _run_cli(
+        ["footprint", "system/apps/news/app.toml", "--repo-root", str(tmp_path), "--out", str(footprint_path)]
+    )
+    assert written.exit_code == 0, written.output
+
+    result = _run_cli(["select-tests", "--repo-root", str(tmp_path), "--scope-file", str(footprint_path)])
+
+    assert result.exit_code != 0
+    assert f"cannot read the pass scope file {footprint_path}" in result.output
+
+
 def test_select_tests_needs_a_diff_or_paths(tmp_path: Path) -> None:
     build_selection_workspace(tmp_path)
 
