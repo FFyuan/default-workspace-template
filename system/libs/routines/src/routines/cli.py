@@ -484,7 +484,11 @@ def tick_command() -> None:
 def migrate_cron_command() -> None:
     """Convert the cron entries written before routines existed into definitions; a no-op once there are none."""
     service = _service()
-    report = migrate_cron_entries(service.paths.repo_root, service.definitions, service.states)
+    try:
+        report = migrate_cron_entries(service.paths.repo_root, service.definitions, service.states)
+    except RoutinesError as e:
+        _fail(str(e))
+        return
     for routine_id in report.converted:
         click.echo(f"converted {routine_id}")
     if report.enabled_caretaker:

@@ -5,10 +5,13 @@ from pathlib import Path
 from inline_snapshot import snapshot
 
 from routines.definitions import FileDefinitionStore
+from routines.errors import DefinitionCommitError
 from routines.migrate import ConvertedEntry
 from routines.migrate import SkippedEntry
 from routines.migrate import convert_cron_entry
 from routines.migrate import migrate_cron_entries
+from routines.mock_repository_test import RecordingRepository
+from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import Weekday
 from routines.state import FileStateStore
@@ -124,3 +127,32 @@ def test_migration_writes_definitions_carries_state_over_and_removes_both_copies
 
     again = migrate_cron_entries(root, definitions, states, live_cron_dir=live)
     assert again.converted == ()
+
+
+class RefusingRepository(RecordingRepository):
+    """A repository whose index another writer holds for good."""
+
+    def commit_path(self, path: Path, message: str) -> None:
+        raise DefinitionCommitError("locked")
+
+
+def test_an_entry_whose_commit_is_refused_is_still_converted_with_its_state(
+    paths: RoutinesPaths, states: FileStateStore, tmp_path: Path
+) -> None:
+    root = paths.repo_root
+    durable = root / "data" / ".state" / "cron.d"
+    durable.mkdir(parents=True)
+    (durable / "news-sync").write_text(
+        f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py >> /var/log/x.log 2>&1\n"
+    )
+    job_state = root / "data" / ".state" / "jobs" / "news-sync"
+    job_state.mkdir(parents=True)
+    (job_state / "failures").write_text("2\n")
+    definitions = FileDefinitionStore(paths=paths, repository=RefusingRepository(repo_root=root))
+
+    report = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+
+    assert report.converted == (RoutineId("news-sync"),)
+    assert definitions.load(RoutineId("news-sync")).definition is not None
+    assert states.read(RoutineId("news-sync")).consecutive_failures == 2
+    assert not (durable / "news-sync").exists()

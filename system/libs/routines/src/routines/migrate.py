@@ -21,6 +21,7 @@ from imbue.imbue_common.pure import pure
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineState
 from routines.definitions import describe_validation_error
+from routines.errors import DefinitionCommitError
 from routines.errors import InvalidRoutineIdError
 from routines.errors import RoutineExistsError
 from routines.interfaces import DefinitionStoreInterface
@@ -301,6 +302,9 @@ def migrate_cron_entries(
                     result.routine_id,
                 )
                 continue
+            except DefinitionCommitError as e:
+                # The file is written and the routine runs from it; the next write of the file commits both.
+                logger.warning("Converted the cron entry {} but could not commit it: {}", entry_path.name, e)
             _carry_over_job_state(repo_root, result.routine_id, states)
             converted.append(result.routine_id)
         entry_path.unlink()
