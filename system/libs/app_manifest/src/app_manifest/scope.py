@@ -18,6 +18,7 @@ from imbue.imbue_common.primitives import NonEmptyStr
 from imbue.imbue_common.pure import pure
 from loguru import logger
 from pydantic import Field
+from pydantic import ValidationError
 
 from app_manifest.errors import ManifestLoadError
 from app_manifest.errors import ScopeComputationError
@@ -153,7 +154,16 @@ class DiffSummary(FrozenModel):
         description="The changed files the footprint accounts for and the excludes do not swallow"
     )
     outside_footprint: tuple[RepoRelativePath, ...] = Field(
-        description="The changed files that are neither in the footprint nor excluded"
+        description="The changed files that are neither in the footprint nor excluded; with a fork "
+        "point, only those the ref changes relative to it"
+    )
+    fork_point: NonEmptyStr | None = Field(
+        description="The newest commit of the lead's first-parent history that the ref holds, when "
+        "the caller named the lead; what the ref changes relative to it is the branch's own work",
+    )
+    others: tuple[RepoRelativePath, ...] = Field(
+        description="The changed files no footprint accounts for and the ref does not change relative "
+        "to the fork point: other work that landed in the window; empty without a fork point",
     )
 
 
@@ -525,6 +535,26 @@ def list_changed_files(repo_root: Path, diff_base: str, diff_ref: str) -> Change
     )
 
 
+def find_fork_point(repo_root: Path, lead_ref: str, ref: str) -> NonEmptyStr:
+    """The newest commit on ``lead_ref``'s first-parent history that ``ref`` holds.
+
+    A branch cut from the lead holds the lead's commits up to where it forked, and from then
+    on only what it merges in. The lead's first parents are its own line of history: a
+    milestone the lead merged from the branch is a second parent there, so it never reads as
+    where the branch forked, and a later commit of the lead the branch merged in does, so what
+    came in with it is the lead's work rather than the branch's.
+    """
+    lead_sha = resolve_commit(repo_root, lead_ref)
+    ref_sha = resolve_commit(repo_root, ref)
+    held = frozenset(_run_git(repo_root, ("rev-list", ref_sha)).split())
+    for commit in _run_git(repo_root, ("rev-list", "--first-parent", lead_sha)).split():
+        if commit in held:
+            return NonEmptyStr(commit)
+    raise ScopeComputationError(
+        f"{ref} holds no commit of {lead_ref}'s first-parent history, so it did not fork from it"
+    )
+
+
 def list_tracked_files(repo_root: Path) -> tuple[RepoRelativePath, ...]:
     """Every file git tracks in the repo root's index, in git's order."""
     output = _run_git(repo_root, ("-c", "core.quotePath=false", "ls-files", "-z"))
@@ -588,14 +618,34 @@ def split_against_creations(
 
 
 @pure
-def _summarize_diff(changed: ChangedFiles, creations: Sequence[CreationScope]) -> DiffSummary:
+def _summarize_diff(
+    changed: ChangedFiles, creations: Sequence[CreationScope], own: ChangedFiles | None
+) -> DiffSummary:
+    """``own`` is what the ref changes relative to its fork point from the lead, when known: a
+    changed file that is neither in it nor in a footprint is other work, not an unclaimed edit."""
     inside_footprint, outside_footprint = split_against_creations(changed.files, creations)
+    if own is None:
+        return DiffSummary(
+            base=changed.base,
+            ref=changed.ref,
+            files=changed.files,
+            inside_footprint=inside_footprint,
+            outside_footprint=outside_footprint,
+            fork_point=None,
+            others=(),
+        )
+    own_files = frozenset(own.files)
+    inside_files = frozenset(inside_footprint)
     return DiffSummary(
         base=changed.base,
         ref=changed.ref,
         files=changed.files,
         inside_footprint=inside_footprint,
-        outside_footprint=outside_footprint,
+        outside_footprint=tuple(path for path in outside_footprint if path in own_files),
+        fork_point=own.base,
+        others=tuple(
+            path for path in changed.files if path not in inside_files and path not in own_files
+        ),
     )
 
 
@@ -607,7 +657,7 @@ def with_diff_against_base(
     A ref other than HEAD lets one tree answer for a range that does not end at it, such as
     what a merge commit's first parent changed since the fork point.
     """
-    diff_summary = _summarize_diff(list_changed_files(repo_root, diff_base, diff_ref), (scope,))
+    diff_summary = _summarize_diff(list_changed_files(repo_root, diff_base, diff_ref), (scope,), None)
     return scope.model_copy_update(to_update(scope.field_ref().diff, diff_summary))
 
 
@@ -732,19 +782,40 @@ class PassScope(FrozenModel):
 
 
 def compute_pass_scope(
-    repo_root: Path, specs: Sequence[CreationSpec], diff_base: str | None, diff_ref: str
+    repo_root: Path,
+    specs: Sequence[CreationSpec],
+    diff_base: str | None,
+    diff_ref: str,
+    lead_ref: str | None,
 ) -> PassScope:
-    """The scope of a pass over ``specs``, with its diff when ``diff_base`` is given."""
+    """The scope of a pass over ``specs``, with its diff when ``diff_base`` is given; with
+    ``lead_ref`` too, the diff tells the pass's own changes from other work in the window."""
     if not specs:
         raise ScopeComputationError("a pass covers at least one creation")
+    if lead_ref is not None and diff_base is None:
+        raise ScopeComputationError("a lead ref only says whose work a diff holds; pass a diff base too")
+    repo_root = repo_root.resolve()
     creations = tuple(compute_creation_scope(repo_root, spec) for spec in specs)
     _refuse_repeated_creations(specs, creations)
     if diff_base is None:
         return PassScope(creations=creations, diff=None)
+    own = (
+        None
+        if lead_ref is None
+        else list_changed_files(repo_root, find_fork_point(repo_root, lead_ref, diff_ref), diff_ref)
+    )
     return PassScope(
         creations=creations,
-        diff=_summarize_diff(list_changed_files(repo_root.resolve(), diff_base, diff_ref), creations),
+        diff=_summarize_diff(list_changed_files(repo_root, diff_base, diff_ref), creations, own),
     )
+
+
+def read_pass_scope_file(path: Path) -> PassScope:
+    """The pass scope file ``pass-scope`` wrote at ``path``."""
+    try:
+        return PassScope.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValidationError) as e:
+        raise ScopeComputationError(f"cannot read the pass scope file {path}: {e}") from e
 
 
 @pure

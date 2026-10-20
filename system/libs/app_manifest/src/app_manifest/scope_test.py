@@ -27,6 +27,7 @@ from app_manifest.scope import split_against_creations
 from app_manifest.scope import with_diff_against_base
 from app_manifest.testing import NEWS_MANIFEST
 from app_manifest.testing import build_news_workspace
+from app_manifest.testing import commit_changes
 from app_manifest.testing import commit_everything
 from app_manifest.testing import init_git_repository
 from app_manifest.testing import run_git
@@ -699,7 +700,7 @@ def test_a_pass_that_names_a_creation_twice_is_refused(tmp_path: Path) -> None:
     news = parse_creation_spec("app:news")
 
     with pytest.raises(ScopeComputationError, match="names app:news more than once"):
-        compute_pass_scope(tmp_path, [news, parse_creation_spec("skill:news-refresh"), news], None, "HEAD")
+        compute_pass_scope(tmp_path, [news, parse_creation_spec("skill:news-refresh"), news], None, "HEAD", None)
 
 
 def test_a_pass_that_names_one_app_by_its_registered_name_and_by_its_package_is_refused(
@@ -717,4 +718,84 @@ def test_a_pass_that_names_one_app_by_its_registered_name_and_by_its_package_is_
     with pytest.raises(
         ScopeComputationError, match="names app:daily-digest and app:daily_digest, which are one creation"
     ):
-        compute_pass_scope(tmp_path, specs, None, "HEAD")
+        compute_pass_scope(tmp_path, specs, None, "HEAD", None)
+
+
+def _news_lead_with_a_change(repo_root: Path) -> tuple[str, str]:
+    """The news workspace on main, the commit before a chat's change to the app, and that change
+    with another chat's unrelated commit after it: the diff base, and where a worker forks."""
+    build_news_workspace(repo_root)
+    write_repo_file(repo_root, "docs/system/unrelated.md", "# unrelated\n")
+    write_repo_file(repo_root, "system/scripts/helper.sh", "#!/bin/sh\n\necho one\n\necho two\n")
+    init_git_repository(repo_root)
+    diff_base = commit_everything(repo_root, "base")
+    commit_changes(repo_root, {"system/apps/news/runner.py": "ROUTES = ('/api/entries',)\n"}, "the chat's change")
+    fork = commit_changes(repo_root, {"docs/system/unrelated.md": "# unrelated, edited\n"}, "another chat")
+    return diff_base, fork
+
+
+def test_a_milestone_the_lead_merged_does_not_move_the_passs_fork_point(tmp_path: Path) -> None:
+    """The lead's merge of a provisional milestone puts the worker's commits on the lead's branch,
+    but only as a second parent: the pass still forked where it did, so the edit outside the
+    footprint the worker made before the milestone is still the pass's claim."""
+    diff_base, fork = _news_lead_with_a_change(tmp_path)
+    run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
+    commit_changes(tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "milestone")
+    run_git(tmp_path, ("checkout", "-q", "main"))
+    run_git(tmp_path, ("merge", "-q", "--no-ff", "worker", "-m", "Provisional merge of worker at milestone"))
+    commit_changes(tmp_path, {"docs/system/later.md": "# later\n"}, "another chat, after the milestone")
+    run_git(tmp_path, ("checkout", "-q", "worker"))
+    commit_changes(tmp_path, {"system/apps/news/runner_test.py": "def test_routes() -> None:\n    pass\n"}, "tests")
+
+    scope = compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], diff_base, "HEAD", "main")
+
+    assert scope.diff is not None
+    assert scope.diff.fork_point == fork
+    assert scope.diff.inside_footprint == ("system/apps/news/runner.py", "system/apps/news/runner_test.py")
+    assert scope.diff.outside_footprint == ("system/scripts/helper.sh",)
+    assert scope.diff.others == ("docs/system/unrelated.md",)
+
+
+def test_after_merging_the_leads_head_its_commits_are_the_leads_and_not_the_passs(tmp_path: Path) -> None:
+    """Once a worker merges the lead's later HEAD into its branch, the pass forks from that commit:
+    over the window since the worker's tip before the merge, what the merge brought into the
+    creation is inside the footprint, a file both sides changed is the pass's own, and the rest
+    of what came in is other work."""
+    diff_base, _ = _news_lead_with_a_change(tmp_path)
+    run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
+    before_merge = commit_changes(
+        tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "worker edit"
+    )
+    run_git(tmp_path, ("checkout", "-q", "main"))
+    lead_head = commit_changes(
+        tmp_path,
+        {
+            "system/apps/news/runner.py": "ROUTES = ('/api/entries', '/api/feeds')\n",
+            "system/scripts/helper.sh": "#!/bin/sh\n\necho one\n\necho TWO\n",
+            "docs/system/unrelated.md": "# unrelated, edited again\n",
+        },
+        "the lead moved on",
+    )
+    run_git(tmp_path, ("checkout", "-q", "worker"))
+    run_git(tmp_path, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
+
+    scope = compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], before_merge, "HEAD", "main")
+    whole_pass = compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], diff_base, "HEAD", "main")
+
+    assert scope.diff is not None
+    assert scope.diff.fork_point == lead_head
+    assert scope.diff.inside_footprint == ("system/apps/news/runner.py",)
+    assert scope.diff.outside_footprint == ("system/scripts/helper.sh",)
+    assert scope.diff.others == ("docs/system/unrelated.md",)
+    assert whole_pass.diff is not None
+    assert whole_pass.diff.outside_footprint == ("system/scripts/helper.sh",)
+
+
+def test_a_lead_ref_the_branch_never_forked_from_is_refused(tmp_path: Path) -> None:
+    diff_base, _ = _news_lead_with_a_change(tmp_path)
+    run_git(tmp_path, ("checkout", "-q", "--orphan", "unrelated"))
+    commit_everything(tmp_path, "an unrelated history")
+    run_git(tmp_path, ("checkout", "-q", "main"))
+
+    with pytest.raises(ScopeComputationError, match="did not fork from it"):
+        compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], diff_base, "HEAD", "unrelated")

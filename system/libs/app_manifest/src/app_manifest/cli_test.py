@@ -8,6 +8,7 @@ from app_manifest.cli import app_manifest_cli
 from app_manifest.testing import APP_ICON_MARKUP
 from app_manifest.testing import build_news_workspace
 from app_manifest.testing import build_selection_workspace
+from app_manifest.testing import commit_changes
 from app_manifest.testing import commit_everything
 from app_manifest.testing import init_git_repository
 from app_manifest.testing import run_git
@@ -504,6 +505,145 @@ def test_select_tests_prints_json_with_every_path_classified(tmp_path: Path) -> 
         "system/scripts/forward_port.py": ["unowned"],
         "unknown.bin": ["unowned"],
     }
+
+
+def _write_pass_scope(repo_root: Path, scope_path: Path, creations: list[str], diff_base: str) -> dict:
+    """Write the pass scope file the way a harden worker does, with the lead's branch as main."""
+    result = _run_cli(
+        [
+            "pass-scope",
+            *[argument for creation in creations for argument in ("--creation", creation)],
+            "--repo-root",
+            str(repo_root),
+            "--diff-base",
+            diff_base,
+            "--lead-ref",
+            "main",
+            "--out",
+            str(scope_path),
+        ]
+    )
+    assert result.exit_code == 0, result.output
+    return json.loads(scope_path.read_text())
+
+
+def _selected_commands(repo_root: Path, scope_path: Path) -> list[str]:
+    result = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
+    assert result.exit_code == 0, result.output
+    return [line for line in result.output.splitlines() if not line.startswith("#")]
+
+
+def test_a_pass_gate_runs_what_the_pass_changed_and_not_the_other_work_in_its_window(
+    tmp_path: Path,
+) -> None:
+    """Another chat's commits that land between the diff base and the dispatch are in the pass's
+    window, but none of their suites is the pass's to run: not the chat app's, and not the full
+    root suite a flat script would bring in. The creation's change, the worker's edit outside its
+    footprint, and what depends on that edit still run."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "the chat's change")
+    commit_changes(
+        repo_root,
+        {"system/apps/chat/imbue/chat/server.py": "PORT = 2\n", "system/scripts/forward_port.py": "PORT = 2\n"},
+        "another chat's work",
+    )
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(
+        repo_root,
+        {
+            ".agents/skills/refresh/scripts/refresh_test.py": "def test_refresh_twice() -> None:\n    pass\n",
+            "system/libs/midlib/src/midlib/core.py": "VALUE = 2\n",
+        },
+        "harden refresh",
+    )
+    # The lead's branch moves on while the worker works; that changes nothing about the pass.
+    run_git(repo_root, ("checkout", "-q", "main"))
+    commit_changes(repo_root, {"system/apps/chat/imbue/chat/server.py": "PORT = 3\n"}, "more of the other chat")
+    run_git(repo_root, ("checkout", "-q", "worker"))
+    scope_path = tmp_path / "scope.json"
+
+    scope = _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    commands = _selected_commands(repo_root, scope_path)
+
+    assert scope["diff"]["inside_footprint"] == [
+        ".agents/skills/refresh/scripts/refresh.py",
+        ".agents/skills/refresh/scripts/refresh_test.py",
+    ]
+    assert scope["diff"]["outside_footprint"] == ["system/libs/midlib/src/midlib/core.py"]
+    assert scope["diff"]["others"] == ["system/apps/chat/imbue/chat/server.py", "system/scripts/forward_port.py"]
+    # The always-run set, then the skill, the app that depends on the edited library, and the library.
+    assert commands[0].startswith("uv run pytest ")
+    assert commands[1:] == [
+        "uv run pytest .agents/skills/refresh",
+        "uv run pytest system/apps/notes",
+        "uv run pytest system/libs/midlib",
+    ]
+
+
+def test_a_pass_gate_runs_the_full_root_suite_for_an_unowned_path_the_worker_changed(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "the chat's change")
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(repo_root, {"system/scripts/forward_port.py": "PORT = 2\n"}, "a fix the skill needed")
+    scope_path = tmp_path / "scope.json"
+
+    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    commands = _selected_commands(repo_root, scope_path)
+
+    assert "uv run pytest" in commands
+    assert "uv run pytest .agents/skills/refresh" not in commands
+
+
+def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_head(tmp_path: Path) -> None:
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "harden refresh")
+    scope_path = tmp_path / "scope.json"
+    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    head = commit_changes(repo_root, {"system/libs/midlib/src/midlib/core.py": "VALUE = 2\n"}, "a later fix")
+
+    stale = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
+    _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base)
+    regenerated = _selected_commands(repo_root, scope_path)
+
+    assert stale.exit_code != 0
+    assert head in stale.output
+    assert "uv run pytest system/libs/midlib" in regenerated
+
+
+def test_a_pass_gate_refuses_a_scope_file_written_without_the_leads_branch(tmp_path: Path) -> None:
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "the chat's change")
+    scope_path = tmp_path / "scope.json"
+    written = _run_cli(
+        [
+            "pass-scope",
+            "--creation",
+            "skill:refresh",
+            "--repo-root",
+            str(repo_root),
+            "--diff-base",
+            diff_base,
+            "--out",
+            str(scope_path),
+        ]
+    )
+    assert written.exit_code == 0, written.output
+
+    result = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
+
+    assert result.exit_code != 0
+    assert "--lead-ref" in result.output
 
 
 def test_select_tests_needs_a_diff_or_paths(tmp_path: Path) -> None:

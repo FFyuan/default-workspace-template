@@ -103,8 +103,9 @@ The models behind a workspace app's two descriptions (a third, the OpenAPI docum
   pathspec that matches nothing and a mistyped path would read as "unchanged".
   `parse_creation_spec`, `compute_creation_scope`, `compute_pass_scope`, and
   `render_pass_scope_file` build the pass scope file behind `app-manifest
-  pass-scope`, and `split_against_creations` is the diff split both scope files
-  share. `BUILT_IN_EXCLUDES`, `APP_CONVENTIONS`, `SKILL_CONVENTIONS`, and
+  pass-scope`, with `find_fork_point` telling the pass's own commits from the
+  lead's, and `read_pass_scope_file` reads one back; `split_against_creations`
+  is the diff split both scope files share. `BUILT_IN_EXCLUDES`, `APP_CONVENTIONS`, `SKILL_CONVENTIONS`, and
   `SERVICE_CONVENTIONS` are the fixed lists. Exclude matching is `pathspec`
   gitignore syntax; a failing git command raises `ScopeComputationError` rather
   than reporting an empty diff.
@@ -115,7 +116,7 @@ The models behind a workspace app's two descriptions (a third, the OpenAPI docum
   suites that run as their own pytest root, and what a `uv.lock` change
   upgraded and who depends on it (`classify_lockfile_change`).
   `scope.list_changed_files` is the diff both `footprint` and `select-tests`
-  read.
+  read, and `select_tests_for_pass_scope` selects from a pass scope file.
 - `app_manifest.primitives`: the validated string types (`AppName`,
   `DisplayName`, `LaunchPathId`, `LaunchParamName`, `LaunchPathValue` (rooted with one
   slash, no query string or fragment, nothing a URL would escape), `MessageType`,
@@ -210,7 +211,7 @@ goes to stdout; with it, the parent directories are created.
 `app-manifest pass-scope` writes the scope file for a harden pass, which covers
 every creation one change touched:
 
-    app-manifest pass-scope --creation <type>:<name> [--creation ...] [--repo-root DIR] [--diff-base REF [--diff-ref REF]] [--out FILE]
+    app-manifest pass-scope --creation <type>:<name> [--creation ...] [--repo-root DIR] [--diff-base REF [--diff-ref REF] [--lead-ref REF]] [--out FILE]
 
 Each `--creation` is `app:<registered name or package directory>`,
 `skill:<directory under .agents/skills>`, `service:<package under
@@ -220,7 +221,17 @@ reference, scoped as `--for-path` scopes it). The file is
 `footprint` writes with its `diff` null, and one `diff` for the pass, whose
 `inside_footprint` is every changed file some creation's footprint accounts
 for (and that creation does not exclude) and whose `outside_footprint` is
-every changed file none does. A service has `type` `service`, its directory as
+every changed file none does. With `--lead-ref` (the branch the pass's branch
+was cut from), the diff also tells the pass's own work from other work that
+landed in the window, as a worker branched off a shared branch needs: its
+`fork_point` is the newest commit of the lead's first-parent history the ref
+holds, the pass's own changes are what the ref changes relative to it,
+`outside_footprint` keeps only those, and `others` lists every changed file
+that is neither in a footprint nor the pass's own. A milestone the lead merged
+from the pass's branch sits on a second parent there, so it does not move the
+fork point; a lead commit the branch merged in does, so what came in with it
+is the lead's. Without `--lead-ref`, `fork_point` is null and `others` empty.
+A service has `type` `service`, its directory as
 `primary`, and as `wiring` the program named after its package (`host_backup`
 runs as `host-backup`) and every `<name>-<role>` one; an app directory with no
 `app.toml` yet is scoped the same way. A pass that names one creation twice is
@@ -247,6 +258,7 @@ manifest it writes) and by every reader of the registry.
 
     app-manifest select-tests --diff-base REF [--diff-ref REF] [--repo-root DIR] [--format text|json]
     app-manifest select-tests --path P [--path P ...] [--diff-base REF] [--repo-root DIR] [--format text|json]
+    app-manifest select-tests --scope-file FILE [--repo-root DIR] [--format text|json]
 
 `select-tests` prints the commands that can observe a change, one per line, in
 the order to run them, each under a comment saying which changed paths called
@@ -254,9 +266,15 @@ for it. Every line runs from the repo root. With `--diff-base` the change is
 what the ref changed since it forked from the base (the same three-dot diff as
 `footprint`); with `--path` it is the paths given, as the working tree holds
 them, and `--diff-base` only names the revision a changed `uv.lock` is compared
-against. A `--diff-base` selection that runs to the checked-out commit refuses
-to run while the working tree holds uncommitted or untracked changes, and names
-them, since the tests would run against changes the diff leaves out.
+against. With `--scope-file`, a harden pass's file from `pass-scope
+--diff-base REF --lead-ref REF`, the change is every file of its diff except
+`others`: what the pass's footprints account for and what its own branch
+changed, but not the other work that landed in the window. A changed `uv.lock`
+is then compared against the fork point. A `--diff-base` selection that runs to
+the checked-out commit refuses to run while the working tree holds uncommitted
+or untracked changes, and names them, since the tests would run against
+changes the diff leaves out; a `--scope-file` selection always does, and also
+refuses a file with no fork point or whose diff does not run to `HEAD`.
 
 Selection reads only what the workspace declares. A path selects:
 

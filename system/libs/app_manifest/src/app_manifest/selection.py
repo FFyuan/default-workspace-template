@@ -40,6 +40,7 @@ from app_manifest.primitives import RepoRelativePath
 from app_manifest.primitives import is_path_covered_by
 from app_manifest.registry import SHELL_MODULE_PATHS
 from app_manifest.scope import LoadedManifest
+from app_manifest.scope import PassScope
 from app_manifest.scope import find_wiring_sections
 from app_manifest.scope import list_changed_files
 from app_manifest.scope import list_tracked_files
@@ -1059,17 +1060,53 @@ def select_tests_for_diff(repo_root: Path, diff_base: str, diff_ref: str) -> Sui
     repo_root = repo_root.resolve()
     changed = list_changed_files(repo_root, diff_base, diff_ref)
     if changed.ref == resolve_commit(repo_root, "HEAD"):
-        uncommitted = list_uncommitted_paths(repo_root)
-        if uncommitted:
-            raise SuiteSelectionError(
-                "the working tree has changes the diff does not include; commit them, or remove "
-                "any that are not part of the change, then run select-tests again: "
-                + ", ".join(uncommitted)
-            )
+        _refuse_uncommitted_changes(repo_root)
     return select_tests(
         load_repo_layout(repo_root),
         changed.files,
         read_lockfile_texts(repo_root, changed.merge_base, changed.ref),
+    )
+
+
+def _refuse_uncommitted_changes(repo_root: Path) -> None:
+    uncommitted = list_uncommitted_paths(repo_root)
+    if uncommitted:
+        raise SuiteSelectionError(
+            "the working tree has changes the diff does not include; commit them, or remove "
+            "any that are not part of the change, then run select-tests again: "
+            + ", ".join(uncommitted)
+        )
+
+
+def select_tests_for_pass_scope(repo_root: Path, scope: PassScope) -> SuiteSelection:
+    """The selection for a harden pass, read from its scope file: every file in the diff some
+    footprint accounts for or the pass's own branch changed, and none of the other work that
+    landed in the window. A changed ``uv.lock`` is compared against the fork point, so only
+    what the pass upgraded counts.
+
+    Raises SuiteSelectionError when the scope file cannot tell the pass's changes from other
+    work (it has no diff, or no fork point), or no longer describes the tree the tests run
+    against (its diff runs to a commit other than HEAD, or the working tree holds changes).
+    """
+    repo_root = repo_root.resolve()
+    diff = scope.diff
+    if diff is None or diff.fork_point is None:
+        raise SuiteSelectionError(
+            "the pass scope file has no diff with a fork point, so it cannot tell the pass's own "
+            "changes from other work; write it with pass-scope --diff-base and --lead-ref"
+        )
+    head = resolve_commit(repo_root, "HEAD")
+    if diff.ref != head:
+        raise SuiteSelectionError(
+            f"the pass scope file's diff runs to {diff.ref}, but HEAD is {head}; run pass-scope "
+            "again, then select-tests"
+        )
+    _refuse_uncommitted_changes(repo_root)
+    others = frozenset(diff.others)
+    return select_tests(
+        load_repo_layout(repo_root),
+        [path for path in diff.files if path not in others],
+        read_lockfile_texts(repo_root, diff.fork_point, diff.ref),
     )
 
 
