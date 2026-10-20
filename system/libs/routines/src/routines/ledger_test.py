@@ -107,3 +107,27 @@ def test_the_ledger_is_archived_once_past_the_cap(ledger: FileLedger) -> None:
     run_id = RunId.generate()
     ledger.append(_started(DIGEST, run_id, NOW))
     assert [event.run_id for event in ledger.recent_events(DIGEST, run_limit=5)] == [run_id]
+
+
+def test_a_second_archive_on_the_same_day_gets_its_own_name(ledger: FileLedger) -> None:
+    for _ in range(2):
+        ledger.append(_started(DIGEST, RunId.generate(), NOW))
+        with ledger.paths.events_path.open("a") as handle:
+            handle.write("x" * LEDGER_SIZE_CAP_BYTES)
+        assert ledger.rotate_if_large(NOW) is True
+
+    archives = sorted(path.name for path in ledger.paths.events_path.parent.glob("*.gz"))
+    assert archives == ["events.2026-10-20.1.jsonl.gz", "events.2026-10-20.jsonl.gz"]
+
+
+def test_a_file_a_dead_rotation_left_aside_is_archived_before_the_next(ledger: FileLedger) -> None:
+    ledger.append(_started(DIGEST, RunId.generate(), NOW))
+    left_aside = ledger.paths.events_path.parent / "events.jsonl.rotating"
+    left_aside.write_text('{"type": "run_started", "left": "aside"}\n')
+
+    assert ledger.rotate_if_large(NOW) is False
+
+    assert not left_aside.exists()
+    with gzip.open(ledger.paths.events_path.parent / "events.2026-10-20.jsonl.gz", "rt", encoding="utf-8") as handle:
+        assert "aside" in handle.read()
+    assert ledger.paths.events_path.is_file()

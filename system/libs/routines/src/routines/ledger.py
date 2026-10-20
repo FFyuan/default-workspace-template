@@ -25,6 +25,18 @@ from routines.primitives import RunId
 
 LEDGER_SIZE_CAP_BYTES: Final[int] = 16 * 1024 * 1024
 _READ_CHUNK_BYTES: Final[int] = 64 * 1024
+_ROTATING_SUFFIX: Final[str] = ".rotating"
+
+
+def _free_archive_path(directory: Path, now: datetime) -> Path:
+    """``events.<date>.jsonl.gz``, numbered (``events.<date>.1.jsonl.gz``, ...) when the day already has one."""
+    day = now.strftime("%Y-%m-%d")
+    candidate = directory / f"events.{day}.jsonl.gz"
+    ordinal = 0
+    while candidate.exists():
+        ordinal += 1
+        candidate = directory / f"events.{day}.{ordinal}.jsonl.gz"
+    return candidate
 
 
 def _iter_lines_newest_first(path: Path) -> Iterator[str]:
@@ -115,15 +127,23 @@ class FileLedger(LedgerInterface):
 
     def rotate_if_large(self, now: datetime) -> bool:
         path = self.paths.events_path
+        full = path.with_name(f"{path.name}{_ROTATING_SUFFIX}")
+        if full.is_file():
+            # A rotation that died between moving the file aside and archiving it: its events are archived
+            # now rather than overwritten by this one.
+            self._archive(full, now)
         if not path.is_file() or path.stat().st_size < LEDGER_SIZE_CAP_BYTES:
             return False
-        archive = path.with_name(f"events.{now.strftime('%Y-%m-%d')}.jsonl.gz")
         # Runs append outside the tick lock, so the live file is moved aside first: an append from then on
         # starts the new file, and nothing lands in the copy between the copy and a truncate.
-        full = path.with_name(f"{path.name}.rotating")
         path.replace(full)
+        self._archive(full, now)
+        return True
+
+    def _archive(self, full: Path, now: datetime) -> None:
+        """Compress the file moved aside into a fresh archive named for the day, and remove it."""
+        archive = _free_archive_path(self.paths.events_path.parent, now)
         with full.open("rb") as source, gzip.open(archive, "wb") as target:
             shutil.copyfileobj(source, target)
         full.unlink()
         logger.info("Archived the run ledger to {}", archive.name)
-        return True
