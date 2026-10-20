@@ -172,7 +172,7 @@ def parse_generated_chat_name(answer: str) -> str | None:
     form_label = _FORM_LABEL_PATTERN.match(line)
     if form_label is not None:
         line = line[form_label.end() :].strip("\"'").strip()
-    # A colon is the old "Short name: description" form, whose two halves restate each other.
+    # A colon makes a "Short name: description" title, whose two halves restate each other.
     if "\n" in line or ":" in line or not line.isascii():
         return None
     name = line.rstrip(".").strip()
