@@ -7,7 +7,7 @@ day-to-day, but every part is inspectable and the agent maintains it.
   your agent builds for you.
 - `services/` - Standalone background services (supervised or cron-driven).
 - `libs/` - Support libraries, including the first-boot bootstrap and the
-  automations machinery.
+  routines library (everything that runs on a schedule).
 - `scripts/` - Provisioning and utility scripts (image build, boot, Claude
   Code hooks).
 - `vendor/` - `tk` (the vendored ticket tracker) and gitignored `mngr-assets/`

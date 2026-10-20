@@ -19,7 +19,8 @@
 # when the token is absent -- a commit made from a cron job is pushed on the
 # next agent-context commit instead.
 #
-# The routines tick is the one cron entry that goes through it:
+# The routines tick is the one code-owned cron entry that goes through it
+# (an entry `routines migrate-cron` leaves with cron is pointed at it too):
 #
 #   * * * * *   root   /home/user/workspace/system/libs/routines/with_agent_env.sh uv run --no-sync routines tick >> /var/log/supervisor/routines-tick.log 2>&1
 #
