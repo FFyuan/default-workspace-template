@@ -92,4 +92,5 @@ Chromium (drive it with the `agentic-browser-fleet` skill) and confirm:
   deliberate -- a pasted `/...` can be read as a slash command), and every other
   link resolves.
 
-Fix and re-push until the live page is clean.
+Fix and re-push until the live page is clean; `publish-template`'s step 9 says
+how to re-push onto the version just published.

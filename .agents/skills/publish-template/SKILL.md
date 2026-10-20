@@ -352,9 +352,10 @@ Assembled on clean DEFAULT_WORKSPACE_TEMPLATE base $BASE_REF (provenance link on
 template's own history plus exactly one commit: it shares a merge-base with the
 template and every template built on it, which is what lets an adopter merge it
 in cleanly, and none of the worker's intermediate commits -- which can hold a
-value a published-copy change removed -- ever leave the machine. The topic is
-what makes templates findable as a group; if only that call fails, the publish
-still stands -- mention it as a follow-up.
+value a published-copy change removed -- ever leave the machine. It prints the
+published commit; keep it as `PUBLISHED`. The topic is what makes templates
+findable as a group; if only that call fails, the publish still stands --
+mention it as a follow-up.
 
 ## 9. Record it, and check the published page
 
@@ -370,7 +371,12 @@ If it reports a failed commit, the template IS published: say so, and commit the
 file rather than re-pushing anything.
 
 Then open the published README and check it renders, per "Verify the published
-page" in `references/readme-recipe.md`.
+page" in `references/readme-recipe.md`. If something is wrong, fix it in `$WT`,
+commit, and re-run step 8's `push_snapshot.py` command alone with
+`--parent "$PUBLISHED"`, so the fix fast-forwards onto your own publish (with
+`--parent "$BASE_REF"` it is refused as if someone else had pushed). Keep the
+new commit it prints as `PUBLISHED` and check again. Record nothing more: the
+version is already in the ledger.
 
 ## 10. Close out
 
