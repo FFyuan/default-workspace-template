@@ -4489,7 +4489,7 @@ def test_provisional_merge_advances_the_merge_base_so_done_brings_the_rest(
 
     # Before the worker's next commit, the merge-base is the milestone commit
     # and the lead has made no foreground edit of its own: the creation is
-    # fresh, so the pass would not be superseded.
+    # fresh, so the pass would not need a catch-up.
     assert _git(lead, "merge-base", "HEAD", "mngr/demo") == milestone_sha
     assert (
         _git(
