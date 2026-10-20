@@ -31,6 +31,7 @@ from routines.interfaces import LedgerInterface
 from routines.interfaces import NotifierInterface
 from routines.interfaces import StateStoreInterface
 from routines.ledger import FileLedger
+from routines.locks import held_lock
 from routines.locks import is_lock_held
 from routines.notifications import GatewayNotifier
 from routines.paths import RoutinesPaths
@@ -156,23 +157,24 @@ class RoutinesService(MutableModel):
 
     def remove(self, routine_id: RoutineId) -> None:
         """Delete the definition and the state; raises RunInFlightError while a run is going, since the run writes
-        the state it would pull away."""
+        the state it would pull away. The run lock is held for the removal, so no run starts under it."""
         self.definitions.load(routine_id)
-        if self.is_running(routine_id):
-            raise RunInFlightError(f"A run of {routine_id} is going; wait for it to finish or stop it first.")
-        state = self.states.read(routine_id)
-        self.definitions.remove(routine_id)
-        if state.chat_id is not None:
-            try:
-                self.chat_app.stop_chat(state.chat_id)
-            except ChatAppError as e:
-                logger.warning(
-                    "Removed {} but could not stop its chat {}: {}",
-                    routine_id,
-                    state.chat_id,
-                    e,
-                )
-        self.states.remove(routine_id)
+        with held_lock(self.paths.run_lock_path(routine_id), f"A run of {routine_id}"):
+            state = self.states.read(routine_id)
+            if state.current_run is not None:
+                raise RunInFlightError(f"A run of {routine_id} is going; wait for it to finish or stop it first.")
+            self.definitions.remove(routine_id)
+            if state.chat_id is not None:
+                try:
+                    self.chat_app.stop_chat(state.chat_id)
+                except ChatAppError as e:
+                    logger.warning(
+                        "Removed {} but could not stop its chat {}: {}",
+                        routine_id,
+                        state.chat_id,
+                        e,
+                    )
+            self.states.remove(routine_id)
 
     def is_running(self, routine_id: RoutineId) -> bool:
         return self.states.read(routine_id).current_run is not None or is_lock_held(
