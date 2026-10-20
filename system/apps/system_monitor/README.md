@@ -57,7 +57,7 @@ program beside the memory guard (`system/services/oom_priority`), which walks
 `/proc` every 5 s and writes under `data/.state/system-monitor/`: the latest
 reading with each process's share and the last 10 minutes (`recent.json`), a
 day of minute averages (`history.jsonl`), and the busy stretches, CPU above
-90% for a minute or more, with the chats and programs that caused them
+90% for at least two minutes, with the chats and programs that caused them
 (`events/cpu_stretches/events.jsonl`). The app reads those files (`cpu`) and
 writes nothing. A reading older than 30 s counts as none: the graphs say "No
 readings yet" and the CPU column shows dashes.

@@ -4,7 +4,7 @@
 Every few seconds this walks ``/proc`` once, works out how busy the CPU was since the
 last walk and how much memory is in use, rewrites the recent file the system monitor
 app's graphs read, appends a line per closed minute to the day of history, and records
-a busy stretch (CPU above 90% for a minute or more) with the chats and programs that
+a busy stretch (CPU above 90% for at least two minutes) with the chats and programs that
 caused it (``oom_priority.resource_sampler`` has the policy;
 ``docs/system/specs/system-monitor.md`` the design).
 
