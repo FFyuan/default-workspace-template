@@ -44,16 +44,20 @@ def workspace_label(environ: dict[str, str]) -> str:
     host_dir = environ.get("MNGR_HOST_DIR", "")
     agent_id = environ.get("MNGR_AGENT_ID", "")
     if host_dir and agent_id:
+        agent_record = Path(host_dir) / "agents" / agent_id / "data.json"
         try:
-            labels = json.loads((Path(host_dir) / "agents" / agent_id / "data.json").read_text()).get("labels", {})
-        except (OSError, ValueError):
+            labels = json.loads(agent_record.read_text()).get("labels", {})
+        except (OSError, ValueError) as e:
+            logger.debug("No workspace label from {}: {}", agent_record, e)
             labels = {}
         if isinstance(labels, dict) and isinstance(labels.get("workspace"), str) and labels["workspace"]:
             return labels["workspace"]
     if host_dir:
+        host_record = Path(host_dir) / "data.json"
         try:
-            host_name = json.loads((Path(host_dir) / "data.json").read_text()).get("host_name", "")
-        except (OSError, ValueError):
+            host_name = json.loads(host_record.read_text()).get("host_name", "")
+        except (OSError, ValueError) as e:
+            logger.debug("No host name from {}: {}", host_record, e)
             host_name = ""
         if isinstance(host_name, str):
             return host_name
