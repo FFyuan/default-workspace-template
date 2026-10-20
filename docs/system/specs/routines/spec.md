@@ -148,7 +148,7 @@ Both are pinned by inline-snapshot tests.
 ## 6. The runner
 
 The library is `system/libs/routines`, a uv workspace member in the root venv, with the console script `routines`.
-`with_agent_env.sh` moves into it from `system/libs/automations`, unchanged.
+`with_agent_env.sh` moves into it from `system/libs/automations`; only its header's usage example changes, to describe the tick.
 
 ### 6.1 The tick
 
