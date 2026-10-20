@@ -299,7 +299,10 @@ answering. That work is never dropped. The new pass carries it:
    (`harden-creation.md`, "Carried work from a superseded pass"). They are
    merged there and not into your branch, because nothing has verified them
    yet. One superseding pass validates the union of all pending changes
-   together -- which is the only combination that will actually run.
+   together -- which is the only combination that will actually run. A worker
+   that follows its own guide rather than `harden-creation.md` (update-self's,
+   migrate-workspace's) has no such step, so its new pass carries nothing:
+   leave each kept branch for the user to decide on, and say so in step 4.
 4. **Tell the user** what was kept, in a sentence about the work itself (from
    the commit subjects), and that the new pass is finishing it.
 5. **Once you merge the new pass's `done`**, delete each kept branch with `git
