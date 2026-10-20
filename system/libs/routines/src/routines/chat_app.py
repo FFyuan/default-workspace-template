@@ -178,8 +178,9 @@ class HttpChatApp(ChatAppInterface):
                     chat_id,
                     f"after={urllib.parse.quote(cursor_event_id)}&limit={_EVENTS_PAGE_LIMIT}",
                 )
-            except ChatAppError:
+            except ChatAppError as e:
                 # A cleared chat starts a fresh transcript, so the cursor is gone; the tail is the answer then.
+                logger.debug("Reading the chat {} from its tail: the cursor read failed ({})", chat_id, e)
                 events = self._events(chat_id, f"limit={_EVENTS_PAGE_LIMIT}")
         else:
             events = self._events(chat_id, f"limit={_EVENTS_PAGE_LIMIT}")
