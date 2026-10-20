@@ -2678,6 +2678,34 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     ]
 
 
+def test_delete_branches_names_a_distinct_keep_branch_for_each_doomed_branch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _unique("root")
+    repo, _ = _repo_with_a_pass(tmp_path, root)
+    # A sub-worker launched on the pre-existing branch ``<root>`` shares the
+    # pass's keep-name stem.
+    sibling = f"{root}-sibling"
+    _git(repo, "checkout", "--quiet", "-b", root)
+    _git(repo, "commit", "--allow-empty", "-m", "sibling fix")
+    _git(repo, "checkout", "--quiet", "main")
+    runner = _RealGitRunner(repo=repo)
+    runner.respond(
+        ("mngr", "list"),
+        _listing(
+            _agent_record(root, "STOPPED"),
+            {**_agent_record(sibling, "STOPPED", lead_agent=root), "initial_branch": root},
+        ),
+    )
+
+    rc = create_worker_mod.destroy(root, runner, delete_branches=True)
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert f"git branch superseded/{root} {root}\n" in err
+    assert f"git branch superseded/{root}-2 mngr/{root}\n" in err
+
+
 def test_delete_branches_goes_ahead_once_the_pass_is_merged(tmp_path: Path) -> None:
     root = _unique("root")
     repo, child = _repo_with_a_pass(tmp_path, root)

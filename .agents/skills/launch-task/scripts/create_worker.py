@@ -1974,6 +1974,7 @@ def _branch_deletion_refusal(branches: Sequence[str], runner: Runner) -> str | N
     existing = set(listing.splitlines())
     doomed = [b for b in dict.fromkeys(branches) if f"refs/heads/{b}" in existing]
     kept = sorted(existing - {f"refs/heads/{b}" for b in doomed})
+    taken = set(existing)
     lines: list[str] = []
     for branch in doomed:
         count = _git_output(
@@ -1986,9 +1987,10 @@ def _branch_deletion_refusal(branches: Sequence[str], runner: Runner) -> str | N
             stem = f"superseded/{branch.removeprefix('mngr/')}"
             keep_as = stem
             suffix = 2
-            while f"refs/heads/{keep_as}" in existing:
+            while f"refs/heads/{keep_as}" in taken:
                 keep_as = f"{stem}-{suffix}"
                 suffix += 1
+            taken.add(f"refs/heads/{keep_as}")
             lines.append(
                 f"  {branch}: {count} commit(s) on no other branch; keep them with:\n"
                 f"    git branch {keep_as} {branch}"
