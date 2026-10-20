@@ -18,9 +18,9 @@ const TOOL_CALL_PREFIX = "Tool call: ";
 const ALLOWED_URI_REGEXP =
   /^(?:(?:(?:f|ht)tps?|file|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$)|(?!(?:javascript|vbscript|data):)[a-z][a-z0-9+.-]*:)/i;
 
-// A file and line (``q4.md:12``, ``Makefile:3:1``), which reads as a URL of the custom scheme ``q4.md:`` but names a
-// line of a file.
-const FILE_LINE_REFERENCE = /^[^:/?#]+:\d+(?::\d+)?$/;
+// A file and line (``q4.md:12``, ``Makefile:3:1``, ``app.ts:12-20``) or a host and port written without its scheme
+// (``localhost:3000/app``), which reads as a URL of the custom scheme ``q4.md:`` or ``localhost:`` but names neither.
+const FILE_OR_HOST_REFERENCE = /^[^:/?#]+:\d+(?:[:-]\d+)*(?:[/?#]|$)/;
 
 export function renderMarkdown(source: string): string {
   const rawHtml = marked.parse(source) as string;
@@ -40,14 +40,15 @@ export function renderMarkdown(source: string): string {
  * ``file:`` URL, which the app contract hands to the shell to open in Files, as it does a local URL; every
  * other link keeps its real target, so hovering it and copying its address show where it goes, and opens in a new
  * browsing context should nothing route it (a chat opened on its own). Anything else (a relative path, a fragment,
- * a file and line, another of the browser's own schemes) cannot open anything, so it is unwrapped to its text.
+ * a file and line, a host and port with no scheme, another of the browser's own schemes) cannot open anything, so it
+ * is unwrapped to its text.
  */
 function rewritePathLinks(root: DocumentFragment): void {
   for (const anchor of Array.from(root.querySelectorAll("a"))) {
     const href = anchor.getAttribute("href") ?? "";
     const target = classifyLink(messageLinkUrl(href), window.location.host);
     anchor.removeAttribute("download");
-    if (target.kind === "unroutable" || (FILE_LINE_REFERENCE.test(href) && isCustomSchemeLink(href))) {
+    if (target.kind === "unroutable" || (FILE_OR_HOST_REFERENCE.test(href) && isCustomSchemeLink(href))) {
       anchor.replaceWith(...Array.from(anchor.childNodes));
     } else if (target.kind === "file") {
       anchor.setAttribute("href", fileUrl(target.path));

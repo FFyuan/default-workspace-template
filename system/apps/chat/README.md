@@ -137,8 +137,9 @@ browser; an address on the workspace's share domain it opens as that app's
 window; an external web, mail, phone, or custom-scheme (`slack:`) link it
 hands to the app of the workspace registered for it, or else opens in the
 user's own browser or the app of their system the link belongs to; and a
-relative path, a fragment, a file and line (`q4.md:12`), or another of the
-browser's own schemes is unwrapped to its text. A chat with no shell above it (opened on its
+relative path, a fragment, a file and line (`q4.md:12`), a host and port
+with no scheme (`localhost:3000/app`), or another of the browser's own schemes
+is unwrapped to its text. A chat with no shell above it (opened on its
 own, or in a chat root opened on its own, which hands its pages no handshake)
 leaves its links to the browser, which opens a web, mail, or phone link in a new
 tab and does nothing for a file link: a browser does not follow a `file:` link
