@@ -21,7 +21,6 @@ from imbue.imbue_common.pure import pure
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineState
 from routines.definitions import describe_validation_error
-from routines.errors import InvalidDurationError
 from routines.errors import InvalidRoutineIdError
 from routines.errors import RoutineExistsError
 from routines.interfaces import DefinitionStoreInterface
@@ -109,7 +108,7 @@ def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | Skip
             else:
                 return SkippedEntry(file_name=file_name, reason=f"the runner flag {flag} is unknown")
             index += 2
-    except (InvalidDurationError, ValueError) as e:
+    except ValueError as e:
         return SkippedEntry(file_name=file_name, reason=str(e))
     command = rest[index:]
     if every is None or not command:
