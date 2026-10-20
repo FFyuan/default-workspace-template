@@ -109,6 +109,11 @@ class RoutinesService(MutableModel):
         result: RunResult = read_result(self.paths.result_path(routine_id, run_id))
         return RunDetail(run=records[0], log=log, is_log_truncated=is_truncated, links=result.links)
 
+    def run_exists(self, routine_id: RoutineId, run_id: RunId) -> bool:
+        """Whether the ledger knows the run; raises RoutineNotFoundError for a routine there is none of."""
+        self.definitions.load(routine_id)
+        return len(self.ledger.events_of_run(routine_id, run_id)) > 0
+
     def log_tail(self, routine_id: RoutineId, run_id: RunId) -> tuple[str, bool]:
         """The run's log, or its last part when it is long; whether it was cut."""
         path = self.paths.run_log_path(routine_id, run_id)
