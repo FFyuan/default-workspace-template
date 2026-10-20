@@ -36,6 +36,13 @@ RUN_BLOCKED_EVENT: Final[str] = "run_blocked"
 RUN_FINISHED_EVENT: Final[str] = "run_finished"
 
 
+def weekdays_in_any_case(value: Any) -> Any:
+    """A ``days`` list as a file or a request spells it, ``mon`` or ``MON``, read as the enum's upper case."""
+    if isinstance(value, list | tuple):
+        return tuple(item.upper() if isinstance(item, str) else item for item in value)
+    return value
+
+
 class RoutineDefinition(FrozenModel):
     """What a routine is and when it runs: the contents of ``system/routines/<id>.toml``."""
 
@@ -60,12 +67,7 @@ class RoutineDefinition(FrozenModel):
     )
     app: NonEmptyStr | None = Field(default=None, description="The app this routine belongs to")
 
-    @field_validator("days", mode="before")
-    @classmethod
-    def _read_weekdays_in_any_case(cls, value: Any) -> Any:
-        if isinstance(value, list | tuple):
-            return tuple(item.upper() if isinstance(item, str) else item for item in value)
-        return value
+    _read_weekdays_in_any_case = field_validator("days", mode="before")(weekdays_in_any_case)
 
     @model_validator(mode="after")
     def _check_one_schedule_and_one_action(self) -> Self:
@@ -101,12 +103,7 @@ class ScheduleChange(FrozenModel):
     day_of_month: int | None = Field(default=None, ge=1, le=31, description="The day a monthly run is due")
     once: datetime | None = Field(default=None, description="A single local moment")
 
-    @field_validator("days", mode="before")
-    @classmethod
-    def _read_weekdays_in_any_case(cls, value: Any) -> Any:
-        if isinstance(value, list | tuple):
-            return tuple(item.upper() if isinstance(item, str) else item for item in value)
-        return value
+    _read_weekdays_in_any_case = field_validator("days", mode="before")(weekdays_in_any_case)
 
 
 class LoadedRoutine(FrozenModel):
