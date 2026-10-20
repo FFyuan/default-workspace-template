@@ -188,32 +188,13 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
     }
     if month != "*":
         return SkippedEntry(file_name=file_name, reason="a schedule naming a month has no routine form")
-    if minute.startswith("*/") and minute[2:].isdigit() and hour == "*" and day_of_month == "*" and day_of_week == "*":
-        values["every"] = Duration(f"{int(minute[2:])}m")
-    elif (
-        hour.startswith("*/")
-        and hour[2:].isdigit()
-        and minute.isdigit()
-        and day_of_month == "*"
-        and day_of_week == "*"
-    ):
-        values["every"] = Duration(f"{int(hour[2:])}h")
-    elif minute == "*" and hour == "*" and day_of_month == "*" and day_of_week == "*":
-        values["every"] = Duration("1m")
-    elif minute.isdigit() and hour == "*" and day_of_month == "*" and day_of_week == "*":
-        values["every"] = Duration("1h")
-    elif minute.isdigit() and hour.isdigit():
-        at = TimeOfDay(f"{int(hour):02d}:{int(minute):02d}")
-        if day_of_month == "*" and day_of_week == "*":
-            values.update({"every": Duration("1d"), "at": at})
-        elif day_of_month == "*" and (weekdays := _weekdays_of(day_of_week)) is not None:
-            values.update({"every": Duration("1d"), "at": at, "days": weekdays})
-        elif day_of_month.isdigit() and day_of_week == "*":
-            values.update({"every": Duration("1mo"), "at": at, "day_of_month": int(day_of_month)})
-        else:
-            return SkippedEntry(file_name=file_name, reason="the schedule has no routine form")
-    else:
+    try:
+        schedule = _schedule_of_cron_fields(minute, hour, day_of_month, day_of_week)
+    except ValueError as e:
+        return SkippedEntry(file_name=file_name, reason=str(e))
+    if schedule is None:
         return SkippedEntry(file_name=file_name, reason="the schedule has no routine form")
+    values.update(schedule)
     try:
         definition = RoutineDefinition.model_validate(values)
     except ValidationError as e:
@@ -221,6 +202,36 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
     return ConvertedEntry(
         routine_id=routine_id, definition=definition, is_caretaker_switch=False, legacy_job_name=str(routine_id)
     )
+
+
+@pure
+def _schedule_of_cron_fields(minute: str, hour: str, day_of_month: str, day_of_week: str) -> dict[str, object] | None:
+    """The schedule fields a cron shape says, None for a shape a definition cannot say; a field a duration or a
+    time of day refuses (``*/0``, hour 24) raises its ValueError."""
+    if minute.startswith("*/") and minute[2:].isdigit() and hour == "*" and day_of_month == "*" and day_of_week == "*":
+        return {"every": Duration(f"{int(minute[2:])}m")}
+    if (
+        hour.startswith("*/")
+        and hour[2:].isdigit()
+        and minute.isdigit()
+        and day_of_month == "*"
+        and day_of_week == "*"
+    ):
+        return {"every": Duration(f"{int(hour[2:])}h")}
+    if minute == "*" and hour == "*" and day_of_month == "*" and day_of_week == "*":
+        return {"every": Duration("1m")}
+    if minute.isdigit() and hour == "*" and day_of_month == "*" and day_of_week == "*":
+        return {"every": Duration("1h")}
+    if not (minute.isdigit() and hour.isdigit()):
+        return None
+    at = TimeOfDay(f"{int(hour):02d}:{int(minute):02d}")
+    if day_of_month == "*" and day_of_week == "*":
+        return {"every": Duration("1d"), "at": at}
+    if day_of_month == "*" and (weekdays := _weekdays_of(day_of_week)) is not None:
+        return {"every": Duration("1d"), "at": at, "days": weekdays}
+    if day_of_month.isdigit() and day_of_week == "*":
+        return {"every": Duration("1mo"), "at": at, "day_of_month": int(day_of_month)}
+    return None
 
 
 @pure

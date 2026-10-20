@@ -113,6 +113,16 @@ def test_a_cron_shape_with_no_routine_form_is_left_with_a_reason() -> None:
         assert skipped.reason == "the schedule has no routine form"
 
 
+def test_a_cron_field_a_duration_or_a_time_of_day_refuses_leaves_the_line_with_its_reason() -> None:
+    """One odd line is skipped with the refusal's words, never a crash that would stop the whole pass."""
+    (every_zero,) = convert_cron_entry("*/0 * * * * root cmd\n", "odd")
+    assert isinstance(every_zero, SkippedEntry)
+    assert "0m" in every_zero.reason
+    (hour_24,) = convert_cron_entry("0 24 * * * root cmd\n", "odd")
+    assert isinstance(hour_24, SkippedEntry)
+    assert "24:00" in hour_24.reason
+
+
 def test_migration_writes_definitions_carries_state_over_and_removes_both_copies(
     definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
 ) -> None:
