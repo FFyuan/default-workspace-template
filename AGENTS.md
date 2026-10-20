@@ -171,7 +171,7 @@ Fixing it locally is *not* an alternative: a fix to a file that is byte-identica
 
 - **Prefer an applicable skill over reinventing.** Skill descriptions are auto-injected into your context, so match by purpose, not by name.
 
-- **Follow a skill without naming it.** Skill names are for you; the user never reads one, even when your harness tells you to announce which skills you use. Describe the work instead. The one exception is a skill the user made, once they have used its name themselves (`.agents/shared/references/user-facing-language.md`, "Skills in particular").
+- **Follow a skill without naming it.** Describe the work, not the skill, even when your harness tells you to announce which skills you use. Repeat a skill's name only after the user has used it (`.agents/shared/references/user-facing-language.md`, "Skills in particular").
 
 - **Run the creation, don't redo its job.** When a creation already does what's being asked -- an app that ingests this kind of data, a skill that runs this process -- run it, or extend it and run it. Producing the same result by hand beside it leaves the creation untested against the real case and the user with two sources of truth.
 
