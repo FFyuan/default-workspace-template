@@ -29,6 +29,7 @@ from routines.interfaces import DefinitionStoreInterface
 from routines.interfaces import StateStoreInterface
 from routines.primitives import Duration
 from routines.primitives import RoutineId
+from routines.primitives import SECONDS_PER_DAY
 from routines.primitives import TimeOfDay
 from routines.primitives import WEEKDAYS_IN_ORDER
 from routines.primitives import Weekday
@@ -125,7 +126,7 @@ def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | Skip
     command = rest[index:]
     if every is None or not command:
         return SkippedEntry(file_name=file_name, reason="the runner line has no cadence or no command")
-    if at is not None and every.approximate_seconds < 86400:
+    if at is not None and every.approximate_seconds < SECONDS_PER_DAY:
         logger.warning("Dropping the due hour of {}: its cadence is shorter than a day", routine_id)
         at = None
     is_caretaker = routine_id == CARETAKER_ROUTINE_ID and any(
