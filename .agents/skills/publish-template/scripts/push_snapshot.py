@@ -21,8 +21,10 @@ In order, and stopping at the first failure with nothing pushed:
      the published `main` moved since the parent was read, and someone else's
      work is there.
 
-`--tag` then creates or moves an annotated tag on the new commit and pushes it; a
-failure there is a follow-up, since the version itself is already published.
+`--tag` then puts an annotated tag on the new commit (replacing a local one of the
+same name) and pushes it without force, so a tag already on the remote is never
+moved. A failure there is a follow-up, since the version itself is already
+published.
 
 The push goes through the gateway's git proxy, which injects the GitHub
 credential itself: no token is in the URL, on disk, or in git config. Prints
