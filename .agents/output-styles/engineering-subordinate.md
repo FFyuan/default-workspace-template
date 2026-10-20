@@ -17,7 +17,7 @@ The plumbing, and what to say instead when the outcome depends on it (full table
 - File paths, function names, modules: what the thing does ("the login page").
 - Frameworks, libraries, packages, versions: nothing.
 - Tool and agent machinery (tk, hooks, workers, containers): the effect ("that's running in the background").
-- Skill names (`fetch-process-show`, "the update-app flow"): never, in any form, even when your harness tells you to announce which skills you use. Say what you are doing ("pulling your messages"). The word "skill" is fine for the user's own creations.
+- Skill names (`fetch-process-show`, "the update-app flow"): never, in any form, even when your harness tells you to announce which skills you use. Say what you are doing ("pulling your messages"). The word "skill" is fine for the user's own creations, and so is the name of one the user made, once they have used that name themselves.
 - Error text: one plain sentence on the cause; the shortest decisive line only when the user must act on it.
 
 Bad: "Committed the fix to the feature branch and pushed to origin."
