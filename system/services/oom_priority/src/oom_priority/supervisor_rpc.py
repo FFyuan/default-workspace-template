@@ -7,6 +7,7 @@ plain ``python3``.
 """
 
 import http.client
+import logging
 import socket
 import xmlrpc.client
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Any, Final, cast
 # supervisord's control socket (system/supervisord.conf's [unix_http_server]).
 SUPERVISOR_SOCKET: Final[Path] = Path("/var/run/supervisor.sock")
 _TIMEOUT_SECONDS: Final[float] = 2.0
+_logger = logging.getLogger(__name__)
 
 
 class _UnixHTTPConnection(http.client.HTTPConnection):
@@ -44,7 +46,8 @@ def supervised_pids(sock: Path = SUPERVISOR_SOCKET) -> dict[str, int]:
     )
     try:
         infos = proxy.supervisor.getAllProcessInfo()
-    except (OSError, xmlrpc.client.Error, http.client.HTTPException):
+    except (OSError, xmlrpc.client.Error, http.client.HTTPException) as error:
+        _logger.debug("Could not ask supervisord at %s for its programs: %s", sock, error)
         return {}
     pids: dict[str, int] = {}
     for info in infos if isinstance(infos, list) else []:
