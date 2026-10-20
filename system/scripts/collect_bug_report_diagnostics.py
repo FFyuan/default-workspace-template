@@ -155,8 +155,9 @@ UPDATE_APPLY_RECORD_FILES = (
 # The dispatcher writes a line only when it acts, so its tail is the recent history.
 UPDATE_APPLY_LOG_FILE = "dispatcher.log"
 MAX_UPDATE_APPLY_LOG_LINES = 500
-# Its own class budget, so a long dispatcher log cannot crowd the records out.
-MAX_UPDATE_APPLY_CLASS_BYTES = 256 * 1024
+# Its own class budget, so a long dispatcher log cannot crowd the records out, with room for a
+# log tail as long as one read returns beside the records, so the log is never the member dropped.
+MAX_UPDATE_APPLY_CLASS_BYTES = MAX_READ_BYTES + 64 * 1024
 
 # What the agent half of a report is read out of: the per-agent state
 # directories mngr keeps as siblings of this collector's own. Taken from the env

@@ -1208,7 +1208,9 @@ def test_main_withholds_only_the_logs_when_the_finding_is_in_the_logs(
         ]
 
 
-def _write_update_apply_state(workspace: Path, *, log_lines: int) -> Path:
+def _write_update_apply_state(
+    workspace: Path, *, log_lines: int, line_padding: str = ""
+) -> Path:
     """The update flow's state directory as the app's dispatcher and an update pass leave it,
     with the pre-apply snapshots and the dispatcher program beside the records."""
     state = workspace / "data" / ".state" / "update-apply"
@@ -1226,7 +1228,8 @@ def _write_update_apply_state(workspace: Path, *, log_lines: int) -> Path:
     )
     (state / "dispatcher.log").write_text(
         "".join(
-            f"2026-10-20T02:00:{i:02d} dispatched line {i}\n" for i in range(log_lines)
+            f"2026-10-20T02:00:{i:02d} dispatched{line_padding} line {i}\n"
+            for i in range(log_lines)
         )
     )
     return state
@@ -1274,6 +1277,34 @@ def test_the_update_records_ride_with_the_logs_but_never_the_snapshots_or_the_di
         )
     assert len(log_lines) == module.MAX_UPDATE_APPLY_LOG_LINES
     assert log_lines[-1].endswith(f"dispatched line {lines - 1}")
+
+
+def test_a_dispatcher_log_as_long_as_a_read_still_rides_beside_the_records(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Failing ticks write long lines, so the tail can fill a whole read; the log is the member
+    that says why, and must not be the one the class budget drops."""
+    gate = tmp_path / "gate"
+    _write_stub_scan_gate(gate, exit_code=0)
+    conf = tmp_path / "supervisord.conf"
+    conf.write_text(_FIXTURE_SUPERVISORD_CONF, encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    module = _load_collector(
+        supervisor_log_dir=tmp_path / "supervisor",
+        mngr_binary=_mngr_stub_for_chats(tmp_path, {}),
+        supervisord_conf=conf,
+        workspace_dir=workspace,
+        scan_gate_dir=gate,
+    )
+    _write_update_apply_state(
+        workspace, log_lines=module.MAX_UPDATE_APPLY_LOG_LINES, line_padding=" x" * 400
+    )
+
+    module.main(["--logs"])
+
+    with _zip_from_stdout(capsys.readouterr().out) as archive:
+        assert "update-apply/dispatcher.log" in archive.namelist()
+        assert "update-apply/schedule.json" in archive.namelist()
 
 
 def test_a_secret_in_the_update_records_withholds_them_and_nothing_else(
