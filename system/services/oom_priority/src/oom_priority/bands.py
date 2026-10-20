@@ -243,8 +243,7 @@ SERVICE_BANDS: Final[dict[str, int]] = {
     # The sharing stack (gateway + caddy + frpc children inherit its band): a
     # shed share tunnel drops live viewers, so it sits just above the UI.
     "share-gateway": 35,
-    # Opt-in runtime/ sync (added by the github-sync skill); inherits the band the
-    # now-removed runtime-backup service used to hold.
+    # Opt-in runtime/ sync (added by the github-sync skill).
     "github-sync": 40,
     "host-backup": 50,
     # The cron daemon behind the workspace's scheduled jobs. A shed defers those

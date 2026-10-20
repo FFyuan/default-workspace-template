@@ -878,7 +878,6 @@ def _run_uv_sync(repo_root: Path) -> None:
 def _start_and_wait(
     repo_root: Path, name: str, port: int, timeout: float = 10.0
 ) -> None:
-    # Reload supervisord to pick up the new program block
     _run_checked(["supervisorctl", "reread"], repo_root, "supervisorctl reread")
     _run_checked(["supervisorctl", "update"], repo_root, "supervisorctl update")
 

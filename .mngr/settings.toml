@@ -1755,8 +1755,7 @@ append_system_prompt__extend = ["You are an automation agent for this workspace.
 # Nothing worker-specific is installed into the worker's skill tree: the harden
 # worker is followed in place, from the checkout every worker already has at
 # .agents/shared/worker/SKILL.md, because a lead's task file names that path
-# outright. (The venv converge that used to sit here now runs for every agent
-# from [commands.create], and lands before this.)
+# outright.
 #
 # The worker's Claude plugins need no install: .claude/settings.json declares
 # them from local marketplaces under /opt/agent-plugins, which claude loads in

@@ -597,7 +597,6 @@ def _migrate_cron_entries_to_routines() -> None:
         return
     for line in completed.stdout.splitlines():
         logger.info("routines migrate-cron: {}", line)
-    # What reaches stderr at WARNING: an entry left in place, a commit it could not make.
     for line in completed.stderr.splitlines():
         if line.strip():
             logger.warning("routines migrate-cron: {}", line)

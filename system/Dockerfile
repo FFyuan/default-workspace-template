@@ -110,7 +110,6 @@ RUN chmod +x /usr/local/bin/default-workspace-template-install-dependencies && d
 
 # End pre-COPY manifest layer. Source-changing layers begin below.
 
-# copy in all of our code:
 COPY . /home/user/workspace/
 
 # Build the workspace from full source. Shared verbatim with the Lima provider.
