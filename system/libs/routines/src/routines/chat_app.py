@@ -56,6 +56,13 @@ def workspace_label(environ: dict[str, str]) -> str:
     return ""
 
 
+def _newest_assistant_text(events: list[dict[str, Any]]) -> str | None:
+    for event in reversed(events):
+        if event.get("type") == _ASSISTANT_MESSAGE_TYPE and isinstance(event.get("text"), str):
+            return event["text"]
+    return None
+
+
 def _created_agent_id(stdout: str) -> str:
     for line in stdout.splitlines():
         try:
@@ -173,17 +180,22 @@ class HttpChatApp(ChatAppInterface):
 
     def assistant_text_after(self, chat_id: str, cursor_event_id: str | None) -> str | None:
         # The transcript answers an empty page for a cursor it cannot place, never a refusal: a cleared chat
-        # keeps its earlier events readable, so the cursor taken before the send stays good.
-        query = (
-            f"after={urllib.parse.quote(cursor_event_id)}&limit={_EVENTS_PAGE_LIMIT}"
-            if cursor_event_id is not None
-            else f"limit={_EVENTS_PAGE_LIMIT}"
-        )
-        events = self._events(chat_id, query)
-        for event in reversed(events):
-            if event.get("type") == _ASSISTANT_MESSAGE_TYPE and isinstance(event.get("text"), str):
-                return event["text"]
-        return None
+        # keeps its earlier events readable, so the cursor taken before the send stays good. A page after a
+        # cursor holds the events that immediately follow it, so a long turn is read page by page to its end;
+        # without a cursor one page is the newest events, which is all there is to read.
+        if cursor_event_id is None:
+            return _newest_assistant_text(self._events(chat_id, f"limit={_EVENTS_PAGE_LIMIT}"))
+        newest: str | None = None
+        cursor = cursor_event_id
+        while True:
+            events = self._events(chat_id, f"after={urllib.parse.quote(cursor)}&limit={_EVENTS_PAGE_LIMIT}")
+            text = _newest_assistant_text(events)
+            if text is not None:
+                newest = text
+            last_event_id = events[-1].get("event_id") if events else None
+            if len(events) < _EVENTS_PAGE_LIMIT or not isinstance(last_event_id, str) or last_event_id == cursor:
+                return newest
+            cursor = last_event_id
 
     def create_chat(self, name: str, routine_id: RoutineId, first_message: str) -> str:
         argv = [

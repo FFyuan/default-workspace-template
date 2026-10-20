@@ -85,6 +85,26 @@ def test_the_agents_newest_message_after_the_cursor_is_the_answer(
     assert chat_app.assistant_text_after("a", "e9") == "Done."
 
 
+def test_a_turn_longer_than_a_page_is_read_to_its_end_for_the_newest_message(
+    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+) -> None:
+    """A page after the cursor holds the events that follow it, so the answer may sit past the first page."""
+    first_page = [{"event_id": f"e{index}", "type": "tool_use", "text": "x"} for index in range(10, 210)]
+    first_page[0] = {"event_id": "e10", "type": "assistant_message", "text": "Starting."}
+    http_server.answer("GET", "/api/chats/a/events?after=e9&limit=200", (200, {"events": first_page}))
+    http_server.answer(
+        "GET",
+        "/api/chats/a/events?after=e209&limit=200",
+        (200, {"events": [{"event_id": "e210", "type": "assistant_message", "text": "Done."}]}),
+    )
+    chat_app = _chat_app(tmp_path, http_server, clock)
+    assert chat_app.assistant_text_after("a", "e9") == "Done."
+    assert [request.path for request in http_server.requests] == [
+        "/api/chats/a/events?after=e9&limit=200",
+        "/api/chats/a/events?after=e209&limit=200",
+    ]
+
+
 def test_an_unreachable_chat_app_is_an_error_not_a_crash(tmp_path: Path, clock: FakeClock) -> None:
     registry = tmp_path / "apps.toml"
     registry.write_text('[[apps]]\nname = "chat"\nurl = "http://127.0.0.1:9"\n')
