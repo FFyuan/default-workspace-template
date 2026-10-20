@@ -90,6 +90,7 @@ def test_a_command_run_streams_its_output_records_both_events_and_updates_the_st
     state = states.read(SYNC)
     assert state.current_run is None
     assert state.last_succeeded_at == runner.clock.now()
+    assert state.last_success_started_at == state.last_started_at
     assert state.consecutive_failures == 0
     assert state.last_run is not None
     assert state.last_run.run_id == event.run_id

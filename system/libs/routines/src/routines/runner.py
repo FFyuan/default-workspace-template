@@ -414,6 +414,7 @@ class Runner(MutableModel):
             ]
             if is_success:
                 updates.append(to_update(state.field_ref().last_succeeded_at, finished_at))
+                updates.append(to_update(state.field_ref().last_success_started_at, started_at))
             elif int(state.consecutive_failures) == 0:
                 # A new streak: a recovery the feed never took is moot now, and this streak is told at its threshold.
                 updates.append(to_update(state.field_ref().is_failure_notified, False))

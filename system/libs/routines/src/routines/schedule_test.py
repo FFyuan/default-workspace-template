@@ -53,6 +53,19 @@ def test_a_late_catch_up_run_still_lands_on_the_time_of_day_the_next_day() -> No
     assert next_due(_definition(every="1d", at="07:30"), state, TEST_NOW, TEST_ZONE) == _local(2026, 10, 21, 7, 30)
 
 
+def test_a_time_of_day_window_is_counted_from_the_day_the_successful_run_started() -> None:
+    # A 23:50 run that finished past midnight belongs to the day it started; the next window is the day after.
+    state = RoutineState(
+        last_success_started_at=_local(2026, 10, 20, 23, 50), last_succeeded_at=_local(2026, 10, 21, 0, 3)
+    )
+    now = _local(2026, 10, 21, 0, 4)
+    assert next_due(_definition(every="1d", at="23:50"), state, now, TEST_ZONE) == _local(2026, 10, 21, 23, 50)
+    # Without the start (a state written before it was kept) the finish counts, as it does without ``at``.
+    finish_only = RoutineState(last_succeeded_at=_local(2026, 10, 21, 0, 3))
+    assert next_due(_definition(every="1d", at="23:50"), finish_only, now, TEST_ZONE) == _local(2026, 10, 22, 23, 50)
+    assert next_due(_definition(every="1d"), state, now, TEST_ZONE) == _local(2026, 10, 22, 0, 3)
+
+
 def test_weekdays_move_a_due_moment_to_the_next_listed_day() -> None:
     # The last success was Friday; the next day is Saturday, which is not listed, so Monday it is.
     state = RoutineState(last_succeeded_at=_local(2026, 10, 23, 9, 0))

@@ -87,6 +87,16 @@ def _advance_to_allowed_weekday(moment: datetime, days: tuple[Weekday, ...], zon
 
 
 @pure
+def _cadence_anchor(definition: RoutineDefinition, state: RoutineState) -> datetime:
+    """The moment the cadence counts from: the last success, which for an ``at`` window is the day its run
+    started (a run that crosses midnight claims no second day) when the state kept that moment."""
+    assert state.last_succeeded_at is not None
+    if definition.at is not None and state.last_success_started_at is not None:
+        return state.last_success_started_at
+    return state.last_succeeded_at
+
+
+@pure
 def next_due(definition: RoutineDefinition, state: RoutineState, now: datetime, zone: tzinfo) -> datetime | None:
     """The earliest moment a scheduled run may start, or None for a routine that is done."""
     # Rules 1 and 2 give the due moment outright and 3 to 5 compose it; rule 6 floors whichever answered.
@@ -98,7 +108,7 @@ def next_due(definition: RoutineDefinition, state: RoutineState, now: datetime, 
         due = now
     else:
         assert definition.every is not None
-        base = add_cadence(state.last_succeeded_at, definition.every, definition.day_of_month, zone)
+        base = add_cadence(_cadence_anchor(definition, state), definition.every, definition.day_of_month, zone)
         due = _at_time_on_date(base.astimezone(zone), definition.at) if definition.at is not None else base
         if definition.days:
             due = _advance_to_allowed_weekday(due, definition.days, zone)

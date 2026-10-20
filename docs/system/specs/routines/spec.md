@@ -126,6 +126,7 @@ Rules 1 and 2 give the due moment outright and rules 3 to 5 compose it, in order
 3. Otherwise the base is the last success plus the cadence.
    A cadence in months steps the calendar month and clamps the day to the month's last day when it must; `day_of_month` then pins the day.
 4. With `at`, the due moment is the base's date at that time, the window being a calendar day: a run that succeeded at 07:04 is due again tomorrow at 07:30, not at 07:04 plus a day.
+   The day is the one the successful run started on (`last_success_started_at`), so a run that crosses midnight claims no second day; a state written before that moment was kept counts from the finish.
    Without `at`, the due moment is the base itself.
 5. With `days`, a due moment on a weekday not listed moves to the next listed weekday, keeping the time of day.
 6. A failed or interrupted attempt (last attempt after last success) floors the due moment at the last attempt plus `retry_after`.
@@ -233,6 +234,7 @@ A skill run has no result file; its summary is the agent's last message (6.4), w
   "chat_id": "agent-...",
   "last_started_at": "2026-10-20T14:30:00.000000+00:00",
   "last_succeeded_at": "2026-10-20T14:30:12.000000+00:00",
+  "last_success_started_at": "2026-10-20T14:30:00.000000+00:00",
   "consecutive_failures": 0,
   "is_failure_notified": false,
   "current_run": null,

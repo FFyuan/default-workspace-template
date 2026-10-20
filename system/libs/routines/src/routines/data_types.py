@@ -158,6 +158,11 @@ class RoutineState(FrozenModel):
     chat_id: str | None = Field(default=None, description="The chat a skill routine runs in")
     last_started_at: datetime | None = Field(default=None, description="When a run last started")
     last_succeeded_at: datetime | None = Field(default=None, description="When a run last succeeded")
+    last_success_started_at: datetime | None = Field(
+        default=None,
+        description="When the run that last succeeded started: the day an `at` window is counted from, so a run "
+        "that crosses midnight claims no second day; None in a state written before it was kept",
+    )
     consecutive_failures: NonNegativeInt = Field(default=NonNegativeInt(0), description="Failed runs in a row")
     is_failure_notified: bool = Field(default=False, description="Whether the feed was told of the current streak")
     current_run: CurrentRun | None = Field(default=None, description="The run in flight")

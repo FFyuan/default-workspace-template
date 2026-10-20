@@ -57,11 +57,13 @@ becomes the run's summary. A chat waiting on the user marks the run blocked
 and tells the feed; past the timeout the chat is interrupted.
 
 The due moment is the last success plus the cadence, moved to `at` on that day
-and to the next listed weekday; a never-run routine is due now; a failed
-attempt is retried no sooner than `retry_after` after it started; missed
+(the day the successful run started, so a run that crosses midnight claims no
+second day) and to the next listed weekday; a never-run routine is due now; a
+failed attempt is retried no sooner than `retry_after` after it started; missed
 windows catch up once and are never replayed. The state file keeps
-`last_started_at`, `last_succeeded_at`, `consecutive_failures`, the run in
-flight and the last run; delete `last_succeeded_at` to make a routine due.
+`last_started_at`, `last_succeeded_at`, `last_success_started_at`,
+`consecutive_failures`, the run in flight and the last run; delete
+`last_succeeded_at` to make a routine due.
 
 After a run the runner tells the feed once per streak when
 `notify_after_failures` is reached, once when the routine works again, and once
