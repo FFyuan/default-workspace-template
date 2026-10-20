@@ -3,7 +3,7 @@
  * library's own models: the listing, a routine with its runs, a run with its log, and the mutations.
  */
 
-import { HttpError, errorDetailFromResponse } from "@imbue/workspace-ui/src/models/http";
+import { requestJson } from "@imbue/workspace-ui/src/models/http";
 
 export type Health = "BROKEN" | "OFF" | "DONE" | "NEEDS_USER" | "FAILING" | "OVERDUE" | "NOT_RUN_YET" | "WORKING";
 export type Trigger = "SCHEDULED" | "MANUAL";
@@ -117,50 +117,38 @@ export interface RunStartReceipt {
   run_id: string | null;
 }
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
-  if (!response.ok) throw new HttpError(response.status, await errorDetailFromResponse(response));
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
-}
-
 const encode = encodeURIComponent;
 
 export function fetchListing(): Promise<RoutineListing> {
-  return request("GET", "/api/routines");
+  return requestJson("GET", "/api/routines");
 }
 
 export function fetchDetail(routineId: string): Promise<RoutineDetail> {
-  return request("GET", `/api/routines/${encode(routineId)}`);
+  return requestJson("GET", `/api/routines/${encode(routineId)}`);
 }
 
 export function fetchRun(routineId: string, runId: string): Promise<RunDetail> {
-  return request("GET", `/api/routines/${encode(routineId)}/runs/${encode(runId)}`);
+  return requestJson("GET", `/api/routines/${encode(routineId)}/runs/${encode(runId)}`);
 }
 
 export function runNow(routineId: string): Promise<RunStartReceipt> {
-  return request("POST", `/api/routines/${encode(routineId)}/run`, {});
+  return requestJson("POST", `/api/routines/${encode(routineId)}/run`, {});
 }
 
 export function setEnabled(routineId: string, isEnabled: boolean): Promise<RoutineRow> {
-  return request("PUT", `/api/routines/${encode(routineId)}/enabled`, { is_enabled: isEnabled });
+  return requestJson("PUT", `/api/routines/${encode(routineId)}/enabled`, { is_enabled: isEnabled });
 }
 
 export function setSchedule(routineId: string, change: ScheduleChange): Promise<RoutineRow> {
-  return request("PUT", `/api/routines/${encode(routineId)}/schedule`, change);
+  return requestJson("PUT", `/api/routines/${encode(routineId)}/schedule`, change);
 }
 
 export function openFixChat(routineId: string): Promise<{ chat_id: string }> {
-  return request("POST", `/api/routines/${encode(routineId)}/fix`, {});
+  return requestJson("POST", `/api/routines/${encode(routineId)}/fix`, {});
 }
 
 export function removeRoutine(routineId: string): Promise<void> {
-  return request("DELETE", `/api/routines/${encode(routineId)}`);
+  return requestJson("DELETE", `/api/routines/${encode(routineId)}`);
 }
 
 /** Where a run's whole log is served as text. */
