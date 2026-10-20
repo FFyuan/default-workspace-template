@@ -201,7 +201,7 @@ def build_row(loaded: LoadedRoutine, state: RoutineState, now: datetime, zone: t
         last_run_text = f"{last_run.outcome_text} {last_run.when_text}, {trigger_text(last_run.trigger)}"
     return RoutineRow(
         routine_id=loaded.routine_id,
-        title=str(definition.title) if definition is not None else loaded.routine_id.replace("-", " ").capitalize(),
+        title=str(definition.title) if definition is not None else loaded.routine_id.as_title,
         what=str(definition.what) if definition is not None else "",
         health=health,
         health_text=health_text(health),

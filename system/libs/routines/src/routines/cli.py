@@ -430,7 +430,7 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
     outcome = service.runner.wake(
         wanted_id,
         RunId(raw_run_id) if raw_run_id else None,
-        title or wanted_id.replace("-", " ").capitalize(),
+        title or wanted_id.as_title,
         skill,
         Duration(timeout).timedelta,
     )

@@ -44,6 +44,11 @@ class RoutineId(NonEmptyStr):
             serialization=core_schema.to_string_ser_schema(),
         )
 
+    @property
+    def as_title(self) -> str:
+        """The id read as a title, until someone gives the routine one: ``inbox-digest`` is ``Inbox digest``."""
+        return self.replace("-", " ").capitalize()
+
 
 class RunId(RandomId):
     """Unique identifier for one run of a routine."""

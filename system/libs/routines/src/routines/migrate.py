@@ -85,12 +85,6 @@ def _strip_redirect(tokens: list[str]) -> list[str]:
 
 
 @pure
-def _humanize(routine_id: str) -> str:
-    words = routine_id.replace("_", " ").replace("-", " ").split()
-    return " ".join([words[0].capitalize(), *words[1:]]) if words else routine_id
-
-
-@pure
 def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | SkippedEntry:
     """``<id> --every N [--at H] [--retry-after N] <command...>`` after the runner's name."""
     if not tokens:
@@ -129,7 +123,7 @@ def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | Skip
     )
     skill = _skill_of(command)
     fields: dict[str, object] = {
-        "title": _humanize(routine_id),
+        "title": routine_id.as_title,
         "what": " ".join(command),
         "every": every,
         "at": at,
@@ -165,7 +159,7 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
     except InvalidRoutineIdError as e:
         return SkippedEntry(file_name=file_name, reason=str(e))
     values: dict[str, object] = {
-        "title": _humanize(file_name),
+        "title": routine_id.as_title,
         "what": " ".join(command),
         "command": tuple(command),
     }
