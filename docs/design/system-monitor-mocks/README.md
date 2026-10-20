@@ -29,7 +29,8 @@ the real app would need to become it:
   samples per snapshot), a CPU history like memory's, and per-group disk sizes
   (each chat's records, each app's data; cheap, no walk of the whole disk).
   The disk view's what's-on-it rows are the one part that needs a walk, which
-  would be cached. Read-only.
+  would be cached, and its Backups summary needs the last backup's time and
+  outcome from the backup service. Read-only.
 - `02-tabs.html` -- one resource per tab in a segmented control. Needs
   per-process CPU, a disk walk for the what's-on-it rows (slow under gVisor, so
   cached or sampled) and a backup time from the backup service. Read-only.
