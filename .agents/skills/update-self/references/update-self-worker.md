@@ -233,10 +233,11 @@ tested upstream. Enumerating consumers, grepping for retired names, and
 reasoning about coupling all exist to find user code, and with none to find
 they only spend the user's time. The footprint is read from git, and a
 scheduled task is a routine, a tracked `system/routines/<id>.toml` whose
-`command` names what runs: grep the `command` fields of every definition for
-any path the update deleted or renamed
-(`git diff --name-status --diff-filter=DR "$BASE" "$TARGET_REF"`); a hit is a
-user-created consumer, and 4a runs in full. One consumer the footprint still
+`command` or `skill` names what runs: grep the `command` fields of every
+definition for any path the update deleted or renamed
+(`git diff --name-status --diff-filter=DR "$BASE" "$TARGET_REF"`), and match
+each `skill` against the `.agents/skills/<name>/` directories that diff deleted
+or renamed; a hit is a user-created consumer, and 4a runs in full. One consumer the footprint still
 cannot see is a cron drop-in from before routines existed that
 `routines migrate-cron` left in place: those live under the gitignored
 `data/.state/cron.d`, and your worktree holds none of them (the launcher syncs
