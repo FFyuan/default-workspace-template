@@ -257,7 +257,12 @@ class DefinitionOptions(FrozenModel):
 
 
 def _definition_from_options(base: RoutineDefinition | None, options: DefinitionOptions) -> RoutineDefinition:
-    """A definition from the flags, over the existing one for an edit; raises ValidationError with the problem."""
+    """A definition from the flags, over the existing one for an edit; raises ValidationError with the problem, or
+    DefinitionValidationError for both members of an exclusive pair."""
+    if options.every is not None and options.once is not None:
+        raise DefinitionValidationError("A routine runs --every so often or --once at a moment, not both.")
+    if options.skill is not None and options.command:
+        raise DefinitionValidationError("A routine runs a --skill or a command after --, not both.")
     values: dict[str, object] = base.model_dump() if base is not None else {}
     if options.title is not None:
         values["title"] = options.title

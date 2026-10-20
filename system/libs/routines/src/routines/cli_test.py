@@ -103,6 +103,16 @@ def test_add_refuses_a_weekday_or_a_moment_it_cannot_read_in_the_commands_words(
     assert "error: once: 'tomorrow' is not a moment written as YYYY-MM-DDTHH:MM" in bad_moment.output
 
 
+def test_add_refuses_both_members_of_an_exclusive_pair(git_paths: RoutinesPaths) -> None:
+    both_schedules = _add_command_routine(git_paths, "true", once="2026-11-03T15:00")
+    assert both_schedules.exit_code == 1
+    assert "--every so often or --once at a moment, not both" in both_schedules.output
+    both_actions = _add_command_routine(git_paths, "true", skill="digest")
+    assert both_actions.exit_code == 1
+    assert "a --skill or a command after --, not both" in both_actions.output
+    assert not (git_paths.definitions_dir / "x.toml").exists()
+
+
 def test_add_needs_a_command_or_a_skill(git_paths: RoutinesPaths) -> None:
     result = _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1h")
     assert result.exit_code == 1
