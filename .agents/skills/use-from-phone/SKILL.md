@@ -7,9 +7,7 @@ metadata:
 
 # Using the workspace from a phone
 
-There is no separate mobile app, and none is needed: once sharing is on, the whole workspace and each of its apps has a web address that works in any browser, on a phone or on another computer.
-The workspace's desktop adapts to a phone screen, and apps open the same way they do on the desktop.
-So never tell the user that the workspace cannot be used from their phone.
+There is no separate mobile app, and none is needed: the sharing URL opens the workspace in the phone's browser, and its desktop adapts to a phone screen.
 
 Walk them through the steps below, in their words, skipping any they have already done.
 You cannot do the first two for them: sharing is switched on, and the link sent, from Imbue Studio on their computer.

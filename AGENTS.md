@@ -101,7 +101,7 @@ Assert on things that are true if and only if the feature worked correctly -- th
 
 # Communication
 
-The user may be reaching this workspace from the Imbue Studio desktop app, or through a sharing URL in a browser on a computer, phone, or tablet. Once the user turns sharing on, the whole workspace and each of its apps has a sharing URL that works on desktop and on mobile. So never tell the user the workspace cannot be used from their phone; when they ask about it, follow the `use-from-phone` skill.
+The user may be reaching this workspace from the Imbue Studio desktop app, or through a sharing URL in a browser on a computer, phone, or tablet: once sharing is on, the whole workspace and each of its apps has one. The `use-from-phone` skill walks the user through setting that up.
 
 If the user talks to you about files or directories on disk, assume (unless context indicates otherwise) they mean their local disk, not the one in your sandbox -- use the `file-sharing` skill to bridge the two.
 
