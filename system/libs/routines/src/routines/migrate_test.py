@@ -17,9 +17,11 @@ from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import Weekday
 from routines.state import FileStateStore
+from routines.testing import LEGACY_RUN_JOB_PATH
+from routines.testing import legacy_runner_line
 
 WRAPPER = LEGACY_ENV_WRAPPER_PATH
-RUN_JOB = "/home/user/workspace/system/libs/automations/run_job.sh"
+RUN_JOB = LEGACY_RUN_JOB_PATH
 RUN_AUTOMATION = "/home/user/workspace/system/libs/automations/run_automation.sh"
 
 
@@ -138,7 +140,7 @@ def test_migration_writes_definitions_carries_state_over_and_removes_both_copies
 ) -> None:
     root = definitions.paths.repo_root
     durable, live = legacy_cron_dir, live_cron_dir
-    entry = f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py >> /var/log/x.log 2>&1\n"
+    entry = legacy_runner_line("news-sync", "6h", "python3", "sync.py")
     (durable / "news-sync").write_text(entry)
     (live / "news-sync").write_text(entry)
     caretaker = f"* * * * * root {WRAPPER} {RUN_JOB} caretaker --every 7d --at 3 bash /x/caretaker_check.sh >> /var/log/c.log 2>&1\n"
@@ -173,7 +175,7 @@ def test_an_entry_whose_id_is_already_a_routine_stays_in_place(
 ) -> None:
     root = definitions.paths.repo_root
     durable = legacy_cron_dir
-    entry = f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py\n"
+    entry = legacy_runner_line("news-sync", "6h", "python3", "sync.py")
     (durable / "news-sync").write_text(entry)
     first = migrate_cron_entries(root, definitions, states, live_cron_dir=live_cron_dir)
     assert first.converted == (RoutineId("news-sync"),)
@@ -228,9 +230,7 @@ def test_an_entry_whose_commit_is_refused_is_still_converted_with_its_state(
 ) -> None:
     root = paths.repo_root
     durable = legacy_cron_dir
-    (durable / "news-sync").write_text(
-        f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py >> /var/log/x.log 2>&1\n"
-    )
+    (durable / "news-sync").write_text(legacy_runner_line("news-sync", "6h", "python3", "sync.py"))
     job_state = root / "data" / ".state" / "jobs" / "news-sync"
     job_state.mkdir(parents=True)
     (job_state / "failures").write_text("2\n")

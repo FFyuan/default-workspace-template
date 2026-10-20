@@ -28,6 +28,7 @@ from routines.primitives import RunTrigger
 from routines.runner import ROUTINE_ID_ENV
 from routines.state import FileStateStore
 from routines.testing import TEST_NOW
+from routines.testing import legacy_runner_line
 from routines.testing import wait_for_last_run
 
 
@@ -178,10 +179,7 @@ def test_migrate_cron_prints_what_it_converted_and_what_it_left(
     git_paths: RoutinesPaths, legacy_cron_dir: Path, live_cron_dir: Path
 ) -> None:
     wrapper = LEGACY_ENV_WRAPPER_PATH
-    converted_line = (
-        f"* * * * * root {wrapper} /home/user/workspace/system/libs/automations/run_job.sh news-sync "
-        "--every 6h python3 sync.py\n"
-    )
+    converted_line = legacy_runner_line("news-sync", "6h", "python3", "sync.py")
     (legacy_cron_dir / "news-sync").write_text(converted_line)
     (live_cron_dir / "news-sync").write_text(converted_line)
     (legacy_cron_dir / "june").write_text(f"0 0 1 6 * root {wrapper} cmd\n")

@@ -18,6 +18,7 @@ from routines.interfaces import NotifierInterface
 from routines.interfaces import RepositoryInterface
 from routines.interfaces import StateStoreInterface
 from routines.ledger import FileLedger
+from routines.migrate import LEGACY_ENV_WRAPPER_PATH
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.registry import registry_path_of
@@ -30,6 +31,17 @@ TEST_ZONE: Final[timezone] = timezone(timedelta(hours=-8))
 TEST_NOW: Final[datetime] = datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
 # The routine most of the library's tests are about.
 TEST_ROUTINE_ID: Final[RoutineId] = RoutineId("inbox-digest")
+# Where every pre-routines cron line found the retired runner.
+LEGACY_RUN_JOB_PATH: Final[str] = "/home/user/workspace/system/libs/automations/run_job.sh"
+
+
+def legacy_runner_line(job_id: str, every: str, *command: str) -> str:
+    """A cron line as the retired runner's jobs were written: every minute, through the env wrapper, run_job.sh
+    with the job, its cadence and its command, logging to the supervisor directory."""
+    return (
+        f"* * * * * root {LEGACY_ENV_WRAPPER_PATH} {LEGACY_RUN_JOB_PATH} {job_id} --every {every} "
+        f"{' '.join(command)} >> /var/log/supervisor/{job_id}.log 2>&1\n"
+    )
 
 
 def make_workspace_paths(root: Path) -> RoutinesPaths:
