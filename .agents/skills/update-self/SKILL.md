@@ -179,11 +179,10 @@ REF=$(python3 -c 'import json; print(json.load(open("/tmp/update-self-target.jso
 ```
 
 `--local-tags` reads the tags the fetch just landed. To honor a user override
-given in chat, set `PINNED_OVERRIDE` to it (`main`, `minds-v0.3.6`). The
-`|| exit 1` leaves a
-refusal's `error:` line as the last thing printed. The output carries `ref`,
-`kind`, `ceiling` and `exceeds_ceiling`; an upstream branch name such as `main`
-resolves to `upstream/main`.
+given in chat, set `PINNED_OVERRIDE` to it (`main`, `minds-v0.3.6`). The `||
+exit 1` leaves a refusal's `error:` line as the last thing printed. The output
+carries `ref`, `kind`, `ceiling` and `exceeds_ceiling`; an upstream branch name
+such as `main` resolves to `upstream/main`.
 Tell the user which version you are updating to, and never mention a release
 above `ceiling` that they did not ask for by name: the Imbue Studio app announces its
 own updates.
@@ -458,9 +457,9 @@ on a worker" in `.agents/shared/references/lead-proxy.md`.
 Per `.agents/shared/references/lead-proxy.md` (worker `update-self`, branch
 `mngr/update-self`, reports dir `data/.tasks/update-self/reports/`). A
 `question` is one of three things; you answer the first two yourself, and only
-the third reaches the user. Either way: reply via `create_worker.py reply
---task-file data/.tasks/update-self/task.md -m "..."`, consume the
-report, re-arm the poll.
+the third reaches the user. For the first two: reply via `create_worker.py
+reply --task-file data/.tasks/update-self/task.md -m "..."`, consume the
+report, re-arm the poll. The third ends the pass, as below.
 
 1. **A genuine, unresolvable merge conflict.** Decide it yourself. The default
    is to **keep this workspace's current behavior**: preserve the local
