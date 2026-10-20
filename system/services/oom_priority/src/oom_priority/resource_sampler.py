@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Final, NamedTuple
 
 from oom_priority import registry, supervisor_rpc
-from oom_priority.cgroup_meminfo import HOST_MEMINFO_PATH
+from oom_priority.cgroup_meminfo import HOST_MEMINFO_PATH, write_replacing
 from oom_priority.meminfo import PROC, read_meminfo
 
 # Where the sampler writes and the app reads, relative to the repo root (the cwd of every
@@ -240,14 +240,6 @@ def load_recent_samples(
         ):
             samples.append(Sample(int(raw[0]), float(raw[1]), float(raw[2])))
     return samples
-
-
-def write_replacing(target_path: Path, content: str) -> None:
-    """Replace the file by rename, so a reader never sees a half-written one."""
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = target_path.with_name(f"{target_path.name}.{os.getpid()}.tmp")
-    temp_path.write_text(content)
-    os.replace(temp_path, target_path)
 
 
 class MinuteAggregator:
