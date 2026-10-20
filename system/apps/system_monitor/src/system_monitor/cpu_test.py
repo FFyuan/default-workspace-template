@@ -23,7 +23,12 @@ def _write_recent(path: Path, sampled_at: float) -> None:
                     "by_pid": {"4121": 0.236, "x": 1, "4188": "bad"},
                 },
                 "memory": {"total": 8, "available": 3, "used": 5},
-                "samples": [[1000, 0.3, 0.6], [1005, 0.35, 0.62], ["bad"]],
+                "samples": [
+                    [1000, 0.3, 0.6],
+                    [1005, 0.35, 0.62],
+                    ["bad"],
+                    [1010, None, 0.62],
+                ],
             }
         )
     )

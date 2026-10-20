@@ -66,12 +66,15 @@ def read_recent(
     samples = [
         {"t": int(raw[0]), "cpu": float(raw[1]), "memory": float(raw[2])}
         for raw in data.get("samples", [])
-        if isinstance(raw, list) and len(raw) == 3
+        if isinstance(raw, list)
+        and len(raw) == 3
+        and all(isinstance(value, (int, float)) for value in raw)
     ]
+    cores, usage = data.get("cores"), cpu.get("usage")
     return RecentReading(
         sampled_at=float(sampled_at),
-        cores=int(data.get("cores") or 1),
-        usage=float(cpu.get("usage") or 0.0),
+        cores=int(cores) if isinstance(cores, (int, float)) and cores >= 1 else 1,
+        usage=float(usage) if isinstance(usage, (int, float)) else 0.0,
         by_pid=by_pid,
         samples=samples,
     )
