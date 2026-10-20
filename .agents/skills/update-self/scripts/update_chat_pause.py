@@ -34,6 +34,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from run_in_background import (
+    EXIT_DELIVERED,
+    EXIT_DELIVERED_BUT_BLOCKED,
+    messenger_argv,
+)
 from update_apply_contract import StoppedAgent
 from update_resume_note import compose_resume_note
 
@@ -81,14 +86,6 @@ MNGR_LIST_ARGV = (
 MNGR_LIST_TIMEOUT_SECONDS = 60.0
 
 MNGR_STOP_START_TIMEOUT_SECONDS = 120.0
-
-MESSAGE_CHAT_REL = Path("system") / "scripts" / "message_chat.py"
-
-# ``mngr message``'s codes, which ``message_chat.py`` passes through: delivered, and
-# delivered with the agent's input behind a dialog. Either way the note is in the chat.
-EXIT_DELIVERED = 0
-
-EXIT_DELIVERED_BUT_BLOCKED = 7
 
 RUNNER_SCRIPT_NAME = "run_in_background.py"
 
@@ -432,23 +429,6 @@ def merge_stopped(existing: list[StoppedAgent], stopped: StoppedAgent) -> None:
             existing[index] = stopped
             return
     existing.append(stopped)
-
-
-def messenger_argv(repo_root: Path, chat_id: str, message_file: Path) -> list[str]:
-    """The command that sends ``message_file`` to the chat: the workspace's chat messenger, else
-    ``mngr message`` for a tree from before it, as ``run_in_background.py`` sends."""
-    messenger = repo_root / MESSAGE_CHAT_REL
-    if messenger.is_file():
-        return [
-            sys.executable,
-            str(messenger),
-            chat_id,
-            "--message-file",
-            str(message_file),
-        ]
-    # CLEANUP: drop this fallback with run_in_background.py's, once update-self's floor (the
-    # oldest release the app updates from) reaches minds-v0.6.1, the first to ship message_chat.py.
-    return ["mngr", "message", chat_id, "--start", "--message-file", str(message_file)]
 
 
 def send_note(
