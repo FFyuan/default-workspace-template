@@ -6810,12 +6810,11 @@ def _commit_count(repo: Path) -> int:
 
 
 def test_the_starter_this_recreates_is_the_one_the_template_ships() -> None:
-    # `publish-template`, `update-installed-template` and
-    # update-published-template's ledger-entry reference all instruct an agent
-    # to recreate a ledger "byte-identical to the shipped root file", and point
-    # at this constant for the exact block. Nothing else compares the two, so a
-    # preamble edited on one side alone would silently make that instruction
-    # impossible to follow and hand a recreated ledger a different header.
+    # `publish-template`'s record_publish.py recreates a deleted ledger from
+    # this constant, and `update-installed-template` tells an agent to recreate
+    # one "byte-identical to the shipped root file" from it. Nothing else
+    # compares the two, so a preamble edited on one side alone would hand a
+    # recreated ledger a different header.
     ledger = _WORKSPACE_ROOT / update_ledger._VERSION_HISTORY_REL
     # This file ships into every workspace made from the template, and there
     # the same path is that workspace's own ledger: entries are appended to it
