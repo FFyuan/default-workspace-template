@@ -27,6 +27,7 @@ from imbue.imbue_common.mutable_model import MutableModel
 from imbue.imbue_common.primitives import NonNegativeInt
 from routines.data_types import CurrentRun
 from routines.data_types import LastRun
+from routines.data_types import LoadedRoutine
 from routines.data_types import RUN_BLOCKED_EVENT
 from routines.data_types import RUN_EVENTS_SOURCE
 from routines.data_types import RUN_FINISHED_EVENT
@@ -452,14 +453,15 @@ class Runner(MutableModel):
         with tried_lock(self.paths.tick_lock_path) as is_held:
             if not is_held:
                 return TickReport(started=(), reaped=(), is_skipped=True)
-            reaped = self._reap_dead_runs()
-            started = self._start_due_runs()
-            self._housekeep()
+            routines = self.definitions.list_routines()
+            reaped = self._reap_dead_runs(routines)
+            started = self._start_due_runs(routines)
+            self._housekeep(routines)
             return TickReport(started=tuple(started), reaped=tuple(reaped), is_skipped=False)
 
-    def _reap_dead_runs(self) -> list[RoutineId]:
+    def _reap_dead_runs(self, routines: list[LoadedRoutine]) -> list[RoutineId]:
         reaped: list[RoutineId] = []
-        for loaded in self.definitions.list_routines():
+        for loaded in routines:
             routine_id = loaded.routine_id
             state = self.states.read(routine_id)
             current = state.current_run
@@ -503,14 +505,14 @@ class Runner(MutableModel):
             reaped.append(routine_id)
         return reaped
 
-    def _start_due_runs(self) -> list[RoutineId]:
+    def _start_due_runs(self, routines: list[LoadedRoutine]) -> list[RoutineId]:
         # The state says whether a run is in flight; the lock is never probed here, since a probe takes it for
         # an instant and would refuse a run starting at that very moment. A spawn that finds the lock held
         # (a run started between the read and the spawn) exits silently, as a scheduled run does.
         now = self.clock.now()
         zone = self.clock.local_zone()
         started: list[RoutineId] = []
-        for loaded in self.definitions.list_routines():
+        for loaded in routines:
             if loaded.definition is None:
                 continue
             state = self.states.read(loaded.routine_id)
@@ -527,20 +529,20 @@ class Runner(MutableModel):
         logger.info("Starting a scheduled run of {}", routine_id)
         spawn_run_process(self.paths, routine_id, RunTrigger.SCHEDULED, RunId.generate())
 
-    def _housekeep(self) -> None:
+    def _housekeep(self, routines: list[LoadedRoutine]) -> None:
         now = self.clock.now()
         today = now.strftime("%Y-%m-%d")
         stamp_path = self.paths.housekeeping_path
         if _read_housekeeping_date(stamp_path) == today:
             return
         self.ledger.rotate_if_large(now)
-        self._prune_old_run_dirs(now)
+        self._prune_old_run_dirs(routines, now)
         stamp_path.parent.mkdir(parents=True, exist_ok=True)
         stamp_path.write_text(json.dumps({"date": today}) + "\n")
 
-    def _prune_old_run_dirs(self, now: datetime) -> None:
+    def _prune_old_run_dirs(self, routines: list[LoadedRoutine], now: datetime) -> None:
         cutoff = now.timestamp() - RUN_DIR_RETENTION.total_seconds()
-        for loaded in self.definitions.list_routines():
+        for loaded in routines:
             runs_dir = self.paths.runs_dir(loaded.routine_id)
             if not runs_dir.is_dir():
                 continue
