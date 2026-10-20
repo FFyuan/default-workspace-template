@@ -507,6 +507,16 @@ each command on its own:
    mngr stop update-self
    ```
 
+   Then consume the hold's report, so the poll re-armed when they answer waits
+   for the worker's reply (an older launcher's `await` leaves it in place, and
+   would return it at once):
+
+   ```bash
+   mkdir -p data/.tasks/update-self/reports/consumed
+   [ ! -e data/.tasks/update-self/reports/report.md ] || mv data/.tasks/update-self/reports/report.md \
+       data/.tasks/update-self/reports/consumed/$(date +%s)-question.md
+   ```
+
 3. Run Step 6's opening commands (they drop the history bridge and bring back
    any chat this pass paused), then release the `updating workspace` lease:
    `tk close "$UPDATE_LEASE_ID" "Waiting on the user's decision."`. Leave the

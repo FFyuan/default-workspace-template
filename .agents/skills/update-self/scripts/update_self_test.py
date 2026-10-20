@@ -1840,7 +1840,10 @@ def test_step_4_ends_a_hold_with_a_decision_keeping_the_worker() -> None:
     and the chats brought back by Step 6's opening, which runs on every terminal path."""
     commands = _fenced_commands(_skill_section("## 4. Proxy the `question` gate"))
     verdict = _first_index(commands, "run-status verdict NEEDS_DECISION")
-    assert verdict < _first_index(commands, "mngr stop update-self")
+    stop = _first_index(commands, "mngr stop update-self")
+    assert verdict < stop
+    # The hold's own report is consumed, so the re-land's re-armed poll waits for the reply.
+    assert stop < _first_index(commands, "reports/consumed/")
     assert not any(
         "mngr destroy" in command or "git branch" in command for command in commands
     )
