@@ -43,11 +43,12 @@
   .range { display: inline-flex; gap: 2px; }
   .range button { height: 20px; padding: 0 6px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--c-text-faint); font-size: var(--font-size-helper); cursor: pointer; }
   .range button[aria-pressed="true"] { background: var(--c-fill-active); color: var(--c-text-primary); }
-  .cores { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
-  @media (max-width: 480px) { .cores { grid-template-columns: repeat(2, 1fr); } }
-  .core { padding: 8px 10px; border-radius: var(--radius-md); background: var(--c-surface-secondary); font-size: var(--font-size-helper); color: var(--c-text-secondary); }
-  .core b { display: block; color: var(--c-text-primary); font-size: var(--font-size-body); font-variant-numeric: tabular-nums; }
-  .core .bar { margin: 4px 0 0; }
+  .backup { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: baseline; }
+  .backup .dot { align-self: center; }
+  .backup b { font-weight: var(--weight-semibold); }
+  .backup p { grid-column: 2; color: var(--c-text-secondary); font-size: var(--font-size-row); }
+  .backup a { grid-column: 2; margin-top: 6px; color: var(--c-accent); font-size: var(--font-size-row); text-decoration: none; }
+  .backup a:hover { text-decoration: underline; }
   .guard-bar { position: relative; overflow: visible; }
   .guard-bar .mark { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--c-danger); opacity: 0.7; }
   .stops .toggle { align-self: start; border: 0; border-radius: var(--radius-sm); background: none; color: var(--c-text-secondary); font-size: var(--font-size-helper); padding: 2px 6px; cursor: pointer; }
@@ -93,7 +94,6 @@
           <svg class="spark" id="cpu-spark" aria-label="CPU in use over time"></svg>
         </div>
       </div>
-      <div class="cores" id="cores"></div>
     </div>
     <div class="section">
       <h2 class="type-section">What's using the CPU</h2>
@@ -144,12 +144,13 @@
       <div class="note" style="margin-top:12px">Package caches can be cleared safely; the workspace downloads them again when needed. Temporary files (241 MB) are held in memory, not on the disk.</div>
     </div>
     <div class="section">
-      <h2 class="type-section">About this disk</h2>
-      <table class="rows"><tbody>
-        <tr><td>Size</td><td class="n" id="disk-size"></td></tr>
-        <tr><td>Can grow to <span class="tag">at the next restart</span></td><td class="n">56 GB</td></tr>
-        <tr><td>Backed up <span class="tag">encrypted, every 15 minutes</span></td><td class="n">14 min ago</td></tr>
-      </tbody></table>
+      <h2 class="type-section">Backups</h2>
+      <div class="backup">
+        <span class="dot live" aria-hidden="true"></span>
+        <span><b>Backed up 14 minutes ago.</b> Up to date.</span>
+        <p>The whole workspace is backed up every 15 minutes, encrypted, and kept for 30 days. The last 24 hours' backups all completed.</p>
+        <a href="#backups">Learn more about backups ›</a>
+      </div>
     </div>
   </section>
 </main>
@@ -169,8 +170,8 @@
   // Overview
   const tiles = [
     { id: "cpu", label: "CPU", value: `${cp}%`, unit: `of ${M.cpu.cores} cores`, series: M.history.cpu10, color: "var(--ink-cpu)", pct: cp },
-    { id: "memory", label: "Memory", value: M.size(M.memory.used), unit: `of ${M.size(M.memory.total)}`, series: M.history.mem10, color: "var(--ink-mem)", pct: mp },
-    { id: "disk", label: "Disk", value: M.sizeDecimal(M.disk.used), unit: `of ${M.sizeDecimal(M.disk.total)}`, series: null, color: "var(--ink-disk)", pct: dp },
+    { id: "memory", label: "Memory", value: `${mp}%`, unit: `of ${M.size(M.memory.total)}`, series: M.history.mem10, color: "var(--ink-mem)", pct: mp },
+    { id: "disk", label: "Disk", value: `${dp}%`, unit: `of ${M.sizeDecimal(M.disk.total)}`, series: null, color: "var(--ink-disk)", pct: dp },
   ];
   $("tiles").innerHTML = tiles.map((t, i) => `<button type="button" class="tile" data-view="${t.id}" aria-label="Open the ${t.label} view">
     <div class="label"><span>${t.label}</span><span class="chev" aria-hidden="true">›</span></div>
@@ -197,7 +198,6 @@
   $("cpu-bar").style.width = `${cp}%`;
   $("cpu-load").textContent = `load ${M.cpu.load.map((l) => l.toFixed(2)).join(" / ")}`;
   $("cpu-procs").textContent = `${M.cpu.processes} processes`;
-  $("cores").innerHTML = M.cpu.perCore.map((p, i) => `<div class="core">Core ${i + 1}<b>${p}%</b><div class="bar thin"><span class="cpu" style="width:${p}%"></span></div></div>`).join("");
   const byCpu = M.groups.filter((g) => g.cpu !== null).sort((a, b) => b.cpu - a.cpu);
   $("cpu-table").querySelector("tbody").innerHTML = byCpu.map((g) => {
     const rows = [...g.items].sort((a, b) => b.cpu - a.cpu).map((i) => `<tr><td class="sub">${M.esc(i.name)}</td><td class="n sub">${cpuText(i.cpu)}</td></tr>`).join("");
@@ -240,7 +240,6 @@
   // Disk view
   $("disk-big").innerHTML = `${M.sizeDecimal(M.disk.used)} <small>of ${M.sizeDecimal(M.disk.total)} used</small>`;
   $("disk-pct").textContent = `${dp}% used`; $("disk-free").textContent = `${M.sizeDecimal(M.disk.free)} free`;
-  $("disk-size").textContent = M.sizeDecimal(M.disk.total);
   $("disk-bar").innerHTML = M.diskBreakdown.map((d, i) => `<span style="width:${(d.bytes / M.disk.total) * 100}%;background:${DISK_SHADES[i]}" title="${M.esc(d.name)}"></span>`).join("");
   $("disk-legend").innerHTML = M.diskBreakdown.map((d, i) => `<span><i class="sw" style="background:${DISK_SHADES[i]}"></i>${M.esc(d.name)}</span>`).join("");
   $("disk-table").querySelector("tbody").innerHTML = M.diskBreakdown.map((d, i) => {
