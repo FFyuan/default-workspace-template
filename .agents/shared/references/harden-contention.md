@@ -248,6 +248,14 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    ```bash
    tk add-note <their-ticket-id> "Holder <holder> is gone; taken over by $MNGR_AGENT_NAME. Commits <range> also change $TARGET."
    ```
+
+   Then label the worker as yours. The `lead_agent` label is how the check
+   above finds you once you are renamed, and how the user's chat list files
+   the worker under the chat leading it:
+
+   ```bash
+   mngr label <worker-name> -l lead_agent=$MNGR_AGENT_ID
+   ```
 3. Find what the worker last said. A report waiting at the task file's
    `finish_report_path` is unread, and the poll in step 4 hands it to you.
    Otherwise its last report is the newest file in `consumed/` beside it: a
