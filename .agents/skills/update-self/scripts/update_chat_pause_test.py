@@ -115,6 +115,23 @@ def test_stop_chats_pauses_what_is_busy_and_resume_brings_each_back_with_one_not
     assert fake_agents.notes() == {}
 
 
+def test_a_start_the_lead_records_again_keeps_the_chats_it_has_not_resumed(
+    tmp_path: Path, fake_agents: FakeAgents
+) -> None:
+    """Re-taking its lease, or resuming after an override, records the start again."""
+    fake_agents.set_agents(
+        [chat("agent-lead", _LEAD, "RUNNING"), chat("agent-a", "Chat-A", "RUNNING")]
+    )
+    assert _main(tmp_path, "run-status", "start") == 0
+    assert _main(tmp_path, "run-status", "stop-chats") == 0
+
+    assert _main(tmp_path, "run-status", "start") == 0
+    assert _main(tmp_path, "run-status", "resume-chats") == 0
+
+    assert fake_agents.states()["Chat-A"] == "WAITING"
+    assert set(fake_agents.notes()) == {"agent-a"}
+
+
 def test_resume_chats_finishes_only_what_an_earlier_run_left_undone(
     tmp_path: Path, fake_agents: FakeAgents
 ) -> None:

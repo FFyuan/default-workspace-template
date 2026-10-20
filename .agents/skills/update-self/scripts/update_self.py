@@ -746,6 +746,18 @@ def _cmd_run_status_start(args: argparse.Namespace) -> int:
         )
         return 1
     now = time.time
+    # A start this chat records again (re-taking its lease, resuming after an override) keeps
+    # the chats it paused and has not brought back, or nothing could resume them.
+    earlier = read_run_status(repo_root)
+    still_paused = (
+        [
+            entry
+            for entry in earlier.stopped_agents
+            if not (entry.is_restarted and entry.is_told)
+        ]
+        if earlier is not None and earlier.chat_agent_name == chat_agent_name
+        else []
+    )
     write_run_status(
         RunStatus(
             chat_agent_name=chat_agent_name,
@@ -753,6 +765,7 @@ def _cmd_run_status_start(args: argparse.Namespace) -> int:
             updated_at=0.0,
             started_by=args.started_by
             or dispatched_started_by(repo_root, chat_agent_name),
+            stopped_agents=still_paused,
         ),
         repo_root,
         now,
