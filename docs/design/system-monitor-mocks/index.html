@@ -28,7 +28,9 @@
   .item .n { font-variant-numeric: tabular-nums; color: var(--faint); font-size: 12px; padding-top: 2px; }
   .item b { display: block; font-weight: 600; }
   .item span { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .item .needs { margin-top: 4px; color: var(--faint); font-size: 11px; }
   .item.divider { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 12px; border-radius: 0; }
+  .needs-line { max-width: 600px; margin-bottom: 10px; color: var(--muted); font-size: 13px; }
   .viewer { position: sticky; top: 16px; }
   .viewer .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
   .viewer .bar b { font-weight: 600; }
@@ -52,16 +54,17 @@
 </head>
 <body>
 <h1>System Monitor Mocks</h1>
-<p class="intro">Eleven static pages for the workspace's Memory &amp; disk app: the shipped page as it is today, then ten directions that each add CPU and change the layout or the information architecture. Every page uses the workspace's design tokens and the same sample data (an 8 GB machine with three chats open). Pick one on the left; it is framed at the app's usual window size.</p>
+<p class="intro">Eleven static pages for the workspace's Memory &amp; disk app: the shipped page as it is today, then ten directions that each add CPU and change the layout or the information architecture. Every page uses the workspace's design tokens and the same sample data (an 8 GB machine with three chats open). Pick one on the left; it is framed at 600 x 800 by default, with the shell's real cascade and snapped frames on a laptop desktop as alternatives. Under each name is what the real app would need to become it, since the app has to stay simple and cheap.</p>
 
 <div class="layout">
   <nav class="list" id="list" aria-label="Variants"></nav>
   <div class="viewer">
     <div class="bar">
       <b id="title"></b>
-      <div class="sizes" id="sizes"><button aria-pressed="true" data-w="600" data-h="800">600 x 800</button><button data-w="480" data-h="640">480 x 640</button><button data-w="360" data-h="560">360 x 560</button><button data-w="820" data-h="700">820 x 700</button></div>
+      <div class="sizes" id="sizes"><button aria-pressed="true" data-w="600" data-h="800" title="The size the app is expected to be used at">600 x 800</button><button data-w="864" data-h="630" title="The shell's cascade frame (60% x 70%) on a 1440 x 900 desktop">cascade 864 x 630</button><button data-w="720" data-h="900" title="Snapped to one half (50% x 100%) of a 1440 x 900 desktop">snapped 720 x 900</button><button data-w="360" data-h="560" title="A phone-sized window">360 x 560</button></div>
       <a class="open" id="open" href="#" target="_blank" rel="noopener">Open in its own tab</a>
     </div>
+    <p class="needs-line" id="needs"></p>
     <div class="frame" id="frame"><iframe id="view" title="Variant"></iframe></div>
   </div>
 </div>
@@ -75,32 +78,35 @@
   <h2>Notes</h2>
   <ul>
     <li>The sample data is shared (<code>shared/mock.js</code>): one working chat, two idle ones, a code checker, two user-built apps, one program stopped this morning. Hover a chart for the reading at that time.</li>
-    <li>Each page is self-contained HTML with no build step, like the shipped page, so whichever direction wins can keep that property.</li>
+    <li>Each page is self-contained HTML with no build step, like the shipped page, so whichever direction wins can keep that property. The headline figures come from the shared data; some pages hard-code their labels and side facts, so they are pictures rather than renderings.</li>
+    <li>Nothing in the shell gives the app a size of its own: a new window opens at the cascade frame (60% x 70% of the desktop, <code>frames.ts</code>), which is landscape on a laptop. The portrait default here is the size the app is expected to be used at; check the landscape presets before ruling out a two-column direction.</li>
     <li>Pages 03, 04 and 08 are "app chrome" layouts that fill their window; the rest are the single scrolling column of the current app.</li>
   </ul>
 </section>
 
 <script>
 (() => {
+  // Each variant: file, name, what it is, and what the real app would need to become it (data
+  // source, gathering cost, and whether it stays a read-only page).
   const variants = [
-    ["00-current.html", "Current app", "Memory &amp; disk as shipped today, reproduced with the sample data. No CPU."],
-    ["01-overview.html", "Overview tiles", "The smallest change: three tiles (CPU, memory, disk) with sparklines, then one breakdown table with a CPU column."],
-    ["02-tabs.html", "Tabs", "One resource per tab, chosen in a segmented control that carries each resource's live number; the disk tab gets a what's-on-it breakdown."],
-    ["03-activity-monitor.html", "Activity Monitor", "After macOS: toolbar, sortable process table, and a summary pane pinned to the bottom for the chosen resource."],
-    ["04-task-manager.html", "Task Manager", "After Windows: resources down the left with thumbnail graphs, a large graph and a details grid for the chosen one."],
-    ["05-usage-and-tokens.html", "Usage and tokens", "Machine meters compacted to three rows, then today's AI usage: cost, turns, tokens, spend by hour, rate-limit windows, and cost per chat."],
-    ["06-timeline.html", "Timeline", "Time first: CPU and memory on one chart over a chosen span, with stops and high-CPU stretches marked on it, and an event log."],
-    ["07-by-chat.html", "By chat", "Organised around what the user can act on: one card per chat, checker and app with its CPU, memory, idle time, and a Stop button."],
-    ["08-widget.html", "Widget", "A 300 px strip of three live meters meant to stay pinned in a corner; clicking a meter unfolds its detail."],
-    ["09-health.html", "Health first", "A verdict sentence, three ring gauges, and a to-do list of what frees the most; the breakdowns fold away."],
-    ["10-terminal.html", "Terminal style", "After htop: monospace, per-core bars, block-character history, a process list with keys along the bottom."],
+    ["00-current.html", "Current app", "Memory &amp; disk as shipped today, reproduced with the sample data. No CPU.", "Baseline. Reads /proc, supervisord and the memory guard's records every 4 s; read-only."],
+    ["01-overview.html", "Overview tiles", "The smallest change: three tiles (CPU, memory, disk) with sparklines, then one breakdown table with a CPU column.", "Needs: CPU per process (two /proc/&lt;pid&gt;/stat samples per snapshot) and a CPU history like memory's. Cheap; read-only."],
+    ["02-tabs.html", "Tabs", "One resource per tab, chosen in a segmented control that carries each resource's live number; the disk tab gets a what's-on-it breakdown.", "Needs: per-process CPU, plus a disk walk for the what's-on-it rows (slow under gVisor; would have to be cached or sampled) and a backup time from the backup service. Read-only."],
+    ["03-activity-monitor.html", "Activity Monitor", "After macOS: toolbar, sortable process table, and a summary pane pinned to the bottom for the chosen resource.", "Needs: per-process CPU and the process list already gathered, shown unaggregated. Cheap; read-only, unless the table gets a Stop action."],
+    ["04-task-manager.html", "Task Manager", "After Windows: resources down the left with thumbnail graphs, a large graph and a details grid for the chosen one.", "Needs: per-process CPU, 60-minute histories kept while the app runs (today it restarts when no window shows it), and machine facts (vCPU model, size, runtime) the app has no source for yet. Read-only."],
+    ["05-usage-and-tokens.html", "Usage and tokens", "Machine meters compacted to three rows, then today's AI usage: cost, turns, tokens, spend by hour, rate-limit windows, and cost per chat.", "Needs: a new data source. Per-chat tokens and cost come from the chat records (mngr usage reads the same events); rate-limit windows only exist for subscription accounts; cloud credits would come from the connector. Read-only, but a different app's data."],
+    ["06-timeline.html", "Timeline", "Time first: CPU and memory on one chart over a chosen span, with stops and high-CPU stretches marked on it, and an event log.", "Needs: CPU history alongside memory's, kept for up to 24 h (a few KB), and events derived from the stop ledger plus thresholds the app computes itself. Cheap; read-only."],
+    ["07-by-chat.html", "By chat", "Organised around what the user can act on: one card per chat, checker and app with its CPU, memory, idle time, and a Stop button.", "Needs: per-process CPU, idle time from the chat records, and Stop/Quit actions, which turn the monitor into a control surface (POST routes that stop agents and apps). Not read-only."],
+    ["08-widget.html", "Widget", "A 300 px strip of three live meters meant to stay pinned in a corner; clicking a meter unfolds its detail.", "Needs: per-process CPU and a pinned, title-bar-less window, which the shell offers only to taskbar entries today. Cheap data; a shell change."],
+    ["09-health.html", "Health first", "A verdict sentence, three ring gauges, and a to-do list of what frees the most; the breakdowns fold away.", "Needs: rules for the verdict and the suggestions (idle time per chat, what each would free), and the Stop/Clear/Resize actions if the suggestions are buttons rather than advice. Read-only as advice; not if actionable."],
+    ["10-terminal.html", "Terminal style", "After htop: monospace, per-core bars, block-character history, a process list with keys along the bottom.", "Needs: per-core CPU (/proc/stat) and per-process CPU; otherwise the data the app has. Cheap; read-only."],
   ];
   const $ = (id) => document.getElementById(id);
   const list = $("list"), thumbs = $("thumbs");
-  variants.forEach(([file, name, desc], i) => {
+  variants.forEach(([file, name, desc, needs], i) => {
     const b = document.createElement("button");
     b.className = `item${i === 1 ? " divider" : ""}`; b.type = "button"; b.dataset.i = i;
-    b.innerHTML = `<span class="n">${String(i).padStart(2, "0")}</span><span><b>${name}</b><span>${desc}</span></span>`;
+    b.innerHTML = `<span class="n">${String(i).padStart(2, "0")}</span><span><b>${name}</b><span>${desc}</span><span class="needs">${needs}</span></span>`;
     b.addEventListener("click", () => show(i));
     list.appendChild(b);
     const t = document.createElement("button");
@@ -114,9 +120,10 @@
   }
   window.addEventListener("resize", scaleThumbs);
   function show(i) {
-    const [file, name] = variants[i];
+    const [file, name, , needs] = variants[i];
     list.querySelectorAll(".item").forEach((b) => b.setAttribute("aria-current", String(Number(b.dataset.i) === i)));
     $("title").innerHTML = `${String(i).padStart(2, "0")} · ${name}`;
+    $("needs").innerHTML = needs;
     $("view").src = file;
     $("open").href = file;
     try { location.hash = `v${i}`; } catch (e) {}
