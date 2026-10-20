@@ -120,9 +120,8 @@ def test_a_working_routine_reads_its_schedule_and_its_last_run() -> None:
 
 
 def test_the_row_carries_the_last_runs_warnings() -> None:
-    last = _last_run(RunOutcome.SUCCEEDED, TEST_NOW - timedelta(minutes=10)).model_copy_update(
-        to_update(_last_run(RunOutcome.SUCCEEDED, TEST_NOW).field_ref().warnings, (RunWarning.RESTARTED_PREVIOUS_RUN,))
-    )
+    worked = _last_run(RunOutcome.SUCCEEDED, TEST_NOW - timedelta(minutes=10))
+    last = worked.model_copy_update(to_update(worked.field_ref().warnings, (RunWarning.RESTARTED_PREVIOUS_RUN,)))
     state = RoutineState(last_succeeded_at=TEST_NOW - timedelta(minutes=10), last_run=last)
     row = build_row(_loaded(), state, TEST_NOW, TEST_ZONE)
     assert row.last_run is not None
