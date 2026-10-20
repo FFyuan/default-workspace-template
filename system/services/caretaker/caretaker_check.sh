@@ -69,8 +69,9 @@ if command -v uv >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     [ -n "$bad_routines" ] && add_finding "routines needing attention: $bad_routines"
 fi
 
+# The marker is the full check's baseline for findings 2 and 4 (what is new since the last weekly check), so
+# the routines-only pass leaves it alone.
 if [ "$ONLY" = "routines" ]; then
-    touch "$MARKER"
     if [ -z "$FINDINGS" ]; then
         log "all routines are fine; nothing to report"
         exit 0
