@@ -1965,6 +1965,11 @@ def _branch_deletion_refusal(branches: Sequence[str], runner: Runner) -> str | N
     first therefore passes, and so does one whose pass has been merged. Unlike
     the other git probes this one fails closed: a branch whose history git
     cannot read is not deleted on a guess.
+
+    ``branches`` are checked in order, and a branch the message says to keep
+    counts as kept for the ones after it. Passed lead-first, a worker whose
+    commits are merged into its lead's branch therefore needs no keep of its
+    own.
     """
     listing = _git_output(
         ["git", "for-each-ref", "--format=%(refname)", "refs/heads/"], runner
@@ -1999,6 +2004,7 @@ def _branch_deletion_refusal(branches: Sequence[str], runner: Runner) -> str | N
                 keep_as = f"{stem}-{suffix}"
                 suffix += 1
             taken.add(f"refs/heads/{keep_as}")
+            kept.append(f"refs/heads/{branch}")
             lines.append(
                 f"  {branch}: {count} commit(s) on no other branch; keep them with:\n"
                 f"    git branch {keep_as} {branch}"
@@ -2100,8 +2106,8 @@ def destroy(
     doomed_subtree = subtree if recursive else ()
     own = _record_named(records, name)
     if delete_branches and not discard_unmerged:
-        branches = [_record_branch(r) for r in doomed_subtree]
-        branches.append(f"mngr/{name}" if own is None else _record_branch(own))
+        branches = [f"mngr/{name}" if own is None else _record_branch(own)]
+        branches.extend(_record_branch(r) for r in reversed(doomed_subtree))
         refusal = _branch_deletion_refusal(branches, runner)
         if refusal is not None:
             print(f"create_worker: not destroying {name}: {refusal}", file=sys.stderr)

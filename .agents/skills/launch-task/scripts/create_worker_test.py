@@ -2667,9 +2667,9 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     assert _lifecycle_argvs(runner) == []
     err = capsys.readouterr().err
     assert f"mngr/{root}: 2 commit(s)" in err
-    assert f"mngr/{child}: 1 commit(s)" in err
-    # Keeping the pass's branch alone lets the destroy through: the sub-worker's
-    # commit is merged into it.
+    # The sub-worker's commit is merged into the pass's branch, so keeping that
+    # one alone keeps it and lets the destroy through.
+    assert f"mngr/{child}" not in err
     keep = f"git branch superseded/{root}-2 mngr/{root}"
     assert keep in err
     _git(repo, *keep.split()[1:])
@@ -2710,8 +2710,8 @@ def test_delete_branches_names_a_distinct_keep_branch_for_each_doomed_branch(
 
     assert rc == 2
     err = capsys.readouterr().err
-    assert f"git branch superseded/{root} {root}\n" in err
-    assert f"git branch superseded/{root}-2 mngr/{root}\n" in err
+    assert f"git branch superseded/{root} mngr/{root}\n" in err
+    assert f"git branch superseded/{root}-2 {root}\n" in err
 
 
 def test_delete_branches_goes_ahead_once_the_pass_is_merged(tmp_path: Path) -> None:
