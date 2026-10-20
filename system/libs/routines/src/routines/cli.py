@@ -7,6 +7,7 @@ from collections.abc import Callable
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
+from typing import NoReturn
 
 import click
 from pydantic import BaseModel
@@ -105,7 +106,7 @@ def _run_line(run: RunRecord) -> str:
     return f"{run.run_id}  {run.started_at:%Y-%m-%d %H:%M}  {run.trigger.lower():9} {run.outcome_text:14} {run.duration_text}{summary}"
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> NoReturn:
     click.echo(f"error: {message}", err=True)
     sys.exit(1)
 
@@ -141,7 +142,6 @@ def show_command(routine_id: str, output_format: str) -> None:
         detail = _service().detail(RoutineId(routine_id))
     except RoutinesError as e:
         _fail(str(e))
-        return
     if output_format == JSON_FORMAT:
         _print_json(detail)
         return
@@ -275,10 +275,8 @@ def add_command(routine_id: str, **options: object) -> None:
         path = _service().add(RoutineId(routine_id), definition)
     except ValidationError as e:
         _fail(describe_validation_error(e))
-        return
     except RoutinesError as e:
         _fail(str(e))
-        return
     click.echo(f"Added {routine_id} at {path}")
 
 
@@ -295,10 +293,8 @@ def edit_command(routine_id: str, **options: object) -> None:
         path = service.replace(RoutineId(routine_id), definition, "edit")
     except ValidationError as e:
         _fail(describe_validation_error(e))
-        return
     except RoutinesError as e:
         _fail(str(e))
-        return
     click.echo(f"Updated {routine_id} at {path}")
 
 
@@ -310,7 +306,6 @@ def enable_command(routine_id: str) -> None:
         _service().set_enabled(RoutineId(routine_id), True)
     except RoutinesError as e:
         _fail(str(e))
-        return
     click.echo(f"Turned {routine_id} on")
 
 
@@ -322,7 +317,6 @@ def disable_command(routine_id: str) -> None:
         _service().set_enabled(RoutineId(routine_id), False)
     except RoutinesError as e:
         _fail(str(e))
-        return
     click.echo(f"Turned {routine_id} off")
 
 
@@ -351,7 +345,6 @@ def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | No
             receipt = service.start_run_detached(RoutineId(routine_id))
         except RoutinesError as e:
             _fail(str(e))
-            return
         click.echo(receipt.model_dump_json())
         return
     try:
@@ -361,10 +354,8 @@ def run_command(routine_id: str, is_waited: bool, trigger: str, run_id: str | No
         if run_trigger is RunTrigger.SCHEDULED:
             return
         _fail(str(e))
-        return
     except RoutinesError as e:
         _fail(str(e))
-        return
     if run_id is not None:
         # A spawned run's stdout is its own log, which already has what the run wrote.
         return
@@ -386,7 +377,6 @@ def runs_command(routine_id: str, limit: int, output_format: str) -> None:
         records = _service().runs(RoutineId(routine_id), limit)
     except RoutinesError as e:
         _fail(str(e))
-        return
     if output_format == JSON_FORMAT:
         _print_json(records)
         return
@@ -408,7 +398,6 @@ def log_command(routine_id: str, run_id: str | None) -> None:
         text, is_truncated = service.log_tail(RoutineId(routine_id), wanted)
     except RoutinesError as e:
         _fail(str(e))
-        return
     if is_truncated:
         click.echo("... (earlier output left out)")
     click.echo(text, nl=False)
@@ -422,7 +411,6 @@ def remove_command(routine_id: str) -> None:
         _service().remove(RoutineId(routine_id))
     except RoutinesError as e:
         _fail(str(e))
-        return
     click.echo(f"Removed {routine_id}")
 
 
@@ -461,7 +449,6 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
         )
     except RoutinesError as e:
         _fail(str(e))
-        return
     run_dir = os.environ.get(RUN_DIR_ENV, "")
     if run_dir:
         result = RunResult(summary=outcome.summary, chat_id=outcome.chat_id)
@@ -488,7 +475,6 @@ def migrate_cron_command() -> None:
         report = migrate_cron_entries(service.paths.repo_root, service.definitions, service.states)
     except RoutinesError as e:
         _fail(str(e))
-        return
     for routine_id in report.converted:
         click.echo(f"converted {routine_id}")
     if report.enabled_caretaker:
