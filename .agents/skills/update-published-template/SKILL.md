@@ -298,6 +298,14 @@ approved in §2e, plus any newly-added path), the `exclude` list and
 `modification_rules` from §2c, the new version `v(n+1)`, and a one-line
 description of what changed for the changelog entry.
 
+Once the tree is committed, and before launching, capture the commit the worker
+is cut from -- §8 records it as the anchor the next update diffs from, so take it
+now, before the workspace moves on:
+
+```bash
+SOURCE_SHA="$(git rev-parse HEAD)"
+```
+
 Set `source_artifacts_dir: data/.tasks/launch-task/<slug>` in the task frontmatter so
 the bundle is pushed to the worker. The task body directs the worker to:
 
@@ -502,11 +510,12 @@ SKIP this entirely: an update that did not publish is never recorded.
 ```bash
 python3 "$PT/record_publish.py" --workspace /home/user/workspace --slug <slug> \
     --repo-url "github.com/<owner>/<repo>" --note "<one line: what changed>" \
-    --source-sha "$(git -C /home/user/workspace rev-parse HEAD)"
+    --source-sha "$SOURCE_SHA"
 ```
 
-The source sha is the workspace commit this update was cut from (not `BASE_REF`,
-not the published tip, nothing from `$WT`). The script computes `v(n+1)` itself,
+`SOURCE_SHA` is the workspace commit this update was cut from, captured in §3b
+(not the workspace's HEAD now, which may have moved on; not `BASE_REF`, not the
+published tip, nothing from `$WT`). The script computes `v(n+1)` itself,
 appends it under the slug's heading, and commits that one file; recording the
 same note at the same sha again changes nothing. If it reports a failed commit,
 the update IS published -- say so, and commit the file rather than re-pushing.
