@@ -157,7 +157,6 @@ class RoutinesService(MutableModel):
         )
         validated = RoutineDefinition.model_validate(updated.model_dump())
         self.definitions.replace(routine_id, validated, "change the schedule")
-        # A rescheduled routine is judged from now, not from an attempt made under the old schedule.
         return validated
 
     def remove(self, routine_id: RoutineId) -> None:
