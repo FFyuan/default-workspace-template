@@ -528,8 +528,11 @@
       $("cpu-bar").style.width = `${hasCpu ? cp : 0}%`;
       $("cpu-when").textContent = hasCpu ? `read ${ago(Date.now() / 1000 - s.cpu.sampled_at)}` : "the sampler has not reported";
       $("cpu-procs").textContent = `${s.cpu.processes} process${s.cpu.processes === 1 ? "" : "es"}`;
-      const byCpu = s.usage.filter((g) => g.cpu !== null && g.cpu !== undefined).sort((a, b) => b.cpu - a.cpu)
-        .map((g) => ({ ...g, items: [...g.items].sort((a, b) => (b.cpu || 0) - (a.cpu || 0)) }));
+      // Sorted by share; without a reading, the rows that have processes keep their order and show dashes.
+      const byCpu = hasCpu
+        ? s.usage.filter((g) => g.cpu !== null && g.cpu !== undefined).sort((a, b) => b.cpu - a.cpu)
+          .map((g) => ({ ...g, items: [...g.items].sort((a, b) => (b.cpu || 0) - (a.cpu || 0)) }))
+        : s.usage.filter((g) => ["chats", "checkers", "workspace", "apps"].includes(g.id));
       renderUsage("cpu-table", byCpu, ["cpu"]);
       renderEvents("busy", s.events.filter((e) => e.kind === "busy"), "No busy stretches in the last 24 hours.");
       drawChart("cpu");
