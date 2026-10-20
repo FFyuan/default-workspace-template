@@ -189,7 +189,7 @@ fi
 
 A clean published repo prints nothing and exits 0; read the output, not the exit
 code. `NO BASE` means the tip is `template:` snapshots all the way down -- a
-parentless publish that `push_snapshot.py` refuses to make -- and the
+parentless publish that `push_snapshot.py` cannot make -- and the
 question cannot be answered at all, so STOP and surface that rather than
 reading it as clean.
 

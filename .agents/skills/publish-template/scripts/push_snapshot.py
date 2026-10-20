@@ -10,14 +10,13 @@ In order, and stopping at the first failure with nothing pushed:
 
   1. the worktree must be clean -- anything uncommitted would be left out;
   2. the pre-push gate: `validate_template.py --pre-push` over the worktree;
-  3. one commit is minted from the worktree's final tree, parented on `--parent`.
-     The worktree's own branch is never pushed: its intermediate commits hold
-     the pre-cleanup states (a value a published-version modification removed,
-     the raw assembly), and only the final tree may leave the machine;
-  4. the commit must descend from `--parent` and have history below it. A
-     parentless snapshot shares no merge-base with the template, so an adopter
-     could never merge it cleanly;
-  5. it is pushed to `main` as a fast-forward, never forced. A rejection means
+  3. one commit is minted from the worktree's final tree, parented on `--parent`
+     (a parentless snapshot would share no merge-base with the template, so an
+     adopter could never merge it cleanly). The worktree's own branch is never
+     pushed: its intermediate commits hold the pre-cleanup states (a value a
+     published-version modification removed, the raw assembly), and only the
+     final tree may leave the machine;
+  4. it is pushed to `main` as a fast-forward, never forced. A rejection means
      the published `main` moved since the parent was read, and someone else's
      work is there.
 
@@ -138,15 +137,9 @@ def mint_snapshot(worktree: Path, parent: str, message: str) -> str:
             f"--parent {parent!r} is not a commit in {worktree}; re-resolve it "
             "(BASE_REF for a first publish, the published tip for an update)"
         ) from e
-    snapshot = _git(
+    return _git(
         worktree, "commit-tree", "HEAD^{tree}", "-p", parent_commit, "-m", message
     )
-    _git(worktree, "merge-base", "--is-ancestor", parent_commit, snapshot)
-    if int(_git(worktree, "rev-list", "--count", snapshot)) < 2:
-        raise PushSnapshotError(
-            f"the snapshot {snapshot} has no history below it; re-resolve the parent"
-        )
-    return snapshot
 
 
 def main(argv: list[str] | None = None) -> int:
