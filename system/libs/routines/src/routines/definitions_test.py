@@ -142,7 +142,7 @@ def test_removing_a_routine_deletes_the_file_and_commits_the_deletion(
         ({"once": "2026-11-03T15:00:00Z", "command": ["true"]}, "without a zone"),
     ],
 )
-def test_a_definition_that_says_two_things_at_once_is_refused_with_a_reason(
+def test_a_definition_that_does_not_say_what_a_routine_is_is_refused_with_a_reason(
     fields: dict[str, object], problem: str
 ) -> None:
     with pytest.raises(ValidationError, match=problem):
