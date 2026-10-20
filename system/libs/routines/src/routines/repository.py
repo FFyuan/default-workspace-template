@@ -24,6 +24,10 @@ COULD_NOT_SAVE_MESSAGE: Final[str] = (
 _ANOTHER_WRITER_MARKERS: Final[tuple[str, ...]] = ("index.lock", "MERGE_HEAD", "merge in progress", "merging")
 
 
+def _is_another_writer(failure: str) -> bool:
+    return any(marker in failure for marker in _ANOTHER_WRITER_MARKERS)
+
+
 class GitRepository(RepositoryInterface):
     """Commits through the git command, one path at a time, retrying once past another writer."""
 
@@ -34,13 +38,16 @@ class GitRepository(RepositoryInterface):
         first = self._try_commit(relative, message)
         if first is None:
             return
-        logger.debug("Retrying the commit of {} once: {}", relative, first)
+        if not _is_another_writer(first):
+            logger.warning("Could not commit {}: {}", relative, first)
+            raise DefinitionCommitError(f"Couldn't save that change: {first}")
+        logger.debug("Retrying the commit of {} once past another writer: {}", relative, first)
         self.clock.pause(_RETRY_PAUSE_SECONDS)
         second = self._try_commit(relative, message)
         if second is None:
             return
         logger.warning("Could not commit {}: {}", relative, second)
-        if any(marker in second for marker in _ANOTHER_WRITER_MARKERS):
+        if _is_another_writer(second):
             raise DefinitionCommitError(COULD_NOT_SAVE_MESSAGE)
         raise DefinitionCommitError(f"Couldn't save that change: {second}")
 
