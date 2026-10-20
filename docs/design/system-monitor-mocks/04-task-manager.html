@@ -52,7 +52,7 @@
   const M = window.MOCK, $ = (id) => document.getElementById(id);
   const W = 60 * 60e3;
   const resources = {
-    cpu: { name: "CPU", val: "37%", sub: "4 cores", series: M.history.cpu60, color: "var(--ink-cpu)", title: "% busy over 60 seconds", top: "100%",
+    cpu: { name: "CPU", val: "37%", sub: "4 cores", series: M.history.cpu60, color: "var(--ink-cpu)", title: "% busy", top: "100%",
       kv: [["Usage", "37", "%"], ["Load", "1.48", "1 min"], ["Processes", "142", ""], ["Threads", "611", ""], ["Up time", "2 d 6 h", ""], ["Busiest", "Website redesign", "24%"]],
       specs: [["Cores", "4 vCPU (AMD EPYC)"], ["Machine size", "8 units"], ["Runtime", "gVisor"]], cores: true },
     memory: { name: "Memory", val: "5.1/8.0 GB (64%)", sub: "", series: M.history.mem60, color: "var(--ink-mem)", title: "Memory in use", top: "8.0 GB",
