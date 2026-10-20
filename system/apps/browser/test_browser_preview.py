@@ -101,7 +101,7 @@ def live_repo_root(repo_root_on_disk: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @contextlib.contextmanager
-def _preview_beside_the_live_service(repo_root: Path) -> Iterator[dict[str, int]]:
+def _preview_beside_the_live_service(repo_root: Path) -> Generator[dict[str, int]]:
     """Boot the browser's preview while the live service's ports are taken, yield its ports once its restore has
     finished, and take it down on the way out."""
     health_path = load_manifest(_APP_DIR / "app.toml").preview.health_path
