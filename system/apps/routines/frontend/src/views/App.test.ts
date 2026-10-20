@@ -6,7 +6,10 @@ import { detailOf, listingOf, rowOf, runDetailOf, runOf, scheduleFormOf } from "
 import { AppModel, IDLE_REFRESH_MS, RUNNING_REFRESH_MS, type AppHost } from "./App";
 
 const requests: string[] = [];
+const bodies: unknown[] = [];
 let answer: () => unknown = () => listingOf([]);
+/** A refusal scripted for one method: the server's status and detail. */
+let refusal: { method: string; status: number; detail: string } | null = null;
 
 function host(): AppHost & { locations: [string, string][]; navigated: string[] } {
   const locations: [string, string][] = [];
@@ -21,17 +24,30 @@ function host(): AppHost & { locations: [string, string][]; navigated: string[] 
   };
 }
 
-/** Let every pending fetch and the continuations after it run. */
+/** Let every pending fetch and the continuations after it run: an action, the reload it ends in, and
+ * the parsing of a refusal's body each take a few ticks. */
 async function settle(): Promise<void> {
-  for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  for (let i = 0; i < 20; i += 1) await Promise.resolve();
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
   requests.length = 0;
+  bodies.length = 0;
   answer = () => listingOf([]);
+  refusal = null;
   vi.stubGlobal("fetch", (url: string, init?: RequestInit) => {
-    requests.push(`${init?.method ?? "GET"} ${url}`);
+    const method = init?.method ?? "GET";
+    requests.push(`${method} ${url}`);
+    bodies.push(typeof init?.body === "string" ? JSON.parse(init.body) : undefined);
+    if (refusal !== null && refusal.method === method) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ detail: refusal.detail }), {
+          status: refusal.status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
     const body = answer();
     return Promise.resolve(
       new Response(body === undefined ? null : JSON.stringify(body), {
@@ -185,5 +201,95 @@ describe("AppModel", () => {
     expect(requests).toEqual(["GET /api/routines/news-sync", "DELETE /api/routines/news-sync"]);
     expect(page.navigated).toEqual(["/"]);
     expect(model.loaded.kind).toBe("routine");
+  });
+
+  it("starts a run on request, busy until the page has been read again", async () => {
+    answer = () => detailOf();
+    const model = new AppModel("/news-sync", host(), () => undefined);
+    await model.load();
+
+    model.runNow();
+    expect(model.isBusy).toBe(true);
+    await settle();
+
+    expect(requests).toEqual([
+      "GET /api/routines/news-sync",
+      "POST /api/routines/news-sync/run",
+      "GET /api/routines/news-sync",
+    ]);
+    expect(model.isBusy).toBe(false);
+    expect(model.toasts.current()).toEqual([]);
+    model.dispose();
+  });
+
+  it("switches the routine to the opposite of what the page shows", async () => {
+    answer = () => detailOf({ row: rowOf({ is_enabled: true }) });
+    const model = new AppModel("/news-sync", host(), () => undefined);
+    await model.load();
+
+    model.toggleEnabled();
+    await settle();
+
+    expect(requests[1]).toBe("PUT /api/routines/news-sync/enabled");
+    expect(bodies[1]).toEqual({ is_enabled: false });
+    model.dispose();
+  });
+
+  it("saves the schedule and closes the editor, or keeps the form up with the refusal's reason", async () => {
+    answer = () => detailOf();
+    const model = new AppModel("/news-sync", host(), () => undefined);
+    await model.load();
+    model.scheduleForm = scheduleFormOf({ count: "2", unit: "h", at: "", days: [] });
+
+    model.saveSchedule();
+    await settle();
+
+    expect(requests[1]).toBe("PUT /api/routines/news-sync/schedule");
+    expect(bodies[1]).toEqual({ every: "2h", at: null, days: [], day_of_month: null, once: null });
+    expect(model.scheduleForm).toBeNull();
+
+    refusal = { method: "PUT", status: 400, detail: "a time of day needs a cadence of a day or longer" };
+    const form = scheduleFormOf({ count: "15", unit: "m", at: "07:30", days: [] });
+    model.scheduleForm = form;
+    model.saveSchedule();
+    await settle();
+
+    expect(model.scheduleForm).toBe(form);
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual([
+      "Couldn't change the schedule: a time of day needs a cadence of a day or longer",
+    ]);
+    model.dispose();
+  });
+
+  it("opens a fix chat and says so", async () => {
+    answer = () => detailOf();
+    const model = new AppModel("/news-sync", host(), () => undefined);
+    await model.load();
+
+    model.fix();
+    await settle();
+
+    expect(requests[1]).toBe("POST /api/routines/news-sync/fix");
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual([
+      "A chat is opening with everything the agent needs to start.",
+    ]);
+    model.dispose();
+  });
+
+  it("reports a refused action with the server's reason and reads the page again", async () => {
+    answer = () => detailOf();
+    const model = new AppModel("/news-sync", host(), () => undefined);
+    await model.load();
+    refusal = { method: "POST", status: 409, detail: "A run of news-sync is already going." };
+
+    model.runNow();
+    await settle();
+
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual([
+      "Couldn't start it: A run of news-sync is already going.",
+    ]);
+    expect(requests[2]).toBe("GET /api/routines/news-sync");
+    expect(model.isBusy).toBe(false);
+    model.dispose();
   });
 });
