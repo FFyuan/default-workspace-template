@@ -45,11 +45,11 @@ SUPERVISOR_LOG_DIR = Path("/var/log/supervisor")
 
 STATE_DIR = Path("data/.state")
 
-# Durable home for user-editable cron entries. /etc/cron.d lives on the
-# container rootfs and is lost when the container is recreated; files under
-# data/.state/cron.d persist with the container volume, and the bootstrap
-# installs them into /etc/cron.d at each boot. The entry file is still the
-# on/off switch for its job -- it just lives where it survives.
+# The durable copies of the cron entries a workspace wrote before routines
+# existed: what `routines migrate-cron` could not convert stays here, and the
+# bootstrap installs it into /etc/cron.d (on the container rootfs, lost when
+# the container is recreated) at each boot. Scheduled work is otherwise a
+# routine; nothing new is written here.
 RUNTIME_CRON_DIR = STATE_DIR / "cron.d"
 # cron silently ignores drop-ins with dots or other odd characters in their
 # names; install only names it will accept and warn about the rest.
