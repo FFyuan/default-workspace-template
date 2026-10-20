@@ -451,12 +451,27 @@ class Runner(MutableModel):
                 continue
             if is_lock_held(self.paths.run_lock_path(routine_id)):
                 continue
+            now = self.clock.now()
+            kind = loaded.definition.kind if loaded.definition is not None else RunKind.COMMAND
+            last_run = LastRun(
+                run_id=current.run_id,
+                trigger=current.trigger,
+                kind=kind,
+                outcome=RunOutcome.INTERRUPTED,
+                summary=INTERRUPTED_SUMMARY,
+                started_at=current.started_at,
+                finished_at=now,
+            )
+            # The state is closed under its lock and only while it still names the run: a run that finished
+            # between the read above and here closed its own books, and gets no second finish.
+            closed = self.states.update(routine_id, _closing_off(current.run_id, last_run))
+            if closed.last_run != last_run:
+                continue
             logger.warning(
                 "Closing off the run {} of {}: its process is gone",
                 current.run_id,
                 routine_id,
             )
-            now = self.clock.now()
             self.ledger.append(
                 RunFinishedEvent(
                     **_envelope(RUN_FINISHED_EVENT, now),
@@ -471,17 +486,6 @@ class Runner(MutableModel):
                     output_tail=read_output_tail(self.paths.run_log_path(routine_id, current.run_id)),
                 )
             )
-            kind = loaded.definition.kind if loaded.definition is not None else RunKind.COMMAND
-            last_run = LastRun(
-                run_id=current.run_id,
-                trigger=current.trigger,
-                kind=kind,
-                outcome=RunOutcome.INTERRUPTED,
-                summary=INTERRUPTED_SUMMARY,
-                started_at=current.started_at,
-                finished_at=now,
-            )
-            self.states.update(routine_id, _closing_off(last_run))
             reaped.append(routine_id)
         return reaped
 
@@ -537,8 +541,12 @@ class Runner(MutableModel):
                     logger.warning("Could not prune the run directory {}: {}", run_dir, e)
 
 
-def _closing_off(last_run: LastRun) -> Callable[[RoutineState], RoutineState]:
+def _closing_off(run_id: RunId, last_run: LastRun) -> Callable[[RoutineState], RoutineState]:
+    """Close the books on the run, unless the state no longer names it as the one in flight."""
+
     def close(state: RoutineState) -> RoutineState:
+        if state.current_run is None or state.current_run.run_id != run_id:
+            return state
         return state.model_copy_update(
             to_update(state.field_ref().current_run, None),
             to_update(state.field_ref().last_run, last_run),

@@ -10,9 +10,11 @@ from chat_background_tasks.markers import is_pid_alive
 from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
+from routines.data_types import LastRun
 from routines.data_types import RUN_EVENTS_SOURCE
 from routines.data_types import RUN_STARTED_EVENT
 from routines.data_types import RoutineDefinition
+from routines.data_types import RoutineState
 from routines.data_types import RunFinishedEvent
 from routines.data_types import RunStartedEvent
 from routines.definitions import FileDefinitionStore
@@ -23,6 +25,7 @@ from routines.locks import held_lock
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.mock_notifier_test import RecordingNotifier
+from routines.paths import RoutinesPaths
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
 from routines.primitives import RunId
@@ -377,6 +380,61 @@ def test_a_new_streak_after_an_unsent_recovery_post_is_still_announced(
         "Nightly sync has failed once.",
     ]
     assert states.read(SYNC).is_failure_notified is True
+
+
+class StaleReadStateStore(FileStateStore):
+    """Answers one read with a state read just before the run finished, as a reaper racing the run sees it."""
+
+    stale: RoutineState | None = None
+
+    def read(self, routine_id: RoutineId) -> RoutineState:
+        if self.stale is not None:
+            stale, self.stale = self.stale, None
+            return stale
+        return super().read(routine_id)
+
+
+def test_the_tick_leaves_a_run_that_finished_while_it_was_looking_alone(
+    paths: RoutinesPaths,
+    definitions: FileDefinitionStore,
+    ledger: FileLedger,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+    clock: FakeClock,
+) -> None:
+    _command_routine(definitions, "true", enabled=False)
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    run_id = RunId.generate()
+    finished = LastRun(
+        run_id=run_id,
+        trigger=RunTrigger.SCHEDULED,
+        kind=RunKind.COMMAND,
+        outcome=RunOutcome.SUCCEEDED,
+        summary="all done",
+        started_at=clock.now(),
+        finished_at=clock.now(),
+    )
+    states = StaleReadStateStore(paths=paths)
+    states.update(SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().last_run, finished)))
+    states.stale = RoutineState(
+        current_run=CurrentRun(run_id=run_id, pid=dead.pid, trigger=RunTrigger.SCHEDULED, started_at=clock.now())
+    )
+    runner = Runner(
+        paths=paths,
+        definitions=definitions,
+        states=states,
+        ledger=ledger,
+        chat_app=chat_app,
+        notifier=notifier,
+        clock=clock,
+    )
+
+    report = runner.tick()
+
+    assert report.reaped == ()
+    assert states.read(SYNC).last_run == finished
+    assert ledger.events_of_run(SYNC, run_id) == []
 
 
 def test_the_tick_closes_off_a_run_whose_pid_now_belongs_to_another_process(
