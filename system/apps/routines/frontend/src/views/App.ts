@@ -21,7 +21,7 @@ import {
   type RoutineListing,
   type RunDetail,
 } from "../models/api";
-import { pageOf, routinePathOf, titleOf, type Page } from "../models/routing";
+import { pageOf, routinePathOf, runPathOf, titleOf, type Page } from "../models/routing";
 import { changeOf, formOf, type ScheduleForm } from "../models/schedule";
 import { ListPage } from "./ListPage";
 import { RoutinePage } from "./RoutinePage";
@@ -87,7 +87,10 @@ export class AppModel {
             fetchDetail(this.page.routineId),
           ]);
           this.loaded = { kind: "run", detail, routineTitle: routine.row.title };
-          this.host.reportLocation(location.pathname, titleOf(this.page, routine.row.title));
+          this.host.reportLocation(
+            runPathOf(this.page.routineId, this.page.runId),
+            titleOf(this.page, routine.row.title),
+          );
           break;
         }
       }
