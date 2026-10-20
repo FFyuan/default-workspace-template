@@ -43,6 +43,8 @@ _SUPERVISORD_DROPIN_DIR: Final[RepoRelativePath] = RepoRelativePath(
     "system/supervisord.conf.d"
 )
 
+LOCKFILE: Final[RepoRelativePath] = RepoRelativePath("uv.lock")
+
 # Applied to every footprint and never written in a manifest: vendored subtrees, gitignored
 # runtime state, installed dependencies, and build output are nobody's creation.
 BUILT_IN_EXCLUDES: Final[tuple[ExcludeGlob, ...]] = (
@@ -166,6 +168,11 @@ class DiffSummary(FrozenModel):
     others: tuple[RepoRelativePath, ...] = Field(
         description="The changed files that are neither in a footprint nor the pass's own: other "
         "work that landed in the window; empty without a fork point",
+    )
+    lockfile_base: NonEmptyStr | None = Field(
+        description="The commit a changed uv.lock is compared against to tell what the pass upgraded: "
+        "the fork point, or the merge base of the diff base and the fork point when a commit of the "
+        "pass's before the fork point changed the lock; null without a fork point",
     )
 
 
@@ -562,6 +569,9 @@ class PassOwnChanges(FrozenModel):
 
     fork_point: NonEmptyStr = Field(description="Where the pass's branch forked from the lead")
     files: frozenset[RepoRelativePath] = Field(description="Every file the pass changed")
+    lockfile_base: NonEmptyStr = Field(
+        description="The commit before every change of the pass's to uv.lock"
+    )
 
 
 def list_footprint_commit_files(
@@ -602,13 +612,15 @@ def find_pass_own_changes(
     """What the pass changed: everything ``diff_ref`` changes relative to its fork point from
     ``lead_ref``, and every file of a commit the lead made in the window before that point that
     touched a creation in the pass, which is how the change being hardened reached the branch.
-    Another chat's commit that touched none of them is not the pass's."""
+    Another chat's commit that touched none of them is not the pass's. When such a commit
+    changed ``uv.lock``, the lock is compared from the window's start, so that upgrade counts."""
     fork_point = find_fork_point(repo_root, lead_ref, diff_ref)
-    window_start = _run_git(repo_root, ("merge-base", diff_base, fork_point)).strip()
+    window_start = NonEmptyStr(_run_git(repo_root, ("merge-base", diff_base, fork_point)).strip())
+    before_fork = list_footprint_commit_files(repo_root, window_start, fork_point, creations)
     return PassOwnChanges(
         fork_point=fork_point,
-        files=frozenset(list_changed_files(repo_root, fork_point, diff_ref).files)
-        | list_footprint_commit_files(repo_root, window_start, fork_point, creations),
+        files=frozenset(list_changed_files(repo_root, fork_point, diff_ref).files) | before_fork,
+        lockfile_base=window_start if LOCKFILE in before_fork else fork_point,
     )
 
 
@@ -690,6 +702,7 @@ def _summarize_diff(
             outside_footprint=outside_footprint,
             fork_point=None,
             others=(),
+            lockfile_base=None,
         )
     own_files = own.files
     inside_files = frozenset(inside_footprint)
@@ -703,6 +716,7 @@ def _summarize_diff(
         others=tuple(
             path for path in changed.files if path not in inside_files and path not in own_files
         ),
+        lockfile_base=own.lockfile_base,
     )
 
 

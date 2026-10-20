@@ -622,6 +622,33 @@ def test_a_pass_gate_reads_its_lock_change_from_the_fork_point_not_the_diff_base
     assert "uv run pytest system/libs/midlib" not in commands
 
 
+def test_a_pass_gate_runs_what_the_hardened_changes_own_lock_upgrade_reaches(tmp_path: Path) -> None:
+    """The change being hardened upgraded a package before the worker forked, and the worker left
+    the lock alone: that upgrade is still the pass's, so its dependents run."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    diff_base = commit_changes(repo_root, {"uv.lock": selection_lock("2.0")}, "lock")
+    commit_changes(
+        repo_root,
+        {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n", "uv.lock": selection_lock("2.1")},
+        "the chat's change, with the upgrade it needed",
+    )
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(
+        repo_root,
+        {".agents/skills/refresh/scripts/refresh_test.py": "def test_refresh_twice() -> None:\n    pass\n"},
+        "harden refresh",
+    )
+    scope_path = tmp_path / "scope.json"
+
+    scope = _write_pass_scope(repo_root, scope_path, ["skill:refresh"], diff_base, "main")
+    commands = _selected_commands(repo_root, scope_path)
+
+    assert scope["diff"]["outside_footprint"] == ["uv.lock"]
+    assert "uv run pytest system/libs/corelib" in commands
+    assert "uv run pytest system/libs/midlib" in commands
+
+
 def test_a_pass_gate_refuses_a_scope_file_that_no_longer_describes_the_tree(tmp_path: Path) -> None:
     repo_root = tmp_path / "workspace"
     build_selection_workspace(repo_root)

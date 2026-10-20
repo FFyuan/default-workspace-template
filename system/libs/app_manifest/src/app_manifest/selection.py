@@ -39,6 +39,7 @@ from app_manifest.manifest import app_package_directory
 from app_manifest.primitives import RepoRelativePath
 from app_manifest.primitives import is_path_covered_by
 from app_manifest.registry import SHELL_MODULE_PATHS
+from app_manifest.scope import LOCKFILE
 from app_manifest.scope import LoadedManifest
 from app_manifest.scope import PassScope
 from app_manifest.scope import find_wiring_sections
@@ -77,7 +78,6 @@ _AGENT_PROSE_DIRECTORY: Final[str] = ".agents"
 
 # Root files every root-collected test reads: the pytest and workspace configuration.
 _ROOT_CONFIG_FILES: Final[frozenset[str]] = frozenset({"pyproject.toml", "conftest.py"})
-_LOCKFILE: Final[RepoRelativePath] = RepoRelativePath("uv.lock")
 # ``system/*.py``: the repo-wide invariants, part of the always-run set.
 _GUARD_DIRECTORY: Final[str] = "system"
 _SUPERVISORD_CONF: Final[str] = "system/supervisord.conf"
@@ -575,7 +575,7 @@ def _select_for_path(context: _SelectionContext, path: str) -> _PathOutcome:
     layout = context.layout
     if path in _ROOT_CONFIG_FILES:
         return _PathOutcome(classes=(ChangedPathClass.ROOT_CONFIG,), is_full_root=True)
-    if path == _LOCKFILE:
+    if path == LOCKFILE:
         return _select_for_lockfile(context, path)
     if (
         path in ALWAYS_RUN_GUARDS
@@ -966,7 +966,7 @@ def select_tests(
 
     lockfile: LockfileChange | None = None
     notes: list[str] = []
-    if _LOCKFILE in paths:
+    if LOCKFILE in paths:
         if lockfile_texts is None:
             notes.append(
                 "uv.lock changed, but there is no base to compare it against, so the full root suite runs"
@@ -1043,10 +1043,10 @@ def read_lockfile_texts(
     with no lockfile reads as empty."""
     if base_revision is None:
         return None
-    base_text = read_file_at_revision(repo_root, base_revision, _LOCKFILE) or ""
+    base_text = read_file_at_revision(repo_root, base_revision, LOCKFILE) or ""
     if ref_revision is not None:
-        return base_text, read_file_at_revision(repo_root, ref_revision, _LOCKFILE) or ""
-    head_path = repo_root / _LOCKFILE
+        return base_text, read_file_at_revision(repo_root, ref_revision, LOCKFILE) or ""
+    head_path = repo_root / LOCKFILE
     return base_text, _read_text(head_path) if head_path.is_file() else ""
 
 
@@ -1081,8 +1081,8 @@ def _refuse_uncommitted_changes(repo_root: Path) -> None:
 def select_tests_for_pass_scope(repo_root: Path, scope: PassScope) -> SuiteSelection:
     """The selection for a harden pass, read from its scope file: every file in the diff some
     footprint accounts for or the pass's own branch changed, and none of the other work that
-    landed in the window. A changed ``uv.lock`` is compared against the fork point, so only
-    what the pass upgraded counts.
+    landed in the window. A changed ``uv.lock`` is compared against the scope file's
+    ``lockfile_base``, so only what the pass upgraded counts.
 
     Raises SuiteSelectionError when the scope file cannot tell the pass's changes from other
     work (it has no diff, or no fork point), or no longer describes the tree the tests run
@@ -1090,7 +1090,7 @@ def select_tests_for_pass_scope(repo_root: Path, scope: PassScope) -> SuiteSelec
     """
     repo_root = repo_root.resolve()
     diff = scope.diff
-    if diff is None or diff.fork_point is None:
+    if diff is None or diff.fork_point is None or diff.lockfile_base is None:
         raise SuiteSelectionError(
             "the pass scope file has no diff with a fork point, so it cannot tell the pass's own "
             "changes from other work; write it with pass-scope --diff-base and --lead-ref"
@@ -1106,7 +1106,7 @@ def select_tests_for_pass_scope(repo_root: Path, scope: PassScope) -> SuiteSelec
     return select_tests(
         load_repo_layout(repo_root),
         [path for path in diff.files if path not in others],
-        read_lockfile_texts(repo_root, diff.fork_point, diff.ref),
+        read_lockfile_texts(repo_root, diff.lockfile_base, diff.ref),
     )
 
 

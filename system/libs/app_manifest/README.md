@@ -206,8 +206,8 @@ goes to stdout; with it, the parent directories are created.
   file, a reference, or a `context` entry's `app.toml`, and `outside_footprint`,
   the changed files under none of those. A file matched by `exclude` is in
   neither. A non-empty `outside_footprint` means either a missing reference or a
-  change that does not belong on the branch. `fork_point` is null and `others`
-  empty: they are `pass-scope --lead-ref`'s (below).
+  change that does not belong on the branch. `fork_point` and `lockfile_base`
+  are null and `others` empty: they are `pass-scope --lead-ref`'s (below).
 
 `app-manifest pass-scope` writes the scope file for a harden pass, which covers
 every creation one change touched:
@@ -234,7 +234,11 @@ change being hardened reached the branch; merges are skipped),
 that is neither in a footprint nor the pass's own. A milestone the lead merged
 from the pass's branch sits on a second parent there, so it does not move the
 fork point; a lead commit the branch merged in does, so what came in with it
-is the lead's. Without `--lead-ref`, `fork_point` is null and `others` empty.
+is the lead's. `lockfile_base` is the commit a changed `uv.lock` is compared
+against to tell what the pass upgraded: the fork point, or the merge base of the
+diff base and the fork point when one of the pass's commits before the fork
+point changed the lock. Without `--lead-ref`, `fork_point` and `lockfile_base`
+are null and `others` empty.
 A service has `type` `service`, its directory as
 `primary`, and as `wiring` the program named after its package (`host_backup`
 runs as `host-backup`) and every `<name>-<role>` one; an app directory with no
@@ -274,7 +278,7 @@ against. With `--scope-file`, a harden pass's file from `pass-scope
 --diff-base REF --lead-ref REF`, the change is every file of its diff except
 `others`: what the pass's footprints account for and what its own branch
 changed, but not the other work that landed in the window. A changed `uv.lock`
-is then compared against the fork point. A `--diff-base` selection that runs to
+is then compared against the file's `lockfile_base`. A `--diff-base` selection that runs to
 the checked-out commit refuses to run while the working tree holds uncommitted
 or untracked changes, and names them, since the tests would run against
 changes the diff leaves out; a `--scope-file` selection always does, and also
