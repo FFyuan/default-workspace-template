@@ -340,14 +340,18 @@ def test_permission_resolution_reads_the_machine_tag_first() -> None:
     assert display.request_id == "evt-9"
 
 
-def _load_system_script(filename: str) -> Any:
-    """A standard-library-only script from ``system/scripts/``, which this package cannot import."""
-    script = Path(__file__).resolve().parents[5] / "scripts" / filename
+def _load_repo_script(relative_path: str) -> Any:
+    """A standard-library-only script at ``relative_path`` from the repo root, which this package cannot import."""
+    script = Path(__file__).resolve().parents[6] / relative_path
     spec = importlib.util.spec_from_file_location(f"{script.stem}_for_tag_pin", script)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _load_system_script(filename: str) -> Any:
+    return _load_repo_script(f"system/scripts/{filename}")
 
 
 def test_the_messaging_scripts_browser_fleet_tag_is_the_one_this_classifier_strips() -> None:
@@ -382,16 +386,6 @@ def test_a_background_task_report_is_a_notice_showing_only_its_summary() -> None
     assert is_non_turn_tail(report) is False
 
 
-def _load_update_self_script(filename: str) -> Any:
-    """A standard-library-only module of the update-self skill, which this package cannot import."""
-    script = Path(__file__).resolve().parents[6] / ".agents" / "skills" / "update-self" / "scripts" / filename
-    spec = importlib.util.spec_from_file_location(f"{script.stem}_for_tag_pin", script)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 @pytest.mark.parametrize(
     ("landed_ref", "label", "summary"),
     [
@@ -414,7 +408,7 @@ def test_a_resumed_chats_workspace_update_note_is_a_notice_showing_only_its_summ
     standard-library only and cannot import this package, so its copy of the tag is pinned here by classifying
     a note it composed. Every harness's parser stamps a user message through this one table, so the note
     renders the same on every harness."""
-    module = _load_update_self_script("update_resume_note.py")
+    module = _load_repo_script(".agents/skills/update-self/scripts/update_resume_note.py")
     note = module.compose_resume_note(
         landed_ref=landed_ref,
         is_chat_paused=True,
