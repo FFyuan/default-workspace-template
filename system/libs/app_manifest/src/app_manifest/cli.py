@@ -173,8 +173,8 @@ def _app_scope(repo_root: Path, manifest_path: Path) -> CreationScope:
     help="The lead's branch or commit; the pass's own changes are then what the ref changes since "
     "the newest commit of the lead's first-parent history it holds, every file of the branch's own "
     "commits, and every file of a commit on the lead's line between the diff base and that one "
-    "that touched a footprint, and a changed file that is neither in a footprint nor the pass's own is other work. Only meaningful "
-    "with --diff-base.",
+    "that touched a footprint, and a changed file that is neither in a footprint nor the pass's "
+    "own is other work. Only meaningful with --diff-base.",
 )
 @click.option(
     "--out",
