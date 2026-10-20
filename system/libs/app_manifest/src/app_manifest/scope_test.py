@@ -805,6 +805,34 @@ def test_after_merging_the_leads_head_its_commits_are_the_leads_and_not_the_pass
     assert whole_pass.diff.incoming_base == fork
 
 
+def test_a_second_catch_up_brings_in_only_what_the_lead_did_since_the_first(tmp_path: Path) -> None:
+    """A worker that already caught up once and catches up again starts its window at the lead
+    commit the first round merged: what came in then is in the tree its last gate ran on, so only
+    the second round's commits are incoming."""
+    _news_lead_with_a_change(tmp_path)
+    run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
+    commit_changes(tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "worker edit")
+    run_git(tmp_path, ("checkout", "-q", "main"))
+    first_round = commit_changes(
+        tmp_path, {"docs/system/unrelated.md": "# unrelated, edited again\n"}, "another chat"
+    )
+    run_git(tmp_path, ("checkout", "-q", "worker"))
+    run_git(tmp_path, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
+    before_second_merge = commit_changes(
+        tmp_path, {"system/apps/news/runner_test.py": "def test_routes() -> None:\n    pass\n"}, "tests"
+    )
+    run_git(tmp_path, ("checkout", "-q", "main"))
+    commit_changes(tmp_path, {"docs/system/later.md": "# later\n"}, "another chat, later")
+    run_git(tmp_path, ("checkout", "-q", "worker"))
+    run_git(tmp_path, ("merge", "-q", "--no-ff", "main", "-m", "Catch up again"))
+
+    scope = compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], before_second_merge, "HEAD", "main")
+
+    assert scope.diff is not None
+    assert scope.diff.incoming_base == first_round
+    assert scope.diff.incoming == ("docs/system/later.md",)
+
+
 def test_a_lead_ref_the_branch_never_forked_from_is_refused(tmp_path: Path) -> None:
     diff_base, _ = _news_lead_with_a_change(tmp_path)
     run_git(tmp_path, ("checkout", "-q", "--orphan", "unrelated"))
