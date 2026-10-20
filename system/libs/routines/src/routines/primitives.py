@@ -1,13 +1,8 @@
 import re
 from datetime import timedelta
 from enum import auto
-from typing import Any
 from typing import Final
 from typing import Self
-
-from pydantic import GetCoreSchemaHandler
-from pydantic_core import CoreSchema
-from pydantic_core import core_schema
 
 from imbue.imbue_common.enums import UpperCaseStrEnum
 from imbue.imbue_common.ids import RandomId
@@ -35,14 +30,6 @@ class RoutineId(NonEmptyStr):
                 f"{value!r} is not a routine id: lowercase letters, digits and hyphens, starting with a letter or digit"
             )
         return super().__new__(cls, value)
-
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: GetCoreSchemaHandler) -> CoreSchema:
-        return core_schema.no_info_after_validator_function(
-            cls,
-            core_schema.str_schema(),
-            serialization=core_schema.to_string_ser_schema(),
-        )
 
     @property
     def as_title(self) -> str:
@@ -100,14 +87,6 @@ class Duration(NonEmptyStr):
             )
         return super().__new__(cls, stripped)
 
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: GetCoreSchemaHandler) -> CoreSchema:
-        return core_schema.no_info_after_validator_function(
-            cls,
-            core_schema.str_schema(),
-            serialization=core_schema.to_string_ser_schema(),
-        )
-
     @property
     def count(self) -> int:
         match = _DURATION_PATTERN.fullmatch(self)
@@ -147,14 +126,6 @@ class TimeOfDay(NonEmptyStr):
         if _TIME_OF_DAY_PATTERN.fullmatch(stripped) is None:
             raise InvalidTimeOfDayError(f"{value!r} is not a time of day: HH:MM on a 24 hour clock")
         return super().__new__(cls, stripped)
-
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: GetCoreSchemaHandler) -> CoreSchema:
-        return core_schema.no_info_after_validator_function(
-            cls,
-            core_schema.str_schema(),
-            serialization=core_schema.to_string_ser_schema(),
-        )
 
     @property
     def hour(self) -> int:
