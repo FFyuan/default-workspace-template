@@ -22,9 +22,14 @@ the real app would need to become it:
 - `00-current.html` -- the shipped page with sample data (no CPU). Baseline:
   one snapshot of `/proc`, supervisord and the memory guard's records, taken at
   most every 4 s and polled every 5 s by each window; read-only.
-- `01-overview.html` -- three tiles with sparklines, one breakdown table with a
-  CPU column. Needs CPU per process (two `/proc/<pid>/stat` samples per
-  snapshot) and a CPU history like memory's. Cheap; read-only.
+- `01-overview.html` -- three tiles (CPU, memory, disk), each opening that
+  resource's own view in place (`#cpu`, `#memory`, `#disk`), then one
+  breakdown of what is using the workspace with a column per resource; the
+  tiles stack on a narrow window. Needs CPU per process (two `/proc/<pid>/stat`
+  samples per snapshot), a CPU history like memory's, and per-group disk sizes
+  (each chat's records, each app's data; cheap, no walk of the whole disk).
+  The disk view's what's-on-it rows are the one part that needs a walk, which
+  would be cached. Read-only.
 - `02-tabs.html` -- one resource per tab in a segmented control. Needs
   per-process CPU, a disk walk for the what's-on-it rows (slow under gVisor, so
   cached or sampled) and a backup time from the backup service. Read-only.

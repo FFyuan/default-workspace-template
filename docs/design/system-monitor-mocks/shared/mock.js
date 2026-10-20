@@ -27,28 +27,33 @@
   }
 
   const chats = [
-    { name: "Website redesign", mem: 1.38 * GiB, cpu: 23.6, state: "working", since: "2 h", model: "Claude Opus 5.5" },
-    { name: "Budget tracker", mem: 622 * MiB, cpu: 0.8, state: "idle", since: "40 min", model: "Claude Sonnet 5.5" },
-    { name: "Fix login bug", mem: 418 * MiB, cpu: 0.0, state: "idle", since: "3 h", model: "Claude Opus 5.5" },
+    { name: "Website redesign", mem: 1.38 * GiB, cpu: 23.6, disk: 60 * MiB, state: "working", since: "2 h", model: "Claude Opus 5.5" },
+    { name: "Budget tracker", mem: 622 * MiB, cpu: 0.8, disk: 28 * MiB, state: "idle", since: "40 min", model: "Claude Sonnet 5.5" },
+    { name: "Fix login bug", mem: 418 * MiB, cpu: 0.0, disk: 12 * MiB, state: "idle", since: "3 h", model: "Claude Opus 5.5" },
   ];
   const checkers = [{ name: "Website redesign", mem: 534 * MiB, cpu: 5.9 }];
   const apps = [
-    { name: "Recipe box", mem: 192 * MiB, cpu: 0.4 },
-    { name: "Habit tracker", mem: 118 * MiB, cpu: 0.1 },
+    { name: "Recipe box", mem: 192 * MiB, cpu: 0.4, disk: 610 * MiB },
+    { name: "Habit tracker", mem: 118 * MiB, cpu: 0.1, disk: 290 * MiB },
   ];
   const memory = { total: 8 * GiB, used: 5.1 * GiB };
   memory.available = memory.total - memory.used;
   const sum = (xs, k) => xs.reduce((a, x) => a + x[k], 0);
   const groups = [
-    { id: "chats", label: "Chats", items: chats, mem: sum(chats, "mem"), cpu: sum(chats, "cpu") },
-    { id: "checkers", label: "Code checkers", items: checkers, mem: sum(checkers, "mem"), cpu: sum(checkers, "cpu") },
-    { id: "workspace", label: "Workspace", hint: "chat app, desktop, built-in apps, background services", items: [], mem: 880 * MiB, cpu: 3.9 },
-    { id: "apps", label: "Your apps", items: apps, mem: sum(apps, "mem"), cpu: sum(apps, "cpu") },
-    { id: "shared", label: "Shared", hint: "by chats, apps and services", items: [], mem: 612 * MiB, cpu: null },
-    { id: "scratch", label: "Temporary files", items: [], mem: 241 * MiB, cpu: null, limit: 1.9 * GiB },
+    { id: "chats", label: "Chats", items: chats, mem: sum(chats, "mem"), cpu: sum(chats, "cpu"), disk: sum(chats, "disk") },
+    { id: "checkers", label: "Code checkers", items: checkers, mem: sum(checkers, "mem"), cpu: sum(checkers, "cpu"), disk: null },
+    { id: "workspace", label: "Workspace", hint: "chat app, desktop, built-in apps, background services", items: [], mem: 880 * MiB, cpu: 3.9, disk: 10.4 * GB },
+    { id: "apps", label: "Your apps", items: apps, mem: sum(apps, "mem"), cpu: sum(apps, "cpu"), disk: sum(apps, "disk") },
+    { id: "shared", label: "Shared", hint: "by chats, apps and services", items: [], mem: 612 * MiB, cpu: null, disk: null },
+    { id: "scratch", label: "Temporary files", items: [], mem: 241 * MiB, cpu: null, disk: null, limit: 1.9 * GiB },
   ];
-  groups.push({ id: "system", label: "System", items: [], mem: memory.used - sum(groups, "mem"), cpu: 2.5 });
+  groups.push({ id: "system", label: "System", items: [], mem: memory.used - sum(groups, "mem"), cpu: 2.5, disk: null });
 
+  // Busy stretches: when the CPU stayed above 90% and what was running then.
+  const busy = [
+    { at: todayAt(8, 5), minutes: 6, who: "Website redesign was running tests" },
+    { at: yesterdayAt(16, 12), minutes: 11, who: "Budget tracker was building its app" },
+  ];
   const cpu = { cores: 4, pct: 36.7, perCore: [61, 44, 19, 23], load: [1.48, 0.92, 0.71], uptime: "2 d 6 h", processes: 142, threads: 611 };
   const disk = { total: 28 * GB, used: 11.4 * GB };
   disk.free = disk.total - disk.used;
@@ -189,5 +194,5 @@
     el.innerHTML = segments.map((s) => `<span class="${s.cls}" style="width:${s.pct}%" title="${esc(s.title || "")}"></span>`).join("");
   }
 
-  window.MOCK = { GiB, MiB, GB, now, chats, checkers, apps, groups, memory, cpu, disk, diskBreakdown, stops, tokens, history, size, sizeDecimal, pct, level, esc, cap, tokensShort, clock, when, sparkPath, drawSpark, drawMiniSpark, bar, todayAt, yesterdayAt };
+  window.MOCK = { GiB, MiB, GB, now, chats, checkers, apps, groups, memory, cpu, busy, disk, diskBreakdown, stops, tokens, history, size, sizeDecimal, pct, level, esc, cap, tokensShort, clock, when, sparkPath, drawSpark, drawMiniSpark, bar, todayAt, yesterdayAt };
 })();

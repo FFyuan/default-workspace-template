@@ -31,6 +31,8 @@
   .item .needs { margin-top: 4px; color: var(--faint); font-size: 11px; }
   .item.divider { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 12px; border-radius: 0; }
   .needs-line { max-width: 600px; margin-bottom: 10px; color: var(--muted); font-size: 13px; }
+  .pages { margin-bottom: 10px; }
+  .pages[hidden] { display: none; }
   .viewer { position: sticky; top: 16px; }
   .viewer .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
   .viewer .bar b { font-weight: 600; }
@@ -61,10 +63,11 @@
   <div class="viewer">
     <div class="bar">
       <b id="title"></b>
-      <div class="sizes" id="sizes"><button aria-pressed="true" data-w="600" data-h="800" title="The size the app is expected to be used at">600 x 800</button><button data-w="864" data-h="594" title="The page inside the shell's cascade frame (60% x 70% of a 1440 x 900 desktop) once the 36 px title bar is taken off">cascade 864 x 594</button><button data-w="720" data-h="864" title="The page inside a window snapped to one half (50% x 100%) of a 1440 x 900 desktop, once the 36 px title bar is taken off">snapped 720 x 864</button><button data-w="360" data-h="560" title="A phone-sized window">360 x 560</button></div>
+      <div class="sizes" id="sizes"><button aria-pressed="true" data-w="600" data-h="800" title="The size the app is expected to be used at">600 x 800</button><button data-w="864" data-h="594" title="The page inside the shell's cascade frame (60% x 70% of a 1440 x 900 desktop) once the 36 px title bar is taken off">cascade 864 x 594</button><button data-w="720" data-h="864" title="The page inside a window snapped to one half (50% x 100%) of a 1440 x 900 desktop, once the 36 px title bar is taken off">snapped 720 x 864</button><button data-w="320" data-h="640" title="A narrow window, where the layouts stack">narrow 320 x 640</button><button data-w="1100" data-h="900" title="A large window">large 1100 x 900</button></div>
       <a class="open" id="open" href="#" target="_blank" rel="noopener">Open in its own tab</a>
     </div>
     <p class="needs-line" id="needs"></p>
+    <div class="sizes pages" id="pages" hidden></div>
     <div class="frame" id="frame"><iframe id="view" title="Variant"></iframe></div>
   </div>
 </div>
@@ -90,7 +93,7 @@
   // source, gathering cost, and whether it stays a read-only page).
   const variants = [
     ["00-current.html", "Current app", "Memory &amp; disk as shipped today, reproduced with the sample data. No CPU.", "Baseline. One snapshot of /proc, supervisord and the memory guard's records, taken at most every 4 s and polled every 5 s by each window; read-only."],
-    ["01-overview.html", "Overview tiles", "The smallest change: three tiles (CPU, memory, disk) with sparklines, then one breakdown table with a CPU column.", "Needs: CPU per process (two /proc/&lt;pid&gt;/stat samples per snapshot) and a CPU history like memory's. Cheap; read-only."],
+    ["01-overview.html", "Overview tiles", "Three tiles (CPU, memory, disk), each opening that resource's own view, then one breakdown of what is using the workspace with a column per resource. The tiles stack on a narrow window.", "Needs: CPU per process (two /proc/&lt;pid&gt;/stat samples per snapshot), a CPU history like memory's, and per-group disk sizes (each chat's records, each app's data; cheap, no walk of the whole disk). The disk view's what's-on-it rows are the one part that needs a walk, which would be cached. Read-only.", [["Overview", ""], ["CPU view", "#cpu"], ["Memory view", "#memory"], ["Disk view", "#disk"]]],
     ["02-tabs.html", "Tabs", "One resource per tab, chosen in a segmented control that carries each resource's live number; the disk tab gets a what's-on-it breakdown.", "Needs: per-process CPU, plus a disk walk for the what's-on-it rows (slow under gVisor; would have to be cached or sampled) and a backup time from the backup service. Read-only."],
     ["03-activity-monitor.html", "Activity Monitor", "After macOS: toolbar, sortable process table, and a summary pane pinned to the bottom for the chosen resource.", "Needs: per-process CPU and the process list already gathered, shown unaggregated. Cheap; read-only, unless the table gets a Stop action."],
     ["04-task-manager.html", "Task Manager", "After Windows: resources down the left with thumbnail graphs, a large graph and a details grid for the chosen one.", "Needs: per-process CPU, 60-minute histories kept while the app runs (today the app keeps 10 minutes, and the history starts over when the app restarts), and machine facts (vCPU model, size, runtime) the app has no source for yet. Read-only."],
@@ -103,29 +106,39 @@
   ];
   const $ = (id) => document.getElementById(id);
   const list = $("list"), thumbs = $("thumbs");
-  variants.forEach(([file, name, desc, needs], i) => {
+  variants.forEach(([file, name, desc, needs, pages], i) => {
     const b = document.createElement("button");
     b.className = `item${i === 1 ? " divider" : ""}`; b.type = "button"; b.dataset.i = i;
     b.innerHTML = `<span class="n">${String(i).padStart(2, "0")}</span><span><b>${name}</b><span>${desc}</span><span class="needs">${needs}</span></span>`;
     b.addEventListener("click", () => show(i));
     list.appendChild(b);
-    const t = document.createElement("button");
-    t.className = "thumb"; t.type = "button";
-    t.innerHTML = `<div class="shot"><iframe src="${file}" title="${name}" loading="lazy" tabindex="-1"></iframe></div><div class="cap"><span>${String(i).padStart(2, "0")}</span>${name}</div>`;
-    t.addEventListener("click", () => { show(i); window.scrollTo({ top: 0, behavior: "smooth" }); });
-    thumbs.appendChild(t);
+    // One thumbnail per page of the variant (a variant with sub-views gets one per sub-view).
+    for (const [label, hash] of pages || [["", ""]]) {
+      const t = document.createElement("button");
+      t.className = "thumb"; t.type = "button";
+      t.innerHTML = `<div class="shot"><iframe src="${file}${hash}" title="${name}${label ? ` · ${label}` : ""}" loading="lazy" tabindex="-1"></iframe></div><div class="cap"><span>${String(i).padStart(2, "0")}</span>${name}${label ? ` · ${label}` : ""}</div>`;
+      t.addEventListener("click", () => { show(i, hash); window.scrollTo({ top: 0, behavior: "smooth" }); });
+      thumbs.appendChild(t);
+    }
   });
   function scaleThumbs() {
     thumbs.querySelectorAll(".shot").forEach((shot) => { shot.querySelector("iframe").style.transform = `scale(${shot.clientWidth / 600})`; });
   }
   window.addEventListener("resize", scaleThumbs);
-  function show(i) {
-    const [file, name, , needs] = variants[i];
+  function show(i, hash = "") {
+    const [file, name, , needs, pages] = variants[i];
     list.querySelectorAll(".item").forEach((b) => b.setAttribute("aria-current", String(Number(b.dataset.i) === i)));
     $("title").innerHTML = `${String(i).padStart(2, "0")} · ${name}`;
     $("needs").innerHTML = needs;
-    $("view").src = file;
-    $("open").href = file;
+    // The sub-view switcher: shown only for a variant that has pages of its own.
+    $("pages").innerHTML = (pages || []).map(([label, h]) => `<button type="button" data-hash="${h}" aria-pressed="${h === hash}">${label}</button>`).join("");
+    $("pages").hidden = !pages;
+    $("pages").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => show(i, b.dataset.hash)));
+    // Setting src to the same page with another hash is a fragment navigation inside the frame,
+    // which the page answers by switching its view.
+    const target = file + hash;
+    $("view").src = target;
+    $("open").href = target;
     location.hash = `v${i}`;
   }
   $("sizes").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
