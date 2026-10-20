@@ -255,10 +255,14 @@ const NULL_POP_OUT_BRIDGE: PopOutBridge = {
 };
 
 /** Where an external link no app of the workspace takes opens: through the Imbue Studio chrome
- *  (``minds:open-external``), or in the user's own browser when no chrome can. */
+ *  (``minds:open-external``), or in the user's own browser when no chrome can, a custom-scheme link in the app of the
+ *  user's system it belongs to. */
 export interface OutsideLinkOpener {
   openInEmbedder(url: string): void;
   openInBrowser(url: string): void;
+  /** Launch a custom-scheme link from a hidden frame of this page, which opens no window: an Imbue Studio that does
+   *  not take custom-scheme links shows a popup of one as an empty window. */
+  launchInSystemApp(url: string): void;
 }
 
 /** Which external links the embedder opens outside the workspace for it (``minds:embedder-capabilities``): any, and
@@ -276,6 +280,7 @@ const NO_OUTSIDE_LINK_CAPABILITIES: OutsideLinkCapabilities = {
 const NULL_OUTSIDE_LINK_OPENER: OutsideLinkOpener = {
   openInEmbedder: () => undefined,
   openInBrowser: () => undefined,
+  launchInSystemApp: () => undefined,
 };
 
 // The layout verbs that edit a placement, which two shells never apply. A solo shell (the pull-out-window spec,
@@ -1204,18 +1209,21 @@ export class DesktopStore {
 
   /** An external link goes to the app registered for its kind; with none, it opens outside the workspace at once,
    *  still inside the click that asked for it (a browser opens a new tab only then): through the Imbue Studio chrome
-   *  when it said it opens that kind of link, else as a popup. One the chrome handed over (``senderApp`` null) goes
-   *  back to it however early: a chrome that hands a link over opens it too, and opening it here as a popup would
-   *  only send it back again. */
+   *  when it said it opens that kind of link, else as a popup, or a custom-scheme link from a hidden frame. One the
+   *  chrome handed over (``senderApp`` null) goes back to it however early: a chrome that hands a link over opens it
+   *  too, and opening it here would only send it back again. */
   private async openExternalLink(url: string, senderApp: string | null): Promise<void> {
     const type = externalLinkMessageType(url);
     const capabilities = this.outsideLinkCapabilities;
+    const isCustomScheme = isCustomSchemeLink(url);
     const doesEmbedderOpen =
-      capabilities.opensExternalLinks && (capabilities.opensCustomSchemeLinks || !isCustomSchemeLink(url));
+      capabilities.opensExternalLinks && (capabilities.opensCustomSchemeLinks || !isCustomScheme);
     if (isEmbedderMessageHandled(this.state, type)) {
       await this.deliverMessage({ type, url }, senderApp ?? EMBEDDER_SENDER);
     } else if (doesEmbedderOpen || senderApp === null) {
       this.outsideLinks.openInEmbedder(url);
+    } else if (isCustomScheme) {
+      this.outsideLinks.launchInSystemApp(url);
     } else {
       this.outsideLinks.openInBrowser(url);
     }

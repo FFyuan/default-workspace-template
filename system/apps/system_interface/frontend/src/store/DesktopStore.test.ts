@@ -1760,6 +1760,7 @@ describe("links Imbue Studio hands over", () => {
       outsideLinks: {
         openInEmbedder: (url) => outside.push(`embedder:${url}`),
         openInBrowser: (url) => outside.push(`browser:${url}`),
+        launchInSystemApp: (url) => outside.push(`app:${url}`),
       },
     });
     await store.start(NO_LINK);
@@ -1811,7 +1812,8 @@ describe("links Imbue Studio hands over", () => {
     socket.deliver().onAppsUpdated([appRecord("docs"), slackApp]);
 
     await store.openLink("slack://channel?id=C1", SHELL_HOST, "chat");
-    // No app takes vscode: links: a popup until Imbue Studio says it opens custom-scheme links, then through it.
+    // No app takes vscode: links: launched from this page (an older Imbue Studio shows a popup of one as an empty
+    // window) until Imbue Studio says it opens custom-scheme links, then through it.
     await store.openLink("vscode://file/a", SHELL_HOST, "chat");
     store.setOutsideLinkCapabilities({ opensExternalLinks: true, opensCustomSchemeLinks: false });
     await store.openLink("vscode://file/b", SHELL_HOST, "chat");
@@ -1826,7 +1828,7 @@ describe("links Imbue Studio hands over", () => {
       { type: "open:slack", clientId: CLIENT, payload: { url: "slack://channel?id=C1" }, sender: "chat" },
       { type: "open:slack", clientId: CLIENT, payload: { url: "slack://channel?id=C2" }, sender: "embedder" },
     ]);
-    expect(outside).toEqual(["browser:vscode://file/a", "browser:vscode://file/b", "embedder:vscode://file/c"]);
+    expect(outside).toEqual(["app:vscode://file/a", "app:vscode://file/b", "embedder:vscode://file/c"]);
     expect(notices()).toEqual(["Nothing in this workspace is at web://example"]);
   });
 
