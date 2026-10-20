@@ -114,7 +114,7 @@ export interface ScheduleChange {
 
 export interface RunStartReceipt {
   routine_id: string;
-  run_id: string | null;
+  run_id: string;
 }
 
 const encode = encodeURIComponent;

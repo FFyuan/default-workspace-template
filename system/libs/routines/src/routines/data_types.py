@@ -321,4 +321,4 @@ class RunStartReceipt(FrozenModel):
     """What ``routines run`` prints for a detached run."""
 
     routine_id: RoutineId = Field(description="The routine")
-    run_id: RunId | None = Field(description="The run started; None when the run had already begun")
+    run_id: RunId = Field(description="The run started")
