@@ -19,4 +19,4 @@ class EnabledRequest(FrozenModel):
 class FixChatResponse(FrozenModel):
     """What the fix route answers: the chat it opened."""
 
-    chat_id: str = Field(description="The chat's id; empty when the chat app named none")
+    chat_id: str = Field(description="The chat's id (the route answers 502 when none could be read)")
