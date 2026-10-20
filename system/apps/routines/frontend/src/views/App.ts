@@ -56,6 +56,7 @@ export class AppModel {
   isBusy = false;
   readonly toasts: ToastQueue;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private isDisposed = false;
 
   constructor(
     pathname: string,
@@ -99,8 +100,16 @@ export class AppModel {
     this.scheduleRefresh();
   }
 
+  /** Stop the polling for good: the page is leaving, or a test is done with the model. */
+  dispose(): void {
+    this.isDisposed = true;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+  }
+
   private scheduleRefresh(): void {
     if (this.timer !== null) clearTimeout(this.timer);
+    if (this.isDisposed) return;
     const isRunning =
       (this.loaded.kind === "list" && this.loaded.listing.summary.running > 0) ||
       (this.loaded.kind === "routine" && this.loaded.detail.row.is_running);
@@ -114,22 +123,30 @@ export class AppModel {
     );
   }
 
-  private async act(action: () => Promise<void>, failure: string): Promise<void> {
+  /** Run the action with the page busy; a failure is reported as a toast. Answers whether it went through. */
+  private async act(action: () => Promise<void>, failure: string): Promise<boolean> {
     this.isBusy = true;
     this.redraw();
     try {
       await action();
+      return true;
     } catch (error) {
       this.toasts.show(`${failure}: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    } finally {
+      this.isBusy = false;
     }
-    this.isBusy = false;
+  }
+
+  private async actAndReload(action: () => Promise<void>, failure: string): Promise<void> {
+    await this.act(action, failure);
     await this.load();
   }
 
   runNow(): void {
     if (this.page.kind !== "routine") return;
     const routineId = this.page.routineId;
-    void this.act(async () => {
+    void this.actAndReload(async () => {
       await runNow(routineId);
     }, "Couldn't start it");
   }
@@ -138,7 +155,7 @@ export class AppModel {
     if (this.page.kind !== "routine" || this.loaded.kind !== "routine") return;
     const routineId = this.page.routineId;
     const isEnabled = !this.loaded.detail.row.is_enabled;
-    void this.act(async () => {
+    void this.actAndReload(async () => {
       await setEnabled(routineId, isEnabled);
     }, "Couldn't change it");
   }
@@ -156,7 +173,7 @@ export class AppModel {
     if (this.page.kind !== "routine" || this.scheduleForm === null) return;
     const routineId = this.page.routineId;
     const change = changeOf(this.scheduleForm);
-    void this.act(async () => {
+    void this.actAndReload(async () => {
       await setSchedule(routineId, change);
       this.scheduleForm = null;
     }, "Couldn't change the schedule");
@@ -165,22 +182,28 @@ export class AppModel {
   fix(): void {
     if (this.page.kind !== "routine") return;
     const routineId = this.page.routineId;
-    void this.act(async () => {
+    void this.actAndReload(async () => {
       await openFixChat(routineId);
       this.toasts.show("A chat is opening with everything the agent needs to start.");
     }, "Couldn't start a chat");
   }
 
+  /** Remove the routine and leave for the list: a page of a routine that is gone has nothing to reload. */
   remove(): void {
     if (this.page.kind !== "routine" || this.loaded.kind !== "routine") return;
     const routineId = this.page.routineId;
     const title = this.loaded.detail.row.title;
     void (async () => {
       if (!(await this.host.confirmRemove(title))) return;
-      await this.act(async () => {
+      const isRemoved = await this.act(async () => {
         await removeRoutine(routineId);
-        this.host.navigate("/");
       }, "Couldn't remove it");
+      if (!isRemoved) {
+        await this.load();
+        return;
+      }
+      this.dispose();
+      this.host.navigate("/");
     })();
   }
 
