@@ -11,6 +11,7 @@ from routines.mock_repository_test import RecordingRepository
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.service import RoutinesService
+from routines.state import FileStateStore
 from routines.testing import TEST_NOW
 from routines.testing import TEST_ZONE
 from routines.testing import build_test_service
@@ -54,7 +55,7 @@ def service(
     chat_app: ScriptedChatApp,
     notifier: RecordingNotifier,
 ) -> RoutinesService:
-    return build_test_service(git_paths, repository, clock, chat_app, notifier)
+    return build_test_service(git_paths, repository, FileStateStore(paths=git_paths), clock, chat_app, notifier)
 
 
 @pytest.fixture

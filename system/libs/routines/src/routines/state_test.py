@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -47,6 +48,7 @@ def test_removing_a_routine_drops_its_whole_state_directory(states: FileStateSto
     assert not states.paths.routine_state_dir(TEST_ROUTINE_ID).exists()
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root deletes through a directory's permission bits")
 def test_a_state_directory_that_cannot_be_deleted_whole_is_an_error_not_a_warning(states: FileStateStore) -> None:
     """A removal that leaves state behind would silently apply it to a routine re-added under the same id."""
     kept = states.paths.runs_dir(TEST_ROUTINE_ID) / "run-1"

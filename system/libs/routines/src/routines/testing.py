@@ -23,7 +23,6 @@ from routines.primitives import RoutineId
 from routines.registry import registry_path_of
 from routines.runner import Runner
 from routines.service import RoutinesService
-from routines.state import FileStateStore
 
 # The tests' clock: a fixed zone eight hours behind UTC with no daylight saving, so the schedules read the
 # same everywhere, and a moment that is 07:00 local on a Tuesday.
@@ -54,13 +53,13 @@ def init_git_workspace(paths: RoutinesPaths) -> RoutinesPaths:
 def build_test_service(
     paths: RoutinesPaths,
     repository: RepositoryInterface,
+    states: StateStoreInterface,
     clock: ClockInterface,
     chat_app: ChatAppInterface,
     notifier: NotifierInterface,
 ) -> RoutinesService:
-    """The service over the real file stores at the paths, with everything else as given."""
+    """The service over the real definition and ledger files at the paths, with everything else as given."""
     definitions = FileDefinitionStore(paths=paths, repository=repository)
-    states = FileStateStore(paths=paths)
     ledger = FileLedger(paths=paths)
     runner = Runner(
         paths=paths,

@@ -8,12 +8,18 @@ from app_schema.testing import assert_api_schema_describes_app
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
 from routines.locks import held_lock
+from routines.mock_chat_app_test import ScriptedChatApp
+from routines.mock_clock_test import FakeClock
+from routines.mock_notifier_test import RecordingNotifier
 from routines.mock_repository_test import RecordingRepository
+from routines.mock_state_store_test import RefusingRemovalStateStore
+from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.service import RoutinesService
 from routines.testing import TEST_NOW
+from routines.testing import build_test_service
 from routines.testing import wait_for_last_run
 from routines_app.mock_fix_chat_test import RecordingFixChatStarter
 from routines_app.server import create_app
@@ -167,16 +173,22 @@ def test_removing_a_routine_deletes_it_once_no_run_is_going(
 
 
 def test_a_removal_that_cannot_delete_the_state_says_so_and_keeps_the_routine(
-    client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
+    git_paths: RoutinesPaths,
+    repository: RecordingRepository,
+    clock: FakeClock,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+    static_directory: Path,
+    fix_chat_starter: RecordingFixChatStarter,
+    sync_routine: RoutineId,
 ) -> None:
-    kept = service.paths.runs_dir(sync_routine) / "run-1"
-    kept.mkdir(parents=True)
-    (kept / "log").write_text("x")
-    kept.chmod(0o500)
-    try:
-        response = client.delete(f"/api/routines/{sync_routine}")
-    finally:
-        kept.chmod(0o700)
+    """The routine's definition file is the one the fixture's service wrote; this service only refuses the removal."""
+    states = RefusingRemovalStateStore(paths=git_paths)
+    service = build_test_service(git_paths, repository, states, clock, chat_app, notifier)
+    client = create_app(service, static_directory, is_preview=False, fix_chat_starter=fix_chat_starter).test_client()
+
+    response = client.delete(f"/api/routines/{sync_routine}")
+
     assert response.status_code == 500
     assert "Could not remove all of the state" in response.get_json()["detail"]
     assert client.get(f"/api/routines/{sync_routine}").status_code == 200
