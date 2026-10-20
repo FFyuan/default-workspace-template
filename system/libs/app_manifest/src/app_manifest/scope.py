@@ -162,8 +162,8 @@ class DiffSummary(FrozenModel):
     fork_point: NonEmptyStr | None = Field(
         description="The newest commit of the lead's first-parent history that the ref holds, when "
         "the caller named the lead. The pass's own changes are what the ref changes relative to it, "
-        "every file of the branch's own commits, and every file of a commit on the lead's line "
-        "before it that changed something a footprint accounts for",
+        "every file of the branch's own commits, and every file of a non-merge commit on the lead's "
+        "first-parent line between the diff base and it that changed something a footprint accounts for",
     )
     others: tuple[RepoRelativePath, ...] = Field(
         description="The changed files that are neither in a footprint nor the pass's own: other "
