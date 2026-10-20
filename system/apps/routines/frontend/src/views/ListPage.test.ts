@@ -4,7 +4,7 @@ import { mountView, unmountViews } from "@imbue/workspace-ui/src/testing/mount";
 import m from "mithril";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { listingOf, rowOf } from "../testing/records";
+import { listingOf, rowOf, runOf } from "../testing/records";
 import { ADD_PREFIX, ListPage, groupRows } from "./ListPage";
 
 afterEach(() => unmountViews());
@@ -43,6 +43,8 @@ describe("ListPage", () => {
         health: "FAILING",
         health_text: "Failing",
         health_detail: "Last worked 2 hours ago; 3 failed tries in a row.",
+        last_run: runOf({ outcome: "FAILED", outcome_text: "Failed", summary: "No mail server" }),
+        last_run_text: "Failed 10 minutes ago, automatic",
       }),
       rowOf({}),
     ];
@@ -51,7 +53,10 @@ describe("ListPage", () => {
     const links = [...root.querySelectorAll<HTMLAnchorElement>("a.routine-row")];
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["/digest", "/news-sync"]);
     expect(links[0].querySelector("[data-health]")?.getAttribute("data-health")).toBe("FAILING");
+    // The health's detail, when it says more than the pill, and the last run and its summary beside it.
     expect(links[0].textContent).toContain("Last worked 2 hours ago; 3 failed tries in a row.");
+    expect(links[0].textContent).toContain("Failed 10 minutes ago, automatic");
+    expect(links[0].textContent).toContain("No mail server");
     expect(links[1].textContent).toContain("Every hour");
     expect(links[1].textContent).toContain("Worked 10 minutes ago, automatic");
     const stats = [...root.querySelectorAll("[data-summary] > div")].map((stat) => stat.textContent);

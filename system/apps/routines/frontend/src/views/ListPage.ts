@@ -67,12 +67,9 @@ function row(routine: RoutineRow): m.Vnode {
       ]),
       m("div", { class: "flex flex-col items-start gap-1 type-helper text-secondary" }, [
         healthPill(routine),
-        m(
-          "div",
-          { class: "text-faint" },
-          routine.health_detail === "" ? routine.last_run_text : routine.health_detail,
-        ),
-        routine.last_run !== null && routine.last_run.summary !== "" && routine.health_detail === ""
+        routine.health_detail === "" ? null : m("div", { class: "text-faint" }, routine.health_detail),
+        m("div", { class: "text-faint" }, routine.last_run_text),
+        routine.last_run !== null && routine.last_run.summary !== ""
           ? m("div", { class: "truncate text-faint" }, routine.last_run.summary)
           : null,
         routine.last_run !== null && routine.last_run.warnings.includes("RESTARTED_PREVIOUS_RUN")
