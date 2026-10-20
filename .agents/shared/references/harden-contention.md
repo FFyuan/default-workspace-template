@@ -18,7 +18,8 @@ Three principles drive every rule below:
   just makes that pass stale, and staleness is handled here.
 - **A stale pass is caught up, not redone.** Its worker brings its branch up
   to the new base and verifies what moved in, so the work it already verified
-  is kept. A fresh pass replaces it only when the worker is gone.
+  is kept. A fresh pass replaces it only when the worker is gone, or when
+  no one who can receive its reports is left to lead it.
 
 ## Before dispatch: one pass per creation (single-flight)
 
@@ -263,7 +264,9 @@ When there is no worker left to catch up -- an abandoned pass, or one stopped
 after a failure (a `stuck` on the catch-up itself included) whose user did not
 override it -- replace it with **one** new pass. A worker the user's override
 resumes is kept (`lead-proxy.md`, "Resuming after the user overrides a
-failure").
+failure"). An orphaned pass whose task file names another checkout as
+`lead_work_dir` is replaced the same way although its worker is still there:
+its reports can never reach you, so no one here can lead it.
 
 A pass that is gone can still have left work no one merged: commits on its
 branch or a sub-worker's, a fix it finished before its holder stopped
