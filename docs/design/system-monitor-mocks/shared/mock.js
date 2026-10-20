@@ -88,7 +88,7 @@
     disk60: walk(41, 360, 0.405, 0.002, 10000, { lo: 0.39, hi: 0.42 }),
     mem24: walk(53, 288, 0.55, 0.05, 300e3),
     cpu24: walk(59, 288, 0.25, 0.15, 300e3, { spikes: 0.05 }),
-    cores60: [61, 44, 19, 23].map((base, i) => walk(70 + i, 360, base / 100, 0.2, 10000, { spikes: 0.03 })),
+    cores60: cpu.perCore.map((base, i) => walk(70 + i, 360, base / 100, 0.2, 10000, { spikes: 0.03 })),
   };
   // Leave a gap in the 60-minute line where the machine was paused, as the real app does.
   for (const key of ["mem60", "cpu60", "disk60"]) history[key] = history[key].filter((p) => !(p.t < now - 38 * 60e3 && p.t > now - 41 * 60e3));
