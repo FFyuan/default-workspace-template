@@ -54,10 +54,12 @@ grep -E "(update|heal) $TARGET" /tmp/harden-inflight.txt
   the ticket's name or by the id in the worker's `lead_agent` label: a chat
   renamed since it took the ticket has no record under the old name, but
   keeps its id. The worker is
-  there when it has a record with no `archived_at` (a STOPPED one without it
-  crashed, and the next message restarts it; see
+  there when it has a record whose `archived_at` is absent or empty (a
+  revived worker's is blanked; a STOPPED one without it crashed, and the next
+  message restarts it; see
   `.agents/skills/launch-task/references/dead-worker-recovery.md`). No record,
-  or one stopped on purpose (`archived_at` set), means the worker is gone.
+  or one stopped on purpose (a non-empty `archived_at`), means the worker is
+  gone.
   Then:
   - **Live** (holder running): do NOT dispatch a second pass. Leave a note on
     their ticket so the owner covers your change at merge time, and stop --
