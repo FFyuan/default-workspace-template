@@ -76,7 +76,8 @@ def test_a_command_run_streams_its_output_records_both_events_and_updates_the_st
     events = ledger.events_of_run(SYNC, event.run_id)
     assert isinstance(events[0], RunStartedEvent)
     assert isinstance(events[1], RunFinishedEvent)
-    assert events[0].command == 'sh -c echo "hello from the run"; echo "stderr too" >&2'
+    # Quoted as a shell would need it, so the ledger's line is the command that ran.
+    assert events[0].command == "sh -c 'echo \"hello from the run\"; echo \"stderr too\" >&2'"
 
 
 def test_a_command_sees_its_run_directory_and_its_result_file_becomes_the_summary(

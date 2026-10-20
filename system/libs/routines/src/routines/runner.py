@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -206,7 +207,7 @@ class Runner(MutableModel):
         trigger: RunTrigger,
         now: datetime,
     ) -> None:
-        command = " ".join(definition.command) if definition.command else slash_command_of(str(definition.skill))
+        command = shlex.join(definition.command) if definition.command else slash_command_of(str(definition.skill))
         self.ledger.append(
             RunStartedEvent(
                 **_envelope(RUN_STARTED_EVENT, now),
