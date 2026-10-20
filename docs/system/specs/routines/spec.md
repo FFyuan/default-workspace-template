@@ -174,7 +174,7 @@ The tick's own output is a line per spawned run and a line per reaped run, nothi
 
 `routines run <id> --trigger scheduled|manual`:
 
-1. Takes the routine's lock (`data/.state/routines/<id>/lock`, `flock -n`).
+1. Takes the routine's lock (`data/.state/routines/<id>/run.lock`, `flock -n`; `state.lock` beside it guards the state file's short writes).
    Held means a run is in flight: a scheduled run exits silently, a manual run exits 1 saying so.
    The switch gates scheduled runs only; a manual run of a routine that is off runs, since the user asked for exactly that.
 2. Takes the run id the tick or the app minted (or mints one), creates the run directory `data/.state/routines/<id>/runs/<run_id>/`, writes `run_started` to the ledger, and records the run as `current_run` in the state with this process's pid and start time.
@@ -337,7 +337,7 @@ One document serves every page; the page routes on its path and reports it throu
 - **`/<id>`, the routine.** The definition in plain words, the controls (Run now, On/Off, Change schedule, Fix it, Remove), and the run history: one row per run with when, trigger, outcome, duration, summary, and for a skill run a link to its chat.
   Change schedule opens a dialog with the same fields as the CLI (a number and a unit, a time, weekdays, a day of the month) and previews the sentence it will read as.
 - **`/<id>/runs/<run_id>`, the run.** The finished event's fields and the log, rendered as is and scrolled to its end.
-- The phone layout stacks the row's cells and puts the controls in a menu.
+- The phone layout stacks the row's cells; the controls wrap into as many rows as the width takes.
 
 Fix it builds a brief from the routine, its last runs, and their logs, and opens a chat on it through `message_chat.py --create` with `auto_open=true`, as the reference template did; the brief links the routine's page.
 
@@ -349,7 +349,7 @@ Typed routes in `app_schema`'s route table, every model in the library's `data_t
 |---|---|
 | `GET /api/routines` | `RoutineListing`. |
 | `GET /api/routines/<id>` | `RoutineDetail` with recent runs. |
-| `GET /api/routines/<id>/runs/<run_id>` | `RunDetail` with the log tail; `?log` the whole log as text. |
+| `GET /api/routines/<id>/runs/<run_id>` | `RunDetail` with the log tail; `GET .../runs/<run_id>/log` the whole log as text. |
 | `POST /api/routines/<id>/run` | Starts a manual run; 409 while one is in flight. |
 | `PUT /api/routines/<id>/enabled` | `{"is_enabled": bool}`. |
 | `PUT /api/routines/<id>/schedule` | The schedule fields; 400 with the validation message. |
@@ -426,7 +426,7 @@ That change is its own PR on the mngr repo and lands before the template's.
 - `migrate_cron_test.py`: the shapes of 12 and the one left in place.
 - The app: `assert_api_schema_describes_app`, every route, and `vitest` over the views as Files does; the manifest in `system/test_app_manifests.py`'s built-in table.
 - The bootstrap: the tick entry is rewritten every boot and can run from cron's own PATH, as the recovery guard's tests check.
-- `system/test_routines.py`: a routine with `every = "1m"` in a temporary state dir runs through a real tick and shows up in `routines list`.
+- `system/libs/routines/test_routines.py`: a routine with `every = "1m"` in a temporary state dir runs through a real tick and shows up in `routines list`.
 - Manual, on a workspace: add a routine from a chat, see it listed; run it now and watch the row turn to running and back; turn it off; turn on the Caretaker and see its introduction; break a routine and see the feed notification land on its page.
 
 ## 16. Implementation order
