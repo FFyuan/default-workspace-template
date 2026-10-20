@@ -16,6 +16,7 @@ from routines.primitives import RunTrigger
 from routines.service import RoutinesService
 from routines.testing import TEST_NOW
 from routines_app.mock_fix_chat_test import RecordingFixChatStarter
+from routines_app.server import create_app
 
 MANIFEST_PATH = Path(__file__).resolve().parents[2] / "app.toml"
 SYNC = RoutineId("news-sync")
@@ -219,3 +220,23 @@ def test_a_preview_refuses_every_change(
 
 def test_the_health_probe_says_whether_the_pages_are_built(client: FlaskClient) -> None:
     assert client.get("/api/health").get_json() == {"status": "ok", "is_frontend_built": True}
+
+
+def test_an_unbuilt_frontend_serves_the_not_built_page_and_says_so_in_the_health_probe(
+    service: RoutinesService, tmp_path: Path, fix_chat_starter: RecordingFixChatStarter
+) -> None:
+    unbuilt = create_app(service, tmp_path / "nothing-built", is_preview=False, start_fix_chat=fix_chat_starter)
+    client = unbuilt.test_client()
+    page = client.get("/")
+    assert page.status_code == 200
+    assert b"has not been built yet" in page.data
+    assert client.get("/api/health").get_json() == {"status": "ok", "is_frontend_built": False}
+
+
+def test_a_schedule_body_the_model_refuses_is_a_bad_request(client: FlaskClient, service: RoutinesService) -> None:
+    _add(service)
+    for body in ({"every": "15x", "at": None, "days": [], "day_of_month": None, "once": None}, ["not", "a", "body"]):
+        refused = client.put("/api/routines/news-sync/schedule", json=body)
+        assert refused.status_code == 400, body
+        assert refused.get_json()["detail"]
+    assert service.detail(SYNC).row.schedule_text == "Every hour"
