@@ -608,15 +608,19 @@ def _stop_process_group(process: subprocess.Popen[bytes]) -> None:
     """
     if _signal_group_and_drain(process, signal.SIGTERM):
         return
-    _signal_group_and_drain(process, signal.SIGKILL)
+    if not _signal_group_and_drain(process, signal.SIGKILL):
+        logger.warning("The process group {} of the timed-out run is still alive after SIGKILL", process.pid)
 
 
 def _signal_group_and_drain(process: subprocess.Popen[bytes], signal_number: signal.Signals) -> bool:
     """Send the signal to the group and wait up to the grace for it to empty; whether it did."""
     try:
         os.killpg(process.pid, signal_number)
-    except OSError:
+    except ProcessLookupError:
         return True
+    except OSError as e:
+        logger.warning("Could not send {} to the process group {}: {}", signal_number.name, process.pid, e)
+        return False
     try:
         process.wait(timeout=TERMINATE_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
