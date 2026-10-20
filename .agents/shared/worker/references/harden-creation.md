@@ -66,10 +66,14 @@ chats commit to as well, so that diff also holds their work, landed between
 `DIFF_BASE` and your dispatch. `--lead-ref` names the lead's checkout's `HEAD`
 (`LEAD_WORK_DIR`; the repo's main worktree when it is unset), and from it the
 command finds where your branch forked: the newest commit of the lead's
-first-parent history your branch holds. What your branch changes relative to
-that commit is your own work. A milestone the lead merged from you does not
-move it, and a commit of the lead's you merged in does, so the lead's work that
-came in with that merge is not yours.
+first-parent history your branch holds. The pass's own changes are what your
+branch changes relative to that commit, plus every file of a commit the lead
+made in the window before it that touched a creation in the pass: that is how
+the change you are hardening reached your branch, and a commit of another
+chat's that touched none of them is not yours. A milestone the lead merged
+from you does not move the fork point, and a commit of the lead's you merged
+in does, so the lead's work that came in with that merge is not yours unless
+it touched a creation in the pass.
 
 The file holds one entry per creation under `creations` -- its `primary` (its
 own directories), `wiring` (the supervisord program blocks that run it, in the
@@ -78,12 +82,8 @@ directory -- a skill that drives it, a script, a doc), `context` (paths to read
 but never change), `conventions`, and `exclude` (a hard denylist of globs) --
 and one `diff` for the whole pass: the changed files, split into those some
 creation's footprint accounts for, `outside_footprint` (your own changes none
-does), and `others` (the rest, which the gate does not test: mostly other work
-in the window, but also any file the change you are hardening touched outside
-every footprint, since its commits read like anyone else's). When you know a
-file in `others` belongs to a creation in the pass, claim it with a
-`[[references]]` entry, which moves it inside the footprint and into the gate.
-`system/libs/app_manifest/README.md` describes both. The freshness check
+does), and `others` (the rest: other work in the window, which is not yours
+to explain or test). `system/libs/app_manifest/README.md` describes both. The freshness check
 the lead runs before merging reads the same footprints
 (`.agents/shared/references/harden-contention.md`). Regenerate the file
 whenever a footprint moves under you -- when you register a `[[references]]`

@@ -226,7 +226,10 @@ every changed file none does. With `--lead-ref` (the branch the pass's branch
 was cut from), the diff also tells the pass's own work from other work that
 landed in the window, as a worker branched off a shared branch needs: its
 `fork_point` is the newest commit of the lead's first-parent history the ref
-holds, the pass's own changes are what the ref changes relative to it,
+holds, the pass's own changes are what the ref changes relative to it plus
+every file of a commit on the lead's first-parent line between the diff base
+and the fork point that changed something a footprint accounts for (how the
+change being hardened reached the branch; merges are skipped),
 `outside_footprint` keeps only those, and `others` lists every changed file
 that is neither in a footprint nor the pass's own. A milestone the lead merged
 from the pass's branch sits on a second parent there, so it does not move the

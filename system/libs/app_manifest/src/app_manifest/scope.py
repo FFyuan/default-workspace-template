@@ -155,16 +155,17 @@ class DiffSummary(FrozenModel):
     )
     outside_footprint: tuple[RepoRelativePath, ...] = Field(
         description="The changed files that are neither in the footprint nor excluded; with a fork "
-        "point, only those the ref changes relative to it"
+        "point, only the pass's own"
     )
     fork_point: NonEmptyStr | None = Field(
         description="The newest commit of the lead's first-parent history that the ref holds, when "
-        "the caller named the lead; what the ref changes relative to it is the branch's own work",
+        "the caller named the lead. The pass's own changes are what the ref changes relative to it, "
+        "and every file of a commit on the lead's line before it that changed something a footprint "
+        "accounts for",
     )
     others: tuple[RepoRelativePath, ...] = Field(
-        description="The changed files no footprint accounts for and the ref does not change relative "
-        "to the fork point: the window's work from the lead's side, other chats' and the change the "
-        "branch hardens alike; empty without a fork point",
+        description="The changed files that are neither in a footprint nor the pass's own: other "
+        "work that landed in the window; empty without a fork point",
     )
 
 
@@ -556,6 +557,61 @@ def find_fork_point(repo_root: Path, lead_ref: str, ref: str) -> NonEmptyStr:
     )
 
 
+class PassOwnChanges(FrozenModel):
+    """What a pass changed itself, as opposed to other work in its diff window."""
+
+    fork_point: NonEmptyStr = Field(description="Where the pass's branch forked from the lead")
+    files: frozenset[RepoRelativePath] = Field(description="Every file the pass changed")
+
+
+def list_footprint_commit_files(
+    repo_root: Path, since: str, until: str, creations: Sequence[CreationScope]
+) -> frozenset[RepoRelativePath]:
+    """Every file changed by a commit on ``until``'s first-parent line after ``since`` that changed
+    something a creation's footprint accounts for. Merges are skipped: what one brings in is a
+    branch's work, whose commits are not on that line, and its footprint files are in the diff."""
+    output = _run_git(
+        repo_root,
+        (
+            "-c",
+            "core.quotePath=false",
+            "log",
+            "--first-parent",
+            "--no-merges",
+            "--no-renames",
+            "-z",
+            "--format=%x01",
+            "--name-only",
+            f"{since}..{until}",
+        ),
+    )
+    files: set[RepoRelativePath] = set()
+    # Each commit is a \x01, a NUL, then its NUL-separated names, the first after a newline.
+    for record in output.split("\x01"):
+        names = (name.removeprefix("\n") for name in record.split("\0"))
+        changed = [RepoRelativePath(name) for name in names if name]
+        inside, _ = split_against_creations(changed, creations)
+        if inside:
+            files.update(changed)
+    return frozenset(files)
+
+
+def find_pass_own_changes(
+    repo_root: Path, diff_base: str, diff_ref: str, lead_ref: str, creations: Sequence[CreationScope]
+) -> PassOwnChanges:
+    """What the pass changed: everything ``diff_ref`` changes relative to its fork point from
+    ``lead_ref``, and every file of a commit the lead made in the window before that point that
+    touched a creation in the pass, which is how the change being hardened reached the branch.
+    Another chat's commit that touched none of them is not the pass's."""
+    fork_point = find_fork_point(repo_root, lead_ref, diff_ref)
+    window_start = _run_git(repo_root, ("merge-base", diff_base, fork_point)).strip()
+    return PassOwnChanges(
+        fork_point=fork_point,
+        files=frozenset(list_changed_files(repo_root, fork_point, diff_ref).files)
+        | list_footprint_commit_files(repo_root, window_start, fork_point, creations),
+    )
+
+
 def list_tracked_files(repo_root: Path) -> tuple[RepoRelativePath, ...]:
     """Every file git tracks in the repo root's index, in git's order."""
     output = _run_git(repo_root, ("-c", "core.quotePath=false", "ls-files", "-z"))
@@ -620,10 +676,10 @@ def split_against_creations(
 
 @pure
 def _summarize_diff(
-    changed: ChangedFiles, creations: Sequence[CreationScope], own: ChangedFiles | None
+    changed: ChangedFiles, creations: Sequence[CreationScope], own: PassOwnChanges | None
 ) -> DiffSummary:
-    """``own`` is what the ref changes relative to its fork point from the lead, when known: a
-    changed file that is neither in it nor in a footprint is other work, not an unclaimed edit."""
+    """``own`` is what the pass changed itself, when known: a changed file that is neither in it
+    nor in a footprint is other work, not an unclaimed edit."""
     inside_footprint, outside_footprint = split_against_creations(changed.files, creations)
     if own is None:
         return DiffSummary(
@@ -635,7 +691,7 @@ def _summarize_diff(
             fork_point=None,
             others=(),
         )
-    own_files = frozenset(own.files)
+    own_files = own.files
     inside_files = frozenset(inside_footprint)
     return DiffSummary(
         base=changed.base,
@@ -643,7 +699,7 @@ def _summarize_diff(
         files=changed.files,
         inside_footprint=inside_footprint,
         outside_footprint=tuple(path for path in outside_footprint if path in own_files),
-        fork_point=own.base,
+        fork_point=own.fork_point,
         others=tuple(
             path for path in changed.files if path not in inside_files and path not in own_files
         ),
@@ -803,7 +859,7 @@ def compute_pass_scope(
     own = (
         None
         if lead_ref is None
-        else list_changed_files(repo_root, find_fork_point(repo_root, lead_ref, diff_ref), diff_ref)
+        else find_pass_own_changes(repo_root, diff_base, diff_ref, lead_ref, creations)
     )
     return PassScope(
         creations=creations,

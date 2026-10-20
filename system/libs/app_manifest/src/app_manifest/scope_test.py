@@ -746,14 +746,16 @@ def test_after_merging_the_leads_head_its_commits_are_the_leads_and_not_the_pass
         tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "worker edit"
     )
     run_git(tmp_path, ("checkout", "-q", "main"))
-    lead_head = commit_changes(
+    commit_changes(
         tmp_path,
         {
-            "system/apps/news/runner.py": "ROUTES = ('/api/entries', '/api/feeds')\n",
             "system/scripts/helper.sh": "#!/bin/sh\n\necho one\n\necho TWO\n",
             "docs/system/unrelated.md": "# unrelated, edited again\n",
         },
-        "the lead moved on",
+        "another chat",
+    )
+    lead_head = commit_changes(
+        tmp_path, {"system/apps/news/runner.py": "ROUTES = ('/api/entries', '/api/feeds')\n"}, "the app moved on"
     )
     run_git(tmp_path, ("checkout", "-q", "worker"))
     run_git(tmp_path, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
@@ -778,3 +780,33 @@ def test_a_lead_ref_the_branch_never_forked_from_is_refused(tmp_path: Path) -> N
 
     with pytest.raises(ScopeComputationError, match="did not fork from it"):
         compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], diff_base, "HEAD", "unrelated")
+
+
+def test_a_file_the_hardened_change_committed_outside_every_footprint_is_the_passs(tmp_path: Path) -> None:
+    """The change being hardened was committed on the lead's branch before the worker forked; a
+    file it changed outside every footprint is still the pass's to test and explain. Another
+    chat's commit in the same window that touched none of the pass's creations is not."""
+    build_news_workspace(tmp_path)
+    write_repo_file(tmp_path, "docs/system/unrelated.md", "# unrelated\n")
+    write_repo_file(tmp_path, "system/scripts/helper.sh", "#!/bin/sh\n")
+    write_repo_file(tmp_path, "system/scripts/other.sh", "#!/bin/sh\n")
+    init_git_repository(tmp_path)
+    diff_base = commit_everything(tmp_path, "base")
+    commit_changes(
+        tmp_path,
+        {"system/apps/news/runner.py": "ROUTES = ('/api/entries',)\n", "system/scripts/helper.sh": "#!/bin/sh\necho\n"},
+        "the chat's change, with a helper it needed",
+    )
+    commit_changes(
+        tmp_path,
+        {"docs/system/unrelated.md": "# unrelated, edited\n", "system/scripts/other.sh": "#!/bin/sh\necho\n"},
+        "another chat",
+    )
+    run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
+    commit_changes(tmp_path, {"system/apps/news/runner_test.py": "def test_routes() -> None:\n    pass\n"}, "tests")
+
+    scope = compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], diff_base, "HEAD", "main")
+
+    assert scope.diff is not None
+    assert scope.diff.outside_footprint == ("system/scripts/helper.sh",)
+    assert scope.diff.others == ("docs/system/unrelated.md", "system/scripts/other.sh")
