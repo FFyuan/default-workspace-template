@@ -42,6 +42,8 @@ mirror -- ship it as an `env.d` unit instead, or drop it.
 
 Never re-create the repo to retry a push. The script names the likely cause:
 
+- `--parent ... is not a commit`: the value was empty or wrong (an unset
+  `$BASE_REF`, a mistyped sha). Re-resolve it and run the push again.
 - the published `main` moved (non-fast-forward): someone else pushed there. Stop
   and tell the user; never force.
 - `github-git-write` missing: request it again.

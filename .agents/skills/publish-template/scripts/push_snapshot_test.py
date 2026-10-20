@@ -146,6 +146,7 @@ def test_a_parent_that_does_not_resolve_is_refused(publish: _Publish) -> None:
     completed = publish.push(parent="0" * 40)
 
     assert completed.returncode == 1
+    assert f"--parent '{'0' * 40}' is not a commit" in completed.stderr
     assert publish.remote_main() == ""
 
 

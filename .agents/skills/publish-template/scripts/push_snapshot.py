@@ -129,9 +129,15 @@ def _push(worktree: Path, repo: str, refspec: str) -> None:
 
 def mint_snapshot(worktree: Path, parent: str, message: str) -> str:
     """One commit holding the worktree's final tree, parented on `parent`."""
-    parent_commit = _git(
-        worktree, "rev-parse", "--verify", "-q", f"{parent}^{{commit}}"
-    )
+    try:
+        parent_commit = _git(
+            worktree, "rev-parse", "--verify", "-q", f"{parent}^{{commit}}"
+        )
+    except PushSnapshotError as e:
+        raise PushSnapshotError(
+            f"--parent {parent!r} is not a commit in {worktree}; re-resolve it "
+            "(BASE_REF for a first publish, the published tip for an update)"
+        ) from e
     snapshot = _git(
         worktree, "commit-tree", "HEAD^{tree}", "-p", parent_commit, "-m", message
     )
