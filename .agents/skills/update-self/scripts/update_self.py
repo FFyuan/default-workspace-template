@@ -1201,7 +1201,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     start_parser = run_status_sub.add_parser(
         "start",
-        help="Record that a run has begun, overwriting the previous run's record.",
+        help="Record that a run has begun, replacing the previous run's record but keeping "
+        "the chats it paused and has not brought back.",
         parents=[common],
     )
     start_parser.add_argument(
