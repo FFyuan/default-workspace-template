@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import pytest
 
+from chat_background_tasks.markers import is_pid_alive
 from chat_background_tasks.markers import process_start_time
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
@@ -134,8 +135,7 @@ def test_a_command_past_its_timeout_is_killed_with_its_whole_process_group(
 
     assert event.outcome is RunOutcome.TIMED_OUT
     child_pid = int(pid_file.read_text())
-    with pytest.raises(OSError):
-        os.kill(child_pid, 0)
+    assert not is_pid_alive(child_pid), "the sleep the command left in its process group outlived the run"
     assert states.read(SYNC).consecutive_failures == 1
 
 

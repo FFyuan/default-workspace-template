@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 from collections.abc import Callable
 from datetime import datetime
 from datetime import timedelta
@@ -62,6 +63,7 @@ from routines.wake import wake_skill
 OUTPUT_TAIL_BYTES: Final[int] = 4096
 # After the timeout the process group is asked to stop, then killed if it has not.
 TERMINATE_GRACE_SECONDS: Final[float] = 5.0
+_GROUP_DRAIN_POLL_SECONDS: Final[float] = 0.05
 RUN_DIR_RETENTION: Final[timedelta] = timedelta(days=90)
 INTERRUPTED_SUMMARY: Final[str] = "The run was cut off before it finished, most likely by a restart."
 TIMED_OUT_SUMMARY: Final[str] = "The run was stopped because it took longer than its time limit."
@@ -565,19 +567,42 @@ def read_result(path: Path) -> RunResult:
 
 
 def _stop_process_group(process: subprocess.Popen[bytes]) -> None:
-    """Ask the process group to stop, then kill what is left."""
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except OSError:
+    """Ask the process group to stop, then kill what is left; returns once no process of the group remains.
+
+    The direct child is reaped here; its descendants are reaped by whoever inherits them, so the group is
+    polled until every member is gone (a run is closed only once nothing of it still runs).
+    """
+    if _signal_group_and_drain(process, signal.SIGTERM):
         return
+    _signal_group_and_drain(process, signal.SIGKILL)
+
+
+def _signal_group_and_drain(process: subprocess.Popen[bytes], signal_number: signal.Signals) -> bool:
+    """Send the signal to the group and wait up to the grace for it to empty; whether it did."""
+    try:
+        os.killpg(process.pid, signal_number)
+    except OSError:
+        return True
     try:
         process.wait(timeout=TERMINATE_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except OSError:
-            return
-        process.wait()
+        return False
+    deadline = threading.Event()
+    for _ in range(int(TERMINATE_GRACE_SECONDS / _GROUP_DRAIN_POLL_SECONDS)):
+        if not _is_process_group_alive(process.pid):
+            return True
+        deadline.wait(_GROUP_DRAIN_POLL_SECONDS)
+    return not _is_process_group_alive(process.pid)
+
+
+def _is_process_group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _remove_tree(path: Path) -> None:
