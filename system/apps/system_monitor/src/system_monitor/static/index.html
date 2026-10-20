@@ -561,7 +561,7 @@
     running: (b) => ["live", "Backing up now.", b.last_success_at ? `The last backup completed ${ago((Date.now() - Date.parse(b.last_success_at)) / 1000)}.` : "This is the first backup."],
     up_to_date: (b) => ["live", `Backed up ${ago((Date.now() - Date.parse(b.last_success_at)) / 1000)}.`, "Up to date."],
     stale: (b) => ["warn", b.last_success_at ? `Last backed up ${ago((Date.now() - Date.parse(b.last_success_at)) / 1000)}.` : "Not backed up yet.", "A backup is overdue."],
-    failing: (b) => ["bad", `The last backup failed ${b.last_failure_at ? ago((Date.now() - Date.parse(b.last_failure_at)) / 1000) : ""}.`, b.last_success_at ? `The last one that completed was ${ago((Date.now() - Date.parse(b.last_success_at)) / 1000)}.` : "None has completed yet."],
+    failing: (b) => ["bad", `The last backup failed${b.last_failure_at ? " " + ago((Date.now() - Date.parse(b.last_failure_at)) / 1000) : ""}.`, b.last_success_at ? `The last one that completed was ${ago((Date.now() - Date.parse(b.last_success_at)) / 1000)}.` : "None has completed yet."],
   };
   function renderDisk(r) {
     const d = r.disk, dp = pct(d.used, d.total);
