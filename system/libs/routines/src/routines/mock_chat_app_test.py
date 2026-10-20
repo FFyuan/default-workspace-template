@@ -83,3 +83,10 @@ class ScriptedChatApp(ChatAppInterface):
             raise ChatCreateError("The chat could not be created: sign in to a provider first.")
         self.created.append((name, routine_id, first_message))
         return self.next_created_id
+
+
+class BrokenChatApp(ScriptedChatApp):
+    """A chat app whose status read fails in a way the wake does not expect."""
+
+    def chat_status(self, chat_id: str) -> ChatStatusWord | None:
+        raise OSError("the socket vanished")

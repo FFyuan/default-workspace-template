@@ -9,7 +9,6 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from pydantic import Field
 
 from chat_background_tasks.markers import is_pid_alive
 from chat_background_tasks.markers import process_start_time
@@ -28,9 +27,12 @@ from routines.errors import DefinitionValidationError
 from routines.errors import RunInFlightError
 from routines.ledger import FileLedger
 from routines.locks import held_lock
+from routines.mock_chat_app_test import BrokenChatApp
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.mock_notifier_test import RecordingNotifier
+from routines.mock_state_store_test import OneRefusingStateStore
+from routines.mock_state_store_test import StaleReadStateStore
 from routines.paths import RoutinesPaths
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
@@ -196,13 +198,6 @@ def test_a_spawned_process_is_collected_once_it_exits_without_the_spawner_waitin
     assert process.returncode == 0
 
 
-class BrokenChatApp(ScriptedChatApp):
-    """A chat app whose status read fails in a way the wake does not expect."""
-
-    def chat_status(self, chat_id: str) -> ChatStatusWord | None:
-        raise OSError("the socket vanished")
-
-
 def test_an_error_in_the_runner_closes_the_books_as_failed_and_still_surfaces(
     runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, ledger: FileLedger
 ) -> None:
@@ -315,17 +310,6 @@ def test_the_tick_closes_off_a_run_whose_process_is_gone(
     finished = ledger.events_of_run(SYNC, run_id)[-1]
     assert isinstance(finished, RunFinishedEvent)
     assert finished.outcome is RunOutcome.INTERRUPTED
-
-
-class OneRefusingStateStore(FileStateStore):
-    """A state store whose file for one routine cannot be opened."""
-
-    refused_id: RoutineId = Field(description="The routine whose state read fails")
-
-    def read(self, routine_id: RoutineId) -> RoutineState:
-        if routine_id == self.refused_id:
-            raise PermissionError(f"{routine_id}: state.json is not readable")
-        return super().read(routine_id)
 
 
 def test_the_tick_goes_on_past_a_routine_whose_state_cannot_be_read(
@@ -530,18 +514,6 @@ def test_a_new_streak_after_an_unsent_recovery_post_is_still_announced(
         "Nightly sync has failed once.",
     ]
     assert states.read(SYNC).is_failure_notified is True
-
-
-class StaleReadStateStore(FileStateStore):
-    """Answers one read with a state read just before the run finished, as a reaper racing the run sees it."""
-
-    stale: RoutineState | None = None
-
-    def read(self, routine_id: RoutineId) -> RoutineState:
-        if self.stale is not None:
-            stale, self.stale = self.stale, None
-            return stale
-        return super().read(routine_id)
 
 
 def test_the_tick_leaves_a_run_that_finished_while_it_was_looking_alone(
