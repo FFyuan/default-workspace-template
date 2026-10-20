@@ -94,7 +94,14 @@ export class AppModel {
         }
       }
     } catch (error) {
-      this.loaded = { kind: "error", message: error instanceof Error ? error.message : String(error) };
+      const message = error instanceof Error ? error.message : String(error);
+      // A page that has data keeps it: one refused re-read (the app restarting under the forwarder, a
+      // tick's write racing the read) must not wipe what the user is looking at until the next poll.
+      if (this.loaded.kind === "loading" || this.loaded.kind === "error") {
+        this.loaded = { kind: "error", message };
+      } else {
+        this.toasts.show(`Couldn't refresh: ${message}`);
+      }
     }
     this.redraw();
     this.scheduleRefresh();

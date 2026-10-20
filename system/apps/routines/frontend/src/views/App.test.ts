@@ -126,6 +126,25 @@ describe("AppModel", () => {
     model.dispose();
   });
 
+  it("keeps the last good data when a later re-read fails, and says so in a toast", async () => {
+    answer = () => listingOf([rowOf()]);
+    const model = new AppModel("/", host(), () => undefined);
+    await model.load();
+    expect(model.loaded.kind).toBe("list");
+
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(new Response(JSON.stringify({ detail: "the ledger is unreadable" }), { status: 500 })),
+    );
+    await vi.advanceTimersByTimeAsync(IDLE_REFRESH_MS);
+    await settle();
+
+    expect(model.loaded.kind).toBe("list");
+    expect(model.toasts.current().map((toast) => toast.message)).toEqual([
+      "Couldn't refresh: the ledger is unreadable",
+    ]);
+    model.dispose();
+  });
+
   it("removes the routine and leaves for the list without reading the removed page", async () => {
     const page = host();
     answer = () => detailOf();
