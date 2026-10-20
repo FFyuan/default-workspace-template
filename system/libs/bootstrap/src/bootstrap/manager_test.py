@@ -1070,7 +1070,11 @@ def test_routines_tick_cron_entry_runs_through_the_env_wrapper_and_logs_to_the_s
     entry = (target / ROUTINES_TICK_CRON_NAME).read_text()
     assert entry.count("\n") == 1
     assert ">> /var/log/supervisor/routines-tick.log 2>&1" in entry
-    assert (WORKSPACE_ROOT_DIR / ROUTINES_ENV_WRAPPER).name == "with_agent_env.sh"
+    # The wrapper the line names has to be in the tree and runnable, or the tick fails at every fire.
+    # This file sits at system/libs/bootstrap/src/bootstrap/, five levels under the checkout.
+    wrapper = Path(__file__).resolve().parents[5] / ROUTINES_ENV_WRAPPER
+    assert wrapper.is_file()
+    assert os.access(wrapper, os.X_OK)
 
 
 def test_routines_tick_cron_entry_tolerates_an_unwritable_target(
