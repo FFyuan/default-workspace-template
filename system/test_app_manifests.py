@@ -382,7 +382,7 @@ def test_built_in_manifests_agree_with_the_contract_table() -> None:
     assert by_name["terminal"].critical is True
     assert by_name["files"].critical is False
     assert by_name["browser"].critical is False
-    # The stop-when-no-windows spec, section 4.2: Files, Getting Started, and Memory & disk stop once no
+    # The stop-when-no-windows spec, section 4.2: Files, Getting Started, and System Monitor stop once no
     # window shows them; the browser keeps running, since agents drive its browsers with no window; and the
     # critical ones (which the manifest refuses the field on) never stop.
     assert {name: manifest.stop_when_no_windows for name, manifest in by_name.items()} == {
@@ -423,8 +423,8 @@ def test_built_in_manifests_agree_with_the_contract_table() -> None:
     # Its preview (update-app's preview_app.py) boots unregistered, so it neither re-points the live row nor opens
     # the first-visit window.
     assert by_name["getting-started"].preview.command[:2] == ("getting-started", "--no-register")
-    # Memory & disk: one polling page, focused like Getting Started, with its own band so it is shed after every
-    # user service.
+    # System Monitor: one polling page (its views are paths of it, reached inside the app), focused like Getting
+    # Started, with its own band so it is shed after every user service.
     assert by_name["system-monitor"].critical is False
     assert by_name["system-monitor"].program == "system-monitor"
     assert by_name["system-monitor"].priority == "system-monitor"

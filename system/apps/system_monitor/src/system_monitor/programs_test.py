@@ -1,12 +1,7 @@
-"""Tests for the process reader and the records of who runs what: chats, user apps, supervisord, and the agent registry."""
+"""Tests for the process reader and the records of who runs what: chats, user apps, and the agent registry."""
 
-import configparser
 import json
-import socketserver
-import tempfile
-import threading
 from pathlib import Path
-from xmlrpc.server import SimpleXMLRPCDispatcher, SimpleXMLRPCRequestHandler
 
 import pytest
 
@@ -95,48 +90,6 @@ def test_user_apps_lists_only_the_user_band_rows_that_name_a_program(
 
     assert programs.user_apps(registry) == {"budget": "Budget", "notes": "notes"}
     assert programs.user_apps(tmp_path / "missing.toml") == {}
-
-
-class _UnixRequestHandler(SimpleXMLRPCRequestHandler):
-    # The stock handler sets a TCP-only socket option, which a Unix socket refuses.
-    disable_nagle_algorithm = False
-
-
-class _UnixXMLRPCServer(socketserver.UnixStreamServer, SimpleXMLRPCDispatcher):
-    def __init__(self, path: str) -> None:
-        SimpleXMLRPCDispatcher.__init__(self, allow_none=True)
-        socketserver.UnixStreamServer.__init__(self, path, _UnixRequestHandler)
-        self.logRequests = False
-
-
-def test_running_programs_are_read_from_the_supervisor_socket() -> None:
-    with tempfile.TemporaryDirectory(dir="/tmp") as short_dir:
-        sock = Path(short_dir) / "s.sock"
-        server = _UnixXMLRPCServer(str(sock))
-        server.register_function(
-            lambda: [
-                {"name": "budget", "statename": "RUNNING", "pid": 40},
-                {"name": "notes", "statename": "STOPPED", "pid": 0},
-                {"name": "chat", "statename": "RUNNING", "pid": 25},
-            ],
-            "supervisor.getAllProcessInfo",
-        )
-        serving = threading.Thread(target=server.handle_request)
-        serving.start()
-        try:
-            assert programs.supervised_pids(sock) == {"budget": 40, "chat": 25}
-        finally:
-            serving.join(timeout=5)
-            server.server_close()
-        # No supervisord to ask: no programs, and no error.
-        assert programs.supervised_pids(Path(short_dir) / "missing.sock") == {}
-
-
-def test_the_supervisor_socket_is_the_one_the_workspace_configures() -> None:
-    conf = configparser.ConfigParser(interpolation=None, strict=False)
-    conf.read(Path(__file__).parents[4] / "supervisord.conf")
-
-    assert conf["unix_http_server"]["file"] == str(programs.SUPERVISOR_SOCKET)
 
 
 def test_malformed_workspace_records_are_skipped_rather_than_failing(

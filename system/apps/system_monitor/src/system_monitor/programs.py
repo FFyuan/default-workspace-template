@@ -1,26 +1,17 @@
 """The running programs and who they belong to: each process's memory, the chats, the apps the
 user built, and the programs supervisord runs."""
 
-import http.client
 import json
 import re
-import socket
 import tomllib
-import xmlrpc.client
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
 
+from oom_priority.meminfo import KIB, PROC, parse_kib_fields
 from oom_priority.registry import is_process_alive, live_pids_by_agent_id
-
-from system_monitor.memory import KIB, PROC, parse_kib_fields
 
 MNGR_AGENTS_DIR = Path("/home/user/.mngr/agents")
 APPS_REGISTRY = Path("data/.state/apps.toml")
-# supervisord's control socket (system/supervisord.conf's [unix_http_server]), asked directly
-# over XML-RPC as supervisorctl itself does. Starting a supervisorctl process each refresh cost
-# about 80 ms of CPU, most of a refresh's cost.
-SUPERVISOR_SOCKET = Path("/var/run/supervisor.sock")
 # Command-line fragments of the language servers chats start to check code.
 CODE_CHECKER_MARKERS = (
     "langserver",
@@ -160,47 +151,3 @@ def user_apps(registry: Path = APPS_REGISTRY) -> dict[str, str]:
         for r in (rows if isinstance(rows, list) else [])
         if isinstance(r, dict) and r.get("priority") == "user" and r.get("program")
     }
-
-
-class _UnixHTTPConnection(http.client.HTTPConnection):
-    def __init__(self, path: Path) -> None:
-        super().__init__("localhost", timeout=2)
-        self._path = path
-
-    def connect(self) -> None:
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.settimeout(self.timeout)
-        self.sock.connect(str(self._path))
-
-
-class _UnixTransport(xmlrpc.client.Transport):
-    def __init__(self, path: Path) -> None:
-        super().__init__()
-        self._path = path
-
-    def make_connection(self, host: Any) -> http.client.HTTPConnection:
-        return _UnixHTTPConnection(self._path)
-
-
-def supervised_pids(sock: Path = SUPERVISOR_SOCKET) -> dict[str, int]:
-    """supervisord program -> pid, for the programs running now."""
-    proxy = xmlrpc.client.ServerProxy(
-        "http://localhost", transport=_UnixTransport(sock)
-    )
-    try:
-        infos = proxy.supervisor.getAllProcessInfo()
-    except (OSError, xmlrpc.client.Error, http.client.HTTPException):
-        return {}  # no supervisord here, or not ours to ask
-    pids: dict[str, int] = {}
-    for info in infos if isinstance(infos, list) else []:
-        # One dict per program: name, statename, pid, and more (supervisor's getProcessInfo).
-        entry = cast(dict[str, Any], info) if isinstance(info, dict) else {}
-        name, pid = entry.get("name"), entry.get("pid")
-        if (
-            entry.get("statename") == "RUNNING"
-            and isinstance(name, str)
-            and isinstance(pid, int)
-            and pid
-        ):
-            pids[name] = pid
-    return pids

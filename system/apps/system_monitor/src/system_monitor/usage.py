@@ -14,20 +14,27 @@ stops, a 540 MB chat freed about 245 MB and 950 MB of code checkers freed about 
 rows are a rough guide.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from system_monitor.memory import PROC
+from oom_priority.meminfo import PROC
+
 from system_monitor.programs import Process, chat_agent_id, is_code_checker
 
 SCRATCH_DIR = Path("/tmp")
 
 
-def _group(gid: str, label: str, parts: dict[str, int]) -> dict[str, Any]:
-    # Largest first; sorted on the (name, bytes) pairs so the sort key stays a plain int.
+def _group(
+    gid: str, label: str, parts: dict[str, int], cpu_parts: dict[str, float] | None
+) -> dict[str, Any]:
+    """A row with an item per name, largest memory first; CPU shares ride along when there is a reading."""
     items = [
-        {"name": k, "bytes": v}
+        {
+            "name": k,
+            "bytes": v,
+            "cpu": None if cpu_parts is None else round(cpu_parts.get(k, 0.0), 4),
+        }
         for k, v in sorted(parts.items(), key=lambda kv: kv[1], reverse=True)
     ]
     return {
@@ -35,13 +42,23 @@ def _group(gid: str, label: str, parts: dict[str, int]) -> dict[str, Any]:
         "label": label,
         "hint": "",
         "bytes": sum(parts.values()),
+        "cpu": None if cpu_parts is None else round(sum(cpu_parts.values()), 4),
         "items": items,
     }
 
 
-def _total_row(gid: str, label: str, amount: int, hint: str = "") -> dict[str, Any]:
+def _total_row(
+    gid: str, label: str, amount: int, hint: str = "", cpu: float | None = None
+) -> dict[str, Any]:
     """A row with only a total, no items under it."""
-    return {"id": gid, "label": label, "hint": hint, "bytes": amount, "items": []}
+    return {
+        "id": gid,
+        "label": label,
+        "hint": hint,
+        "bytes": amount,
+        "cpu": cpu,
+        "items": [],
+    }
 
 
 def _private(p: Process) -> int:
@@ -55,16 +72,24 @@ def group_usage(
     supervised: dict[str, int],
     size: Callable[[Process], int] = lambda p: p.rss,
     agents: dict[int, str] | None = None,
+    cpu_by_pid: Mapping[int, float] | None = None,
 ) -> list[dict[str, Any]]:
-    """Split the memory programs hold into the groups the page shows, counting ``size`` of each.
+    """Split the memory programs hold into the groups the page shows, counting ``size`` of each, and the CPU
+    beside it when the sampler's per-process shares (``cpu_by_pid``) are at hand.
 
     A chat is every process an agent's main process started, the main processes being the
     registered ones (``agents``, any harness) and, failing that, claude found by its command line.
+    A process's CPU share includes the children it has reaped, so it lands with the group of
+    whatever started it.
     """
     chats: dict[str, int] = {}
     checkers: dict[str, int] = {}
     app_mem: dict[str, int] = {}
     other = 0
+    chats_cpu: dict[str, float] = {}
+    checkers_cpu: dict[str, float] = {}
+    app_cpu: dict[str, float] = {}
+    other_cpu = 0.0
     chat_pids = {
         pid: aid
         for pid, p in procs.items()
@@ -88,24 +113,32 @@ def group_usage(
 
     for pid, p in procs.items():
         amount = size(p)
-        if not amount:
+        share = cpu_by_pid.get(pid, 0.0) if cpu_by_pid is not None else 0.0
+        if not amount and not share:
             continue
         who = owner(pid)
         chat = names.get(who[1], who[1]) if who and who[0] == "chat" else None
         if is_code_checker(" ".join(p.argv[:3])):
             key = chat if chat is not None else "Other"
             checkers[key] = checkers.get(key, 0) + amount
+            checkers_cpu[key] = checkers_cpu.get(key, 0.0) + share
         elif chat is not None:
             # the chat itself and whatever it is running right now (a test run, a browser)
             chats[chat] = chats.get(chat, 0) + amount
+            chats_cpu[chat] = chats_cpu.get(chat, 0.0) + share
         elif who:
             app_mem[who[1]] = app_mem.get(who[1], 0) + amount
+            app_cpu[who[1]] = app_cpu.get(who[1], 0.0) + share
         else:
             other += amount
+            other_cpu += share
 
+    has_cpu = cpu_by_pid is not None
     return [
-        _group("chats", "Chats", chats),
-        _group("checkers", "Code checkers", checkers),
+        _group("chats", "Chats", chats, chats_cpu if has_cpu else None),
+        _group(
+            "checkers", "Code checkers", checkers, checkers_cpu if has_cpu else None
+        ),
         # Everything not a chat, a code checker, or a user-built app: the built-in apps (this
         # one included) land here, since only the user band's apps get rows of their own.
         _total_row(
@@ -113,8 +146,9 @@ def group_usage(
             "Workspace",
             other,
             "chat app, desktop, built-in apps, background services",
+            round(other_cpu, 4) if has_cpu else None,
         ),
-        _group("apps", "Your apps", app_mem),
+        _group("apps", "Your apps", app_mem, app_cpu if has_cpu else None),
     ]
 
 
@@ -153,6 +187,7 @@ def exact_usage(
     used: int,
     scratch: dict[str, int] | None = None,
     agents: dict[int, str] | None = None,
+    cpu_by_pid: Mapping[int, float] | None = None,
 ) -> list[dict[str, Any]]:
     """The groups by private memory, then Shared, Temporary files, and System rows, adding up to ``used``.
 
@@ -163,7 +198,15 @@ def exact_usage(
     cannot inspect. It cannot go below zero; the file pages a program maps are partly counted
     as available, so the rows can sum a little past ``used``.
     """
-    groups = group_usage(procs, names, apps, supervised, size=_private, agents=agents)
+    groups = group_usage(
+        procs,
+        names,
+        apps,
+        supervised,
+        size=_private,
+        agents=agents,
+        cpu_by_pid=cpu_by_pid,
+    )
     shared = sum(
         p.pss - p.private
         for p in procs.values()
@@ -185,12 +228,15 @@ def scaled_usage(
     used: int,
     scratch: dict[str, int] | None = None,
     agents: dict[int, str] | None = None,
+    cpu_by_pid: Mapping[int, float] | None = None,
 ) -> list[dict[str, Any]]:
     """The groups by resident size, shrunk to the memory in use less the scratch space's, then a
     Temporary files row (when /tmp is held in memory): the fallback without smaps_rollup."""
     in_scratch = scratch["used"] if scratch is not None else 0
     groups = scale_to_used(
-        group_usage(procs, names, apps, supervised, agents=agents),
+        group_usage(
+            procs, names, apps, supervised, agents=agents, cpu_by_pid=cpu_by_pid
+        ),
         max(0, used - in_scratch),
     )
     if scratch is not None:

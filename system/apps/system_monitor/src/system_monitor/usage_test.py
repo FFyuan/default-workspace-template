@@ -44,8 +44,8 @@ def test_exact_usage_counts_private_memory_per_group_and_shared_memory_once() ->
         "system",
     ]
     assert by_id["chats"]["items"] == [
-        {"name": "Budget", "bytes": 300 * _MIB},
-        {"name": "Notes", "bytes": 250 * _MIB},
+        {"name": "Budget", "bytes": 300 * _MIB, "cpu": None},
+        {"name": "Notes", "bytes": 250 * _MIB, "cpu": None},
     ]
     assert by_id["workspace"]["bytes"] == 60 * _MIB
     assert by_id["shared"]["bytes"] == (10 + 100 + 100) * _MIB
@@ -95,12 +95,16 @@ def test_memory_is_grouped_by_the_chat_or_app_each_process_descends_from() -> No
         "workspace",
         "apps",
     ]
-    assert by_id["chats"]["items"] == [{"name": "Budget", "bytes": 700 * _MIB}]
-    assert by_id["checkers"]["items"] == [
-        {"name": "Budget", "bytes": 300 * _MIB},
-        {"name": "Other", "bytes": 70 * _MIB},
+    assert by_id["chats"]["items"] == [
+        {"name": "Budget", "bytes": 700 * _MIB, "cpu": None}
     ]
-    assert by_id["apps"]["items"] == [{"name": "Budget app", "bytes": 75 * _MIB}]
+    assert by_id["checkers"]["items"] == [
+        {"name": "Budget", "bytes": 300 * _MIB, "cpu": None},
+        {"name": "Other", "bytes": 70 * _MIB, "cpu": None},
+    ]
+    assert by_id["apps"]["items"] == [
+        {"name": "Budget app", "bytes": 75 * _MIB, "cpu": None}
+    ]
     assert by_id["workspace"]["bytes"] == 100 * _MIB
     assert by_id["workspace"]["items"] == []
     assert (
@@ -114,7 +118,7 @@ def test_scaling_shrinks_every_figure_to_the_memory_in_use_and_never_grows_them(
 ):
     def groups() -> list[dict]:
         return [
-            {"bytes": 600, "items": [{"name": "a", "bytes": 600}]},
+            {"bytes": 600, "items": [{"name": "a", "bytes": 600, "cpu": None}]},
             {"bytes": 400, "items": []},
         ]
 
@@ -195,7 +199,47 @@ def test_chats_on_any_harness_are_grouped_from_their_registered_main_processes()
 
     by_id = {group["id"]: group for group in groups}
     assert by_id["chats"]["items"] == [
-        {"name": "Budget", "bytes": 550 * _MIB},
-        {"name": "Notes", "bytes": 120 * _MIB},
+        {"name": "Budget", "bytes": 550 * _MIB, "cpu": None},
+        {"name": "Notes", "bytes": 120 * _MIB, "cpu": None},
     ]
     assert by_id["workspace"]["bytes"] == 100 * _MIB
+
+
+def test_cpu_shares_roll_up_to_the_group_of_whatever_started_the_process() -> None:
+    chat_main = ["claude", "--settings", "/home/user/.mngr/agents/agent-abc/x"]
+    procs = {
+        10: Process(
+            10, 1, 100 * _MIB, ["supervisord"], private=60 * _MIB, pss=70 * _MIB
+        ),
+        20: Process(20, 10, 500 * _MIB, chat_main, private=300 * _MIB, pss=400 * _MIB),
+        # The chat's test run: its memory and its CPU land with the chat.
+        21: Process(21, 20, 50 * _MIB, ["pytest"], private=40 * _MIB, pss=45 * _MIB),
+        # A process with CPU but no memory of its own still shows in the breakdown's CPU.
+        30: Process(30, 10, 0, ["node", "server.js"], private=0, pss=0),
+    }
+
+    groups = usage.exact_usage(
+        procs,
+        {"agent-abc": "Budget"},
+        {"notes": "Notes"},
+        {"notes": 30},
+        1000 * _MIB,
+        cpu_by_pid={20: 0.2, 21: 0.05, 30: 0.01, 10: 0.004},
+    )
+
+    by_id = {group["id"]: group for group in groups}
+    assert by_id["chats"]["cpu"] == 0.25
+    assert by_id["chats"]["items"] == [
+        {"name": "Budget", "bytes": 340 * _MIB, "cpu": 0.25}
+    ]
+    assert by_id["apps"]["cpu"] == 0.01
+    assert by_id["workspace"]["cpu"] == 0.004
+    assert by_id["shared"]["cpu"] is None and by_id["system"]["cpu"] is None
+    # Without a reading, no row claims a share.
+    without = {
+        group["id"]: group["cpu"]
+        for group in usage.exact_usage(
+            procs, {"agent-abc": "Budget"}, {}, {}, 1000 * _MIB
+        )
+    }
+    assert set(without.values()) == {None}

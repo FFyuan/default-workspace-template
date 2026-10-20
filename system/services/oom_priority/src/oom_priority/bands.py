@@ -275,10 +275,12 @@ SERVICE_BANDS: Final[dict[str, int]] = {
     # The Getting Started page: one static page and a cached catalog. A shed costs
     # one reload of a window that shows nothing of the user's.
     "getting-started": 80,
-    # The Memory & disk page: one polling page that writes nothing to disk, so a
-    # shed costs a reload and the memory graph's last 10 minutes. The most
-    # expendable built-in service of all.
+    # The System Monitor page: one polling page that writes nothing to disk, so a
+    # shed costs a reload. The most expendable built-in service of all, with the
+    # sampler that feeds its graphs just below it: a shed sampler costs a gap in
+    # the graphs until supervisord brings it back, and it holds almost no memory.
     "system-monitor": 85,
+    "resource_sampler": 86,
     "user": USER_SERVICE,
     # The shell of a workspace terminal window (and everything run in it), tagged by the
     # terminal app's session command. Not a supervisord program: the pane is a child of the
