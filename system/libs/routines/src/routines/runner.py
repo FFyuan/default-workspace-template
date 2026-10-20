@@ -99,7 +99,7 @@ def _envelope(event_type: str, now: datetime) -> dict[str, str]:
     }
 
 
-def read_output_tail(log_path: Path) -> str:
+def _read_output_tail(log_path: Path) -> str:
     """The log's last part for the finish event; empty for a run that wrote no log, or one whose log cannot be read."""
     try:
         text, _ = read_tail(log_path, OUTPUT_TAIL_BYTES)
@@ -111,7 +111,7 @@ def read_output_tail(log_path: Path) -> str:
     return text
 
 
-def is_run_process_alive(current: CurrentRun) -> bool:
+def _is_run_process_alive(current: CurrentRun) -> bool:
     """Whether the run's process still runs: the process the run recorded, not a later one given its pid."""
     return is_process_live(current.pid, current.pid_start)
 
@@ -390,7 +390,7 @@ class Runner(MutableModel):
             summary=execution.summary,
             chat_id=execution.chat_id,
             warnings=execution.warnings,
-            output_tail=read_output_tail(self.paths.run_log_path(routine_id, run_id)),
+            output_tail=_read_output_tail(self.paths.run_log_path(routine_id, run_id)),
         )
         self.ledger.append(event)
         last_run = LastRun(
@@ -478,7 +478,7 @@ class Runner(MutableModel):
             if state is None:
                 continue
             current = state.current_run
-            if current is None or is_run_process_alive(current):
+            if current is None or _is_run_process_alive(current):
                 continue
             now = self.clock.now()
             kind = loaded.definition.kind if loaded.definition is not None else RunKind.COMMAND
@@ -512,7 +512,7 @@ class Runner(MutableModel):
                     summary=INTERRUPTED_SUMMARY,
                     chat_id=state.chat_id,
                     warnings=(),
-                    output_tail=read_output_tail(self.paths.run_log_path(routine_id, current.run_id)),
+                    output_tail=_read_output_tail(self.paths.run_log_path(routine_id, current.run_id)),
                 )
             )
             reaped.append(routine_id)
