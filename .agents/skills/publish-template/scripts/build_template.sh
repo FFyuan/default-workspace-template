@@ -704,10 +704,8 @@ THUMB_EOF
 #
 # The call-to-action points at the Studio trampoline page (a connector route
 # on the web chrome origin) rather than a bare imbue-studio:// URL, which
-# GitHub renders dead. Both it and the copyable fallback need the repo URL,
-# which does not exist yet (the user confirms the name at the publish gate, and
-# the owner comes back from the create call), so both carry
-# ${REPO_URL_PLACEHOLDER} until the repo is created.
+# GitHub renders dead. Both it and the copyable fallback carry
+# ${REPO_URL_PLACEHOLDER} (see its definition above).
 
 cat > README.md <<README_EOF
 <p align="center">

@@ -18,9 +18,6 @@ _LEDGER_NOTE_WIDTH = 26
 
 # The canonical starter, recreated when the file was deleted since creation.
 # Byte-identical to the ``docs/VERSION_HISTORY.md`` the template ships.
-# ``publish-template``'s ``record_publish.py`` imports it, ``origin_line`` and
-# ``insert_under_workspace`` from here, and ``update-installed-template``
-# recreates it by reference to here.
 VERSION_HISTORY_STARTER = """\
 # Version history
 
