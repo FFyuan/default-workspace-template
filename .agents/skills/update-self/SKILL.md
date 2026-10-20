@@ -760,7 +760,8 @@ Exit codes:
   (`references/apply-outcomes.md`); the refusal names the commits to revert.
   Waiting on another apply, or a fresh pass, can take far longer than an apply,
   so bring the chats back first (`run-status resume-chats`, without
-  `--landed`) and let the next 5b pause them again.
+  `--landed`, and with `--wip-commit <sha>` when 5b's save made a commit) and
+  let the next 5b pause them again.
 
 **Right after an apply that exits 0, 2 or 3, bring back what you paused**,
 naming the release when it landed (exit 0) and the commit that saved the
