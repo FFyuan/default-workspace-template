@@ -54,14 +54,14 @@
 </head>
 <body>
 <h1>System Monitor Mocks</h1>
-<p class="intro">Eleven static pages for the workspace's Memory &amp; disk app: the shipped page as it is today, then ten directions that each add CPU and change the layout or the information architecture. Every page uses the workspace's design tokens and the same sample data (an 8 GB machine with three chats open). Pick one on the left; it is framed at 600 x 800 by default, with the shell's real cascade and snapped frames on a laptop desktop as alternatives. Under each name is what the real app would need to become it, since the app has to stay simple and cheap.</p>
+<p class="intro">Eleven static pages for the workspace's Memory &amp; disk app: the shipped page as it is today, then ten directions that each add CPU and change the layout or the information architecture. Every page uses the workspace's design tokens and the same sample data (an 8 GB machine with three chats open). Pick one on the left; it is framed at 600 x 800 by default, with the page area of the shell's real cascade and snapped windows on a laptop desktop as alternatives. Under each name is what the real app would need to become it, since the app has to stay simple and cheap.</p>
 
 <div class="layout">
   <nav class="list" id="list" aria-label="Variants"></nav>
   <div class="viewer">
     <div class="bar">
       <b id="title"></b>
-      <div class="sizes" id="sizes"><button aria-pressed="true" data-w="600" data-h="800" title="The size the app is expected to be used at">600 x 800</button><button data-w="864" data-h="630" title="The shell's cascade frame (60% x 70%) on a 1440 x 900 desktop">cascade 864 x 630</button><button data-w="720" data-h="900" title="Snapped to one half (50% x 100%) of a 1440 x 900 desktop">snapped 720 x 900</button><button data-w="360" data-h="560" title="A phone-sized window">360 x 560</button></div>
+      <div class="sizes" id="sizes"><button aria-pressed="true" data-w="600" data-h="800" title="The size the app is expected to be used at">600 x 800</button><button data-w="864" data-h="594" title="The page inside the shell's cascade frame (60% x 70% of a 1440 x 900 desktop) once the 36 px title bar is taken off">cascade 864 x 594</button><button data-w="720" data-h="864" title="The page inside a window snapped to one half (50% x 100%) of a 1440 x 900 desktop, once the 36 px title bar is taken off">snapped 720 x 864</button><button data-w="360" data-h="560" title="A phone-sized window">360 x 560</button></div>
       <a class="open" id="open" href="#" target="_blank" rel="noopener">Open in its own tab</a>
     </div>
     <p class="needs-line" id="needs"></p>

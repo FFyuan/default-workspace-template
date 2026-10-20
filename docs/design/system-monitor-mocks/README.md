@@ -12,8 +12,9 @@ frames as alternatives, and shows all of them scaled down at the bottom. The
 shell gives the app no size of its own: a new window opens at the cascade frame,
 60% x 70% of the desktop (`system/apps/system_interface/frontend/src/geometry/frames.ts`,
 desktop-interface contracts section 10), which is landscape on a laptop, and a
-snapped window is one half of it. The presets for those are measured on a
-1440 x 900 desktop.
+snapped window is one half of it. The presets for those are the page area inside such a window on a 1440 x 900
+desktop: the frame less the shell's 36 px title bar (`--desk-title-bar-height`,
+contracts section 11).
 
 The app has to stay simple and low-resource, so each variant comes with what
 the real app would need to become it:
