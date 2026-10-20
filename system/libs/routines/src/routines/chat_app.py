@@ -186,16 +186,18 @@ class HttpChatApp(ChatAppInterface):
         if cursor_event_id is None:
             return _newest_assistant_text(self._events(chat_id, f"limit={_EVENTS_PAGE_LIMIT}"))
         newest: str | None = None
-        cursor = cursor_event_id
-        while True:
+        cursor: str | None = cursor_event_id
+        while cursor is not None:
             events = self._events(chat_id, f"after={urllib.parse.quote(cursor)}&limit={_EVENTS_PAGE_LIMIT}")
             text = _newest_assistant_text(events)
             if text is not None:
                 newest = text
             last_event_id = events[-1].get("event_id") if events else None
-            if len(events) < _EVENTS_PAGE_LIMIT or not isinstance(last_event_id, str) or last_event_id == cursor:
-                return newest
-            cursor = last_event_id
+            is_last_page = (
+                len(events) < _EVENTS_PAGE_LIMIT or not isinstance(last_event_id, str) or last_event_id == cursor
+            )
+            cursor = None if is_last_page else last_event_id
+        return newest
 
     def create_chat(self, name: str, routine_id: RoutineId, first_message: str) -> str:
         argv = [
