@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pageOf, routinePathOf, runPathOf, titleOf } from "./routing";
+import { pageOf, pathOf, routinePathOf, runPathOf, titleOf } from "./routing";
 
 describe("pageOf", () => {
   it("names the list, a routine and a run from the path", () => {
@@ -17,6 +17,7 @@ describe("pageOf", () => {
   it("round-trips the paths it builds", () => {
     expect(pageOf(routinePathOf("news-sync"))).toEqual({ kind: "routine", routineId: "news-sync" });
     expect(pageOf(runPathOf("news-sync", "run-1"))).toEqual({ kind: "run", routineId: "news-sync", runId: "run-1" });
+    for (const path of ["/", "/news-sync", "/news-sync/runs/run-1"]) expect(pathOf(pageOf(path))).toBe(path);
   });
 });
 

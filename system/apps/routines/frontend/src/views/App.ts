@@ -21,7 +21,7 @@ import {
   type RoutineListing,
   type RunDetail,
 } from "../models/api";
-import { pageOf, routinePathOf, runPathOf, titleOf, type Page } from "../models/routing";
+import { pageOf, pathOf, titleOf, type Page } from "../models/routing";
 import { changeOf, formOf, type ScheduleForm } from "../models/schedule";
 import { ListPage } from "./ListPage";
 import { RoutinePage } from "./RoutinePage";
@@ -64,6 +64,8 @@ export class AppModel {
   ) {
     this.page = pageOf(pathname);
     this.toasts = new ToastQueue(redraw);
+    // The shell learns where the page is at once; the title is refined once the data names the routine.
+    this.host.reportLocation(pathOf(this.page), titleOf(this.page, null));
   }
 
   async load(): Promise<void> {
@@ -72,13 +74,12 @@ export class AppModel {
         case "list": {
           const listing = await fetchListing();
           this.loaded = { kind: "list", listing };
-          this.host.reportLocation("/", titleOf(this.page, null));
           break;
         }
         case "routine": {
           const detail = await fetchDetail(this.page.routineId);
           this.loaded = { kind: "routine", detail };
-          this.host.reportLocation(routinePathOf(this.page.routineId), titleOf(this.page, detail.row.title));
+          this.host.reportLocation(pathOf(this.page), titleOf(this.page, detail.row.title));
           break;
         }
         case "run": {
@@ -87,10 +88,7 @@ export class AppModel {
             fetchDetail(this.page.routineId),
           ]);
           this.loaded = { kind: "run", detail, routineTitle: routine.row.title };
-          this.host.reportLocation(
-            runPathOf(this.page.routineId, this.page.runId),
-            titleOf(this.page, routine.row.title),
-          );
+          this.host.reportLocation(pathOf(this.page), titleOf(this.page, routine.row.title));
           break;
         }
       }

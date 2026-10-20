@@ -21,6 +21,18 @@ export function runPathOf(routineId: string, runId: string): string {
   return `/${encodeURIComponent(routineId)}/runs/${encodeURIComponent(runId)}`;
 }
 
+/** The path a page is served at. */
+export function pathOf(page: Page): string {
+  switch (page.kind) {
+    case "list":
+      return "/";
+    case "routine":
+      return routinePathOf(page.routineId);
+    case "run":
+      return runPathOf(page.routineId, page.runId);
+  }
+}
+
 /** The title the window shows for a page, once its data is known. */
 export function titleOf(page: Page, routineTitle: string | null): string {
   switch (page.kind) {
