@@ -17,8 +17,7 @@ routines library (`system/libs/routines/`).
 1. services in a bad supervisord state (FATAL / BACKOFF),
 2. fresh error output in the service logs since the last check,
 3. a nearly-full disk,
-4. OOM-guard sheds since the last check.
-
+4. OOM-guard sheds since the last check,
 5. routines that are failing, overdue, broken, or waiting on the user.
 
 With findings, it writes them to `data/.state/caretaker/findings.md` and wakes
