@@ -68,7 +68,8 @@ def test_a_monthly_cadence_steps_the_calendar_and_clamps_the_day() -> None:
 
 
 def test_a_day_of_the_month_pins_a_monthly_cadence() -> None:
-    state = RoutineState(last_succeeded_at=_local(2026, 10, 1, 0, 0))
+    # A catch-up on the 3rd still makes the next run due on the 1st.
+    state = RoutineState(last_succeeded_at=_local(2026, 10, 3, 9, 15))
     due = next_due(_definition(every="1mo", day_of_month=1, at="00:00"), state, TEST_NOW, TEST_ZONE)
     assert due == _local(2026, 11, 1, 0, 0)
 
