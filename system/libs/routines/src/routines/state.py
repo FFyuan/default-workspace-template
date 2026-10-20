@@ -42,4 +42,10 @@ class FileStateStore(StateStoreInterface):
             return updated
 
     def remove(self, routine_id: RoutineId) -> None:
-        shutil.rmtree(self.paths.routine_state_dir(routine_id), ignore_errors=True)
+        directory = self.paths.routine_state_dir(routine_id)
+        if not directory.is_dir():
+            return
+        try:
+            shutil.rmtree(directory)
+        except OSError as e:
+            logger.warning("Could not remove all of the state of {} under {}: {}", routine_id, directory, e)
