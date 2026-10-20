@@ -374,7 +374,8 @@ class StretchTracker:
         self, now: float, usage: float, ticks: Mapping[int, ProcessTicks], cores: int
     ) -> dict[str, object] | None:
         """Take one sample; answer the event of a stretch this sample closed, if any."""
-        if self._opened_at is None:
+        opened_at = self._opened_at
+        if opened_at is None:
             self._track_opening(now, usage, ticks)
             return None
         self._usages.append(usage)
@@ -384,9 +385,10 @@ class StretchTracker:
             self._below_since = now if self._below_since is None else self._below_since
         else:
             self._below_since = None
-        if self._below_since is None or now - self._below_since < STRETCH_CLOSE_SECONDS:
+        below_since = self._below_since
+        if below_since is None or now - below_since < STRETCH_CLOSE_SECONDS:
             return None
-        return self._close(now, ticks, cores)
+        return self._close(now, ticks, cores, opened_at, ended_at=below_since)
 
     def _track_opening(
         self, now: float, usage: float, ticks: Mapping[int, ProcessTicks]
@@ -427,10 +429,14 @@ class StretchTracker:
         self._last_fold_at = now
 
     def _close(
-        self, now: float, ticks: Mapping[int, ProcessTicks], cores: int
+        self,
+        now: float,
+        ticks: Mapping[int, ProcessTicks],
+        cores: int,
+        opened_at: float,
+        ended_at: float,
     ) -> dict[str, object] | None:
         self._fold(now, ticks)
-        opened_at, ended_at = self._opened_at or now, self._below_since or now
         usages = self._usages
         self._opened_at = None
         self._below_since = None

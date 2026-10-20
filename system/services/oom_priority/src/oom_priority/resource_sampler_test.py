@@ -191,6 +191,18 @@ def test_a_stretch_opens_after_a_minute_above_the_threshold_and_not_before() -> 
     assert tracker.is_open
 
 
+def test_a_stretch_opening_at_time_zero_is_measured_from_its_first_busy_sample() -> None:
+    tracker = rs.StretchTracker(lambda: {})
+    ticks = _ticks({1: (0, 0, 0)})
+
+    now, events = _drive(tracker, 0.0, 300.0, 0.95, ticks)
+    assert events == []
+    now, events = _drive(tracker, now, 70.0, 0.2, ticks)
+
+    assert [event["duration_seconds"] for event in events] == [300]
+    assert events[0]["started_at"] == "1970-01-01T00:00:00.000000000Z"
+
+
 def test_a_short_stretch_is_dropped_and_a_long_one_is_credited_to_its_roots() -> None:
     chat_root, program_root = 100, 200
     roots = {
