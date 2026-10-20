@@ -74,8 +74,8 @@ in that app's folder and is named `<app>-<role>`.
 - `system/libs/` - Support libraries, including `bootstrap/` (first-boot
   setup, then launches supervisord to supervise the apps and services),
   `app_manifest/` (the manifest and registry models), and `routines/`
-  (everything that runs on a schedule: the definitions, the runner and the
-  `routines` command)
+  (everything that runs on a schedule: the runner, the scheduler and the
+  `routines` command; the definitions themselves are under `system/routines/`)
 - `data/` - Gitignored workspace data: documents and project folders, uploads,
   memories, tickets, secrets, machine state, and per-app data (see
   `data/README.md`)
