@@ -68,9 +68,8 @@ export const SHELL_DRAFT_TEXT = "shell:draft-text";
  *  contracts.md section 5.6), so a page says what it wants done without naming the app that does it. */
 export const SHELL_MESSAGE = "shell:message";
 /** App to shell: open a link that is not the page's own -- a local URL, one of the workspace's app addresses (another
- *  app's page) or another workspace's, a ``file:`` URL, an external web, ``mailto:``, ``tel:`` or custom-scheme link --
- *  which only
- *  the shell can put where it belongs: it opens the app's window there (for a local URL, the app on whose
+ *  app's page) or another workspace's, a ``file:`` URL, an external web, ``mailto:``, ``tel:`` or custom-scheme link
+ *  -- which only the shell can put where it belongs: it opens the app's window there (for a local URL, the app on whose
  *  ``<label>.localhost`` host or registered port it is, else the workspace's browser), the file in Files, an
  *  external link in the app registered for it or else outside the workspace, or says why it cannot. */
 export const SHELL_OPEN_LINK = "shell:open-link";

@@ -9,8 +9,8 @@ import { describe, expect, it } from "vitest";
 import { isCustomSchemeUrl } from "./app_contract";
 import { classifyLink, externalLinkMessageType, fileUrl, type LinkTarget } from "./links";
 
-/** The URLs the Imbue Studio desktop app's ``isExternalUrl`` and ``isCustomSchemeUrl`` were asked about, with its answers, fetched from the
- *  pinned mngr commit with the embed contract (``system/scripts/fetch_mngr_assets.sh``). */
+/** The URLs the Imbue Studio desktop app's ``isExternalUrl`` and ``isCustomSchemeUrl`` were asked about, with its
+ *  answers, fetched from the pinned mngr commit with the embed contract (``system/scripts/fetch_mngr_assets.sh``). */
 const EXTERNALITY_VECTORS_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../../vendor/mngr-assets/apps/minds/electron/link-externality-vectors.json",
