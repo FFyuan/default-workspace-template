@@ -598,8 +598,9 @@
   });
 
   // The page refreshes every few seconds on its own, so the header says nothing while that works and
-  // only speaks up when a refresh fails.
-  let isScanning = false;
+  // only speaks up when a refresh fails. While a disk walk runs, the disk view refreshes faster on one
+  // timer of its own, so the interval's refreshes never start a second chain.
+  let isScanning = false, timer = null, scanTimer = null;
   async function refresh() {
     let failing = false;
     try {
@@ -609,13 +610,12 @@
       if (view === "disk") isScanning = renderDisk(body); else render(body);
     } catch (e) { failing = true; }
     $("offline").hidden = !failing;
-    if (isScanning) setTimeout(refresh, 1500);
+    if (isScanning && timer !== null && scanTimer === null) scanTimer = setTimeout(() => { scanTimer = null; refresh(); }, 1500);
   }
   // Poll only while the page can be seen: a hidden or minimised window asks for nothing, and
   // catches up the moment it is shown again.
-  let timer = null;
-  function startPolling() { if (timer !== null) return; refresh(); timer = setInterval(refresh, EVERY_MS); }
-  function stopPolling() { clearInterval(timer); timer = null; }
+  function startPolling() { if (timer !== null) return; timer = setInterval(refresh, EVERY_MS); refresh(); }
+  function stopPolling() { clearInterval(timer); clearTimeout(scanTimer); timer = scanTimer = null; }
   document.addEventListener("visibilitychange", () => (document.hidden ? stopPolling() : startPolling()));
   if (!document.hidden) startPolling();
 })();
