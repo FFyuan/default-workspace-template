@@ -457,8 +457,7 @@ RUN_VERDICTS = (
 
 # How a run was started, as the app's dispatcher records it in the last-dispatch
 # file beside the run record: by the workspace's own schedule, or by the user's
-# "Update now". The run record carries it so the app can tell the two apart; the
-# lead's prose never branches on it.
+# "Update now". The run record carries it so the app can tell the two apart.
 STARTED_BY_SCHEDULED = "scheduled"
 
 STARTED_BY_IMMEDIATE = "immediate"

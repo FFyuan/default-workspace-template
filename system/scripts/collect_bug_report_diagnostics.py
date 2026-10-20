@@ -14,10 +14,8 @@ supervisord and agents run under tmux, so the two halves come from different
 places and neither sees the other's failures. A harness that keeps a structured
 log database rather than a text log (codex's app-server) contributes it too,
 rendered to text as ``agent-logs/<agent-name>/<db>.log``. The update flow's own
-records ride under --logs as well, as ``update-apply/<file>``: the schedule the
-Imbue Studio app armed, the last run's record, the app's last dispatch and its
-watchdog state, an in-flight apply's marker, an emergency record, and the tail
-of the dispatcher's log. Under --transcript it
+records ride under --logs as well, as ``update-apply/<file>``: its small state
+records and the tail of the dispatcher's log. Under --transcript it
 holds one ``chats/<agent-name>-<harness>.jsonl`` per selected chat, newest
 first -- one member per conversation the user held, which is one member per
 agent only until a chat is handed to another harness. With BOTH flags each

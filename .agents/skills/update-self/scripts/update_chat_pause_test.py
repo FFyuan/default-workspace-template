@@ -1,4 +1,4 @@
-"""Tests for the run record's additions: how a run was started, the needs-decision verdict, and the
+"""Tests for how the run record says a run was started, the needs-decision verdict, and the
 chats ``run-status stop-chats`` pauses for an apply and ``resume-chats`` brings back.
 
 The pause and resume run through ``update_self.main`` against the ``fake_agents`` fixture: a fake
@@ -356,7 +356,7 @@ def test_a_needs_decision_verdict_ends_the_run_and_the_resume_still_follows_it(
 
 
 def test_a_run_record_from_before_the_additions_still_reads(tmp_path: Path) -> None:
-    """The app and older passes write records without the new fields, or with values this
+    """The app and older passes write records without these fields, or with values this
     release does not know; the read takes what it can and drops the rest."""
     path = update_apply_contract.run_status_path(tmp_path)
     path.parent.mkdir(parents=True)

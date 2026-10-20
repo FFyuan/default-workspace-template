@@ -830,7 +830,6 @@ def _cmd_run_status_resume(args: argparse.Namespace) -> int:
     return 0
 
 
-# Where the background runners are read from: the host's process table.
 PROC_DIR = Path("/proc")
 
 
@@ -910,7 +909,6 @@ def _cmd_recover(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """The whole command line, every subcommand bound to the function that runs it."""
     # ``--repo-root`` lives on a shared parent parser so it is accepted both
     # before and after the subcommand (an option defined only on the top-level
     # parser would reject ``update_self.py <subcommand> --repo-root X``).
