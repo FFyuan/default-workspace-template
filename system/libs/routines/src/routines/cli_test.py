@@ -1,16 +1,24 @@
 import json
 import subprocess
+from datetime import timedelta
 
 from click.testing import CliRunner
 from click.testing import Result
 
 from routines.cli import DEFAULT_WAKE_TIMEOUT
+from routines.cli import LEAST_WAKE_WAIT
+from routines.cli import WAKE_MARGIN_BEFORE_RUN_DEADLINE
 from routines.cli import routines
+from routines.cli import wait_within_run
 from routines.cli import wake_defaults
+from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
+from routines.primitives import RunId
+from routines.primitives import RunTrigger
+from routines.testing import TEST_NOW
 
 
 def _invoke(paths: RoutinesPaths, *args: str) -> Result:
@@ -136,6 +144,23 @@ def test_a_wake_takes_its_title_and_timeout_from_the_routine_unless_told_otherwi
 
     undefined = wake_defaults(None, caretaker, None, None)
     assert (undefined.title, str(undefined.timeout)) == ("Caretaker", DEFAULT_WAKE_TIMEOUT)
+
+
+def test_a_wake_inside_a_run_stops_before_the_runs_own_deadline() -> None:
+    run_id = RunId.generate()
+    started_ten_minutes_ago = CurrentRun(
+        run_id=run_id, pid=1, trigger=RunTrigger.SCHEDULED, started_at=TEST_NOW - timedelta(minutes=10)
+    )
+    timeout = timedelta(hours=2)
+
+    wait = wait_within_run(started_ten_minutes_ago, run_id, timeout, TEST_NOW)
+    assert wait == timeout - timedelta(minutes=10) - WAKE_MARGIN_BEFORE_RUN_DEADLINE
+
+    nearly_over = CurrentRun(run_id=run_id, pid=1, trigger=RunTrigger.SCHEDULED, started_at=TEST_NOW - timeout)
+    assert wait_within_run(nearly_over, run_id, timeout, TEST_NOW) == LEAST_WAKE_WAIT
+    # A state that names another run, or none, says nothing about this one.
+    assert wait_within_run(None, run_id, timeout, TEST_NOW) == timeout
+    assert wait_within_run(started_ten_minutes_ago, RunId.generate(), timeout, TEST_NOW) == timeout
 
 
 def test_wake_refuses_a_timeout_that_is_not_a_duration_in_the_commands_words(git_paths: RoutinesPaths) -> None:

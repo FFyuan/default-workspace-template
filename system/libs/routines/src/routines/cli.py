@@ -5,6 +5,8 @@ import os
 import sys
 from collections.abc import Callable
 from collections.abc import Sequence
+from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 from typing import Final
 from typing import NoReturn
@@ -17,6 +19,7 @@ from pydantic import ValidationError
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.ids import InvalidRandomIdError
 from imbue.imbue_common.logging import setup_logging
+from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineRow
 from routines.data_types import RunRecord
@@ -26,8 +29,8 @@ from routines.definitions import describe_validation_error
 from routines.definitions import once_moment_from_text
 from routines.errors import RoutineNotFoundError
 from routines.errors import RoutinesError
-from routines.errors import RunNotFoundError
 from routines.errors import RunInFlightError
+from routines.errors import RunNotFoundError
 from routines.migrate import migrate_cron_entries
 from routines.paths import RESULT_FILENAME
 from routines.paths import paths_from_environment
@@ -47,6 +50,10 @@ JSON_FORMAT: Final[str] = "json"
 HUMAN_FORMAT: Final[str] = "human"
 # How long a wake outside any defined routine waits for the agent's turn.
 DEFAULT_WAKE_TIMEOUT: Final[str] = "1h"
+# A wake inside a run stops this much before the run's own deadline, so it can interrupt the chat and write
+# its result before the runner stops the run's process group.
+WAKE_MARGIN_BEFORE_RUN_DEADLINE: Final[timedelta] = timedelta(seconds=30)
+LEAST_WAKE_WAIT: Final[timedelta] = timedelta(seconds=5)
 
 
 class WakeDefaults(FrozenModel):
@@ -68,6 +75,15 @@ def wake_defaults(
             title=title, timeout=definition.timeout if definition is not None else Duration(DEFAULT_WAKE_TIMEOUT)
         )
     return WakeDefaults(title=title, timeout=Duration(timeout))
+
+
+def wait_within_run(current: CurrentRun | None, run_id: RunId, timeout: timedelta, now: datetime) -> timedelta:
+    """How long a wake inside the run may wait: what is left of the run's own time less the margin, so the
+    runner's deadline never cuts the wake off first; the whole timeout when the state does not name the run."""
+    if current is None or current.run_id != run_id:
+        return timeout
+    remaining = current.started_at + timeout - now - WAKE_MARGIN_BEFORE_RUN_DEADLINE
+    return max(remaining, LEAST_WAKE_WAIT)
 
 
 def _definition_if_any(service: RoutinesService, routine_id: RoutineId) -> RoutineDefinition | None:
@@ -451,14 +467,12 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
     raw_run_id = os.environ.get(RUN_ID_ENV, "")
     try:
         wanted_id = RoutineId(routine_id or os.environ.get(ROUTINE_ID_ENV) or skill)
+        run_id = _run_id_of(raw_run_id) if raw_run_id else None
         defaults = wake_defaults(_definition_if_any(service, wanted_id), wanted_id, title, timeout)
-        outcome = service.runner.wake(
-            wanted_id,
-            _run_id_of(raw_run_id) if raw_run_id else None,
-            defaults.title,
-            skill,
-            defaults.timeout.timedelta,
-        )
+        wait = defaults.timeout.timedelta
+        if timeout is None and run_id is not None:
+            wait = wait_within_run(service.states.read(wanted_id).current_run, run_id, wait, service.clock.now())
+        outcome = service.runner.wake(wanted_id, run_id, defaults.title, skill, wait)
     except RoutinesError as e:
         _fail(str(e))
     run_dir = os.environ.get(RUN_DIR_ENV, "")
