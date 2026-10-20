@@ -32,6 +32,12 @@ def test_a_routine_that_never_ran_is_due_now() -> None:
     assert next_due(_definition(every="1d", at="07:30"), RoutineState(), TEST_NOW, TEST_ZONE) == TEST_NOW
 
 
+def test_a_routine_that_never_ran_is_due_now_whatever_weekdays_it_names() -> None:
+    # TEST_NOW is a Tuesday; a routine that has never succeeded is due outright, not moved to Saturday.
+    definition = _definition(every="1d", at="09:00", days=["sat"])
+    assert next_due(definition, RoutineState(), TEST_NOW, TEST_ZONE) == TEST_NOW
+
+
 def test_the_next_due_moment_is_one_cadence_after_the_last_success() -> None:
     state = RoutineState(last_succeeded_at=TEST_NOW - timedelta(minutes=10))
     assert next_due(_definition(every="15m"), state, TEST_NOW, TEST_ZONE) == TEST_NOW + timedelta(minutes=5)

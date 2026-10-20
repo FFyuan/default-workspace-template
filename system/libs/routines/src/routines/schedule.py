@@ -100,8 +100,8 @@ def next_due(definition: RoutineDefinition, state: RoutineState, now: datetime, 
         assert definition.every is not None
         base = add_cadence(state.last_succeeded_at, definition.every, definition.day_of_month, zone)
         due = _at_time_on_date(base.astimezone(zone), definition.at) if definition.at is not None else base
-    if definition.days:
-        due = _advance_to_allowed_weekday(due, definition.days, zone)
+        if definition.days:
+            due = _advance_to_allowed_weekday(due, definition.days, zone)
     is_last_attempt_unfinished = state.last_started_at is not None and (
         state.last_succeeded_at is None or state.last_started_at > state.last_succeeded_at
     )
