@@ -868,6 +868,7 @@ def _prepare_boot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _StubSubpr
     for name in (
         "_migrate_legacy_claude_state_best_effort",
         "_write_update_recovery_cron_entry",
+        "_write_routines_tick_cron_entry",
         "_ensure_supervisor_log_dir",
     ):
         monkeypatch.setattr(f"bootstrap.manager.{name}", lambda: None)
@@ -949,6 +950,60 @@ def test_main_announces_each_boot_step_to_the_agent_events_in_order(
         BOOTSTRAP_STEP_STARTED_EVENT,
         BOOTSTRAP_STEP_COMPLETED_EVENT,
     ]
+
+
+def test_main_converts_old_cron_entries_after_the_recovery_guard_and_before_the_tick_entry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The migration rewrites what data/.state/cron.d holds, so it runs before the tick entry and
+    # the runtime install lay down what is left, and after the guard, which a same-named runtime
+    # entry may still override.
+    order: list[str] = []
+    stub = _prepare_boot(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "bootstrap.manager._write_update_recovery_cron_entry",
+        lambda: order.append("guard"),
+    )
+    monkeypatch.setattr(
+        "bootstrap.manager._write_routines_tick_cron_entry",
+        lambda: order.append("tick"),
+    )
+    monkeypatch.setattr(
+        "bootstrap.manager._install_runtime_cron_entries",
+        lambda: order.append("runtime"),
+    )
+    clear_marker = stub.on_command
+
+    def record_migration(cmd: list[str]) -> None:
+        if clear_marker is not None:
+            clear_marker(cmd)
+        if cmd[-1] == "migrate-cron":
+            order.append("migrate")
+
+    stub.on_command = record_migration
+    monkeypatch.setattr("bootstrap.manager._exec_supervisord", lambda: None)
+
+    main()
+
+    assert ["uv", "run", "--no-sync", "routines", "migrate-cron"] in stub.calls
+    assert order == ["guard", "migrate", "tick", "runtime"]
+
+
+def test_main_boots_when_the_cron_migration_cannot_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The venv may be mid-rebuild; the migration happens on the next boot and the boot still
+    # reaches supervisord.
+    stub = _prepare_boot(monkeypatch, tmp_path)
+    stub.raise_on["migrate-cron"] = OSError("no routines yet")
+    handed_off: list[bool] = []
+    monkeypatch.setattr(
+        "bootstrap.manager._exec_supervisord", lambda: handed_off.append(True)
+    )
+
+    main()
+
+    assert handed_off == [True]
 
 
 def test_main_boots_without_an_agent_state_dir(
