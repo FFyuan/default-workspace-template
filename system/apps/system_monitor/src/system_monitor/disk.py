@@ -87,15 +87,24 @@ def scan(
         [app_data, uploads],
     )
     counted += row("uploads", "Uploads", "files attached to chats", [uploads], [])
+    # The App data row lists what it could measure; an app directory it could not, or a listing
+    # that failed, leaves the row short and reports it missing like a row of its own would be.
     app_items: list[dict[str, Any]] = []
-    app_dirs = (
-        sorted(path for path in app_data.iterdir() if path.is_dir())
-        if app_data.is_dir()
-        else []
-    )
+    try:
+        app_dirs = (
+            sorted(path for path in app_data.iterdir() if path.is_dir())
+            if app_data.is_dir()
+            else []
+        )
+    except OSError:
+        app_dirs = []
+        missing.append("apps")
     for app_dir in app_dirs:
         size = measure([app_dir], [])
-        if size is not None:
+        if size is None:
+            if "apps" not in missing:
+                missing.append("apps")
+        else:
             app_items.append({"name": app_dir.name, "bytes": size})
     app_items.sort(key=lambda item: item["bytes"], reverse=True)
     rows.append(

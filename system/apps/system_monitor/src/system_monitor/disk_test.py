@@ -49,13 +49,21 @@ def test_the_rows_cover_the_buckets_and_the_rest_of_the_disk(tmp_path: Path) -> 
 def test_a_row_that_cannot_be_measured_is_reported_missing_and_the_rest_never_goes_negative(
     tmp_path: Path,
 ) -> None:
+    workspace = tmp_path / "workspace"
+    for app in ("recipe-box", "habit-tracker"):
+        (workspace / "data" / ".apps" / app).mkdir(parents=True)
+
     def measure(paths: list[Path], excludes: list[Path]) -> int | None:
-        return None if paths == [tmp_path / "workspace"] else 9000
+        if paths in ([workspace], [workspace / "data" / ".apps" / "habit-tracker"]):
+            return None
+        return 9000
 
-    rows, missing = disk.scan(100, tmp_path / "workspace", tmp_path / "home", measure)
+    rows, missing = disk.scan(100, workspace, tmp_path / "home", measure)
 
-    assert missing == ["workspace"]
+    assert missing == ["workspace", "apps"]
     assert [row["id"] for row in rows] == ["uploads", "apps", "caches", "other"]
+    # The App data row keeps the apps it could measure.
+    assert rows[1]["items"] == [{"name": "recipe-box", "bytes": 9000}]
     assert rows[-1]["bytes"] == 0
 
 
