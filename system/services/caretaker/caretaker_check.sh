@@ -18,7 +18,12 @@ CARETAKER_DIR="$ROOT/data/.state/caretaker"
 ONLY=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --only) ONLY="$2"; shift 2 ;;
+        --only)
+            case "${2:-}" in
+                routines) ONLY="$2"; shift 2 ;;
+                *) echo "caretaker_check: --only takes 'routines', not '${2:-}'" >&2; exit 2 ;;
+            esac
+            ;;
         *) echo "caretaker_check: unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -47,10 +52,11 @@ FINDINGS=""
 add_finding() { FINDINGS="${FINDINGS}- $1"$'\n'; }
 
 # 5. Routines that are failing, overdue, broken, or waiting on the user (the routines library's own
-# verdicts; the Caretaker itself is running right now and so is never among them).
+# verdicts). The Caretaker leaves itself out: a check that follows a failed run of its own would
+# otherwise wake the agent about the very routine it is.
 if command -v uv >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     bad_routines=$(uv run --no-sync routines list --format json 2>/dev/null \
-        | jq -r '.routines[] | select(.health == "FAILING" or .health == "OVERDUE" or .health == "BROKEN" or .health == "NEEDS_USER") | "\(.title) (\(.health_text))"' 2>/dev/null \
+        | jq -r '.routines[] | select(.routine_id != "caretaker") | select(.health == "FAILING" or .health == "OVERDUE" or .health == "BROKEN" or .health == "NEEDS_USER") | "\(.title) (\(.health_text))"' 2>/dev/null \
         | tr '\n' ';' || true)
     [ -n "$bad_routines" ] && add_finding "routines needing attention: $bad_routines"
 fi
