@@ -182,6 +182,25 @@ def test_an_entry_whose_id_is_already_a_routine_stays_in_place(
     assert (durable / "news-sync").exists()
 
 
+def test_an_entry_whose_lines_would_be_one_routine_is_left_whole_with_nothing_written(
+    definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
+) -> None:
+    """A file converts whole or not at all: no definition is written beside a cron line that stays."""
+    root = definitions.paths.repo_root
+    durable = root / "data" / ".state" / "cron.d"
+    durable.mkdir(parents=True)
+    (durable / "reports").write_text("0 8 * * * root cmd-one\n0 9 * * * root cmd-two\n")
+
+    report = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+
+    assert report.converted == ()
+    assert [(skipped.file_name, skipped.reason) for skipped in report.skipped] == [
+        ("reports", "two of its lines would both be the routine reports")
+    ]
+    assert (durable / "reports").exists()
+    assert definitions.list_routines() == []
+
+
 def test_an_entry_left_in_place_is_pointed_at_the_moved_env_wrapper_in_both_copies(
     definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
 ) -> None:

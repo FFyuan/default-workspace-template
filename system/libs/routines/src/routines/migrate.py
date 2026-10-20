@@ -23,7 +23,7 @@ from routines.data_types import RoutineState
 from routines.definitions import describe_validation_error
 from routines.errors import DefinitionCommitError
 from routines.errors import InvalidRoutineIdError
-from routines.errors import RoutineExistsError
+from routines.errors import RoutineNotFoundError
 from routines.interfaces import DefinitionStoreInterface
 from routines.interfaces import StateStoreInterface
 from routines.primitives import Duration
@@ -340,9 +340,18 @@ def migrate_cron_entries(
                 )
             _leave_in_place(entry_path, text, live_cron_dir / entry_path.name)
             continue
-        collisions: list[SkippedEntry] = []
-        for result in results:
-            assert isinstance(result, ConvertedEntry)
+        entries = [result for result in results if isinstance(result, ConvertedEntry)]
+        assert len(entries) == len(results)
+        # A file converts whole or not at all: a line whose routine exists (or that two lines of the file would
+        # both be) is found before any line is written, so no definition is left beside a cron line that stays.
+        collisions = _collisions_of(entries, definitions, entry_path.name)
+        if collisions:
+            for collision in collisions:
+                logger.warning("Leaving the cron entry {} in place: {}", entry_path.name, collision.reason)
+            skipped.extend(collisions)
+            _leave_in_place(entry_path, text, live_cron_dir / entry_path.name)
+            continue
+        for result in entries:
             if result.is_caretaker_switch:
                 states.update(
                     CARETAKER_ROUTINE_ID,
@@ -353,21 +362,11 @@ def migrate_cron_entries(
                 continue
             try:
                 definitions.add(result.routine_id, result.definition)
-            except RoutineExistsError:
-                reason = f"the routine {result.routine_id} exists"
-                logger.warning("Leaving the cron entry {} in place: {}", entry_path.name, reason)
-                collisions.append(SkippedEntry(file_name=entry_path.name, reason=reason))
-                continue
             except DefinitionCommitError as e:
                 # The file is written and the routine runs from it; the next write of the file commits both.
                 logger.warning("Converted the cron entry {} but could not commit it: {}", entry_path.name, e)
             _carry_over_job_state(repo_root, result.legacy_job_name, result.routine_id, states)
             converted.append(result.routine_id)
-        if collisions:
-            # Nothing replaced the colliding line, so the entry stays with cron, as any skipped one does.
-            skipped.extend(collisions)
-            _leave_in_place(entry_path, text, live_cron_dir / entry_path.name)
-            continue
         entry_path.unlink()
         live_copy = live_cron_dir / entry_path.name
         try:
@@ -379,6 +378,31 @@ def migrate_cron_entries(
         enabled_caretaker=is_caretaker_enabled,
         skipped=tuple(skipped),
     )
+
+
+def _collisions_of(
+    entries: list[ConvertedEntry], definitions: DefinitionStoreInterface, file_name: str
+) -> list[SkippedEntry]:
+    """Why the file's lines cannot all become routines: one that exists already, or two lines with one id."""
+    collisions: list[SkippedEntry] = []
+    seen: set[RoutineId] = set()
+    for entry in entries:
+        if entry.is_caretaker_switch:
+            continue
+        if entry.routine_id in seen:
+            collisions.append(
+                SkippedEntry(
+                    file_name=file_name, reason=f"two of its lines would both be the routine {entry.routine_id}"
+                )
+            )
+            continue
+        seen.add(entry.routine_id)
+        try:
+            definitions.load(entry.routine_id)
+        except RoutineNotFoundError:
+            continue
+        collisions.append(SkippedEntry(file_name=file_name, reason=f"the routine {entry.routine_id} exists"))
+    return collisions
 
 
 def _leave_in_place(entry_path: Path, text: str, live_copy: Path) -> None:
