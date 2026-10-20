@@ -1,7 +1,5 @@
 import json
 import subprocess
-import threading
-import time
 from datetime import timedelta
 
 from click.testing import CliRunner
@@ -22,6 +20,7 @@ from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.state import FileStateStore
 from routines.testing import TEST_NOW
+from routines.testing import wait_for_last_run
 
 
 def _invoke(paths: RoutinesPaths, *args: str) -> Result:
@@ -163,11 +162,7 @@ def test_tick_names_what_it_started_and_says_nothing_when_nothing_is_due(git_pat
     tick = _invoke(git_paths, "tick")
     assert tick.exit_code == 0
     assert tick.stdout == "started x\n"
-    states = FileStateStore(paths=git_paths)
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline and states.read(RoutineId("x")).last_run is None:
-        threading.Event().wait(0.1)
-    assert states.read(RoutineId("x")).last_run is not None, "the spawned run never finished"
+    wait_for_last_run(FileStateStore(paths=git_paths), RoutineId("x"), 30)
 
 
 def test_migrate_cron_prints_what_it_converted_and_what_it_left(git_paths: RoutinesPaths) -> None:

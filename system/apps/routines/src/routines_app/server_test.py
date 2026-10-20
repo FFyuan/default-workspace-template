@@ -1,6 +1,4 @@
 import os
-import threading
-import time
 from pathlib import Path
 
 from flask.testing import FlaskClient
@@ -15,6 +13,7 @@ from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.service import RoutinesService
 from routines.testing import TEST_NOW
+from routines.testing import wait_for_last_run
 from routines_app.mock_fix_chat_test import RecordingFixChatStarter
 from routines_app.server import create_app
 
@@ -133,11 +132,7 @@ def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_holds_the_
     assert receipt["routine_id"] == "news-sync"
     assert receipt["run_id"].startswith("run-")
     # The run goes on in a process of its own; its books close without the app.
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline and service.states.read(SYNC).last_run is None:
-        threading.Event().wait(0.1)
-    last_run = service.states.read(SYNC).last_run
-    assert last_run is not None, "the spawned run never finished"
+    last_run = wait_for_last_run(service.states, SYNC, 15)
     assert str(last_run.run_id) == receipt["run_id"]
     assert last_run.trigger == "MANUAL"
     assert client.post("/api/routines/nothing/run", json={}).status_code == 404

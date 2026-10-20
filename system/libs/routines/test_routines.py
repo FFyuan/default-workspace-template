@@ -4,14 +4,13 @@ import json
 import os
 import subprocess
 import sys
-import threading
-import time
 from typing import Final
 
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.state import FileStateStore
+from routines.testing import wait_for_last_run
 
 # The spawned run is a fresh interpreter importing the library's dependencies; the loop polls, so a wide bound
 # only matters on a loaded machine.
@@ -53,13 +52,8 @@ def test_a_due_routine_runs_through_a_real_tick_and_shows_up_as_worked(git_paths
     assert tick.returncode == 0, tick.stderr
     assert "started hello" in tick.stdout
 
-    states = FileStateStore(paths=git_paths)
-    deadline = time.monotonic() + WAIT_SECONDS
-    while time.monotonic() < deadline and states.read(RoutineId("hello")).last_run is None:
-        threading.Event().wait(0.1)
-    state = states.read(RoutineId("hello"))
-    assert state.last_run is not None, "the spawned run never finished"
-    assert state.last_run.outcome == "SUCCEEDED"
+    last_run = wait_for_last_run(FileStateStore(paths=git_paths), RoutineId("hello"), WAIT_SECONDS)
+    assert last_run.outcome == "SUCCEEDED"
     assert marker.read_text().strip() == "hello"
 
     listing = json.loads(_routines(git_paths, "list", "--format", "json").stdout)
