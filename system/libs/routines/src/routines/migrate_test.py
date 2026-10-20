@@ -61,6 +61,15 @@ def test_an_automation_entry_with_the_scripts_options_still_names_the_skill() ->
     assert converted.definition.skill == "news"
 
 
+def test_a_runner_job_id_with_capitals_and_underscores_becomes_a_hyphenated_routine_id() -> None:
+    line = f"* * * * * root {WRAPPER} {RUN_JOB} News_Sync --every 6h python3 sync.py\n"
+    (converted,) = convert_cron_entry(line, "News_Sync")
+    assert isinstance(converted, ConvertedEntry)
+    assert converted.routine_id == RoutineId("news-sync")
+    # The retired runner kept the job's state under the name as the line spelled it.
+    assert converted.legacy_job_name == "News_Sync"
+
+
 def test_the_caretaker_entry_is_recognized_as_the_switch_on_the_shipped_routine() -> None:
     line = f"* * * * *   root   {WRAPPER} {RUN_JOB} caretaker --every 7d --at 3 bash /home/user/workspace/system/services/caretaker/caretaker_check.sh >> /var/log/supervisor/caretaker-job.log 2>&1\n"
     (converted,) = convert_cron_entry(line, "minds-caretaker")

@@ -54,6 +54,9 @@ class ConvertedEntry(FrozenModel):
     is_caretaker_switch: bool = Field(
         description="Whether it was the Caretaker's entry, which only turns the shipped one on"
     )
+    legacy_job_name: str = Field(
+        description="The name the retired runner kept the job's state under (the routine id for a plain cron line)"
+    )
 
 
 class SkippedEntry(FrozenModel):
@@ -93,7 +96,7 @@ def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | Skip
     if not tokens:
         return SkippedEntry(file_name=file_name, reason="the runner line names no job")
     try:
-        routine_id = RoutineId(tokens[0])
+        routine_id = _routine_id_from_name(tokens[0])
     except InvalidRoutineIdError as e:
         return SkippedEntry(file_name=file_name, reason=str(e))
     rest = tokens[1:]
@@ -141,7 +144,18 @@ def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | Skip
         definition = RoutineDefinition.model_validate(fields)
     except ValidationError as e:
         return SkippedEntry(file_name=file_name, reason=describe_validation_error(e))
-    return ConvertedEntry(routine_id=routine_id, definition=definition, is_caretaker_switch=is_caretaker)
+    return ConvertedEntry(
+        routine_id=routine_id,
+        definition=definition,
+        is_caretaker_switch=is_caretaker,
+        legacy_job_name=tokens[0],
+    )
+
+
+@pure
+def _routine_id_from_name(name: str) -> RoutineId:
+    """A job id or an entry file name as a routine id: the retired runner took capitals and underscores."""
+    return RoutineId(name.lower().replace("_", "-"))
 
 
 @pure
@@ -163,7 +177,7 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
     """The cron shapes a definition can say: every N minutes or hours, daily at a time, weekly, monthly."""
     minute, hour, day_of_month, month, day_of_week = fields
     try:
-        routine_id = RoutineId(file_name.lower().replace("_", "-"))
+        routine_id = _routine_id_from_name(file_name)
     except InvalidRoutineIdError as e:
         return SkippedEntry(file_name=file_name, reason=str(e))
     values: dict[str, object] = {
@@ -204,7 +218,9 @@ def _convert_plain_line(fields: list[str], command: list[str], file_name: str) -
         definition = RoutineDefinition.model_validate(values)
     except ValidationError as e:
         return SkippedEntry(file_name=file_name, reason=describe_validation_error(e))
-    return ConvertedEntry(routine_id=routine_id, definition=definition, is_caretaker_switch=False)
+    return ConvertedEntry(
+        routine_id=routine_id, definition=definition, is_caretaker_switch=False, legacy_job_name=str(routine_id)
+    )
 
 
 @pure
@@ -301,7 +317,7 @@ def migrate_cron_entries(
                     CARETAKER_ROUTINE_ID,
                     lambda state: state.model_copy_update(to_update(state.field_ref().is_enabled, True)),
                 )
-                _carry_over_job_state(repo_root, CARETAKER_ROUTINE_ID, states)
+                _carry_over_job_state(repo_root, result.legacy_job_name, CARETAKER_ROUTINE_ID, states)
                 is_caretaker_enabled = True
                 continue
             try:
@@ -316,7 +332,7 @@ def migrate_cron_entries(
             except DefinitionCommitError as e:
                 # The file is written and the routine runs from it; the next write of the file commits both.
                 logger.warning("Converted the cron entry {} but could not commit it: {}", entry_path.name, e)
-            _carry_over_job_state(repo_root, result.routine_id, states)
+            _carry_over_job_state(repo_root, result.legacy_job_name, result.routine_id, states)
             converted.append(result.routine_id)
         entry_path.unlink()
         live_copy = live_cron_dir / entry_path.name
@@ -346,8 +362,10 @@ def _leave_in_place(entry_path: Path, text: str, live_copy: Path) -> None:
         logger.info("Pointed the cron entry {} at the moved env wrapper", copy)
 
 
-def _carry_over_job_state(repo_root: Path, routine_id: RoutineId, states: StateStoreInterface) -> None:
-    job_dir = repo_root / LEGACY_JOB_STATE_DIR / routine_id
+def _carry_over_job_state(
+    repo_root: Path, legacy_job_name: str, routine_id: RoutineId, states: StateStoreInterface
+) -> None:
+    job_dir = repo_root / LEGACY_JOB_STATE_DIR / legacy_job_name
     if not job_dir.is_dir():
         return
     last_success = _read_epoch(job_dir / "last_success")
