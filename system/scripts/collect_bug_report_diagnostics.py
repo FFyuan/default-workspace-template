@@ -151,6 +151,8 @@ UPDATE_APPLY_RECORD_FILES = (
     "watchdog.json",
     "marker.json",
     "emergency.json",
+    "provision-incomplete.json",
+    "last-good.json",
 )
 # The dispatcher writes a line only when it acts, so its tail is the recent history.
 UPDATE_APPLY_LOG_FILE = "dispatcher.log"

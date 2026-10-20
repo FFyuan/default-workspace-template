@@ -1226,6 +1226,9 @@ def _write_update_apply_state(
     (state / "last-dispatch.json").write_text(
         '{"schema": 1, "started_by": "scheduled"}\n'
     )
+    (state / "provision-incomplete.json").write_text(
+        '{"ref": "minds-v0.9.0", "error": "npm ci failed"}\n'
+    )
     (state / "dispatcher.log").write_text(
         "".join(
             f"2026-10-20T02:00:{i:02d} dispatched{line_padding} line {i}\n"
@@ -1266,6 +1269,7 @@ def test_the_update_records_ride_with_the_logs_but_never_the_snapshots_or_the_di
             "update-apply/schedule.json",
             "update-apply/run.json",
             "update-apply/last-dispatch.json",
+            "update-apply/provision-incomplete.json",
             "update-apply/dispatcher.log",
         ]
         assert (
