@@ -24,9 +24,10 @@ while [ "$#" -gt 0 ]; do
 done
 
 # Wake the Caretaker's chat with /caretaker through the routines library, which creates the chat on the
-# first run, clears it on later ones, and (inside a run) records the chat on this run.
+# first run, clears it on later ones, and (inside a run) records the chat on this run; the chat's name and
+# the wait come from the routine's definition.
 wake_agent() {
-    exec uv run --no-sync routines wake caretaker --routine caretaker --title "Weekly check-up"
+    exec uv run --no-sync routines wake caretaker --routine caretaker
 }
 
 log() { printf '%s caretaker_check: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }

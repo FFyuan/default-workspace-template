@@ -22,6 +22,7 @@ from routines.data_types import RunResult
 from routines.data_types import RunStartReceipt
 from routines.definitions import describe_validation_error
 from routines.definitions import once_moment_from_text
+from routines.errors import RoutineNotFoundError
 from routines.errors import RoutinesError
 from routines.errors import RunInFlightError
 from routines.migrate import migrate_cron_entries
@@ -41,6 +42,39 @@ from routines.service import build_service
 
 JSON_FORMAT: Final[str] = "json"
 HUMAN_FORMAT: Final[str] = "human"
+# How long a wake outside any defined routine waits for the agent's turn.
+DEFAULT_WAKE_TIMEOUT: Final[str] = "1h"
+
+
+class WakeDefaults(FrozenModel):
+    """What a wake calls the chat and how long it waits, as the flags or the routine's definition say."""
+
+    title: str = Field(description="The chat's name when it has to be made")
+    timeout: Duration = Field(description="How long to wait for the agent's turn")
+
+
+def wake_defaults(
+    definition: RoutineDefinition | None, routine_id: RoutineId, title: str | None, timeout: str | None
+) -> WakeDefaults:
+    """A flag wins; else the routine's definition, so a command routine's wake is recorded as a skill run's is; else
+    the id read as a title and the fixed timeout."""
+    if title is None:
+        title = str(definition.title) if definition is not None else routine_id.as_title
+    if timeout is None:
+        return WakeDefaults(
+            title=title, timeout=definition.timeout if definition is not None else Duration(DEFAULT_WAKE_TIMEOUT)
+        )
+    return WakeDefaults(title=title, timeout=Duration(timeout))
+
+
+def _definition_if_any(service: RoutinesService, routine_id: RoutineId) -> RoutineDefinition | None:
+    """The routine's definition when it has a valid one; None for a wake of a chat no routine defines."""
+    try:
+        return service.definitions.load(routine_id).definition
+    except RoutineNotFoundError:
+        return None
+
+
 _FORMAT_OPTION = click.option(
     "--format",
     "output_format",
@@ -400,26 +434,30 @@ def remove_command(routine_id: str) -> None:
     default=None,
     help="The routine whose chat to use; the skill's name by default",
 )
-@click.option("--title", default=None, help="What the chat is called when it has to be made")
+@click.option(
+    "--title",
+    default=None,
+    help="What the chat is called when it has to be made; the routine's title, else the id read as one",
+)
 @click.option(
     "--timeout",
-    default="1h",
-    show_default=True,
-    help="How long to wait for the agent's turn",
+    default=None,
+    help=f"How long to wait for the agent's turn; the routine's timeout, else {DEFAULT_WAKE_TIMEOUT}",
 )
-def wake_command(skill: str, routine_id: str | None, title: str | None, timeout: str) -> None:
+def wake_command(skill: str, routine_id: str | None, title: str | None, timeout: str | None) -> None:
     """Wake the routine's chat with /<skill> and wait for the turn; inside a run, the chat and a waiting agent are
     recorded on the run and the agent's summary becomes the run's."""
     service = _service()
     raw_run_id = os.environ.get(RUN_ID_ENV, "")
     try:
         wanted_id = RoutineId(routine_id or os.environ.get(ROUTINE_ID_ENV) or skill)
+        defaults = wake_defaults(_definition_if_any(service, wanted_id), wanted_id, title, timeout)
         outcome = service.runner.wake(
             wanted_id,
             RunId(raw_run_id) if raw_run_id else None,
-            title or wanted_id.as_title,
+            defaults.title,
             skill,
-            Duration(timeout).timedelta,
+            defaults.timeout.timedelta,
         )
     except RoutinesError as e:
         _fail(str(e))

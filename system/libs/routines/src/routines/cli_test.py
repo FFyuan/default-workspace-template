@@ -4,9 +4,13 @@ import subprocess
 from click.testing import CliRunner
 from click.testing import Result
 
+from routines.cli import DEFAULT_WAKE_TIMEOUT
 from routines.cli import routines
+from routines.cli import wake_defaults
+from routines.data_types import RoutineDefinition
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
+from routines.primitives import RoutineId
 
 
 def _invoke(paths: RoutinesPaths, *args: str) -> Result:
@@ -105,6 +109,22 @@ def test_show_of_a_missing_routine_says_so(git_paths: RoutinesPaths) -> None:
     result = _invoke(git_paths, "show", "nothing")
     assert result.exit_code == 1
     assert "There is no routine called 'nothing'" in result.output
+
+
+def test_a_wake_takes_its_title_and_timeout_from_the_routine_unless_told_otherwise() -> None:
+    definition = RoutineDefinition.model_validate(
+        {"title": "Weekly check-up", "what": "Checks.", "every": "1w", "command": ["true"], "timeout": "2h"}
+    )
+    caretaker = RoutineId("caretaker")
+
+    from_definition = wake_defaults(definition, caretaker, None, None)
+    assert (from_definition.title, str(from_definition.timeout)) == ("Weekly check-up", "2h")
+
+    from_flags = wake_defaults(definition, caretaker, "Check-up", "30m")
+    assert (from_flags.title, str(from_flags.timeout)) == ("Check-up", "30m")
+
+    undefined = wake_defaults(None, caretaker, None, None)
+    assert (undefined.title, str(undefined.timeout)) == ("Caretaker", DEFAULT_WAKE_TIMEOUT)
 
 
 def test_wake_refuses_a_timeout_that_is_not_a_duration_in_the_commands_words(git_paths: RoutinesPaths) -> None:
