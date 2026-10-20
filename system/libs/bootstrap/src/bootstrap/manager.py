@@ -578,6 +578,8 @@ def _migrate_cron_entries_to_routines() -> None:
         completed = subprocess.run(
             ["uv", "run", "--no-sync", "routines", "migrate-cron"],
             cwd=WORKSPACE_ROOT_DIR if WORKSPACE_ROOT_DIR.is_dir() else None,
+            # The CLI logs to stderr at INFO by default; only its warnings belong in the boot log.
+            env={**os.environ, "ROUTINES_LOG_LEVEL": "WARNING"},
             capture_output=True,
             text=True,
             timeout=120,
@@ -594,7 +596,7 @@ def _migrate_cron_entries_to_routines() -> None:
         return
     for line in completed.stdout.splitlines():
         logger.info("routines migrate-cron: {}", line)
-    # The migration's own warnings (an entry left in place, a commit it could not make) go to its stderr.
+    # What reaches stderr at WARNING: an entry left in place, a commit it could not make.
     for line in completed.stderr.splitlines():
         if line.strip():
             logger.warning("routines migrate-cron: {}", line)

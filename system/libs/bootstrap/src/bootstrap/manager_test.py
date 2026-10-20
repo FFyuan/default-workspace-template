@@ -985,8 +985,13 @@ def test_main_converts_old_cron_entries_after_the_recovery_guard_and_before_the_
 
     main()
 
-    assert ["uv", "run", "--no-sync", "routines", "migrate-cron"] in stub.calls
+    migration = ["uv", "run", "--no-sync", "routines", "migrate-cron"]
+    assert migration in stub.calls
     assert order == ["guard", "migrate", "tick", "runtime"]
+    # The CLI's own INFO lines go to stderr; only its warnings belong in the boot log.
+    environment = stub.kwargs[stub.calls.index(migration)]["env"]
+    assert isinstance(environment, dict)
+    assert environment["ROUTINES_LOG_LEVEL"] == "WARNING"
 
 
 def test_main_boots_when_the_cron_migration_cannot_run(
