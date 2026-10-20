@@ -2641,6 +2641,13 @@ def _repo_with_a_pass(tmp_path: Path, root: str) -> tuple[Path, str]:
     return repo, child
 
 
+def _real_git_runner(repo: Path, listing: _StubResult) -> _RealGitRunner:
+    """A ``_RealGitRunner`` in ``repo`` whose ``mngr list`` prints ``listing``."""
+    runner = _RealGitRunner(repo=repo)
+    runner.respond(("mngr", "list"), listing)
+    return runner
+
+
 def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -2652,8 +2659,7 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     )
     # An earlier supersede of the same creation already holds the plain name.
     _git(repo, "branch", f"superseded/{root}")
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(("mngr", "list"), listing)
+    runner = _real_git_runner(repo, listing)
 
     rc = create_worker_mod.destroy(root, runner, delete_branches=True)
 
@@ -2667,8 +2673,7 @@ def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
     keep = f"git branch superseded/{root}-2 mngr/{root}"
     assert keep in err
     _git(repo, *keep.split()[1:])
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(("mngr", "list"), listing)
+    runner = _real_git_runner(repo, listing)
 
     rc = create_worker_mod.destroy(root, runner, delete_branches=True)
 
@@ -2690,12 +2695,14 @@ def test_delete_branches_names_a_distinct_keep_branch_for_each_doomed_branch(
     _git(repo, "checkout", "--quiet", "-b", root)
     _git(repo, "commit", "--allow-empty", "-m", "sibling fix")
     _git(repo, "checkout", "--quiet", "main")
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(
-        ("mngr", "list"),
+    runner = _real_git_runner(
+        repo,
         _listing(
             _agent_record(root, "STOPPED"),
-            {**_agent_record(sibling, "STOPPED", lead_agent=root), "initial_branch": root},
+            {
+                **_agent_record(sibling, "STOPPED", lead_agent=root),
+                "initial_branch": root,
+            },
         ),
     )
 
@@ -2711,9 +2718,8 @@ def test_delete_branches_goes_ahead_once_the_pass_is_merged(tmp_path: Path) -> N
     root = _unique("root")
     repo, child = _repo_with_a_pass(tmp_path, root)
     _git(repo, "merge", "--quiet", "--no-ff", f"mngr/{root}", "-m", "merge the pass")
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(
-        ("mngr", "list"),
+    runner = _real_git_runner(
+        repo,
         _listing(
             _agent_record(root, "WAITING"),
             _agent_record(child, "STOPPED", lead_agent=root),
@@ -2739,7 +2745,9 @@ def test_delete_branches_refuses_when_git_cannot_prove_the_work_is_safe(
     root = _unique("root")
     runner = _RecordingRunner()
     runner.respond(("mngr", "list"), _listing(_agent_record(root, "STOPPED")))
-    runner.respond(("git", "for-each-ref"), _StubResult(stdout=f"refs/heads/mngr/{root}\n"))
+    runner.respond(
+        ("git", "for-each-ref"), _StubResult(stdout=f"refs/heads/mngr/{root}\n")
+    )
     runner.respond(failing_probe, _StubResult(returncode=128))
 
     rc = create_worker_mod.destroy(root, runner, delete_branches=True)
@@ -2759,16 +2767,14 @@ def test_discard_unmerged_deletes_branches_holding_work(
         _agent_record(child, "STOPPED", lead_agent=root),
     )
     argv = ["destroy", "--name", root, "--no-recursive", "--delete-branches"]
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(("mngr", "list"), listing)
+    runner = _real_git_runner(repo, listing)
 
     rc = create_worker_mod.main(argv, runner=runner)
 
     assert rc == 2
     assert _lifecycle_argvs(runner) == []
     assert "without its 1 descendant" not in capsys.readouterr().err
-    runner = _RealGitRunner(repo=repo)
-    runner.respond(("mngr", "list"), listing)
+    runner = _real_git_runner(repo, listing)
 
     rc = create_worker_mod.main([*argv, "--discard-unmerged"], runner=runner)
 
