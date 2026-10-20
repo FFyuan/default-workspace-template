@@ -79,8 +79,11 @@ class RoutineDefinition(FrozenModel):
             raise DefinitionValidationError("'command' needs at least one word")
         if self.once is not None and (self.at is not None or self.days or self.day_of_month is not None):
             raise DefinitionValidationError("'at', 'days' and 'day_of_month' go with 'every', not 'once'")
-        if self.every is not None and self.every.approximate_seconds < 60:
-            raise DefinitionValidationError("'every' is at least a minute: the schedule is checked once a minute")
+        if self.every is not None and self.every.unit is DurationUnit.SECONDS:
+            raise DefinitionValidationError(
+                "'every' is a number of minutes, hours, days, weeks or months (15m, 3h, 1d, 2w, 1mo): "
+                "the schedule is checked once a minute"
+            )
         if self.at is not None and self.every is not None and self.every.approximate_seconds < 86400:
             raise DefinitionValidationError("'at' only goes with a cadence of a day or longer")
         if self.day_of_month is not None and (self.every is None or self.every.unit is not DurationUnit.MONTHS):

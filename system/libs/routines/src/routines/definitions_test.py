@@ -115,6 +115,7 @@ def test_removing_a_routine_deletes_the_file_and_commits_the_deletion(
         ({"every": "1d", "command": ["true"], "skill": "x"}, "exactly one of 'command' and 'skill'"),
         ({"every": "1d", "command": []}, "at least one word"),
         ({"every": "15m", "at": "07:00", "command": ["true"]}, "a day or longer"),
+        ({"every": "90s", "command": ["true"]}, "minutes, hours, days, weeks or months"),
         ({"every": "1d", "day_of_month": 3, "command": ["true"]}, "a cadence in months"),
         ({"once": datetime(2026, 11, 3, 15, 0), "at": "07:00", "command": ["true"]}, "go with 'every'"),
         ({"every": "1d", "timeout": "1mo", "command": ["true"]}, "fixed lengths"),
