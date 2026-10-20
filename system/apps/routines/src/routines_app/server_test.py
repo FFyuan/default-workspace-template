@@ -1,12 +1,17 @@
+import os
 from pathlib import Path
 
 from flask.testing import FlaskClient
 
 from app_schema.testing import assert_api_schema_describes_app
+from imbue.imbue_common.model_update import to_update
+from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
 from routines.primitives import RoutineId
+from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.service import RoutinesService
+from routines.testing import TEST_NOW
 
 MANIFEST_PATH = Path(__file__).resolve().parents[2] / "app.toml"
 SYNC = RoutineId("news-sync")
@@ -93,8 +98,20 @@ def test_a_run_and_its_log_are_read_back(client: FlaskClient, service: RoutinesS
     assert detail["row"]["last_run_text"].startswith("Worked")
 
 
-def test_removing_a_routine_deletes_it(client: FlaskClient, service: RoutinesService) -> None:
+def test_removing_a_routine_deletes_it_once_no_run_is_going(client: FlaskClient, service: RoutinesService) -> None:
     _add(service)
+    in_flight = CurrentRun(
+        run_id=RunId.generate(), pid=os.getpid(), pid_start="", trigger=RunTrigger.MANUAL, started_at=TEST_NOW
+    )
+    service.states.update(
+        SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, in_flight))
+    )
+    refused = client.delete("/api/routines/news-sync")
+    assert refused.status_code == 409
+    assert "is going" in refused.get_json()["detail"]
+    assert client.get("/api/routines/news-sync").status_code == 200
+
+    service.states.update(SYNC, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, None)))
     assert client.delete("/api/routines/news-sync").status_code == 204
     assert client.get("/api/routines/news-sync").status_code == 404
     assert client.delete("/api/routines/news-sync").status_code == 404

@@ -161,6 +161,11 @@ class RoutinesService(MutableModel):
         return validated
 
     def remove(self, routine_id: RoutineId) -> None:
+        """Delete the definition and the state; raises RunInFlightError while a run is going, since the run writes
+        the state it would pull away."""
+        self.definitions.load(routine_id)
+        if self.is_running(routine_id):
+            raise RunInFlightError(f"A run of {routine_id} is going; wait for it to finish or stop it first.")
         state = self.states.read(routine_id)
         self.definitions.remove(routine_id)
         if state.chat_id is not None:

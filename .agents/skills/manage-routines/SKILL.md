@@ -108,7 +108,7 @@ uv run --no-sync routines edit <id> --every 2h      # any of the add flags; the 
 uv run --no-sync routines run <id> --wait           # run it now and report the outcome
 uv run --no-sync routines disable <id>              # pause: nothing runs until it is enabled
 uv run --no-sync routines enable <id>
-uv run --no-sync routines remove <id>               # delete it; its chat stays in the chat list
+uv run --no-sync routines remove <id>               # delete it (refused while a run is going); its chat stays in the chat list
 ```
 
 `--format json` on `list`, `show` and `runs` is for scripts. A routine's

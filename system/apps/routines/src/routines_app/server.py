@@ -300,7 +300,7 @@ def create_app(service: RoutinesService, static_directory: Path, is_preview: boo
 
     @app.delete("/api/routines/<routine_id>")
     def remove(routine_id: str) -> ResponseReturnValue:
-        """Remove the routine: its definition and state go, its runs stay in the ledger."""
+        """Remove the routine: its definition and state go, its runs stay in the ledger; 409 while one is going."""
         wanted = _routine_id(routine_id)
         if wanted is None:
             return not_found(routine_id)
@@ -310,7 +310,7 @@ def create_app(service: RoutinesService, static_directory: Path, is_preview: boo
             service.remove(wanted)
         except RoutineNotFoundError:
             return not_found(routine_id)
-        except DefinitionCommitError as e:
+        except (RunInFlightError, DefinitionCommitError) as e:
             return error_response(str(e), HTTP_CONFLICT)
         return Response(status=HTTP_NO_CONTENT)
 

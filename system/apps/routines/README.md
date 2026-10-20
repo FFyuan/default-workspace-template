@@ -35,7 +35,7 @@ and the API's are the same shapes:
 | `PUT /api/routines/<id>/enabled` | `{"is_enabled": bool}`. |
 | `PUT /api/routines/<id>/schedule` | The schedule fields; 400 with the reason. |
 | `POST /api/routines/<id>/fix` | Opens the fix chat. |
-| `DELETE /api/routines/<id>` | Removes the routine. |
+| `DELETE /api/routines/<id>` | Removes the routine; 409 while a run of it is going. |
 
 Every mutation goes through the library's service, which is what the
 `routines` command runs. The manifest registers `minds:show-routine`, the
