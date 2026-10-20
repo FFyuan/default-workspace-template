@@ -11,6 +11,8 @@ from typing import Any, Final, NamedTuple
 
 from oom_priority import resource_sampler
 
+from system_monitor.tail import read_tail
+
 RECENT_PATH: Final[Path] = resource_sampler.STATE_DIR / resource_sampler.RECENT_FILENAME
 HISTORY_PATH: Final[Path] = (
     resource_sampler.STATE_DIR / resource_sampler.HISTORY_FILENAME
@@ -131,16 +133,6 @@ def _read_lines(path: Path) -> list[dict[str, Any]]:
     return lines
 
 
-def _read_tail(path: Path, limit_bytes: int) -> list[str]:
-    """The lines in the last ``limit_bytes`` of ``path``; a line cut in two at the start is dropped."""
-    with path.open("rb") as file:
-        size = file.seek(0, 2)
-        start = max(0, size - limit_bytes)
-        file.seek(start)
-        lines = file.read().decode(errors="replace").splitlines()
-    return lines[1:] if start > 0 else lines
-
-
 def parse_event_time(text: str) -> datetime | None:
     """An envelope timestamp (nanosecond precision, ``Z``) as a datetime; None when it is not one."""
     try:
@@ -162,7 +154,7 @@ def recent_stretches(
     chat_names = chat_names or {}
     app_names = app_names or {}
     try:
-        lines = _read_tail(path, STRETCHES_TAIL_BYTES)
+        lines = read_tail(path, STRETCHES_TAIL_BYTES)
     except OSError:
         return []
     events: list[dict[str, Any]] = []

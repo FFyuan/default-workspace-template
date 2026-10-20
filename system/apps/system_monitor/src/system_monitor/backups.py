@@ -9,7 +9,8 @@ from typing import Any, Final
 from host_backup import config as backup_config
 from host_backup import events as backup_events
 
-from system_monitor.cpu import _read_tail, parse_event_time
+from system_monitor.cpu import parse_event_time
+from system_monitor.tail import read_tail
 
 README_PATH: Final[str] = "/home/user/workspace/system/services/host_backup/README.md"
 FAILURES_WINDOW: Final[timedelta] = timedelta(hours=24)
@@ -86,7 +87,7 @@ def _event_time(event: dict[str, object] | None) -> datetime | None:
 
 def _failures_since(events_path: Path, since: datetime) -> int:
     try:
-        lines = _read_tail(events_path, _TAIL_BYTES)
+        lines = read_tail(events_path, _TAIL_BYTES)
     except OSError:
         return 0
     count = 0
