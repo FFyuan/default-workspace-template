@@ -492,17 +492,19 @@ starting over.
    pass (step 3's), where your branch changed the same file (every conflict
    is one), and, through the scope file's `incoming`, where it reaches a
    creation in the pass through something that creation depends on (a
-   package, a `uv.lock` upgrade, a shared frontend package): that runs the
-   creation's own suite and nothing else. What you committed after the merge
-   is yours, selected like any change. A selection with nothing to run means
-   no part of the pass moved. Do not re-run the gate over `$DIFF_BASE`: what
-   it already passed still stands, unless step 3 added a creation, whose
-   changes before `$PRE` this window does not hold; then run the gate from
-   the regenerated `$SCOPE_FILE` instead, as in "The test gate". For a test
-   that fails in this run, the tree before your change ("A failing test you
-   would change") is the commit you merged, the catch-up merge's second
-   parent, not `$DIFF_BASE`: a test that fails there was already failing at
-   the lead's `HEAD`, and one absent there is your pass's own.
+   package, a `uv.lock` upgrade, a shared frontend package, or the root
+   project's own `pyproject.toml` or `conftest.py` for a creation the root
+   project collects): that runs the creation's own suite and nothing else.
+   What you committed after the merge is yours, selected like any change. A
+   selection with nothing to run means no part of the pass moved. Do not
+   re-run the gate over `$DIFF_BASE`: what it already passed still stands,
+   unless step 3 added a creation, whose changes before `$PRE` this window
+   does not hold; then run the gate from the regenerated `$SCOPE_FILE`
+   instead, as in "The test gate". For a test that fails in this run, the
+   tree before your change ("A failing test you would change") is the commit
+   you merged, the catch-up merge's second parent, not `$DIFF_BASE`: a test
+   that fails there was already failing at the lead's `HEAD`, and one absent
+   there is your pass's own.
 5. Regenerate `$SCOPE_FILE` and report `done` again, with a `Caught up:`
    section naming the commit you merged, each conflict and how you resolved
    it, any creation you added, and what the re-run gate ran. The lead's work
