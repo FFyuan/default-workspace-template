@@ -5,6 +5,7 @@ from routines.mock_clock_test import FakeClock
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
 from routines.primitives import RunOutcome
+from routines.wake import NEVER_LISTED_SUMMARY
 from routines.wake import NEVER_STARTED_SUMMARY
 from routines.wake import WakeOutcome
 from routines.wake import summary_of_message
@@ -62,7 +63,7 @@ def test_a_fresh_chat_still_unlisted_after_the_start_grace_is_a_failed_run(
 ) -> None:
     outcome, _, _ = _wake(chat_app, clock, None)
     assert outcome.outcome is RunOutcome.FAILED
-    assert outcome.summary == "The agent stopped before it finished."
+    assert outcome.summary == NEVER_LISTED_SUMMARY
     assert sum(clock.pauses) > 60
 
 

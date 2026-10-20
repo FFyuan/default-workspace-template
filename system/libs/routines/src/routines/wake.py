@@ -28,6 +28,8 @@ START_DEADLINE: Final[timedelta] = timedelta(seconds=60)
 SUMMARY_MAX_CHARS: Final[int] = 200
 CLEAR_COMMAND: Final[str] = "/clear"
 NEVER_STARTED_SUMMARY: Final[str] = "The agent never started on the message."
+STOPPED_SUMMARY: Final[str] = "The agent stopped before it finished."
+NEVER_LISTED_SUMMARY: Final[str] = "The chat app never listed the agent's chat."
 _BUSY_STATUSES: Final[frozenset[ChatStatusWord]] = frozenset(
     (ChatStatusWord.WORKING, ChatStatusWord.BACKGROUND, ChatStatusWord.ATTENTION)
 )
@@ -167,7 +169,7 @@ def wake_skill(
             if status in _GONE_STATUSES:
                 return WakeOutcome(
                     outcome=RunOutcome.FAILED,
-                    summary="The agent stopped before it finished.",
+                    summary=NEVER_LISTED_SUMMARY if status is None else STOPPED_SUMMARY,
                     chat_id=chat_id,
                     warnings=tuple(warnings),
                 )
