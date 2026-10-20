@@ -163,7 +163,8 @@ class DiffSummary(FrozenModel):
     )
     others: tuple[RepoRelativePath, ...] = Field(
         description="The changed files no footprint accounts for and the ref does not change relative "
-        "to the fork point: other work that landed in the window; empty without a fork point",
+        "to the fork point: the window's work from the lead's side, other chats' and the change the "
+        "branch hardens alike; empty without a fork point",
     )
 
 

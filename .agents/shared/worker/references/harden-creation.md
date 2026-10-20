@@ -78,8 +78,12 @@ directory -- a skill that drives it, a script, a doc), `context` (paths to read
 but never change), `conventions`, and `exclude` (a hard denylist of globs) --
 and one `diff` for the whole pass: the changed files, split into those some
 creation's footprint accounts for, `outside_footprint` (your own changes none
-does), and `others` (the rest: other work in the window, which is not yours to
-explain or test). `system/libs/app_manifest/README.md` describes both. The freshness check
+does), and `others` (the rest, which the gate does not test: mostly other work
+in the window, but also any file the change you are hardening touched outside
+every footprint, since its commits read like anyone else's). When you know a
+file in `others` belongs to a creation in the pass, claim it with a
+`[[references]]` entry, which moves it inside the footprint and into the gate.
+`system/libs/app_manifest/README.md` describes both. The freshness check
 the lead runs before merging reads the same footprints
 (`.agents/shared/references/harden-contention.md`). Regenerate the file
 whenever a footprint moves under you -- when you register a `[[references]]`
