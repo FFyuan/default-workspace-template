@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from collections.abc import Callable
+from collections.abc import Mapping
 from collections.abc import Sequence
 from datetime import datetime
 from datetime import timedelta
@@ -99,6 +100,16 @@ def wake_run_result(outcome: WakeOutcome, wanted_id: RoutineId, run_routine_id: 
     was of the run's own routine, since the runner records the result's chat on that routine."""
     is_own_chat = str(wanted_id) == run_routine_id
     return RunResult(summary=outcome.summary, chat_id=outcome.chat_id if is_own_chat else None)
+
+
+@pure
+def run_routine_of(run_id: RunId | None, environ: Mapping[str, str], wanted_id: RoutineId) -> RoutineId | None:
+    """The routine of the run a wake happens inside: the one the run's environment names, else the wanted
+    routine itself; None outside any run."""
+    if run_id is None:
+        return None
+    named = environ.get(ROUTINE_ID_ENV)
+    return RoutineId(named) if named else wanted_id
 
 
 def _definition_if_any(service: RoutinesService, routine_id: RoutineId) -> RoutineDefinition | None:
@@ -507,13 +518,15 @@ def wake_command(skill: str, routine_id: str | None, title: str | None, timeout:
         definition = _definition_if_any(service, wanted_id)
         defaults = wake_defaults(definition, wanted_id, title, timeout)
         wait = defaults.timeout.timedelta
-        if run_id is not None:
+        run_routine_id = run_routine_of(run_id, os.environ, wanted_id)
+        if run_id is not None and run_routine_id is not None:
             # Inside a run the wait never reaches past the run's own time, whatever the flag says.
-            run_timeout = definition.timeout.timedelta if definition is not None else wait
+            run_definition = _definition_if_any(service, run_routine_id)
+            run_timeout = run_definition.timeout.timedelta if run_definition is not None else wait
             wait = wait_within_run(
-                service.states.read(wanted_id).current_run, run_id, run_timeout, wait, service.clock.now()
+                service.states.read(run_routine_id).current_run, run_id, run_timeout, wait, service.clock.now()
             )
-        outcome = service.runner.wake(wanted_id, run_id, defaults.title, skill, wait)
+        outcome = service.runner.wake(wanted_id, run_id, run_routine_id, defaults.title, skill, wait)
     except RoutinesError as e:
         _fail(str(e))
     run_dir = os.environ.get(RUN_DIR_ENV, "")

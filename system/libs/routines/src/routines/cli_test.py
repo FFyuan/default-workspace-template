@@ -10,6 +10,7 @@ from routines.cli import DEFAULT_WAKE_TIMEOUT
 from routines.cli import LEAST_WAKE_WAIT
 from routines.cli import WAKE_MARGIN_BEFORE_RUN_DEADLINE
 from routines.cli import routines
+from routines.cli import run_routine_of
 from routines.cli import wait_within_run
 from routines.cli import wake_defaults
 from routines.cli import wake_run_result
@@ -24,6 +25,7 @@ from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
+from routines.runner import ROUTINE_ID_ENV
 from routines.state import FileStateStore
 from routines.testing import TEST_NOW
 from routines.testing import wait_for_last_run
@@ -255,6 +257,15 @@ def test_a_wake_inside_a_run_stops_before_the_runs_own_deadline() -> None:
     # A state that names another run, or none, says nothing about this one.
     assert wait_within_run(None, run_id, timeout, timeout, TEST_NOW) == timeout
     assert wait_within_run(started_ten_minutes_ago, RunId.generate(), timeout, timeout, TEST_NOW) == timeout
+
+
+def test_the_run_a_wake_is_inside_is_the_one_its_environment_names() -> None:
+    caretaker = RoutineId("caretaker")
+    run_id = RunId.generate()
+    assert run_routine_of(None, {ROUTINE_ID_ENV: "nightly-check"}, caretaker) is None
+    assert run_routine_of(run_id, {ROUTINE_ID_ENV: "nightly-check"}, caretaker) == RoutineId("nightly-check")
+    # A run that did not name its routine is taken to be the wanted routine's own.
+    assert run_routine_of(run_id, {}, caretaker) == caretaker
 
 
 def test_a_wake_leaves_its_chat_on_the_run_only_when_the_chat_is_the_runs_own_routines() -> None:

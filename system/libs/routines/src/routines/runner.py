@@ -311,7 +311,7 @@ class Runner(MutableModel):
     def _execute_skill(self, routine_id: RoutineId, run_id: RunId, definition: RoutineDefinition) -> _Execution:
         assert definition.skill is not None
         wake = self.wake(
-            routine_id, run_id, str(definition.title), str(definition.skill), definition.timeout.timedelta
+            routine_id, run_id, routine_id, str(definition.title), str(definition.skill), definition.timeout.timedelta
         )
         self._append_to_log(routine_id, run_id, f"{wake.outcome.lower()}: {wake.summary}\n")
         return _Execution(
@@ -323,27 +323,36 @@ class Runner(MutableModel):
         )
 
     def wake(
-        self, routine_id: RoutineId, run_id: RunId | None, title: str, skill: str, timeout: timedelta
+        self,
+        routine_id: RoutineId,
+        run_id: RunId | None,
+        run_routine_id: RoutineId | None,
+        title: str,
+        skill: str,
+        timeout: timedelta,
     ) -> WakeOutcome:
         """Wake the routine's chat with the skill and wait for the turn, keeping the chat on the routine's state.
 
-        Given the run this happens inside (a skill run's own, or the run of a command that calls ``routines
-        wake``), an agent that stops to wait on the user is recorded on the run and announced to the feed.
+        Given the run this happens inside (``run_id`` of ``run_routine_id``: a skill run's own, or the run of a
+        command that calls ``routines wake``, possibly for another routine's chat), an agent that stops to wait
+        on the user is recorded on that run and announced to the feed.
         """
 
         def on_blocked() -> None:
-            if run_id is None:
+            if run_id is None or run_routine_id is None:
                 return
             self.ledger.append(
                 RunBlockedEvent(
                     **_envelope(RUN_BLOCKED_EVENT, self.clock.now()),
-                    routine_id=routine_id,
+                    routine_id=run_routine_id,
                     run_id=run_id,
                 )
             )
-            self.states.update(routine_id, _mark_current_run_blocked)
-            if not self.notifier.notify(routine_id, title, f"{title} needs you."):
-                self._append_to_log(routine_id, run_id, "The notification that the agent is waiting did not go out.\n")
+            self.states.update(run_routine_id, _mark_current_run_blocked)
+            if not self.notifier.notify(run_routine_id, title, f"{title} needs you."):
+                self._append_to_log(
+                    run_routine_id, run_id, "The notification that the agent is waiting did not go out.\n"
+                )
 
         def on_chat_known(chat_id: str) -> None:
             self.states.update(

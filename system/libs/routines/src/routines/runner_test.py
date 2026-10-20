@@ -432,7 +432,7 @@ def test_a_wake_inside_a_command_run_records_the_waiting_agent_on_that_run(
     )
     _record_current_run(states, run_id, os.getpid(), runner.clock.now(), trigger=RunTrigger.MANUAL)
 
-    outcome = runner.wake(SYNC, run_id, "Weekly check-up", "caretaker", timedelta(hours=1))
+    outcome = runner.wake(SYNC, run_id, SYNC, "Weekly check-up", "caretaker", timedelta(hours=1))
 
     assert outcome.outcome is RunOutcome.SUCCEEDED
     assert notifier.sent == [(SYNC, "Weekly check-up", "Weekly check-up needs you.")]
@@ -442,12 +442,40 @@ def test_a_wake_inside_a_command_run_records_the_waiting_agent_on_that_run(
     assert state.current_run is not None and state.current_run.is_blocked
 
 
+def test_a_wake_of_another_routines_chat_inside_a_run_records_the_block_on_the_run(
+    runner: Runner,
+    definitions: FileDefinitionStore,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+    ledger: FileLedger,
+    states: FileStateStore,
+) -> None:
+    """``routines wake caretaker --routine weekly-check`` from a command run of nightly-sync: the block is the
+    run's, the chat is weekly-check's."""
+    _command_routine(definitions, "true")
+    weekly_check = RoutineId("weekly-check")
+    chat_app.script("agent-created", (ChatStatusWord.ATTENTION, ChatStatusWord.IDLE), "Answered.")
+    run_id = RunId.generate()
+    _record_current_run(states, run_id, os.getpid(), runner.clock.now(), trigger=RunTrigger.MANUAL)
+
+    outcome = runner.wake(weekly_check, run_id, SYNC, "Weekly check", "caretaker", timedelta(hours=1))
+
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+    assert notifier.sent == [(SYNC, "Weekly check", "Weekly check needs you.")]
+    assert [type(e).__name__ for e in ledger.events_of_run(SYNC, run_id)] == ["RunBlockedEvent"]
+    assert ledger.recent_events(weekly_check, 5) == []
+    state = states.read(SYNC)
+    assert state.current_run is not None and state.current_run.is_blocked
+    assert state.chat_id is None
+    assert states.read(weekly_check).chat_id == "agent-created"
+
+
 def test_a_wake_outside_any_run_only_keeps_the_chat(
     runner: Runner, chat_app: ScriptedChatApp, notifier: RecordingNotifier, ledger: FileLedger, states: FileStateStore
 ) -> None:
     chat_app.script("agent-created", (ChatStatusWord.ATTENTION, ChatStatusWord.IDLE), "Answered.")
 
-    outcome = runner.wake(SYNC, None, "Weekly check-up", "caretaker", timedelta(hours=1))
+    outcome = runner.wake(SYNC, None, None, "Weekly check-up", "caretaker", timedelta(hours=1))
 
     assert outcome.outcome is RunOutcome.SUCCEEDED
     assert notifier.sent == []
