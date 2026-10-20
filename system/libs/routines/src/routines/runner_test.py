@@ -4,6 +4,7 @@ import subprocess
 import sys
 from datetime import datetime
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from pydantic import Field
@@ -18,6 +19,7 @@ from routines.data_types import RUN_STARTED_EVENT
 from routines.data_types import RoutineDefinition
 from routines.data_types import RoutineState
 from routines.data_types import RunFinishedEvent
+from routines.data_types import RunResult
 from routines.data_types import RunStartedEvent
 from routines.definitions import FileDefinitionStore
 from routines.errors import DefinitionValidationError
@@ -38,6 +40,7 @@ from routines.primitives import RunWarning
 from routines.runner import INTERRUPTED_SUMMARY
 from routines.runner import RUNNER_FAILED_SUMMARY
 from routines.runner import Runner
+from routines.runner import read_result
 from routines.state import FileStateStore
 
 SYNC = RoutineId("nightly-sync")
@@ -403,6 +406,16 @@ def test_a_housekeeping_stamp_that_cannot_be_read_means_the_house_is_kept_again(
     runner.tick()
 
     assert json.loads(runner.paths.housekeeping_path.read_text()) == {"date": "2026-10-20"}
+
+
+def test_a_result_file_that_does_not_validate_or_parse_reads_as_an_empty_result(tmp_path: Path) -> None:
+    """A run's result.json is the command's to write; a bad one costs the summary, not the run's books."""
+    path = tmp_path / "result.json"
+    path.write_text('{"summary": 5}')
+    assert read_result(path) == RunResult()
+    path.write_text("not json")
+    assert read_result(path) == RunResult()
+    assert read_result(tmp_path / "missing.json") == RunResult()
 
 
 def test_a_wake_inside_a_command_run_records_the_waiting_agent_on_that_run(

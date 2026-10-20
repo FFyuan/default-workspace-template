@@ -62,6 +62,40 @@ def test_a_send_waits_out_a_not_ready_answer_and_a_refusal_is_an_error_in_the_ap
         chat_app.send_message("b", "/digest")
 
 
+def test_the_chat_verbs_post_to_the_chat_waiting_out_a_not_ready_answer_and_a_refusal_is_an_error(
+    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+) -> None:
+    http_server.answer("POST", "/api/chats/a/stop", (200, {}))
+    http_server.answer("POST", "/api/chats/a/start", (503, {"detail": "starting"}), (200, {}))
+    http_server.answer("POST", "/api/chats/a/interrupt", (409, {"detail": "nothing is going"}))
+    chat_app = _chat_app(tmp_path, http_server, clock)
+
+    chat_app.stop_chat("a")
+    chat_app.start_chat("a")
+    with pytest.raises(ChatAppError, match="refused to interrupt the chat: nothing is going"):
+        chat_app.interrupt_chat("a")
+
+    assert [(request.method, request.path) for request in http_server.requests] == [
+        ("POST", "/api/chats/a/stop"),
+        ("POST", "/api/chats/a/start"),
+        ("POST", "/api/chats/a/start"),
+        ("POST", "/api/chats/a/interrupt"),
+    ]
+
+
+def test_a_refusals_reason_is_its_error_field_or_its_body_when_it_is_not_an_object(
+    tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
+) -> None:
+    http_server.answer("POST", "/api/chats/a/stop", (500, {"error": "the harness is gone"}))
+    http_server.answer("POST", "/api/chats/b/stop", (400, ["not", "an", "object"]))
+    chat_app = _chat_app(tmp_path, http_server, clock)
+
+    with pytest.raises(ChatAppError, match="the harness is gone"):
+        chat_app.stop_chat("a")
+    with pytest.raises(ChatAppError, match=r'\["not", "an", "object"\]'):
+        chat_app.stop_chat("b")
+
+
 def test_the_agents_newest_message_after_the_cursor_is_the_answer(
     tmp_path: Path, http_server: FakeHttpServer, clock: FakeClock
 ) -> None:
