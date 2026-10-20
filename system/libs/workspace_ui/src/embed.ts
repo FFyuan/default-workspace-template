@@ -85,11 +85,12 @@ export const PROVIDER_SIGN_IN_END: "minds:provider-sign-in-end" =
 // Embedder -> workspace (contract v8, the workspace link routing plan): a popup (or an external page replacing a
 // frame) a page of this workspace asked for, which Imbue Studio turned away from a window of its own; the workspace
 // opens it where it belongs. Payload: { url }. Sent only to a workspace that announced ``opensLinks`` with
-// WORKSPACE_READY.
+// WORKSPACE_READY, and a custom-scheme URL (contract v9) only to one that announced ``opensCustomSchemeLinks`` too.
 export const OPEN_LINK: "minds:open-link" = "OPEN_LINK" in embedContract ? embedContract.OPEN_LINK : "minds:open-link";
-// Workspace -> embedder (contract v8): open an external web, mailto or tel link outside the workspace, which no app of
-// it takes. Payload: { url }. Sent only to an embedder that said ``opensExternalLinks`` with EMBEDDER_CAPABILITIES, or
-// for an external link that embedder handed over with OPEN_LINK.
+// Workspace -> embedder (contract v8): open an external web, mailto, tel or (contract v9) custom-scheme link outside
+// the workspace, which no app of it takes. Payload: { url }. Sent only to an embedder that said ``opensExternalLinks``
+// with EMBEDDER_CAPABILITIES (and, for a custom-scheme link, ``opensCustomSchemeLinks``), or for an external link that
+// embedder handed over with OPEN_LINK.
 export const OPEN_EXTERNAL: "minds:open-external" =
   "OPEN_EXTERNAL" in embedContract ? embedContract.OPEN_EXTERNAL : "minds:open-external";
 
