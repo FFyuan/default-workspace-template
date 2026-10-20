@@ -907,8 +907,9 @@ exists, offered in the same breath).
 
 Whatever the outcome, a needs-decision ending included, drop the history
 bridge (a no-op when Step 3a built none; a retry rebuilds it) and bring back
-every chat and background agent this pass paused (a no-op when 5b's resume
-already did, or nothing was paused):
+every chat and background agent this pass paused, or an earlier pass paused and
+ended without bringing back (a no-op when 5b's resume already did, or nothing
+was paused):
 
 ```bash
 python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \

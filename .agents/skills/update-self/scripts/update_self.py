@@ -746,8 +746,9 @@ def _cmd_run_status_start(args: argparse.Namespace) -> int:
         )
         return 1
     now = time.time
-    # A start this chat records again (re-taking its lease, resuming after an override) keeps
-    # the chats it paused and has not brought back, or nothing could resume them.
+    # A start keeps the chats an earlier start paused and has not brought back, this chat's own
+    # (re-taking its lease, resuming after an override) or a lead's that ended before its resume:
+    # nothing else could ever resume them.
     earlier = read_run_status(repo_root)
     still_paused = (
         [
@@ -755,9 +756,18 @@ def _cmd_run_status_start(args: argparse.Namespace) -> int:
             for entry in earlier.stopped_agents
             if not (entry.is_restarted and entry.is_told)
         ]
-        if earlier is not None and earlier.chat_agent_name == chat_agent_name
+        if earlier is not None
         else []
     )
+    if (
+        still_paused
+        and earlier is not None
+        and earlier.chat_agent_name != chat_agent_name
+    ):
+        print(
+            f"Carried over {len(still_paused)} chat(s) or agent(s) {earlier.chat_agent_name} paused and "
+            "did not bring back; this run's resume-chats brings them back."
+        )
     write_run_status(
         RunStatus(
             chat_agent_name=chat_agent_name,

@@ -132,6 +132,37 @@ def test_a_start_the_lead_records_again_keeps_the_chats_it_has_not_resumed(
     assert set(fake_agents.notes()) == {"agent-a"}
 
 
+def test_the_next_run_brings_back_the_chats_a_lead_that_ended_left_paused(
+    tmp_path: Path, fake_agents: FakeAgents
+) -> None:
+    """A lead that dies between its pause and its resume is closed out without resuming them."""
+    fake_agents.set_agents(
+        [chat("agent-lead", _LEAD, "RUNNING"), chat("agent-a", "Chat-A", "RUNNING")]
+    )
+    assert _main(tmp_path, "run-status", "start") == 0
+    assert _main(tmp_path, "run-status", "stop-chats") == 0
+    assert (
+        _main(
+            tmp_path,
+            "run-status",
+            "verdict",
+            "STUCK",
+            "--chat",
+            _LEAD,
+            "--detail",
+            "gone",
+        )
+        == 0
+    )
+
+    next_lead = f"{_LEAD}-2"
+    assert _main(tmp_path, "run-status", "start", "--chat", next_lead) == 0
+    assert _main(tmp_path, "run-status", "resume-chats", "--chat", next_lead) == 0
+
+    assert fake_agents.states()["Chat-A"] == "WAITING"
+    assert set(fake_agents.notes()) == {"agent-a"}
+
+
 def test_stop_chats_pauses_from_a_listing_that_exited_non_zero(
     tmp_path: Path, fake_agents: FakeAgents
 ) -> None:
