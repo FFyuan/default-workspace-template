@@ -37,14 +37,14 @@ RUN_BLOCKED_EVENT: Final[str] = "run_blocked"
 RUN_FINISHED_EVENT: Final[str] = "run_finished"
 
 
-def weekdays_in_any_case(value: Any) -> Any:
+def _weekdays_in_any_case(value: Any) -> Any:
     """A ``days`` list as a file or a request spells it, ``mon`` or ``MON``, read as the enum's upper case."""
     if isinstance(value, list | tuple):
         return tuple(item.upper() if isinstance(item, str) else item for item in value)
     return value
 
 
-def once_as_a_local_moment(value: Any) -> Any:
+def _once_as_a_local_moment(value: Any) -> Any:
     """A ``once`` is a local wall-clock moment, written to the file without a zone; one that carries a zone is
     refused rather than silently re-read as local time shifted by its offset."""
     if isinstance(value, datetime) and value.tzinfo is not None:
@@ -76,8 +76,8 @@ class RoutineDefinition(FrozenModel):
     )
     app: NonEmptyStr | None = Field(default=None, description="The app this routine belongs to")
 
-    _read_weekdays_in_any_case = field_validator("days", mode="before")(weekdays_in_any_case)
-    _refuse_a_zoned_once = field_validator("once", mode="after")(once_as_a_local_moment)
+    _read_weekdays_in_any_case = field_validator("days", mode="before")(_weekdays_in_any_case)
+    _refuse_a_zoned_once = field_validator("once", mode="after")(_once_as_a_local_moment)
 
     @model_validator(mode="after")
     def _check_one_schedule_and_one_action(self) -> Self:
@@ -116,8 +116,8 @@ class ScheduleChange(FrozenModel):
     day_of_month: int | None = Field(default=None, ge=1, le=31, description="The day a monthly run is due")
     once: datetime | None = Field(default=None, description="A single local moment")
 
-    _read_weekdays_in_any_case = field_validator("days", mode="before")(weekdays_in_any_case)
-    _refuse_a_zoned_once = field_validator("once", mode="after")(once_as_a_local_moment)
+    _read_weekdays_in_any_case = field_validator("days", mode="before")(_weekdays_in_any_case)
+    _refuse_a_zoned_once = field_validator("once", mode="after")(_once_as_a_local_moment)
 
 
 class LoadedRoutine(FrozenModel):
