@@ -34,8 +34,8 @@ the real app would need to become it:
   Stop action.
 - `04-task-manager.html` -- after Windows Task Manager: resource list on the
   left, big graph on the right. Needs per-process CPU, 60-minute histories kept
-  while the app runs (today the history restarts when no window shows it), and
-  machine facts (vCPU model, size, runtime) the app has no source for yet.
+  while the app runs (today the app keeps 10 minutes, and the history starts over
+  when the app restarts), and machine facts (vCPU model, size, runtime) the app has no source for yet.
   Read-only.
 - `05-usage-and-tokens.html` -- machine meters plus today's AI usage (cost,
   tokens, rate-limit windows, per chat). Needs a new data source: per-chat
