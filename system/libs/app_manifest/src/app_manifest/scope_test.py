@@ -713,17 +713,25 @@ def _news_lead_with_a_change(repo_root: Path) -> tuple[str, str]:
     return diff_base, fork
 
 
+def _news_lead_with_a_merged_milestone(repo_root: Path) -> tuple[str, str, str]:
+    """``_news_lead_with_a_change`` with a worker branched at the fork whose milestone, an edit
+    outside the footprint, the lead provisionally merged before another chat committed again;
+    the worker is checked out. The diff base, the fork, and the lead's HEAD."""
+    diff_base, fork = _news_lead_with_a_change(repo_root)
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(repo_root, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "milestone")
+    run_git(repo_root, ("checkout", "-q", "main"))
+    run_git(repo_root, ("merge", "-q", "--no-ff", "worker", "-m", "Provisional merge of worker at milestone"))
+    lead_head = commit_changes(repo_root, {"docs/system/later.md": "# later\n"}, "another chat, after the milestone")
+    run_git(repo_root, ("checkout", "-q", "worker"))
+    return diff_base, fork, lead_head
+
+
 def test_a_milestone_the_lead_merged_does_not_move_the_passs_fork_point(tmp_path: Path) -> None:
     """The lead's merge of a provisional milestone puts the worker's commits on the lead's branch,
     but only as a second parent: the pass still forked where it did, so the edit outside the
     footprint the worker made before the milestone is still the pass's claim."""
-    diff_base, fork = _news_lead_with_a_change(tmp_path)
-    run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
-    commit_changes(tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "milestone")
-    run_git(tmp_path, ("checkout", "-q", "main"))
-    run_git(tmp_path, ("merge", "-q", "--no-ff", "worker", "-m", "Provisional merge of worker at milestone"))
-    commit_changes(tmp_path, {"docs/system/later.md": "# later\n"}, "another chat, after the milestone")
-    run_git(tmp_path, ("checkout", "-q", "worker"))
+    diff_base, fork, _ = _news_lead_with_a_merged_milestone(tmp_path)
     commit_changes(tmp_path, {"system/apps/news/runner_test.py": "def test_routes() -> None:\n    pass\n"}, "tests")
 
     scope = compute_pass_scope(tmp_path, [parse_creation_spec("app:news")], diff_base, "HEAD", "main")
@@ -739,13 +747,7 @@ def test_a_milestone_stays_the_passs_after_the_worker_merges_the_lead_that_merge
     """Once the worker merges a lead HEAD that holds its provisionally merged milestone, the fork
     point is past the milestone's commits, but they are still on the worker's own line: the edit
     outside the footprint they made is still the pass's claim."""
-    diff_base, _ = _news_lead_with_a_change(tmp_path)
-    run_git(tmp_path, ("checkout", "-q", "-b", "worker"))
-    commit_changes(tmp_path, {"system/scripts/helper.sh": "#!/bin/sh\n\necho ONE\n\necho two\n"}, "milestone")
-    run_git(tmp_path, ("checkout", "-q", "main"))
-    run_git(tmp_path, ("merge", "-q", "--no-ff", "worker", "-m", "Provisional merge of worker at milestone"))
-    lead_head = commit_changes(tmp_path, {"docs/system/later.md": "# later\n"}, "another chat, after the milestone")
-    run_git(tmp_path, ("checkout", "-q", "worker"))
+    diff_base, _, lead_head = _news_lead_with_a_merged_milestone(tmp_path)
     run_git(tmp_path, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
     commit_changes(tmp_path, {"system/apps/news/runner_test.py": "def test_routes() -> None:\n    pass\n"}, "tests")
 
