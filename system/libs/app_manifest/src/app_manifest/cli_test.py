@@ -745,6 +745,35 @@ def test_a_catch_up_gate_runs_a_creations_own_suite_when_what_came_in_reaches_it
     assert whole_pass["diff"]["incoming_base"] == diff_base
 
 
+def test_a_catch_up_gate_runs_every_creations_own_suite_when_an_incoming_lock_cannot_be_read(
+    tmp_path: Path,
+) -> None:
+    """With no way to tell what an incoming uv.lock upgraded, any creation may depend on it, so
+    each creation's own suite runs, and the gate says why; nothing beyond the pass's runs."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    commit_changes(repo_root, {"uv.lock": selection_lock("2.0")}, "lock")
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(repo_root, {".agents/skills/refresh/scripts/refresh.py": "VALUE = 2\n"}, "harden")
+    run_git(repo_root, ("checkout", "-q", "main"))
+    commit_changes(repo_root, {"uv.lock": "not [ toml", "system/scripts/forward_port.py": "PORT = 2\n"}, "other chats")
+    run_git(repo_root, ("checkout", "-q", "worker"))
+    pre = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    run_git(repo_root, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
+    scope_path = tmp_path / "catch-up-scope.json"
+    _write_pass_scope(repo_root, scope_path, ["app:notes", "skill:refresh"], pre, "main")
+
+    result = _run_cli(["select-tests", "--repo-root", str(repo_root), "--scope-file", str(scope_path)])
+
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    commands = [line for line in lines if not line.startswith("#")]
+    assert {"uv run pytest system/apps/notes", "uv run pytest .agents/skills/refresh"} <= set(commands)
+    assert "uv run pytest" not in commands
+    assert not any("system/libs" in command for command in commands)
+    assert any(line.startswith("# note: ") and "every creation's own suite runs" in line for line in lines)
+
+
 def test_a_pass_gate_runs_nothing_for_what_reached_its_creation_before_the_branch_departed(
     tmp_path: Path,
 ) -> None:
