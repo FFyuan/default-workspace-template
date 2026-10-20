@@ -594,6 +594,10 @@ def _migrate_cron_entries_to_routines() -> None:
         return
     for line in completed.stdout.splitlines():
         logger.info("routines migrate-cron: {}", line)
+    # The migration's own warnings (an entry left in place, a commit it could not make) go to its stderr.
+    for line in completed.stderr.splitlines():
+        if line.strip():
+            logger.warning("routines migrate-cron: {}", line)
 
 
 def _install_runtime_cron_entries(target_dir: Path = Path("/etc/cron.d")) -> None:
