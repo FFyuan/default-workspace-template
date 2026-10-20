@@ -47,7 +47,6 @@ from routines.interfaces import LedgerInterface
 from routines.interfaces import NotifierInterface
 from routines.interfaces import StateStoreInterface
 from routines.locks import held_lock
-from routines.locks import is_lock_held
 from routines.locks import tried_lock
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
@@ -466,8 +465,6 @@ class Runner(MutableModel):
             current = state.current_run
             if current is None or is_run_process_alive(current):
                 continue
-            if is_lock_held(self.paths.run_lock_path(routine_id)):
-                continue
             now = self.clock.now()
             kind = loaded.definition.kind if loaded.definition is not None else RunKind.COMMAND
             last_run = LastRun(
@@ -507,6 +504,9 @@ class Runner(MutableModel):
         return reaped
 
     def _start_due_runs(self) -> list[RoutineId]:
+        # The state says whether a run is in flight; the lock is never probed here, since a probe takes it for
+        # an instant and would refuse a run starting at that very moment. A spawn that finds the lock held
+        # (a run started between the read and the spawn) exits silently, as a scheduled run does.
         now = self.clock.now()
         zone = self.clock.local_zone()
         started: list[RoutineId] = []
@@ -515,8 +515,6 @@ class Runner(MutableModel):
                 continue
             state = self.states.read(loaded.routine_id)
             if not is_switched_on(loaded, state) or state.current_run is not None:
-                continue
-            if is_lock_held(self.paths.run_lock_path(loaded.routine_id)):
                 continue
             due = next_due(loaded.definition, state, now, zone)
             if due is None or due > now:
