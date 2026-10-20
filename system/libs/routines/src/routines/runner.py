@@ -68,6 +68,7 @@ _GROUP_DRAIN_POLL_SECONDS: Final[float] = 0.05
 RUN_DIR_RETENTION: Final[timedelta] = timedelta(days=90)
 INTERRUPTED_SUMMARY: Final[str] = "The run was cut off before it finished, most likely by a restart."
 TIMED_OUT_SUMMARY: Final[str] = "The run was stopped because it took longer than its time limit."
+RUNNER_FAILED_SUMMARY: Final[str] = "The runner itself failed before the run could finish; its log has the error."
 RUN_DIR_ENV: Final[str] = "ROUTINES_RUN_DIR"
 RUN_ID_ENV: Final[str] = "ROUTINES_RUN_ID"
 ROUTINE_ID_ENV: Final[str] = "ROUTINES_ROUTINE_ID"
@@ -170,7 +171,28 @@ class Runner(MutableModel):
             run_dir.mkdir(parents=True, exist_ok=True)
             started_at = self.clock.now()
             self._record_start(routine_id, run_id, definition, trigger, started_at)
-            execution = self._execute(routine_id, run_id, definition, run_dir)
+            execution: _Execution | None = None
+            try:
+                execution = self._execute(routine_id, run_id, definition, run_dir)
+            finally:
+                # An error in the runner itself goes on to the caller (and the run's log, which is this process's
+                # stderr); the books are closed first so the run is not later taken for one a restart cut off.
+                if execution is None:
+                    self._record_finish(
+                        routine_id,
+                        run_id,
+                        definition,
+                        trigger,
+                        started_at,
+                        self.clock.now(),
+                        _Execution(
+                            outcome=RunOutcome.FAILED,
+                            exit_code=None,
+                            summary=RUNNER_FAILED_SUMMARY,
+                            chat_id=None,
+                            warnings=(),
+                        ),
+                    )
             finished_at = self.clock.now()
             return self._record_finish(
                 routine_id,

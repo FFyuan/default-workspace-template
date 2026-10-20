@@ -34,6 +34,7 @@ from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.primitives import RunWarning
 from routines.runner import INTERRUPTED_SUMMARY
+from routines.runner import RUNNER_FAILED_SUMMARY
 from routines.runner import Runner
 from routines.state import FileStateStore
 
@@ -140,6 +141,46 @@ def test_a_command_past_its_timeout_is_killed_with_its_whole_process_group(
     child_pid = int(pid_file.read_text())
     assert not is_pid_alive(child_pid), "the sleep the command left in its process group outlived the run"
     assert states.read(SYNC).consecutive_failures == 1
+
+
+class BrokenChatApp(ScriptedChatApp):
+    """A chat app whose status read fails in a way the wake does not expect."""
+
+    def chat_status(self, chat_id: str) -> ChatStatusWord | None:
+        raise OSError("the socket vanished")
+
+
+def test_an_error_in_the_runner_closes_the_books_as_failed_and_still_surfaces(
+    paths: RoutinesPaths,
+    definitions: FileDefinitionStore,
+    states: FileStateStore,
+    ledger: FileLedger,
+    notifier: RecordingNotifier,
+    clock: FakeClock,
+) -> None:
+    _skill_routine(definitions)
+    runner = Runner(
+        paths=paths,
+        definitions=definitions,
+        states=states,
+        ledger=ledger,
+        chat_app=BrokenChatApp(),
+        notifier=notifier,
+        clock=clock,
+    )
+
+    with pytest.raises(OSError, match="vanished"):
+        runner.run(SYNC, RunTrigger.MANUAL, None)
+
+    state = states.read(SYNC)
+    assert state.current_run is None
+    assert state.last_run is not None
+    assert state.last_run.outcome is RunOutcome.FAILED
+    assert state.last_run.summary == RUNNER_FAILED_SUMMARY
+    assert state.consecutive_failures == 1
+    finished = ledger.recent_events(SYNC, run_limit=1)[0]
+    assert isinstance(finished, RunFinishedEvent)
+    assert finished.outcome is RunOutcome.FAILED
 
 
 def test_a_second_run_is_refused_while_one_holds_the_lock(runner: Runner, definitions: FileDefinitionStore) -> None:
