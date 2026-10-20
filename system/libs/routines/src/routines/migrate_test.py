@@ -51,6 +51,13 @@ def test_an_automation_entry_becomes_a_skill_routine() -> None:
     assert converted.definition.command is None
 
 
+def test_an_automation_entry_with_the_scripts_options_still_names_the_skill() -> None:
+    line = f"* * * * * root {WRAPPER} {RUN_JOB} news --every 1d bash {RUN_AUTOMATION} --template caretaker --type claude news\n"
+    (converted,) = convert_cron_entry(line, "news")
+    assert isinstance(converted, ConvertedEntry)
+    assert converted.definition.skill == "news"
+
+
 def test_the_caretaker_entry_is_recognized_as_the_switch_on_the_shipped_routine() -> None:
     line = f"* * * * *   root   {WRAPPER} {RUN_JOB} caretaker --every 7d --at 3 bash /home/user/workspace/system/services/caretaker/caretaker_check.sh >> /var/log/supervisor/caretaker-job.log 2>&1\n"
     (converted,) = convert_cron_entry(line, "minds-caretaker")

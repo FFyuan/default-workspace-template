@@ -141,10 +141,15 @@ def _convert_run_job(tokens: list[str], file_name: str) -> ConvertedEntry | Skip
 
 @pure
 def _skill_of(command: list[str]) -> str | None:
-    """``bash .../run_automation.sh <skill>`` names a skill; anything else is a command."""
+    """``bash .../run_automation.sh [--option value ...] <skill>`` names a skill; anything else is a command."""
     for index, token in enumerate(command):
-        if token.endswith(_RUN_AUTOMATION_SUFFIX) and index + 1 < len(command):
-            return command[index + 1]
+        if not token.endswith(_RUN_AUTOMATION_SUFFIX):
+            continue
+        rest = command[index + 1 :]
+        # The retired script took --template, --type and --agent-name before the skill.
+        while len(rest) >= 2 and rest[0].startswith("--"):
+            rest = rest[2:]
+        return rest[0] if rest and not rest[0].startswith("--") else None
     return None
 
 
