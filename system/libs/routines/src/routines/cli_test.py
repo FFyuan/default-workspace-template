@@ -78,6 +78,16 @@ def test_add_refuses_a_definition_that_does_not_validate_with_the_reason(git_pat
     assert "a day or longer" in result.output
 
 
+def test_add_refuses_a_weekday_or_a_moment_it_cannot_read_in_the_commands_words(git_paths: RoutinesPaths) -> None:
+    bad_day = _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1d", "--days", "funday", "--", "true")
+    assert bad_day.exit_code == 1
+    assert "error: days: 'funday' is not a comma separated list of mon to sun" in bad_day.output
+
+    bad_moment = _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--once", "tomorrow", "--", "true")
+    assert bad_moment.exit_code == 1
+    assert "error: once: 'tomorrow' is not a moment written as YYYY-MM-DDTHH:MM" in bad_moment.output
+
+
 def test_add_needs_a_command_or_a_skill(git_paths: RoutinesPaths) -> None:
     result = _invoke(git_paths, "add", "x", "--title", "X", "--what", "Y", "--every", "1h")
     assert result.exit_code == 1

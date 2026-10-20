@@ -18,6 +18,7 @@ from routines.data_types import DEFAULT_RETRY_AFTER
 from routines.data_types import DEFAULT_TIMEOUT
 from routines.data_types import LoadedRoutine
 from routines.data_types import RoutineDefinition
+from routines.errors import DefinitionValidationError
 from routines.errors import InvalidRoutineIdError
 from routines.errors import RoutineExistsError
 from routines.errors import RoutineNotFoundError
@@ -212,5 +213,8 @@ class FileDefinitionStore(DefinitionStoreInterface):
 
 @pure
 def once_moment_from_text(text: str) -> datetime:
-    """``2026-11-03T15:00`` as a naive local moment."""
-    return datetime.strptime(text.strip(), _ONCE_FORMAT)
+    """``2026-11-03T15:00`` as a naive local moment; raises DefinitionValidationError for any other spelling."""
+    try:
+        return datetime.strptime(text.strip(), _ONCE_FORMAT)
+    except ValueError as e:
+        raise DefinitionValidationError(f"once: {text!r} is not a moment written as YYYY-MM-DDTHH:MM") from e

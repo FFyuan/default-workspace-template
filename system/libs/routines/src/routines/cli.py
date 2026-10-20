@@ -27,6 +27,7 @@ from routines.data_types import RunResult
 from routines.data_types import RunStartReceipt
 from routines.definitions import describe_validation_error
 from routines.definitions import once_moment_from_text
+from routines.errors import DefinitionValidationError
 from routines.errors import RoutineNotFoundError
 from routines.errors import RoutinesError
 from routines.errors import RunInFlightError
@@ -224,11 +225,15 @@ def _definition_options(command: Callable[..., None]) -> Callable[..., None]:
 
 
 def _parse_days(text: str | None) -> tuple[Weekday, ...] | None:
+    """The ``--days`` flag as weekdays; None when the flag was not given, () to clear them."""
     if text is None:
         return None
     if not text.strip():
         return ()
-    return tuple(Weekday(part.strip().upper()) for part in text.split(","))
+    try:
+        return tuple(Weekday(part.strip().upper()) for part in text.split(","))
+    except ValueError as e:
+        raise DefinitionValidationError(f"days: {text!r} is not a comma separated list of mon to sun") from e
 
 
 class DefinitionOptions(FrozenModel):
