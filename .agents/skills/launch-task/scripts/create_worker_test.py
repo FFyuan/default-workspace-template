@@ -2544,6 +2544,115 @@ def test_destroy_prints_unmerged_commits_and_a_dirty_worktree(
     assert _destroy_argvs(runner) == [["mngr", "destroy", root, "--force"]]
 
 
+@dataclass
+class _RealGitRunner(_RecordingRunner):
+    """Runs ``git`` for real in ``repo``; records and stubs everything else."""
+
+    repo: Path = Path(".")
+
+    def run(self, argv: Sequence[str], **kwargs):
+        if argv[0] != "git":
+            return super().run(argv, **kwargs)
+        self.calls.append(_RecordedCall(argv=list(argv), kwargs=kwargs))
+        return subprocess.run(argv, cwd=self.repo, **kwargs)
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _repo_with_a_pass(tmp_path: Path, root: str) -> tuple[Path, str]:
+    """A repo on ``main`` whose pass branch ``mngr/<root>`` holds two commits
+    ``main`` lacks, one of them from a sub-worker branch merged into it."""
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "--quiet", "-b", "main", str(repo)], check=True)
+    _git(repo, "commit", "--allow-empty", "-m", "base")
+    child = f"{root}-child"
+    _git(repo, "branch", f"mngr/{root}")
+    _git(repo, "checkout", "--quiet", "-b", f"mngr/{child}")
+    _git(repo, "commit", "--allow-empty", "-m", "sub-worker fix")
+    _git(repo, "checkout", "--quiet", f"mngr/{root}")
+    _git(repo, "merge", "--quiet", "--no-ff", f"mngr/{child}", "-m", "merge sub-worker")
+    _git(repo, "checkout", "--quiet", "main")
+    return repo, child
+
+
+def test_delete_branches_refuses_to_drop_work_until_it_is_kept_elsewhere(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _unique("root")
+    repo, child = _repo_with_a_pass(tmp_path, root)
+    listing = _listing(
+        _agent_record(root, "STOPPED"),
+        _agent_record(child, "STOPPED", lead_agent=root),
+    )
+    # An earlier supersede of the same creation already holds the plain name.
+    _git(repo, "branch", f"superseded/{root}")
+    runner = _RealGitRunner(repo=repo)
+    runner.respond(("mngr", "list"), listing)
+
+    rc = create_worker_mod.destroy(root, runner, delete_branches=True)
+
+    assert rc == 2
+    assert _lifecycle_argvs(runner) == []
+    err = capsys.readouterr().err
+    assert f"mngr/{root}: 2 commit(s)" in err
+    assert f"mngr/{child}: 1 commit(s)" in err
+    # Keeping the pass's branch alone lets the destroy through: the sub-worker's
+    # commit is merged into it.
+    keep = f"git branch superseded/{root}-2 mngr/{root}"
+    assert keep in err
+    subprocess.run(keep.split(), cwd=repo, check=True)
+    runner = _RealGitRunner(repo=repo)
+    runner.respond(("mngr", "list"), listing)
+
+    rc = create_worker_mod.destroy(root, runner, delete_branches=True)
+
+    assert rc == 0
+    assert _destroy_argvs(runner) == [
+        ["mngr", "destroy", child, "--force", "-b"],
+        ["mngr", "destroy", root, "--force", "-b"],
+    ]
+
+
+def test_delete_branches_goes_ahead_once_the_pass_is_merged(tmp_path: Path) -> None:
+    root = _unique("root")
+    repo, child = _repo_with_a_pass(tmp_path, root)
+    _git(repo, "merge", "--quiet", "--no-ff", f"mngr/{root}", "-m", "merge the pass")
+    runner = _RealGitRunner(repo=repo)
+    runner.respond(
+        ("mngr", "list"),
+        _listing(
+            _agent_record(root, "WAITING"),
+            _agent_record(child, "STOPPED", lead_agent=root),
+        ),
+    )
+
+    rc = create_worker_mod.destroy(root, runner, delete_branches=True)
+
+    assert rc == 0
+    assert [argv[2] for argv in _destroy_argvs(runner)] == [child, root]
+
+
+def test_discard_unmerged_deletes_branches_holding_work(tmp_path: Path) -> None:
+    root = _unique("root")
+    repo, _ = _repo_with_a_pass(tmp_path, root)
+    runner = _RealGitRunner(repo=repo)
+
+    rc = create_worker_mod.main(
+        ["destroy", "--name", root, "--no-recursive", "--delete-branches", "--discard-unmerged"],
+        runner=runner,
+    )
+
+    assert rc == 0
+    assert _destroy_argvs(runner) == [["mngr", "destroy", root, "--force", "-b"]]
+
+
 def test_destroy_with_no_listing_still_destroys_the_named_agent() -> None:
     """A listing that cannot be read is no reason to leave the worker running:
     the root is destroyed on its own and the exit code says so."""
