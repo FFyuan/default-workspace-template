@@ -1,5 +1,6 @@
 from datetime import datetime
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from inline_snapshot import snapshot
@@ -64,6 +65,23 @@ def test_a_time_of_day_window_is_counted_from_the_day_the_successful_run_started
     finish_only = RoutineState(last_succeeded_at=_local(2026, 10, 21, 0, 3))
     assert next_due(_definition(every="1d", at="23:50"), finish_only, now, TEST_ZONE) == _local(2026, 10, 22, 23, 50)
     assert next_due(_definition(every="1d"), state, now, TEST_ZONE) == _local(2026, 10, 22, 0, 3)
+
+
+def test_a_time_of_day_window_steps_whole_local_days_across_a_daylight_saving_change() -> None:
+    zone = ZoneInfo("America/Los_Angeles")
+    # Daylight saving ends on 2026-11-01: a day later than 00:30 PDT is 00:30 PST, not 23:30 the same day.
+    ended = datetime(2026, 11, 1, 0, 30, tzinfo=zone)
+    state = RoutineState(last_success_started_at=ended, last_succeeded_at=ended + timedelta(minutes=5))
+    due = next_due(_definition(every="1d", at="00:30"), state, ended + timedelta(minutes=6), zone)
+    assert due == datetime(2026, 11, 2, 0, 30, tzinfo=zone)
+    # Daylight saving starts on 2026-03-08: a day later than 23:30 PST is 23:30 PDT the next day, none skipped.
+    started = datetime(2026, 3, 7, 23, 30, tzinfo=zone)
+    state = RoutineState(last_success_started_at=started, last_succeeded_at=started + timedelta(minutes=5))
+    due = next_due(_definition(every="1d", at="23:30"), state, started + timedelta(minutes=6), zone)
+    assert due == datetime(2026, 3, 8, 23, 30, tzinfo=zone)
+    # A week steps seven local days the same way.
+    due = next_due(_definition(every="1w", at="23:30"), state, started + timedelta(minutes=6), zone)
+    assert due == datetime(2026, 3, 14, 23, 30, tzinfo=zone)
 
 
 def test_weekdays_move_a_due_moment_to_the_next_listed_day() -> None:

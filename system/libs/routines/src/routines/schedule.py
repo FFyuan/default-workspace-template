@@ -59,7 +59,10 @@ def localize(moment: datetime, zone: tzinfo) -> datetime:
 
 @pure
 def add_cadence(moment: datetime, cadence: Duration, day_of_month: int | None, zone: tzinfo) -> datetime:
-    """The moment one cadence later; months step the calendar and clamp the day, pinned by day_of_month."""
+    """The moment one cadence later; days and weeks step the local calendar (the wall clock survives a daylight
+    saving change), months step it and clamp the day, pinned by day_of_month."""
+    if cadence.unit in (DurationUnit.DAYS, DurationUnit.WEEKS):
+        return moment.astimezone(zone) + cadence.timedelta
     if not cadence.is_calendar_months:
         return moment + cadence.timedelta
     local = moment.astimezone(zone)
