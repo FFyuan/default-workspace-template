@@ -145,6 +145,33 @@ describe("AppModel", () => {
     model.dispose();
   });
 
+  it("holds the polling while the remove confirmation is up", async () => {
+    let answerRemoval: (isConfirmed: boolean) => void = () => undefined;
+    const page = {
+      ...host(),
+      confirmRemove: () =>
+        new Promise<boolean>((resolve) => {
+          answerRemoval = resolve;
+        }),
+    };
+    answer = () => detailOf();
+    const model = new AppModel("/news-sync", page, () => undefined);
+    await model.load();
+
+    model.remove();
+    await settle();
+    await vi.advanceTimersByTimeAsync(IDLE_REFRESH_MS * 2);
+    await settle();
+    expect(requests).toEqual(["GET /api/routines/news-sync"]);
+
+    answerRemoval(false);
+    await settle();
+    await vi.advanceTimersByTimeAsync(IDLE_REFRESH_MS);
+    await settle();
+    expect(requests).toHaveLength(2);
+    model.dispose();
+  });
+
   it("removes the routine and leaves for the list without reading the removed page", async () => {
     const page = host();
     answer = () => detailOf();
