@@ -37,6 +37,8 @@ from routines.data_types import RunBlockedEvent
 from routines.data_types import RunFinishedEvent
 from routines.data_types import RunResult
 from routines.data_types import RunStartedEvent
+from routines.data_types import TickReport
+from routines.data_types import WakeOutcome
 from routines.errors import DefinitionValidationError
 from routines.interfaces import ChatAppInterface
 from routines.interfaces import ClockInterface
@@ -57,7 +59,6 @@ from routines.primitives import RunWarning
 from routines.schedule import is_switched_on
 from routines.schedule import next_due
 from routines.tails import read_tail
-from routines.wake import WakeOutcome
 from routines.wake import slash_command_of
 from routines.wake import wake_skill
 
@@ -75,22 +76,14 @@ ROUTINE_ID_ENV: Final[str] = "ROUTINES_ROUTINE_ID"
 _TIMED_OUT_EXIT_CODE: Final[int] = 124
 
 
-class TickReport(FrozenModel):
-    """What one tick did."""
-
-    started: tuple[RoutineId, ...] = Field(description="The routines whose runs it spawned")
-    reaped: tuple[RoutineId, ...] = Field(description="The routines whose dead runs it closed off")
-    is_skipped: bool = Field(description="Whether another tick held the lock")
-
-
 class _Execution(FrozenModel):
     """What running the routine's work produced, before the books are closed."""
 
-    outcome: RunOutcome
-    exit_code: int | None
-    summary: str
-    chat_id: str | None
-    warnings: tuple[RunWarning, ...]
+    outcome: RunOutcome = Field(description="How the work ended")
+    exit_code: int | None = Field(description="The process's exit code; None for a skill run")
+    summary: str = Field(description="One line about it, possibly empty")
+    chat_id: str | None = Field(description="The chat a skill run, or a wake inside the run, used")
+    warnings: tuple[RunWarning, ...] = Field(description="What was worth saying beside the outcome")
 
 
 def _envelope(event_type: str, now: datetime) -> dict[str, str]:

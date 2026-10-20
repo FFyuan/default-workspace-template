@@ -3,20 +3,18 @@
 from collections.abc import Callable
 from datetime import datetime
 from datetime import timedelta
-from enum import auto
 from typing import Final
 
 from loguru import logger
-from pydantic import Field
 
-from imbue.imbue_common.enums import UpperCaseStrEnum
-from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.pure import pure
+from routines.data_types import WakeOutcome
 from routines.errors import ChatAppError
 from routines.errors import ChatCreateError
 from routines.interfaces import ChatAppInterface
 from routines.interfaces import ClockInterface
 from routines.primitives import ChatStatusWord
+from routines.primitives import RestartVerdict
 from routines.primitives import RoutineId
 from routines.primitives import RunOutcome
 from routines.primitives import RunWarning
@@ -36,23 +34,6 @@ _BUSY_STATUSES: Final[frozenset[ChatStatusWord]] = frozenset(
 _GONE_STATUSES: Final[frozenset[ChatStatusWord | None]] = frozenset(
     (None, ChatStatusWord.STOPPED, ChatStatusWord.ERROR)
 )
-
-
-class RestartVerdict(UpperCaseStrEnum):
-    """How a restarted chat came back: ready, gone for good, or not within the run's time."""
-
-    IDLE = auto()
-    GONE = auto()
-    TIMED_OUT = auto()
-
-
-class WakeOutcome(FrozenModel):
-    """How a skill run ended."""
-
-    outcome: RunOutcome = Field(description="How it ended")
-    summary: str = Field(description="One line about it")
-    chat_id: str | None = Field(description="The chat it ran in; None when none could be made")
-    warnings: tuple[RunWarning, ...] = Field(description="What was worth saying beside the outcome")
 
 
 @pure

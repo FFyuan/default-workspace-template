@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from routines.data_types import WakeOutcome
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.primitives import ChatStatusWord
@@ -7,7 +8,6 @@ from routines.primitives import RoutineId
 from routines.primitives import RunOutcome
 from routines.wake import NEVER_LISTED_SUMMARY
 from routines.wake import NEVER_STARTED_SUMMARY
-from routines.wake import WakeOutcome
 from routines.wake import summary_of_message
 from routines.wake import wake_skill
 

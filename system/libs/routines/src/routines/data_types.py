@@ -293,6 +293,23 @@ class RunDetail(FrozenModel):
     links: tuple[ResultLink, ...] = Field(description="Links the run left")
 
 
+class WakeOutcome(FrozenModel):
+    """How a skill run ended."""
+
+    outcome: RunOutcome = Field(description="How it ended")
+    summary: str = Field(description="One line about it")
+    chat_id: str | None = Field(description="The chat it ran in; None when none could be made")
+    warnings: tuple[RunWarning, ...] = Field(description="What was worth saying beside the outcome")
+
+
+class TickReport(FrozenModel):
+    """What one tick did."""
+
+    started: tuple[RoutineId, ...] = Field(description="The routines whose runs it spawned")
+    reaped: tuple[RoutineId, ...] = Field(description="The routines whose dead runs it closed off")
+    is_skipped: bool = Field(description="Whether another tick held the lock")
+
+
 class RunStartReceipt(FrozenModel):
     """What ``routines run`` prints for a detached run."""
 

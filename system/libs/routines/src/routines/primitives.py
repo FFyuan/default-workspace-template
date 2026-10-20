@@ -193,6 +193,14 @@ class RoutineHealth(UpperCaseStrEnum):
     WORKING = auto()
 
 
+class RestartVerdict(UpperCaseStrEnum):
+    """How a restarted chat came back: ready, gone for good, or not within the run's time."""
+
+    IDLE = auto()
+    GONE = auto()
+    TIMED_OUT = auto()
+
+
 class ChatStatusWord(UpperCaseStrEnum):
     """A chat's status as the chat app reports it, plus UNKNOWN for a word this library does not know."""
 
