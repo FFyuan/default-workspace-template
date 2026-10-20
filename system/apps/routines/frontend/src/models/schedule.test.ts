@@ -1,25 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { scheduleFormOf } from "../testing/records";
-import type { RoutineDefinition } from "./api";
+import { definitionOf, scheduleFormOf } from "../testing/records";
 import { changeOf, formOf, offersTimeOfDay, problemOf, sentenceOf, type ScheduleForm } from "./schedule";
 
-const DEFINITION: RoutineDefinition = {
-  title: "Morning inbox digest",
-  what: "Reads mail.",
+const DEFINITION = definitionOf({
   every: "1d",
   at: "07:30",
   days: ["MON", "FRI"],
-  day_of_month: null,
-  once: null,
   command: null,
   skill: "inbox-digest",
-  enabled: true,
-  timeout: "1h",
-  retry_after: "2m",
-  notify_after_failures: 3,
-  app: null,
-};
+});
 
 /** The shared form with no time of day and no weekdays, which most cases here start from. */
 function form(patch: Partial<ScheduleForm>): ScheduleForm {
