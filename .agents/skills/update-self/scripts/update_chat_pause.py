@@ -388,7 +388,8 @@ def pause(
         ]
         if completed.returncode != 0:
             interrupted = (
-                f" (its background commands were stopped: {'; '.join(tasks)})"
+                f" (its background commands run on, but their reports were stopped, so it will not"
+                f" hear how they end: {'; '.join(tasks)})"
                 if tasks
                 else ""
             )
