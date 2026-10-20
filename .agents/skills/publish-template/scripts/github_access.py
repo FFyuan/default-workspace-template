@@ -20,10 +20,9 @@ Usage:
 
     python3 github_access.py check [--need api] [--need git-write]
     python3 github_access.py wait [--need ...] [--timeout-seconds 300] [--interval-seconds 10]
-    python3 github_access.py owner
 
-`--need` defaults to both. `check` and `wait` print one line per kind and exit 0
-only when all are permitted; `owner` prints the signed-in account's login.
+`--need` defaults to both. Each prints one line per kind and exits 0 only when
+all are permitted.
 """
 
 from __future__ import annotations
@@ -102,18 +101,6 @@ def _format(report: dict[str, bool]) -> str:
     )
 
 
-def signed_in_login() -> str:
-    completed = _latchkey_curl("-sf", _API_PROBE_URL)
-    if completed.returncode != 0:
-        raise GitHubAccessError(
-            "GitHub API access is not permitted; request github-rest-api first"
-        )
-    login = json.loads(completed.stdout).get("login")
-    if not isinstance(login, str) or not login:
-        raise GitHubAccessError(f"GitHub returned no login: {completed.stdout[:200]}")
-    return login
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Probe, and wait for, GitHub access through latchkey."
@@ -125,13 +112,9 @@ def main(argv: list[str] | None = None) -> int:
     wait = subcommands.choices["wait"]
     wait.add_argument("--timeout-seconds", type=float, default=300.0)
     wait.add_argument("--interval-seconds", type=float, default=10.0)
-    subcommands.add_parser("owner")
     args = parser.parse_args(argv)
 
     try:
-        if args.command == "owner":
-            print(signed_in_login())
-            return 0
         kinds = args.need or list(_KINDS)
         report = access_report(kinds)
         if args.command == "wait":

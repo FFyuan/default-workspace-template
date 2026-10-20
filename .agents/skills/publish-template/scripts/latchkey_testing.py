@@ -28,7 +28,7 @@ fail_on_http_error = bool({{"-f", "-sf", "-fs", "--fail"}} & set(args))
 
 if url == "https://api.github.com/user":
     if state.get("api") or is_granted:
-        print(json.dumps({{"login": state.get("login", "octo")}}))
+        print(json.dumps({{"login": "octo"}}))
         sys.exit(0)
     if fail_on_http_error:
         sys.exit(22)

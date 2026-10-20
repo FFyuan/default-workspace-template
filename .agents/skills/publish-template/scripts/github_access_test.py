@@ -75,12 +75,3 @@ def test_wait_gives_up_at_its_timeout(fake_latchkey: FakeLatchkey) -> None:
 
     assert completed.returncode == 1
     assert "NOT permitted" in completed.stderr
-
-
-def test_owner_prints_the_signed_in_login(fake_latchkey: FakeLatchkey) -> None:
-    fake_latchkey.set_state(api=True, login="publisher-account")
-
-    completed = fake_latchkey.run(_SCRIPT, "owner")
-
-    assert completed.returncode == 0
-    assert completed.stdout.strip() == "publisher-account"
