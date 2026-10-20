@@ -1,6 +1,7 @@
 import json
 import subprocess
 from datetime import timedelta
+from pathlib import Path
 
 from click.testing import CliRunner
 from click.testing import Result
@@ -13,6 +14,7 @@ from routines.cli import wait_within_run
 from routines.cli import wake_defaults
 from routines.data_types import CurrentRun
 from routines.data_types import RoutineDefinition
+from routines.migrate import LEGACY_ENV_WRAPPER_PATH
 from routines.paths import REPO_ROOT_ENV
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
@@ -165,15 +167,15 @@ def test_tick_names_what_it_started_and_says_nothing_when_nothing_is_due(git_pat
     wait_for_last_run(FileStateStore(paths=git_paths), RoutineId("x"), 30)
 
 
-def test_migrate_cron_prints_what_it_converted_and_what_it_left(git_paths: RoutinesPaths) -> None:
-    durable = git_paths.repo_root / "data" / ".state" / "cron.d"
-    durable.mkdir(parents=True)
-    wrapper = "/home/user/workspace/system/libs/automations/with_agent_env.sh"
-    (durable / "news-sync").write_text(
+def test_migrate_cron_prints_what_it_converted_and_what_it_left(
+    git_paths: RoutinesPaths, legacy_cron_dir: Path
+) -> None:
+    wrapper = LEGACY_ENV_WRAPPER_PATH
+    (legacy_cron_dir / "news-sync").write_text(
         f"* * * * * root {wrapper} /home/user/workspace/system/libs/automations/run_job.sh news-sync "
         "--every 6h python3 sync.py\n"
     )
-    (durable / "june").write_text(f"0 0 1 6 * root {wrapper} cmd\n")
+    (legacy_cron_dir / "june").write_text(f"0 0 1 6 * root {wrapper} cmd\n")
 
     result = _invoke(git_paths, "migrate-cron")
 

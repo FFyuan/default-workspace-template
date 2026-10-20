@@ -6,6 +6,8 @@ from inline_snapshot import snapshot
 
 from routines.definitions import FileDefinitionStore
 from routines.migrate import ConvertedEntry
+from routines.migrate import ENV_WRAPPER_PATH
+from routines.migrate import LEGACY_ENV_WRAPPER_PATH
 from routines.migrate import SkippedEntry
 from routines.migrate import convert_cron_entry
 from routines.migrate import migrate_cron_entries
@@ -15,7 +17,7 @@ from routines.primitives import RoutineId
 from routines.primitives import Weekday
 from routines.state import FileStateStore
 
-WRAPPER = "/home/user/workspace/system/libs/automations/with_agent_env.sh"
+WRAPPER = LEGACY_ENV_WRAPPER_PATH
 RUN_JOB = "/home/user/workspace/system/libs/automations/run_job.sh"
 RUN_AUTOMATION = "/home/user/workspace/system/libs/automations/run_automation.sh"
 
@@ -124,13 +126,10 @@ def test_a_cron_field_a_duration_or_a_time_of_day_refuses_leaves_the_line_with_i
 
 
 def test_migration_writes_definitions_carries_state_over_and_removes_both_copies(
-    definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
+    definitions: FileDefinitionStore, states: FileStateStore, legacy_cron_dir: Path, live_cron_dir: Path
 ) -> None:
     root = definitions.paths.repo_root
-    durable = root / "data" / ".state" / "cron.d"
-    durable.mkdir(parents=True)
-    live = tmp_path / "etc-cron-d"
-    live.mkdir()
+    durable, live = legacy_cron_dir, live_cron_dir
     entry = f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py >> /var/log/x.log 2>&1\n"
     (durable / "news-sync").write_text(entry)
     (live / "news-sync").write_text(entry)
@@ -162,18 +161,17 @@ def test_migration_writes_definitions_carries_state_over_and_removes_both_copies
 
 
 def test_an_entry_whose_id_is_already_a_routine_stays_in_place(
-    definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
+    definitions: FileDefinitionStore, states: FileStateStore, legacy_cron_dir: Path, live_cron_dir: Path
 ) -> None:
     root = definitions.paths.repo_root
-    durable = root / "data" / ".state" / "cron.d"
-    durable.mkdir(parents=True)
+    durable = legacy_cron_dir
     entry = f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py\n"
     (durable / "news-sync").write_text(entry)
-    first = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+    first = migrate_cron_entries(root, definitions, states, live_cron_dir=live_cron_dir)
     assert first.converted == (RoutineId("news-sync"),)
     (durable / "news-sync").write_text(entry)
 
-    again = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+    again = migrate_cron_entries(root, definitions, states, live_cron_dir=live_cron_dir)
 
     assert again.converted == ()
     assert [(skipped.file_name, skipped.reason) for skipped in again.skipped] == [
@@ -183,15 +181,14 @@ def test_an_entry_whose_id_is_already_a_routine_stays_in_place(
 
 
 def test_an_entry_whose_lines_would_be_one_routine_is_left_whole_with_nothing_written(
-    definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
+    definitions: FileDefinitionStore, states: FileStateStore, legacy_cron_dir: Path, live_cron_dir: Path
 ) -> None:
     """A file converts whole or not at all: no definition is written beside a cron line that stays."""
     root = definitions.paths.repo_root
-    durable = root / "data" / ".state" / "cron.d"
-    durable.mkdir(parents=True)
+    durable = legacy_cron_dir
     (durable / "reports").write_text("0 8 * * * root cmd-one\n0 9 * * * root cmd-two\n")
 
-    report = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+    report = migrate_cron_entries(root, definitions, states, live_cron_dir=live_cron_dir)
 
     assert report.converted == ()
     assert [(skipped.file_name, skipped.reason) for skipped in report.skipped] == [
@@ -202,13 +199,10 @@ def test_an_entry_whose_lines_would_be_one_routine_is_left_whole_with_nothing_wr
 
 
 def test_an_entry_left_in_place_is_pointed_at_the_moved_env_wrapper_in_both_copies(
-    definitions: FileDefinitionStore, states: FileStateStore, tmp_path: Path
+    definitions: FileDefinitionStore, states: FileStateStore, legacy_cron_dir: Path, live_cron_dir: Path
 ) -> None:
     root = definitions.paths.repo_root
-    durable = root / "data" / ".state" / "cron.d"
-    durable.mkdir(parents=True)
-    live = tmp_path / "etc-cron-d"
-    live.mkdir()
+    durable, live = legacy_cron_dir, live_cron_dir
     entry = f"0 0 1 6 * root {WRAPPER} bash scripts/june_report.sh >> /var/log/supervisor/june.log 2>&1\n"
     (durable / "june").write_text(entry)
     (live / "june").write_text(entry)
@@ -216,17 +210,16 @@ def test_an_entry_left_in_place_is_pointed_at_the_moved_env_wrapper_in_both_copi
     report = migrate_cron_entries(root, definitions, states, live_cron_dir=live)
 
     assert [skipped.file_name for skipped in report.skipped] == ["june"]
-    expected = entry.replace(WRAPPER, "/home/user/workspace/system/libs/routines/with_agent_env.sh")
+    expected = entry.replace(WRAPPER, ENV_WRAPPER_PATH)
     assert (durable / "june").read_text() == expected
     assert (live / "june").read_text() == expected
 
 
 def test_an_entry_whose_commit_is_refused_is_still_converted_with_its_state(
-    paths: RoutinesPaths, states: FileStateStore, tmp_path: Path
+    paths: RoutinesPaths, states: FileStateStore, legacy_cron_dir: Path, live_cron_dir: Path
 ) -> None:
     root = paths.repo_root
-    durable = root / "data" / ".state" / "cron.d"
-    durable.mkdir(parents=True)
+    durable = legacy_cron_dir
     (durable / "news-sync").write_text(
         f"* * * * * root {WRAPPER} {RUN_JOB} news-sync --every 6h python3 sync.py >> /var/log/x.log 2>&1\n"
     )
@@ -235,7 +228,7 @@ def test_an_entry_whose_commit_is_refused_is_still_converted_with_its_state(
     (job_state / "failures").write_text("2\n")
     definitions = FileDefinitionStore(paths=paths, repository=RecordingRepository(repo_root=root, is_refusing=True))
 
-    report = migrate_cron_entries(root, definitions, states, live_cron_dir=tmp_path / "etc-cron-d")
+    report = migrate_cron_entries(root, definitions, states, live_cron_dir=live_cron_dir)
 
     assert report.converted == (RoutineId("news-sync"),)
     assert definitions.load(RoutineId("news-sync")).definition is not None

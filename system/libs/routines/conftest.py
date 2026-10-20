@@ -9,6 +9,7 @@ import pytest
 
 from routines.definitions import FileDefinitionStore
 from routines.ledger import FileLedger
+from routines.migrate import LEGACY_CRON_DIR
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.mock_http_server_test import FakeHttpServer
@@ -32,6 +33,22 @@ def paths(tmp_path: Path) -> RoutinesPaths:
 def git_paths(paths: RoutinesPaths) -> RoutinesPaths:
     """The same root as a git repository with one commit, for the stores that commit."""
     return init_git_workspace(paths)
+
+
+@pytest.fixture
+def legacy_cron_dir(paths: RoutinesPaths) -> Path:
+    """The durable copy of the cron entries a workspace wrote before routines existed, under the same root."""
+    directory = paths.repo_root / LEGACY_CRON_DIR
+    directory.mkdir(parents=True)
+    return directory
+
+
+@pytest.fixture
+def live_cron_dir(tmp_path: Path) -> Path:
+    """What stands in for /etc/cron.d in a migration test."""
+    directory = tmp_path / "etc-cron-d"
+    directory.mkdir()
+    return directory
 
 
 @pytest.fixture
