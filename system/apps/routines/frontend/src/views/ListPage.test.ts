@@ -23,6 +23,15 @@ describe("groupRows", () => {
       ["Workspace", ["a"]],
     ]);
   });
+
+  it("keeps an app called Workspace apart from the workspace's own rows", () => {
+    const rows = [rowOf({ routine_id: "a", app: null }), rowOf({ routine_id: "b", app: "ws" })];
+    const groups = groupRows(rows, { ws: "Workspace" });
+    expect(groups.map(([heading, members]) => [heading, members.map((r) => r.routine_id)])).toEqual([
+      ["Workspace", ["b"]],
+      ["Workspace", ["a"]],
+    ]);
+  });
 });
 
 describe("ListPage", () => {

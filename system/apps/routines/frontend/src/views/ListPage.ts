@@ -20,17 +20,21 @@ export interface ListPageAttrs {
 export const WORKSPACE_GROUP = "Workspace";
 export const ADD_PREFIX = "Add a routine: ";
 
-/** The rows under each group heading, in the listing's order; the ungrouped rows come last. */
+/** The rows under each group heading, in the listing's order: one group per app, headed by its display
+ * name, then the workspace's own rows last. Grouped by the app's name, so an app called "Workspace" or two
+ * apps sharing a display name stay apart. */
 export function groupRows(rows: readonly RoutineRow[], appNames: Record<string, string>): [string, RoutineRow[]][] {
-  const groups = new Map<string, RoutineRow[]>();
+  const byApp = new Map<string | null, RoutineRow[]>();
   for (const row of rows) {
-    const heading = row.app === null ? WORKSPACE_GROUP : (appNames[row.app] ?? row.app);
-    const group = groups.get(heading) ?? [];
+    const group = byApp.get(row.app) ?? [];
     group.push(row);
-    groups.set(heading, group);
+    byApp.set(row.app, group);
   }
-  const ordered = [...groups.entries()].filter(([heading]) => heading !== WORKSPACE_GROUP);
-  const workspace = groups.get(WORKSPACE_GROUP);
+  const ordered: [string, RoutineRow[]][] = [];
+  for (const [app, members] of byApp) {
+    if (app !== null) ordered.push([appNames[app] ?? app, members]);
+  }
+  const workspace = byApp.get(null);
   if (workspace !== undefined) ordered.push([WORKSPACE_GROUP, workspace]);
   return ordered;
 }
