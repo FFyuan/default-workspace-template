@@ -192,23 +192,10 @@ class BrokenChatApp(ScriptedChatApp):
 
 
 def test_an_error_in_the_runner_closes_the_books_as_failed_and_still_surfaces(
-    paths: RoutinesPaths,
-    definitions: FileDefinitionStore,
-    states: FileStateStore,
-    ledger: FileLedger,
-    notifier: RecordingNotifier,
-    clock: FakeClock,
+    runner: Runner, definitions: FileDefinitionStore
 ) -> None:
     _skill_routine(definitions)
-    runner = Runner(
-        paths=paths,
-        definitions=definitions,
-        states=states,
-        ledger=ledger,
-        chat_app=BrokenChatApp(),
-        notifier=notifier,
-        clock=clock,
-    )
+    runner = runner.model_copy_update(to_update(runner.field_ref().chat_app, BrokenChatApp()))
 
     with pytest.raises(OSError, match="vanished"):
         runner.run(SYNC, RunTrigger.MANUAL, None)
@@ -330,12 +317,7 @@ class OneRefusingStateStore(FileStateStore):
 
 
 def test_the_tick_goes_on_past_a_routine_whose_state_cannot_be_read(
-    paths: RoutinesPaths,
-    definitions: FileDefinitionStore,
-    ledger: FileLedger,
-    chat_app: ScriptedChatApp,
-    notifier: RecordingNotifier,
-    clock: FakeClock,
+    runner: Runner, paths: RoutinesPaths, definitions: FileDefinitionStore, clock: FakeClock
 ) -> None:
     """One broken state file must not keep every other routine from being reaped or started, tick after tick."""
     states = OneRefusingStateStore(paths=paths, refused_id=RoutineId("broken"))
@@ -345,15 +327,7 @@ def test_the_tick_goes_on_past_a_routine_whose_state_cannot_be_read(
     )
     _command_routine(definitions, "true", enabled=False)
     _record_current_run(states, RunId.generate(), _dead_pid(), clock.now())
-    runner = Runner(
-        paths=paths,
-        definitions=definitions,
-        states=states,
-        ledger=ledger,
-        chat_app=chat_app,
-        notifier=notifier,
-        clock=clock,
-    )
+    runner = runner.model_copy_update(to_update(runner.field_ref().states, states))
 
     report = runner.tick()
 
@@ -559,12 +533,7 @@ class StaleReadStateStore(FileStateStore):
 
 
 def test_the_tick_leaves_a_run_that_finished_while_it_was_looking_alone(
-    paths: RoutinesPaths,
-    definitions: FileDefinitionStore,
-    ledger: FileLedger,
-    chat_app: ScriptedChatApp,
-    notifier: RecordingNotifier,
-    clock: FakeClock,
+    runner: Runner, paths: RoutinesPaths, definitions: FileDefinitionStore, ledger: FileLedger, clock: FakeClock
 ) -> None:
     _command_routine(definitions, "true", enabled=False)
     run_id = RunId.generate()
@@ -582,15 +551,7 @@ def test_the_tick_leaves_a_run_that_finished_while_it_was_looking_alone(
     states.stale = RoutineState(
         current_run=CurrentRun(run_id=run_id, pid=_dead_pid(), trigger=RunTrigger.SCHEDULED, started_at=clock.now())
     )
-    runner = Runner(
-        paths=paths,
-        definitions=definitions,
-        states=states,
-        ledger=ledger,
-        chat_app=chat_app,
-        notifier=notifier,
-        clock=clock,
-    )
+    runner = runner.model_copy_update(to_update(runner.field_ref().states, states))
 
     report = runner.tick()
 
