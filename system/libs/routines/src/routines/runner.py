@@ -74,6 +74,8 @@ RUN_DIR_ENV: Final[str] = "ROUTINES_RUN_DIR"
 RUN_ID_ENV: Final[str] = "ROUTINES_RUN_ID"
 ROUTINE_ID_ENV: Final[str] = "ROUTINES_ROUTINE_ID"
 _TIMED_OUT_EXIT_CODE: Final[int] = 124
+# What a shell answers for a command it could not find, for a command whose executable is missing.
+_MISSING_EXECUTABLE_EXIT_CODE: Final[int] = 127
 
 
 class _Execution(FrozenModel):
@@ -158,22 +160,21 @@ class Runner(MutableModel):
             raise DefinitionValidationError(f"{routine_id} cannot run: {loaded.error}")
         definition = loaded.definition
         with held_lock(self.paths.run_lock_path(routine_id), f"A run of {routine_id}"):
-            if run_id is None:
-                run_id = RunId.generate()
-            run_dir = self.paths.run_dir(routine_id, run_id)
+            effective_run_id = run_id if run_id is not None else RunId.generate()
+            run_dir = self.paths.run_dir(routine_id, effective_run_id)
             run_dir.mkdir(parents=True, exist_ok=True)
             started_at = self.clock.now()
-            self._record_start(routine_id, run_id, definition, trigger, started_at)
+            self._record_start(routine_id, effective_run_id, definition, trigger, started_at)
             execution: _Execution | None = None
             try:
-                execution = self._execute(routine_id, run_id, definition, run_dir)
+                execution = self._execute(routine_id, effective_run_id, definition, run_dir)
             finally:
                 # An error in the runner itself goes on to the caller (and the run's log, which is this process's
                 # stderr); the books are closed first so the run is not later taken for one a restart cut off.
                 if execution is None:
                     self._record_finish(
                         routine_id,
-                        run_id,
+                        effective_run_id,
                         definition,
                         trigger,
                         started_at,
@@ -189,7 +190,7 @@ class Runner(MutableModel):
             finished_at = self.clock.now()
             return self._record_finish(
                 routine_id,
-                run_id,
+                effective_run_id,
                 definition,
                 trigger,
                 started_at,
@@ -279,7 +280,7 @@ class Runner(MutableModel):
                 log_handle.write(f"could not start the command: {e}\n".encode())
                 return _Execution(
                     outcome=RunOutcome.FAILED,
-                    exit_code=127,
+                    exit_code=_MISSING_EXECUTABLE_EXIT_CODE,
                     summary=str(e),
                     chat_id=None,
                     warnings=(),

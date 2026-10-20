@@ -22,6 +22,7 @@ from routines.primitives import RunKind
 from routines.primitives import RunOutcome
 from routines.primitives import RunTrigger
 from routines.primitives import RunWarning
+from routines.primitives import SECONDS_PER_DAY
 from routines.primitives import TimeOfDay
 from routines.primitives import Weekday
 
@@ -84,7 +85,7 @@ class RoutineDefinition(FrozenModel):
                 "'every' is a number of minutes, hours, days, weeks or months (15m, 3h, 1d, 2w, 1mo): "
                 "the schedule is checked once a minute"
             )
-        if self.at is not None and self.every is not None and self.every.approximate_seconds < 86400:
+        if self.at is not None and self.every is not None and self.every.approximate_seconds < SECONDS_PER_DAY:
             raise DefinitionValidationError("'at' only goes with a cadence of a day or longer")
         if self.day_of_month is not None and (self.every is None or self.every.unit is not DurationUnit.MONTHS):
             raise DefinitionValidationError("'day_of_month' only goes with a cadence in months")
