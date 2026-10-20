@@ -339,7 +339,7 @@ def _root_key(
     return OTHER_ROOT
 
 
-def now_iso_nanoseconds(moment: datetime) -> str:
+def _iso_nanoseconds(moment: datetime) -> str:
     return moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "000Z"
 
 
@@ -456,14 +456,14 @@ class StretchTracker:
             if share >= STRETCH_TOP_MIN_SHARE and isinstance(key, int)
         ]
         return {
-            "timestamp": now_iso_nanoseconds(datetime.fromtimestamp(now, timezone.utc)),
+            "timestamp": _iso_nanoseconds(datetime.fromtimestamp(now, timezone.utc)),
             "type": STRETCH_EVENT_TYPE,
             "event_id": f"cpu-stretch-{uuid.uuid4().hex}",
             "source": STRETCH_EVENT_SOURCE,
-            "started_at": now_iso_nanoseconds(
+            "started_at": _iso_nanoseconds(
                 datetime.fromtimestamp(opened_at, timezone.utc)
             ),
-            "ended_at": now_iso_nanoseconds(
+            "ended_at": _iso_nanoseconds(
                 datetime.fromtimestamp(ended_at, timezone.utc)
             ),
             "duration_seconds": round(duration),
