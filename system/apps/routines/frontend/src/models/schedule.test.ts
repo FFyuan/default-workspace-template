@@ -89,7 +89,10 @@ describe("sentenceOf", () => {
       "Every Monday and Friday at 9:00 am",
     );
     expect(sentenceOf(form({ count: "1", unit: "d", days: ["mon", "tue", "wed", "thu", "fri"] }))).toBe(
-      "Every weekdays",
+      "Every weekday",
+    );
+    expect(sentenceOf(form({ count: "2", unit: "w", days: ["mon", "tue", "wed", "thu", "fri"] }))).toBe(
+      "Every 2 weeks on weekdays",
     );
     expect(sentenceOf(form({ count: "2", unit: "w", days: ["sat"] }))).toBe("Every 2 weeks on Saturday");
     expect(sentenceOf(form({ count: "1", unit: "mo", dayOfMonth: "1", at: "00:00" }))).toBe(

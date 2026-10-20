@@ -200,7 +200,11 @@ def describe_schedule(definition: RoutineDefinition, zone: tzinfo) -> str:
             else f"{describe_cadence(definition.every)} on the {_ordinal(definition.day_of_month)}"
         )
     elif definition.days and definition.every.unit is DurationUnit.DAYS and definition.every.count == 1:
-        head = f"Every {_describe_days(definition.days)}"
+        head = (
+            "Every weekday"
+            if frozenset(definition.days) == _WORKING_WEEK
+            else f"Every {_describe_days(definition.days)}"
+        )
     elif definition.days:
         head = f"{describe_cadence(definition.every)} on {_describe_days(definition.days)}"
     else:

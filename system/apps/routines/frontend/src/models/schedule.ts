@@ -114,9 +114,13 @@ function ordinal(day: number): string {
   return `${day}${suffix}`;
 }
 
+function isWorkingWeek(days: Weekday[]): boolean {
+  return new Set(days).size === 5 && !days.includes("sat") && !days.includes("sun");
+}
+
 function daysText(days: Weekday[]): string {
+  if (isWorkingWeek(days)) return "weekdays";
   const names = WEEKDAYS.filter((day) => days.includes(day.value)).map((day) => day.label);
-  if (names.length === 5 && !days.includes("sat") && !days.includes("sun")) return "weekdays";
   if (names.length === 1) return names[0];
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
@@ -138,7 +142,7 @@ export function sentenceOf(form: ScheduleForm): string {
         ? `Monthly on the ${ordinal(Number(form.dayOfMonth))}`
         : `Every ${count} ${unit.label} on the ${ordinal(Number(form.dayOfMonth))}`;
   } else if (form.days.length > 0 && form.unit === "d" && count === 1) {
-    head = `Every ${daysText(form.days)}`;
+    head = isWorkingWeek(form.days) ? "Every weekday" : `Every ${daysText(form.days)}`;
   } else {
     head = count === 1 ? `Every ${unit.one}` : `Every ${count} ${unit.label}`;
     if (form.days.length > 0) head = `${head} on ${daysText(form.days)}`;

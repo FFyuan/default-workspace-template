@@ -120,7 +120,7 @@ def test_schedules_read_in_plain_words() -> None:
             "Every hour",
             "Every day at 7:30 am",
             "Every Monday and Friday at 9:00 am",
-            "Every weekdays at 9:00 am",
+            "Every weekday at 9:00 am",
             "Every 2 weeks on Saturday",
             "Monthly on the 1st at midnight",
             "Every 2 months on the 15th at noon",
