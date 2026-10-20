@@ -59,7 +59,7 @@ Facts this design builds on, as of `main` at `2cf9763de7` (2026-10-20).
 
 `system/services/oom_priority/bin/resource_sampler.py`, run by supervisord as `resource_sampler` (`system/supervisord.conf.d/resource_sampler.conf`) under a plain `python3` with the package on `sys.path`, like `publish_cgroup_meminfo.py`.
 The policy lives in `oom_priority.resource_sampler`, stdlib-only like the rest of the package; the program is the loop and the logging.
-Its band is the app's own (`system-monitor`): a shed sampler costs a gap in the graphs until supervisord restarts it, and it holds almost no memory.
+Its band is its own (`resource_sampler`), one past the app's (`system-monitor`), so it is the first built-in service shed: a shed sampler costs a gap in the graphs until supervisord restarts it, and it holds almost no memory.
 
 Every `SAMPLE_INTERVAL_SECONDS` (5) the program takes one sample, updates its rings, rewrites the recent file, appends a minute line when a minute has closed, and steps the stretch state machine.
 It waits on a `threading.Event` between samples, never `time.sleep`, and logs only when its state changes (the first sample, a stretch opening or closing, a read that starts failing or recovers).
@@ -250,7 +250,7 @@ The link opens `system/services/host_backup/README.md` in Files through the app 
 ## 5. Part C: wiring
 
 - `system/supervisord.conf.d/resource_sampler.conf`: `python3 system/services/oom_priority/bin/resource_sampler.py`, `autostart = true`, `autorestart = true`, through `oom_tag_service.py resource_sampler` so it takes its band.
-- `bands.SERVICE_BANDS` gains `resource_sampler` at the `system-monitor` band's value.
+- `bands.SERVICE_BANDS` gains `resource_sampler` one past the `system-monitor` band's value, last in the built-in order.
 - The manifest: `display_name = "System Monitor"`, the description reworded; everything else as today.
   The contract tables (`docs/system/blueprint/desktop-interface/contracts.md`, `docs/system/blueprint/workspace-app-model/contracts.md`) and `system/test_app_manifests.py`'s comments follow the name.
 - The app's `pyproject.toml` gains `host-backup` (for the events reader and the settings loader); `oom-priority` is already there.
