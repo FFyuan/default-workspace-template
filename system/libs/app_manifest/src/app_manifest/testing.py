@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 import subprocess
+from collections.abc import Mapping
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
@@ -102,6 +103,13 @@ def commit_everything(repo_root: Path, message: str) -> str:
     run_git(repo_root, ("add", "-A"))
     run_git(repo_root, ("commit", "-q", "-m", message))
     return run_git(repo_root, ("rev-parse", "HEAD")).strip()
+
+
+def commit_changes(repo_root: Path, changes: Mapping[str, str], message: str) -> str:
+    """Write each repo-relative file with its content and commit them, returning the new sha."""
+    for relative_path, content in changes.items():
+        write_repo_file(repo_root, relative_path, content)
+    return commit_everything(repo_root, message)
 
 
 def build_news_workspace(repo_root: Path) -> Path:
