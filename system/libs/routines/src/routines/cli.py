@@ -424,7 +424,12 @@ def log_command(routine_id: str, run_id: str | None) -> None:
     service = _service()
     try:
         service.definitions.load(RoutineId(routine_id))
-        wanted = _run_id_of(run_id) if run_id else service.last_run_id(RoutineId(routine_id))
+        if run_id:
+            wanted = _run_id_of(run_id)
+            if not service.run_exists(RoutineId(routine_id), wanted):
+                raise RunNotFoundError(run_id)
+        else:
+            wanted = service.last_run_id(RoutineId(routine_id))
         if wanted is None:
             click.echo("No runs yet.")
             return

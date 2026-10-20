@@ -146,6 +146,11 @@ def test_log_of_a_missing_routine_or_a_mistyped_run_id_says_so(git_paths: Routin
     assert mistyped.exit_code == 1
     assert "There is no run called 'not-a-run'" in mistyped.output
 
+    never_ran = RunId.generate()
+    unknown = _invoke(git_paths, "log", "hello", str(never_ran))
+    assert unknown.exit_code == 1
+    assert f"There is no run called '{never_ran}'" in unknown.output
+
 
 def test_a_wake_takes_its_title_and_timeout_from_the_routine_unless_told_otherwise() -> None:
     definition = RoutineDefinition.model_validate(
