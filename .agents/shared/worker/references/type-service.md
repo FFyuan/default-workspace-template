@@ -18,9 +18,9 @@ solely to support one app lives in that app's folder under
   `host-backup`), and any further program it runs is `<name>-<role>`: the scope
   file's `wiring` and the update apply's rollback find its programs only by
   those names. `oom_priority`'s programs (`earlyoom`, `publish_cgroup_meminfo`,
-  `resource_sampler`) are named otherwise, so its `wiring` is empty: an edit to
-  their blocks lands in `outside_footprint`, and a rollback leaves restarting
-  them to the agent.
+  `resource_sampler`, and the `oom-tag-backstop` event listener) are named
+  otherwise, so its `wiring` is empty: an edit to their blocks lands in
+  `outside_footprint`, and a rollback leaves restarting them to the agent.
 
 ## Running and testing
 

@@ -254,7 +254,8 @@ in the pass, by its type:
   <program>`): the one named after the package (`host_backup` runs as
   `host-backup`) and any `<program>-<role>` ones. `oom_priority`'s programs
   are named otherwise (`earlyoom`, `publish_cgroup_meminfo`,
-  `resource_sampler`): restart the ones the change reaches. A service with no
+  `resource_sampler`, and the `oom-tag-backstop` event listener): restart the
+  ones the change reaches. A service with no
   program of its own (the Caretaker's check, which a routine runs) has nothing
   to restart: its next run reads the merged code.
 - **a critical app**: do **not** merge or go live here -- the careful flow
