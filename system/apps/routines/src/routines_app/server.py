@@ -1,4 +1,5 @@
-"""The Routines app: the pages at ``/``, ``/<id>`` and ``/<id>/runs/<run id>``, and the API they read.
+"""The Routines app: the pages at ``/``, ``/<id>``, ``/<id>/runs/<run id>`` and ``/<id>/runs/<run id>/log``, and
+the API they read.
 
 Services run from /home/user/workspace (the repo root). The app stores nothing: everything it shows is the
 routines library's state under ``data/.state/routines``, read through the library's service, and every change
@@ -110,6 +111,7 @@ ROUTE_TABLE: RouteTable = {
     ("GET", "/"): SchemalessRoute(reason="the Routines list page"),
     ("GET", "/{routine_id}"): SchemalessRoute(reason="a routine's page"),
     ("GET", "/{routine_id}/runs/{run_id}"): SchemalessRoute(reason="a run's page"),
+    ("GET", "/{routine_id}/runs/{run_id}/log"): SchemalessRoute(reason="a run's whole-log page"),
     ("GET", "/assets/{filename}"): SchemalessRoute(reason="one file of the pages' built bundle"),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
     ("GET", "/api/routines"): RouteModels(response_model=RoutineListing),
@@ -177,6 +179,11 @@ def create_app(
     @app.get("/<routine_id>/runs/<run_id>")
     def run_page(routine_id: str, run_id: str) -> ResponseReturnValue:
         """A run's page: the same document, which reads its path."""
+        return page()
+
+    @app.get("/<routine_id>/runs/<run_id>/log")
+    def log_page(routine_id: str, run_id: str) -> ResponseReturnValue:
+        """A run's whole-log page: the same document, which reads its path."""
         return page()
 
     @app.get("/assets/<path:filename>")

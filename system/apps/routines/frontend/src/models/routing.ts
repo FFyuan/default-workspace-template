@@ -1,7 +1,13 @@
-/** Which page a path names: the list at ``/``, a routine at ``/<id>``, a run at ``/<id>/runs/<run id>``. */
+/**
+ * Which page a path names: the list at ``/``, a routine at ``/<id>``, a run at ``/<id>/runs/<run id>``, and a
+ * run's whole log at ``/<id>/runs/<run id>/log``.
+ */
 
 export type Page =
-  { kind: "list" } | { kind: "routine"; routineId: string } | { kind: "run"; routineId: string; runId: string };
+  | { kind: "list" }
+  | { kind: "routine"; routineId: string }
+  | { kind: "run"; routineId: string; runId: string }
+  | { kind: "log"; routineId: string; runId: string };
 
 export function pageOf(pathname: string): Page {
   const segments = pathname.split("/").filter((segment) => segment !== "");
@@ -9,6 +15,9 @@ export function pageOf(pathname: string): Page {
   if (segments.length === 1) return { kind: "routine", routineId: decodeURIComponent(segments[0]) };
   if (segments.length === 3 && segments[1] === "runs") {
     return { kind: "run", routineId: decodeURIComponent(segments[0]), runId: decodeURIComponent(segments[2]) };
+  }
+  if (segments.length === 4 && segments[1] === "runs" && segments[3] === "log") {
+    return { kind: "log", routineId: decodeURIComponent(segments[0]), runId: decodeURIComponent(segments[2]) };
   }
   return { kind: "list" };
 }
@@ -21,6 +30,10 @@ export function runPathOf(routineId: string, runId: string): string {
   return `/${encodeURIComponent(routineId)}/runs/${encodeURIComponent(runId)}`;
 }
 
+export function logPathOf(routineId: string, runId: string): string {
+  return `${runPathOf(routineId, runId)}/log`;
+}
+
 /** The path a page is served at. */
 export function pathOf(page: Page): string {
   switch (page.kind) {
@@ -30,6 +43,8 @@ export function pathOf(page: Page): string {
       return routinePathOf(page.routineId);
     case "run":
       return runPathOf(page.routineId, page.runId);
+    case "log":
+      return logPathOf(page.routineId, page.runId);
   }
 }
 
@@ -42,5 +57,7 @@ export function titleOf(page: Page, routineTitle: string | null): string {
       return routineTitle ?? page.routineId;
     case "run":
       return `${routineTitle ?? page.routineId}: a run`;
+    case "log":
+      return `${routineTitle ?? page.routineId}: a run's log`;
   }
 }

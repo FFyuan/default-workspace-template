@@ -3,7 +3,7 @@
  * library's own models: the listing, a routine with its runs, a run with its log, and the mutations.
  */
 
-import { requestJson } from "@imbue/workspace-ui/src/models/http";
+import { HttpError, errorDetailFromResponse, requestJson } from "@imbue/workspace-ui/src/models/http";
 
 export type Health = "BROKEN" | "OFF" | "DONE" | "NEEDS_USER" | "FAILING" | "OVERDUE" | "NOT_RUN_YET" | "WORKING";
 export type Trigger = "SCHEDULED" | "MANUAL";
@@ -158,4 +158,11 @@ export function removeRoutine(routineId: string): Promise<void> {
 /** Where a run's whole log is served as text. */
 export function logUrlOf(routineId: string, runId: string): string {
   return `/api/routines/${encode(routineId)}/runs/${encode(runId)}/log`;
+}
+
+/** A run's whole log, as the text the routine printed. */
+export async function fetchLog(routineId: string, runId: string): Promise<string> {
+  const response = await fetch(logUrlOf(routineId, runId), { cache: "no-store" });
+  if (!response.ok) throw new HttpError(response.status, await errorDetailFromResponse(response));
+  return response.text();
 }

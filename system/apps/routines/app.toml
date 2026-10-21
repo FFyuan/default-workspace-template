@@ -1,6 +1,7 @@
 # The Routines app: everything in the workspace that runs on a schedule (system/libs/routines), with each
 # routine's health, next run and history, and run-now, on/off, reschedule and fix controls. Its pages are
-# the list at ``/``, a routine at ``/<id>`` and a run at ``/<id>/runs/<run id>``; it stores nothing of its own
+# the list at ``/``, a routine at ``/<id>``, a run at ``/<id>/runs/<run id>`` and its whole log at
+# ``/<id>/runs/<run id>/log``; it stores nothing of its own
 # (the library's state under data/.state/routines is what it reads). It declares no launch path, so the
 # desktop offers the synthesized ``open`` at its root; its shortcut focuses the one window it is for.
 name = "routines"

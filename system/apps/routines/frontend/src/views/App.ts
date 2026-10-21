@@ -11,6 +11,7 @@ import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";
 import {
   fetchDetail,
   fetchListing,
+  fetchLog,
   fetchRun,
   openFixChat,
   removeRoutine,
@@ -20,10 +21,12 @@ import {
   type RoutineDetail,
   type RoutineListing,
   type RunDetail,
+  type RunRecord,
 } from "../models/api";
 import { pageOf, pathOf, titleOf, type Page } from "../models/routing";
 import { changeOf, formOf, type ScheduleForm } from "../models/schedule";
 import { ListPage } from "./ListPage";
+import { LogPage } from "./LogPage";
 import { RoutinePage } from "./RoutinePage";
 import { RunPage } from "./RunPage";
 import { ScheduleDialog } from "./ScheduleDialog";
@@ -47,7 +50,8 @@ type Loaded =
   | { kind: "error"; message: string }
   | { kind: "list"; listing: RoutineListing }
   | { kind: "routine"; detail: RoutineDetail }
-  | { kind: "run"; detail: RunDetail; routineTitle: string };
+  | { kind: "run"; detail: RunDetail; routineTitle: string }
+  | { kind: "log"; run: RunRecord; log: string; routineTitle: string };
 
 export class AppModel {
   readonly page: Page;
@@ -94,6 +98,16 @@ export class AppModel {
           this.host.reportLocation(pathOf(this.page), titleOf(this.page, routine.row.title));
           break;
         }
+        case "log": {
+          const [detail, routine, log] = await Promise.all([
+            fetchRun(this.page.routineId, this.page.runId),
+            fetchDetail(this.page.routineId),
+            fetchLog(this.page.routineId, this.page.runId),
+          ]);
+          this.loaded = { kind: "log", run: detail.run, log, routineTitle: routine.row.title };
+          this.host.reportLocation(pathOf(this.page), titleOf(this.page, routine.row.title));
+          break;
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -122,7 +136,8 @@ export class AppModel {
     const isRunning =
       (this.loaded.kind === "list" && this.loaded.listing.summary.running > 0) ||
       (this.loaded.kind === "routine" && this.loaded.detail.row.is_running) ||
-      (this.loaded.kind === "run" && this.loaded.detail.run.outcome === null);
+      (this.loaded.kind === "run" && this.loaded.detail.run.outcome === null) ||
+      (this.loaded.kind === "log" && this.loaded.run.outcome === null);
     this.timer = setTimeout(
       () => {
         // Never redraw under an open dialog: that would throw away a half-made choice.
@@ -267,6 +282,9 @@ export const App: m.Component<AppAttrs> = {
         break;
       case "run":
         body = m(RunPage, { detail: loaded.detail, routineTitle: loaded.routineTitle });
+        break;
+      case "log":
+        body = m(LogPage, { run: loaded.run, log: loaded.log, routineTitle: loaded.routineTitle });
         break;
     }
     return [

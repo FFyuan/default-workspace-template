@@ -23,7 +23,7 @@ describe("RunPage", () => {
     expect([...root.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([
       "/",
       "/news-sync",
-      "/api/routines/news-sync/runs/run-1/log",
+      "/news-sync/runs/run-1/log",
     ]);
   });
 

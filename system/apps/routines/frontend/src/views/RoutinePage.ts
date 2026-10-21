@@ -9,6 +9,9 @@ import { chatUrlOf } from "../models/chatLink";
 import { runPathOf } from "../models/routing";
 import { healthPill } from "./healthPill";
 
+/** The run history's columns: when, how it started, the result, how long it took, and the summary. */
+const RUN_COLUMNS = "sm:grid-cols-[140px_90px_120px_100px_minmax(0,1fr)]";
+
 export interface RoutinePageAttrs {
   detail: RoutineDetail;
   isBusy: boolean;
@@ -26,35 +29,31 @@ const OUTCOME_CLASS: Record<Outcome, string> = {
   INTERRUPTED: "text-warning",
 };
 
+/** One run as a row that is a link to its page, like a routine's row on the list (its chat is linked there). */
 function runRow(run: RunRecord): m.Vnode {
   const outcomeClass = run.outcome === null ? "text-accent" : OUTCOME_CLASS[run.outcome];
-  return m("tr", { class: "border-t border-subtle align-top", "data-run": run.run_id }, [
-    m(
-      "td",
-      { class: "py-1.5 pr-3 whitespace-nowrap" },
-      m("a", { href: runPathOf(run.routine_id, run.run_id), class: "text-primary hover:underline" }, run.when_text),
-    ),
-    m(
-      "td",
-      { class: "py-1.5 pr-3 whitespace-nowrap text-secondary" },
-      run.trigger === "MANUAL" ? "manual" : "automatic",
-    ),
-    m("td", { class: `py-1.5 pr-3 font-semibold whitespace-nowrap ${outcomeClass}` }, run.outcome_text),
-    m("td", { class: "py-1.5 pr-3 whitespace-nowrap text-secondary" }, run.duration_text),
-    m("td", { class: "py-1.5 pr-3 text-secondary" }, [
-      run.summary,
-      run.warnings.includes("RESTARTED_PREVIOUS_RUN")
-        ? m("span", { class: "ml-2 text-warning" }, "The previous run was still going and was cut off.")
-        : null,
-      run.chat_id === null
-        ? null
-        : m(
-            "span",
-            { class: "ml-2" },
-            m("a", { href: chatUrlOf(run.chat_id), class: "text-accent hover:underline" }, "Open chat"),
-          ),
-    ]),
-  ]);
+  return m(
+    "a",
+    {
+      href: runPathOf(run.routine_id, run.run_id),
+      class:
+        `run-row grid gap-x-4 gap-y-1 border-b border-subtle px-1 py-2 type-helper no-underline ` +
+        `hover:bg-fill-hover ${RUN_COLUMNS} sm:items-start`,
+      "data-run": run.run_id,
+    },
+    [
+      m("div", { class: "whitespace-nowrap text-primary" }, run.when_text),
+      m("div", { class: "whitespace-nowrap text-secondary" }, run.trigger === "MANUAL" ? "manual" : "automatic"),
+      m("div", { class: `font-semibold whitespace-nowrap ${outcomeClass}` }, run.outcome_text),
+      m("div", { class: "whitespace-nowrap text-secondary" }, run.duration_text),
+      m("div", { class: "min-w-0 text-secondary" }, [
+        run.summary,
+        run.warnings.includes("RESTARTED_PREVIOUS_RUN")
+          ? m("span", { class: "ml-2 text-warning" }, "The previous run was still going and was cut off.")
+          : null,
+      ]),
+    ],
+  );
 }
 
 export const RoutinePage: m.Component<RoutinePageAttrs> = {
@@ -127,18 +126,15 @@ export const RoutinePage: m.Component<RoutinePageAttrs> = {
         m("h2", { class: "type-section mb-1 text-faint" }, "Runs"),
         detail.runs.length === 0
           ? m("p", { class: "type-helper text-faint", "data-no-runs": "" }, "No runs yet.")
-          : m("table", { class: "w-full type-helper" }, [
+          : m("div", { class: "flex flex-col" }, [
               m(
-                "thead",
-                m("tr", { class: "text-left type-tag uppercase tracking-wide text-faint" }, [
-                  m("th", { class: "pr-3 font-semibold" }, "When"),
-                  m("th", { class: "pr-3 font-semibold" }, "Started"),
-                  m("th", { class: "pr-3 font-semibold" }, "Result"),
-                  m("th", { class: "pr-3 font-semibold" }, "Took"),
-                  m("th", { class: "pr-3 font-semibold" }, "Summary"),
-                ]),
+                "div",
+                {
+                  class: `hidden gap-x-4 px-1 pb-1 type-tag uppercase tracking-wide text-faint sm:grid ${RUN_COLUMNS}`,
+                },
+                ["When", "Started", "Result", "Took", "Summary"].map((heading) => m("div", heading)),
               ),
-              m("tbody", detail.runs.map(runRow)),
+              detail.runs.map(runRow),
             ]),
       ]),
     ]);

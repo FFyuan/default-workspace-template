@@ -339,9 +339,10 @@ One document serves every page; the page routes on its path and reports it throu
   Rows sort by health, the ones needing attention first (waiting on the user, failing, overdue, broken), then the rest (not run yet, working, done, off), and by title within a health.
   Routines with an `app` group under that app's display name (the listing carries `app_names`, read from the registry), the rest under "Workspace".
   A text field at the top, "Describe a routine to add", hands "Add a routine: <the text>" to the shell through `startWithText`, so a chat opens on it and the agent, following the `manage-routines` skill, writes the definition.
-- **`/<id>`, the routine.** The definition in plain words, the controls (Run now, On/Off, Change schedule, Fix it, Remove), and the run history: one row per run with when, trigger, outcome, duration, summary, and for a skill run a link to its chat.
+- **`/<id>`, the routine.** The definition in plain words, the controls (Run now, On/Off, Change schedule, Fix it, Remove), and the run history: one row per run with when, trigger, outcome, duration and summary, the whole row a link to the run's page as a routine's row on the list is to the routine's (the chat is linked from the run's page).
   Change schedule opens a dialog with the same fields as the CLI (a number and a unit, a time, weekdays, a day of the month) and previews the sentence it will read as.
 - **`/<id>/runs/<run_id>`, the run.** The finished event's fields and the log, rendered as is and scrolled to its end.
+- **`/<id>/runs/<run_id>/log`, the whole log.** The run's entire log under the same navigation header, where the run page shows only the end of a long one.
 - The phone layout stacks the row's cells; the controls wrap into as many rows as the width takes.
 
 Fix it builds a brief from the routine, its last runs, and the last finished run's log, and opens a chat on it through `message_chat.py --create` with `auto_open=true`, as the reference template did; the brief links the routine's page.

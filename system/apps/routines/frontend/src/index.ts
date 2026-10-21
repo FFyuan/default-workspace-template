@@ -1,5 +1,6 @@
 /**
- * The Routines pages' root: one document for the list, a routine and a run, which reads its path. Framed by
+ * The Routines pages' root: one document for the list, a routine, a run and a run's whole log, which reads its
+ * path. Framed by
  * the workspace shell, it reports where it is (``shell:location``) once each page's data is known, hands the
  * list's "describe a routine" text to the shell as a new chat (``shell:start-with-text``), and follows the
  * link rule for every link it draws (a routine's page, a run's page, a chat's page on the chat app's origin).

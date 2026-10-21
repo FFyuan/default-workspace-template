@@ -40,7 +40,7 @@ def test_every_page_path_serves_the_one_document_and_assets_their_file(
     service.registry_path.write_text(
         '[[apps]]\nname = "chat"\nurl = "http://127.0.0.1:8010"\nlabel = "chat-x7k9q2w1"\n'
     )
-    for path in ("/", "/news-sync", "/news-sync/runs/run-1"):
+    for path in ("/", "/news-sync", "/news-sync/runs/run-1", "/news-sync/runs/run-1/log"):
         response = client.get(path)
         assert response.status_code == 200, path
         assert b"<title>Routines</title>" in response.data

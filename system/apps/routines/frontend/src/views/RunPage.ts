@@ -2,9 +2,9 @@
 
 import m from "mithril";
 
-import { logUrlOf, type RunDetail } from "../models/api";
+import type { RunDetail } from "../models/api";
 import { chatUrlOf } from "../models/chatLink";
-import { routinePathOf } from "../models/routing";
+import { logPathOf, routinePathOf } from "../models/routing";
 
 export interface RunPageAttrs {
   detail: RunDetail;
@@ -63,7 +63,7 @@ export const RunPage: m.ClosureComponent<RunPageAttrs> = () => {
             m("h2", { class: "type-section mb-1 text-faint" }, "Log"),
             m(
               "a",
-              { href: logUrlOf(run.routine_id, run.run_id), class: "type-helper text-secondary hover:underline" },
+              { href: logPathOf(run.routine_id, run.run_id), class: "type-helper text-secondary hover:underline" },
               "Whole log",
             ),
           ]),

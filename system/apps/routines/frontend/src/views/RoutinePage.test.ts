@@ -81,7 +81,7 @@ describe("RoutinePage", () => {
     }
   });
 
-  it("lists the runs newest first with their chat and the restart note", () => {
+  it("lists the runs newest first, each row a link to its page, with the restart note", () => {
     const root = mount({
       detail: detailOf({
         row: rowOf({ kind: "SKILL", skill: "digest", command: [], chat_id: "agent-1" }),
@@ -97,15 +97,15 @@ describe("RoutinePage", () => {
       }),
     });
     expect(root.textContent).toContain("/digest");
-    const rows = [...root.querySelectorAll("[data-run]")];
+    const rows = [...root.querySelectorAll<HTMLAnchorElement>("a[data-run]")];
     expect(rows.map((row) => row.getAttribute("data-run"))).toEqual(["run-2", "run-1"]);
-    expect(rows[0].querySelector("a")?.getAttribute("href")).toBe("/news-sync/runs/run-2");
+    expect(rows.map((row) => row.getAttribute("href"))).toEqual(["/news-sync/runs/run-2", "/news-sync/runs/run-1"]);
     expect(rows[0].textContent).toContain("Failed");
     expect(rows[1].textContent).toContain("manual");
     expect(rows[1].textContent).toContain("3 headlines pulled");
     expect(rows[1].textContent).toContain("The previous run was still going and was cut off.");
-    const chatLink = [...rows[1].querySelectorAll("a")].find((link) => link.textContent === "Open chat");
-    expect(chatLink?.getAttribute("href")).toContain("?chat=agent-1");
+    // A row is one link, so nothing inside it is another.
+    expect(rows[1].querySelector("a")).toBeNull();
     // The routine's own chat is a plain link too: the app contract opens it where the workspace opens chats.
     expect(root.querySelector("[data-open-chat]")?.getAttribute("href")).toContain("?chat=agent-1");
   });

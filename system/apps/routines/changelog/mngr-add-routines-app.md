@@ -3,3 +3,5 @@ New: the Routines app, one window over everything that runs on a schedule. The l
 The schedule dialog edits the cadence, the time of day, the weekdays and the day of the month. The pages re-read every 30 seconds, and every 5 seconds while a run is going, with the polling held while the schedule editor or the Remove confirmation is open; a re-read that fails keeps the page's data and says so in a toast. The routine's own chat opens through a plain link, the rows group by the app itself (an app called Workspace stays apart from the workspace's own rows), and the pages' content-named bundle files are cached for a year.
 
 Every list row shows its last run and that run's summary, beside the health's detail when there is one. The run page keeps the end of a growing log in view while a run is going, unless the reader scrolled up. Fix it is the page's primary control.
+
+A run's whole log has a page of its own under the same navigation header (`/<id>/runs/<run id>/log`) instead of the bare text route, and every run row on a routine's page is one link to the run, drawn like a routine's row on the list.

@@ -15,10 +15,11 @@ schedule. It is the user's view of the routines library
   Change schedule (a number and a unit, a time, weekdays, a day of the month,
   previewed as the sentence it will read as), Fix it (opens a chat briefed on
   the failure, through `system/scripts/message_chat.py --create`), Remove, and
-  the run history with each run's summary and, for a skill run, a link to its
-  chat.
+  the run history, each run a row that opens its page.
 - **`/<id>/runs/<run id>`**, a run: the finished event's fields, the links it
-  left, and its log, as is.
+  left, and the end of its log, as is.
+- **`/<id>/runs/<run id>/log`**, the run's whole log, with the same
+  navigation header as every other page.
 
 One document serves every page; the page reads its path, reports it to the
 shell with `shell:location`, and polls the API every 30 seconds (every 5 while
