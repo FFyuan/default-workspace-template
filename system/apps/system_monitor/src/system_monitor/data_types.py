@@ -254,16 +254,8 @@ class ScanResponse(FrozenModel):
     scan: DiskScan = Field(description="The walk's state after the request")
 
 
-class StopRequest(FrozenModel):
-    """What ``POST /api/stop`` takes: the target of one item's Stop button."""
-
-    kind: Literal["chat", "checkers", "app"] = Field(
-        description="chat: stop the chat's agent; checkers: stop the code checkers a chat started; app: quit one of "
-        "the user's apps"
-    )
-    id: str = Field(
-        description="The chat's id, the agent id whose code checkers, or the app's supervisord program"
-    )
+class StopRequest(StopTarget):
+    """What ``POST /api/stop`` takes: the target of one item's Stop button, as the item carries it."""
 
 
 class StopResponse(FrozenModel):
