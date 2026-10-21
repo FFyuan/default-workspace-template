@@ -202,7 +202,7 @@ The approximate-usage mode under gVisor (`usage_mode`) is unchanged and applies 
 
 ### 4.3 The views
 
-Ported from the mock, with its sample data replaced by the readings above.
+Each view is drawn from the readings above.
 
 - **Overview.** Three tiles: CPU as `N% of C cores`, memory as `N% of T`, disk as `N% of T`; the CPU and memory tiles carry 10-minute sparklines, the disk tile a bar.
   Each tile opens its view.
