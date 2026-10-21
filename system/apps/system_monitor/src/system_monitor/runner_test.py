@@ -9,7 +9,7 @@ import pytest
 from app_schema.testing import assert_api_schema_describes_app
 from flask.testing import FlaskClient
 
-from system_monitor import disk, runner, stats
+from system_monitor import actions, disk, runner, stats
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def test_the_stats_endpoint_answers_the_snapshot_uncached(
                 "hint": "",
                 "bytes": 1,
                 "cpu": 0.24,
-                "items": [{"name": "Inbox", "bytes": 1, "cpu": 0.24}],
+                "items": [{"name": "Inbox", "bytes": 1, "cpu": 0.24, "stop": None}],
             },
             {
                 "id": "scratch",
@@ -139,7 +139,9 @@ def test_starting_a_disk_walk_answers_202_then_200_while_it_runs(
     monkeypatch.setattr(stats, "WORKSPACE_DIR", tmp_path)
     monkeypatch.delenv("MNGR_AGENT_STATE_DIR", raising=False)
     gate = threading.Event()
-    rows = [{"id": "other", "label": "Everything else", "hint": "", "bytes": 7, "items": []}]
+    rows = [
+        {"id": "other", "label": "Everything else", "hint": "", "bytes": 7, "items": []}
+    ]
     scanner = disk.DiskScanner(run=lambda: (gate.wait(10), (rows, ["caches"]))[1])
     monkeypatch.setattr(runner, "DISK_SCANNER", scanner)
 
@@ -176,3 +178,34 @@ def test_the_app_describes_its_api_the_way_its_manifest_says(
     assert_api_schema_describes_app(
         client, Path(__file__).resolve().parents[2] / "app.toml"
     )
+
+
+def test_the_stop_endpoint_runs_the_request_and_relays_a_refusal(
+    client: FlaskClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[tuple[str, str]] = []
+
+    def stop(kind: str, target_id: str) -> None:
+        asked.append((kind, target_id))
+        if kind == "app":
+            raise actions.StopRefusedError(
+                403, "Only the apps you built can be quit from here"
+            )
+
+    monkeypatch.setattr(runner, "STOP", stop)
+
+    stopped = client.post("/api/stop", json={"kind": "chat", "id": "chat-123"})
+    refused = client.post("/api/stop", json={"kind": "app", "id": "chat"})
+    nonsense = client.post("/api/stop", json={"kind": "service", "id": "sshd"})
+    empty = client.post("/api/stop")
+
+    assert (stopped.status_code, stopped.get_json()) == (200, {"status": "ok"})
+    assert (refused.status_code, refused.get_json()) == (
+        403,
+        {"detail": "Only the apps you built can be quit from here"},
+    )
+    assert nonsense.status_code == 400
+    assert "kind" in nonsense.get_json()["detail"]
+    assert empty.status_code == 400
+    # Only well-formed requests reach the action.
+    assert asked == [("chat", "chat-123"), ("app", "chat")]

@@ -45,7 +45,8 @@ Facts this design builds on, as of `main` at `2cf9763de7` (2026-10-20).
 6. The available cores are the cgroup's `cpu.max` quota where it exists (runc), else `os.cpu_count()` (gVisor reports the quota there).
    Load average is not used: it reads as zero under gVisor.
 7. The overview carries no per-group disk figures, and nothing walks the disk on a timer.
-   The disk view shows the disk's total, used and free from one `disk_usage` call, and walks the disk only when the user asks ("See what's using the disk"), reporting when it ran.
+   The disk view shows the disk's total, used and free from one `disk_usage` call, said to be the machine's whole disk: a local docker workspace's volume has no quota of its own, so the figure is the laptop's disk, and a cloud machine's is its data disk, shared with the container engine's own store.
+   It walks the disk only when the user asks ("See what's using the disk"), reporting when it ran.
 8. The page's views are real paths (`/`, `/cpu`, `/memory`, `/disk`) served by the same page, so the shell restores a window on the view it was on.
    The manifest declares no launch paths: the shell keeps synthesizing `open` at `/`, and the views are reached inside the app, so the launcher does not gain three rows for one app.
 9. The app's own memory sampler thread goes away: both histories come from the sampler's files.
@@ -188,6 +189,11 @@ Moving between views is a real navigation (`location.href`), so the shell's hand
 - `history`: the last 10 minutes of both resources from `recent.json`'s samples, as `{t, cpu, memory}`; empty when there is no fresh file.
   The old `history` of memory alone goes away with the in-app sampler.
 - Every `UsageRow` and `UsageItem` gains `cpu`: the group's share of capacity (0 to 1), or null for rows that have no processes (Shared, Temporary files).
+  The System row's share is what the other rows together fall short of the whole (the sampler leaves shares under a tenth of a percent out of its file), so the column adds up to the tile; without a reading it is null like the rest.
+- The Workspace row lists the workspace's own programs as items: each supervised program that is not one of the user's apps, named by its registry row (an app) or by a short table in `programs.PROGRAM_NAMES` (a service: "Memory guard", "Backups", "Chat activity watcher"), and "Other" for what no program started (the bootstrap, sshd, tmux).
+- Where the kernel reports `smaps_rollup`, a group's memory is its programs' anonymous memory (what they made for themselves, which stopping them frees; the file pages they map are cache the kernel drops under pressure and the guard's own figure of what is in use leaves out), the Shared row is the shared memory segments programs map (the sum of `Pss_Shmem`), and the System row is the rest, so the rows add up to the memory in use.
+  Under gVisor (resident sizes shrunk by one factor) a System row holds whatever the programs do not account for, so both modes have the same rows.
+- Every `UsageItem` carries `stop`, the target of its Stop button (section 4.7): the chat's id, the agent id whose code checkers, or the app's program; null for the workspace's own programs, which cannot be stopped from here.
   It is the sum over the group's processes of the sampler's `by_pid` shares, joined by pid with the snapshot's own process walk and rolled up by the same owner walk memory uses.
   A reaped child's time sits in its parent's counters, so it lands with the parent's group without any extra work.
 - `events`: stops (as today's `stops`, kept for the memory view) and the stretches of the last 24 hours from the sampler's events file, each with `at`, `kind` (`stop` or `busy`), `what` in plain words, and for a stretch its `duration_seconds` and `top` with agent ids resolved to chat names.
@@ -205,7 +211,8 @@ Ported from the mock, with its sample data replaced by the readings above.
 - **CPU.** The headline, the usage bar, the process count; a chart with 10 min, 1 h and 24 h spans (10 min from the overview reading, longer from `/api/history`); "What's using the CPU", the groups sorted by share with the note that a chat's share includes what it runs; "Busy stretches" from the events.
   No per-core graphs (the sampler does not read them) and no load average (it does not exist under gVisor).
 - **Memory.** Everything the shipped page shows, with the 90% guard mark on the bar and the chart and the span switch: the headline, the warning note from 80% with its advice, the breakdown with the temporary-files tooltip, and the stops with their Details toggles.
-- **Disk.** The headline and bar from `disk_usage`; the Backups section; then "What's using the disk" with a "See what's using the disk" button that posts to `/api/disk/scan`, polls `/api/disk` while scanning, and then shows the rows with "as of" the scan's time and a button to run it again.
+- **Disk.** The headline and bar from `disk_usage`, worded as the machine's whole disk (decision 7); then "What's using the disk" with a "See what's using the disk" button that posts to `/api/disk/scan`, polls `/api/disk` while scanning, and then shows the rows with "as of" the scan's time and a button to run it again; then the Backups section.
+  A row that lists nothing and holds nothing (Code checkers, Your apps) is left out of every breakdown until something runs under it.
 
 Under 480 px the tiles stack, each a row with the number on the left and the sparkline on the right, and the breakdown hides its grey hints.
 The header carries no "updated N s ago": as today, it speaks only when a refresh fails.
@@ -215,13 +222,13 @@ The header carries no "updated N s ago": as today, it speaks only when a refresh
 Run in a thread of the app when asked, never on a timer and never twice at once.
 Each bucket is one `du -sk` (GNU, the container is Linux), bounded at 120 s:
 
-| Row | What is measured |
-|---|---|
-| Workspace files | `/home/user/workspace` less app data and uploads (`du --exclude`) |
-| Uploads | `data/uploads` |
-| App data | `data/.apps`, with one item per app directory |
-| Package caches | `~/.cache`, `~/.npm`, `~/.local/share/uv`, `~/.local/share/pnpm`, those that exist |
-| Everything else | the disk's used bytes less the rows above, never below 0 |
+| Row | What is measured | What it lists |
+|---|---|---|
+| Workspace files | the top-level entries of `/home/user/workspace` in one `du`, less app data and uploads (`du --exclude`) | its folders, largest first, up to eight, with a hint for the ones a user would not know (`.venv`, `.git`, `system`) |
+| Uploads | `data/uploads` | nothing |
+| App data | `data/.apps` | one item per app directory |
+| Package caches | `~/.cache`, `~/.npm`, `~/.local/share/uv`, `~/.local/share/pnpm`, those that exist | each cache |
+| Everything else | the disk's used bytes less the rows above, never below 0 | the machine's system software (`/` less the home tree, the kernel and memory filesystems, and the container engines' stores) and whatever else is on the disk |
 
 The result is kept in memory with its time; the app stopping forgets it, which is fine for a figure the user asked for once.
 A `du` that fails or times out leaves its row out and the response says which rows are missing.
@@ -240,7 +247,17 @@ A walk that cannot read the disk at all ends in a `failed` state with no rows, s
 The summary also counts failed ticks in the last 24 hours.
 The link opens `system/services/host_backup/README.md` in Files through the app contract's file links.
 
-### 4.6 Startup and failure
+### 4.6 Stop actions
+
+Every item a chat, a code checker or one of the user's apps owns ends in a Stop button (an "×", shown while the pointer is over the row, and always where there is no pointer to hover with). Clicking it turns the cell into a question ("Stop this chat? Its next message starts it again." / "Quit this app? Opening it starts it again.") with the action and Cancel; the action posts `{kind, id}` to `POST /api/stop` and the next refresh shows the row gone, or the refusal in the cell until the row is next rebuilt. The route (`actions`) does one of:
+
+- `chat`: `POST /api/chats/<id>/stop` on the chat app (its URL from the app registry), the reversible `mngr stop` the chat's own Stop runs; the chat app's refusal (converging, unknown) is relayed with its status.
+- `checkers`: `SIGTERM` to the code checkers the chat's agent started, found by a fresh walk of `/proc` through the same owner walk as the breakdown; 404 when it has none.
+- `app`: supervisord's `stopProcess` over its socket (`supervisor_rpc.stop_program`), only for a program the registry lists in the user band; anything else is 403. The shell starts the app again when a window opens it.
+
+The workspace's own programs carry no target: nothing on the page can stop the chat app, the desktop, or a service.
+
+### 4.7 Startup and failure
 
 - The app no longer starts a sampler thread.
   Its `/api/stats` reads `recent.json` on every snapshot; a missing or stale file gives `cpu.sampled_at = null`, empty histories, null CPU shares, and the page shows "No readings yet" in the graphs and dashes in the CPU column.
@@ -261,10 +278,9 @@ The link opens `system/services/host_backup/README.md` in Files through the app 
 - `oom_priority/resource_sampler_test.py`: the stat parser; the busy-ticks sum over a fake `/proc` with a new, a gone and a reaped process; usage and per-pid shares with a fake clock and tick rate; cores from `cpu.max`, `max`, and no file; the recent file written and read back; the minute lines and the rewrite past two days; the stretch state machine (open after 60 s, not after 55 s, close with hysteresis, the 2-minute minimum, attribution with a root that exits mid-stretch).
 - `oom_priority/bin/resource_sampler_test.py`: one `--once` round under a bare `python3` against a fake `/proc`, writing the recent file.
 - `oom_priority/meminfo_test.py`: the reader's cases, moved from the app's `memory_test.py`.
-- The app: `cpu_test.py` (recent file, history spans and downsampling, stretch events into plain words), `disk_test.py` (the buckets over a temporary tree, a missing bucket, the scan state), `backups_test.py` (each state from a written events file), `usage_test.py` (CPU shares rolled up by group), and `runner_test.py` for the routes and the API document.
+- The app: `cpu_test.py` (recent file, history spans and downsampling, stretch events into plain words), `disk_test.py` (the buckets over a temporary tree, a missing bucket, the scan state), `backups_test.py` (each state from a written events file), `usage_test.py` (CPU shares rolled up by group, the System row's remainder, the stop targets, a chat's checkers by pid), `actions_test.py` (a stand-in chat app, a real process to signal, a fake supervisord socket), and `runner_test.py` for the routes and the API document.
 - `system/test_app_manifests.py` and `test_supervisord_layout.py` as they are, with the new program.
 
 ## 7. Later
 
 - A backups page the summary links to.
-- Stop and quit actions, explored by the "By chat" and "Health first" mocks, are not part of this app.

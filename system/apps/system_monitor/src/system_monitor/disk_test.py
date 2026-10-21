@@ -1,5 +1,5 @@
-"""Tests for the on-demand walk of the disk: the rows, a row that cannot be measured, the real ``du``, and the
-scanner that runs one walk at a time."""
+"""Tests for the on-demand walk of the disk: the rows and what they list, a row that cannot be measured, the
+real ``du``, and the scanner that runs one walk at a time."""
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,43 +7,87 @@ from pathlib import Path
 from system_monitor import disk
 
 
+def _measure_from(sizes: dict[str, int]) -> disk.Measure:
+    def measure(paths: list[Path], excludes: list[Path]) -> disk.Measured | None:
+        by_path = {path: sizes.get(str(path), 0) for path in paths}
+        return disk.Measured(sum(by_path.values()), by_path)
+
+    return measure
+
+
 def test_the_rows_cover_the_buckets_and_the_rest_of_the_disk(tmp_path: Path) -> None:
-    workspace, home = tmp_path / "workspace", tmp_path / "home"
+    workspace, home, root = tmp_path / "workspace", tmp_path / "home", tmp_path / "root"
     for app in ("recipe-box", "habit-tracker"):
         (workspace / "data" / ".apps" / app).mkdir(parents=True)
+    for folder in (".venv", "system", "docs"):
+        (workspace / folder).mkdir()
+    (workspace / "uv.lock").write_text("x")
     (home / ".cache").mkdir(parents=True)
+    root.mkdir()
     sizes = {
-        str(workspace): 3000,
+        str(workspace / ".venv"): 2000,
+        str(workspace / "system"): 700,
+        str(workspace / "data"): 250,
+        str(workspace / "uv.lock"): 50,
         str(workspace / "data" / "uploads"): 1200,
         str(workspace / "data" / ".apps" / "recipe-box"): 610,
         str(workspace / "data" / ".apps" / "habit-tracker"): 290,
         str(home / ".cache"): 2400,
+        str(home / ".local/share/uv"): 600,
+        str(root): 1500,
     }
     measured: list[tuple[list[Path], list[Path]]] = []
 
-    def measure(paths: list[Path], excludes: list[Path]) -> int | None:
+    def measure(paths: list[Path], excludes: list[Path]) -> disk.Measured | None:
         measured.append((paths, excludes))
-        return sum(sizes.get(str(path), 0) for path in paths)
+        return _measure_from(sizes)(paths, excludes)
 
-    rows, missing = disk.scan(10_000, workspace, home, measure)
+    rows, missing = disk.scan(12_000, workspace, home, measure, root)
 
     assert missing == []
     assert [(row["id"], row["bytes"]) for row in rows] == [
         ("workspace", 3000),
         ("uploads", 1200),
         ("apps", 900),
-        ("caches", 2400),
-        ("other", 2500),
+        ("caches", 3000),
+        ("other", 3900),
     ]
-    assert rows[2]["items"] == [
-        {"name": "recipe-box", "bytes": 610},
-        {"name": "habit-tracker", "bytes": 290},
+    by_id = {row["id"]: row for row in rows}
+    # The workspace's folders, largest first, with what the user would not know explained;
+    # its loose files count toward the row but are not listed.
+    assert by_id["workspace"]["items"] == [
+        {
+            "name": ".venv",
+            "hint": "installed packages, rebuilt on demand",
+            "bytes": 2000,
+        },
+        {"name": "system", "hint": "the workspace's own code", "bytes": 700},
+        {"name": "data", "hint": "documents, notes, settings", "bytes": 250},
     ]
-    # The workspace is measured without the app data and uploads that get rows of their own.
+    assert by_id["apps"]["items"] == [
+        {"name": "recipe-box", "hint": "", "bytes": 610},
+        {"name": "habit-tracker", "hint": "", "bytes": 290},
+    ]
+    assert by_id["caches"]["items"] == [
+        {"name": ".cache", "hint": "downloads and build caches", "bytes": 2400},
+        {"name": ".local/share/uv", "hint": "Python packages", "bytes": 600},
+    ]
+    # The rest: the machine's system software, then whatever else the disk holds.
+    assert by_id["other"]["items"] == [
+        {"name": "System software", "hint": "the workspace's tools", "bytes": 1500},
+        {
+            "name": "Other files on the machine's disk",
+            "hint": "outside this workspace",
+            "bytes": 2400,
+        },
+    ]
+    # The workspace is measured as its top-level entries in one du, without the app data and
+    # uploads that get rows of their own; the system software without the home tree.
     assert measured[0] == (
-        [workspace],
+        sorted(workspace.iterdir()),
         [workspace / "data" / ".apps", workspace / "data" / "uploads"],
     )
+    assert measured[-1] == ([root], [home, *disk.SYSTEM_EXCLUDES])
 
 
 def test_a_row_that_cannot_be_measured_is_reported_missing_and_the_rest_never_goes_negative(
@@ -53,18 +97,25 @@ def test_a_row_that_cannot_be_measured_is_reported_missing_and_the_rest_never_go
     for app in ("recipe-box", "habit-tracker"):
         (workspace / "data" / ".apps" / app).mkdir(parents=True)
 
-    def measure(paths: list[Path], excludes: list[Path]) -> int | None:
-        if paths in ([workspace], [workspace / "data" / ".apps" / "habit-tracker"]):
+    def measure(paths: list[Path], excludes: list[Path]) -> disk.Measured | None:
+        if paths in (
+            sorted(workspace.iterdir()),
+            [workspace / "data" / ".apps" / "habit-tracker"],
+            [tmp_path / "root"],
+        ):
             return None
-        return 9000
+        return disk.Measured(9000, {path: 9000 for path in paths})
 
-    rows, missing = disk.scan(100, workspace, tmp_path / "home", measure)
+    rows, missing = disk.scan(
+        100, workspace, tmp_path / "home", measure, tmp_path / "root"
+    )
 
     assert missing == ["workspace", "apps"]
     assert [row["id"] for row in rows] == ["uploads", "apps", "caches", "other"]
     # The App data row keeps the apps it could measure.
-    assert rows[1]["items"] == [{"name": "recipe-box", "bytes": 9000}]
-    assert rows[-1]["bytes"] == 0
+    assert rows[1]["items"] == [{"name": "recipe-box", "hint": "", "bytes": 9000}]
+    # The rest is nothing, and lists nothing when the system software cannot be measured.
+    assert rows[-1]["bytes"] == 0 and rows[-1]["items"] == []
 
 
 def test_du_measures_a_tree_less_its_excludes_and_a_missing_path_is_nothing(
@@ -78,10 +129,14 @@ def test_du_measures_a_tree_less_its_excludes_and_a_missing_path_is_nothing(
 
     whole = disk.du_bytes([tree], [])
     kept = disk.du_bytes([tree], [tree / "skip"])
+    parts = disk.du_bytes([tree / "keep", tree / "skip"], [])
 
-    assert whole is not None and kept is not None
-    assert whole >= 600_000 and 200_000 <= kept < 400_000
-    assert disk.du_bytes([tmp_path / "missing"], []) == 0
+    assert whole is not None and kept is not None and parts is not None
+    assert whole.total >= 600_000 and 200_000 <= kept.total < 400_000
+    assert whole.by_path == {tree: whole.total}
+    assert parts.by_path[tree / "skip"] > parts.by_path[tree / "keep"] >= 200_000
+    assert parts.total == sum(parts.by_path.values())
+    assert disk.du_bytes([tmp_path / "missing"], []) == disk.Measured(0, {})
 
 
 def test_the_scanner_runs_one_walk_at_a_time_and_keeps_the_result_with_its_time() -> (

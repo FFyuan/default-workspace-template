@@ -3,7 +3,7 @@
 The readers live beside this module: ``memory`` (memory in use, disk), ``programs`` (the running
 programs and who they belong to), ``usage`` (the breakdown's rows), ``stops`` (what the memory
 guard stopped), and ``cpu`` (the resource sampler's readings, the graphs' history, and the busy
-stretches).
+stretches). What the rows' Stop buttons do is ``actions``.
 """
 
 import threading
@@ -33,6 +33,8 @@ def snapshot(
     meminfo = read_meminfo()
     apps, supervised = programs.user_apps(), supervised_pids()
     agents = programs.agents_by_pid()
+    chat_ids = programs.chat_ids()
+    program_names = programs.program_names(supervised)
     scratch = memory.disk(usage.SCRATCH_DIR)
     # Scratch space is memory only where /tmp is a tmpfs; elsewhere its files are on disk.
     scratch_memory = scratch if usage.scratch_in_memory() else None
@@ -70,6 +72,9 @@ def snapshot(
             scratch_memory,
             agents,
             reading.by_pid if reading else None,
+            chat_ids=chat_ids,
+            program_names=program_names,
+            cpu_usage=reading.usage if reading else None,
         ),
         # "exact": rows are private memory plus Shared and System; "scaled": rows are resident
         # sizes shrunk by one factor (no smaps_rollup on this kernel). The page words its note by it.

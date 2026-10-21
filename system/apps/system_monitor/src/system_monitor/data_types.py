@@ -32,22 +32,41 @@ class CpuFigures(FrozenModel):
         description="The share of the workspace's CPU capacity in use, 0 to 1"
     )
     cores: int = Field(description="The cores the workspace may use")
-    processes: int = Field(description="The processes running, as many as the snapshot's walk of /proc found")
+    processes: int = Field(
+        description="The processes running, as many as the snapshot's walk of /proc found"
+    )
     sampled_at: float | None = Field(
         description="When the sampler took the reading, epoch seconds; null when there is no fresh reading"
     )
 
 
+class StopTarget(FrozenModel):
+    """What the Stop button beside an item stops (``POST /api/stop`` takes the same two fields)."""
+
+    kind: Literal["chat", "checkers", "app"] = Field(
+        description="chat: stop the chat's agent; checkers: stop the code checkers a chat started; app: quit one of "
+        "the user's apps"
+    )
+    id: str = Field(
+        description="The chat's id, the agent id whose code checkers, or the app's supervisord program"
+    )
+
+
 class UsageItem(FrozenModel):
-    """One program group under a row of the breakdown: a chat, a code checker's chat, or an app."""
+    """One program group under a row of the breakdown: a chat, a code checker's chat, an app, or one of the
+    workspace's own programs."""
 
     name: str = Field(
-        description="The chat, the chat whose code checker it is, or the app"
+        description="The chat, the chat whose code checker it is, the app, or the workspace program"
     )
     bytes: int = Field(description="The memory it holds")
     cpu: float | None = Field(
         default=None,
         description="Its share of the CPU capacity, 0 to 1; null without a reading",
+    )
+    stop: StopTarget | None = Field(
+        default=None,
+        description="What its Stop button stops; null for an item that cannot be stopped from here",
     )
 
 
@@ -157,10 +176,13 @@ class HistoryResponse(FrozenModel):
 
 
 class DiskItem(FrozenModel):
-    """One app's data under the App data row of the disk breakdown."""
+    """One part of a row of the disk breakdown: a folder of the workspace, an app's data, a cache."""
 
-    name: str = Field(description="The app's directory name")
-    bytes: int = Field(description="What its data takes")
+    name: str = Field(description="The folder's or the app's name")
+    hint: str = Field(
+        default="", description="Small grey text beside the name; empty for none"
+    )
+    bytes: int = Field(description="What it takes")
 
 
 class DiskRow(FrozenModel):
@@ -230,6 +252,24 @@ class ScanResponse(FrozenModel):
     """What starting a walk of the disk answers."""
 
     scan: DiskScan = Field(description="The walk's state after the request")
+
+
+class StopRequest(FrozenModel):
+    """What ``POST /api/stop`` takes: the target of one item's Stop button."""
+
+    kind: Literal["chat", "checkers", "app"] = Field(
+        description="chat: stop the chat's agent; checkers: stop the code checkers a chat started; app: quit one of "
+        "the user's apps"
+    )
+    id: str = Field(
+        description="The chat's id, the agent id whose code checkers, or the app's supervisord program"
+    )
+
+
+class StopResponse(FrozenModel):
+    """What a stop answers once it has been carried out."""
+
+    status: str = Field(description="Always 'ok'")
 
 
 class HealthResponse(FrozenModel):

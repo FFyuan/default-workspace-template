@@ -147,6 +147,20 @@
   td .dot { margin-right: 6px; vertical-align: 1px; }
   td .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 8px; }
 
+  /* The Stop button at the end of a row: shown when the pointer is over the row (always where
+     there is no pointer to hover with), and replaced by a question before anything stops. */
+  td.act, th.act { width: 28px; padding-left: 8px; text-align: right; white-space: nowrap; }
+  td.act.asking { width: auto; }
+  .stop { width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: var(--c-text-faint); font: inherit; font-size: 16px; line-height: 1; cursor: pointer; opacity: 0; transition: background-color var(--dur-base), opacity var(--dur-base); }
+  tr:hover .stop, .stop:focus-visible { opacity: 1; }
+  .stop:hover, .stop:focus-visible { background: var(--c-fill-hover); color: var(--c-danger); outline: none; }
+  @media (hover: none), (max-width: 480px) { .stop { opacity: 1; } }
+  .confirm { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-helper); color: var(--c-text-secondary); white-space: nowrap; }
+  .confirm .btn { height: 22px; padding: 0 8px; font-size: var(--font-size-helper); }
+  .confirm .btn.danger { color: var(--c-danger); }
+  .confirm .btn.danger:hover { background: color-mix(in srgb, var(--c-danger) 10%, var(--c-surface)); }
+  .confirm .err { color: var(--c-danger-hover); }
+
   /* An info icon whose explanation pops up on hover or keyboard focus, in the dark style of the
      workspace's own tooltips (workspace_ui's hoverTooltip). */
   .info { position: relative; display: inline-flex; vertical-align: -2px; margin-left: 4px; padding: 0; border: 0; background: none; color: var(--c-text-faint); cursor: help; }
@@ -217,7 +231,7 @@
     <section>
       <h2>What's using the workspace</h2>
       <p class="hint" id="usage-note" hidden>Memory use is approximate.</p>
-      <table id="usage-table"><thead><tr><th></th><th class="num">CPU</th><th class="num">Memory</th></tr></thead><tbody></tbody></table>
+      <table id="usage-table"><thead><tr><th></th><th class="num">CPU</th><th class="num">Memory</th><th class="act"></th></tr></thead><tbody></tbody></table>
     </section>
     <section>
       <h2>Recent events <span class="tag">last 24 hours</span></h2>
@@ -279,19 +293,20 @@
 
   <div class="view" id="view-disk" hidden>
     <section>
-      <div class="big"><span id="disk-used">--</span> <small>of <span id="disk-total">--</span> used</small></div>
+      <div class="big"><span id="disk-used">--</span> <small>of <span id="disk-total">--</span> used on the machine's disk</small></div>
       <div class="bar"><span class="disk" id="disk-bar"></span></div>
       <div class="row"><span id="disk-pct"></span><span id="disk-free"></span></div>
-    </section>
-    <section>
-      <h2>Backups</h2>
-      <div class="backup" id="backup"></div>
+      <p class="hint" style="margin-top:4px">The whole disk of the machine this workspace runs on, shared with everything else on it.</p>
     </section>
     <section>
       <h2>What's using the disk</h2>
       <div class="scan-head"><p id="scan-note">Measuring what is on the disk takes a moment, so it runs only when you ask.</p><button type="button" class="btn" id="scan">See what's using the disk</button></div>
       <table id="disk-table" hidden><tbody></tbody></table>
       <p class="hint" id="scan-missing" hidden style="margin-top:8px"></p>
+    </section>
+    <section>
+      <h2>Backups</h2>
+      <div class="backup" id="backup"></div>
     </section>
   </div>
 </main>
@@ -401,19 +416,32 @@
     if (!["chats", "checkers", "apps"].includes(g.id)) return "";
     return g.items.length ? `${g.items.length} running` : "none running";
   }
+  // A row that lists nothing and holds nothing says nothing worth a line: Code checkers and Your
+  // apps are left out until something runs under them.
+  const shownRows = (usage) => usage.filter((g) => !(["checkers", "apps"].includes(g.id) && !g.items.length && !g.bytes));
+  // What each kind of Stop button asks before it acts, and what it is called.
+  const STOP_WORDS = {
+    chat: { verb: "Stop", busy: "Stopping…", ask: "Stop this chat? Its next message starts it again." },
+    checkers: { verb: "Stop", busy: "Stopping…", ask: "Stop this chat's code checkers? The chat starts them again when it needs them." },
+    app: { verb: "Quit", busy: "Quitting…", ask: "Quit this app? Opening it starts it again." },
+  };
   const tableShapes = {};
   // columns: which figures each row shows, in order: "cpu", "mem".
   function renderUsage(tableId, usage, columns) {
     const table = $(tableId);
-    const shape = JSON.stringify(usage.map((g) => [g.id, usageTag(g), g.items.map((i) => i.name)]));
+    const shape = JSON.stringify(usage.map((g) => [g.id, usageTag(g), g.items.map((i) => [i.name, i.stop])]));
     if (shape !== tableShapes[tableId]) {
       tableShapes[tableId] = shape;
       table.querySelector("tbody").innerHTML = usage.map((g, gi) => {
         const tag = usageTag(g);
         const cells = (ref) => columns.map((c) => `<td class="num${ref.includes(".") ? " sub" : ""}" data-${c}="${ref}"></td>`).join("");
-        const rows = g.items.map((i, ii) => `<tr><td class="sub">${esc(i.name)}</td>${cells(`${gi}.${ii}`)}</tr>`).join("");
-        return `<tr class="group" data-group="${g.id}"><td>${esc(g.label)}${g.id === "scratch" ? SCRATCH_INFO : ""}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}</td>${cells(String(gi))}</tr>${rows}`;
+        const act = (i) => i && i.stop
+          ? `<td class="act"><button type="button" class="stop" data-kind="${esc(i.stop.kind)}" data-id="${esc(i.stop.id)}" data-name="${esc(i.name)}" aria-label="${STOP_WORDS[i.stop.kind].verb} ${esc(i.name)}" title="${STOP_WORDS[i.stop.kind].verb}">×</button></td>`
+          : `<td class="act"></td>`;
+        const rows = g.items.map((i, ii) => `<tr><td class="sub">${esc(i.name)}</td>${cells(`${gi}.${ii}`)}${act(i)}</tr>`).join("");
+        return `<tr class="group" data-group="${g.id}"><td>${esc(g.label)}${g.id === "scratch" ? SCRATCH_INFO : ""}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}</td>${cells(String(gi))}${act(null)}</tr>${rows}`;
       }).join("");
+      table.querySelectorAll("button.stop").forEach((button) => button.addEventListener("click", () => askToStop(button)));
     }
     const fill = (ref, g) => {
       const cpuCell = table.querySelector(`[data-cpu="${ref}"]`), memCell = table.querySelector(`[data-mem="${ref}"]`);
@@ -421,6 +449,28 @@
       if (memCell) memCell.textContent = size(g.bytes);
     };
     usage.forEach((g, gi) => { fill(String(gi), g); g.items.forEach((i, ii) => fill(`${gi}.${ii}`, i)); });
+  }
+
+  // The Stop button turns into a question in its own cell; the answer posts the stop and the
+  // next refresh shows the row gone (or the refusal, in its place, until the next rebuild).
+  function askToStop(button) {
+    const cell = button.parentElement, words = STOP_WORDS[button.dataset.kind];
+    const restore = () => { cell.classList.remove("asking"); cell.innerHTML = ""; cell.appendChild(button); };
+    cell.classList.add("asking");
+    cell.innerHTML = `<span class="confirm"><span>${esc(words.ask)}</span><button type="button" class="btn danger">${words.verb}</button><button type="button" class="btn">Cancel</button></span>`;
+    const [go, cancel] = cell.querySelectorAll("button");
+    cancel.addEventListener("click", restore);
+    go.addEventListener("click", async () => {
+      go.disabled = cancel.disabled = true;
+      go.textContent = words.busy;
+      let failure = "";
+      try {
+        const res = await fetch("/api/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: button.dataset.kind, id: button.dataset.id }) });
+        if (!res.ok) failure = ((await res.json().catch(() => ({}))).detail) || `Could not ${words.verb.toLowerCase()} it (${res.status})`;
+      } catch (e) { failure = `Could not ${words.verb.toLowerCase()} it: the workspace did not answer`; }
+      if (failure) { cell.innerHTML = `<span class="confirm"><span class="err">${esc(failure)}</span><button type="button" class="btn">OK</button></span>`; cell.querySelector("button").addEventListener("click", restore); }
+      else { tableShapes[button.closest("table").id] = null; refresh(); }
+    });
   }
 
   // What the user can do about the largest kind of memory they can free (the memory view's note).
@@ -520,7 +570,7 @@
       drawMiniSpark($("tile-cpu-spark"), s.history, "cpu", "var(--ink-cpu)");
       drawMiniSpark($("tile-mem-spark"), s.history, "memory", "var(--ink-mem)");
       $("usage-note").hidden = s.usage_mode === "exact";
-      renderUsage("usage-table", s.usage, ["cpu", "mem"]);
+      renderUsage("usage-table", shownRows(s.usage), ["cpu", "mem"]);
       renderEvents("events", s.events, "Nothing in the last 24 hours.");
     } else if (view === "cpu") {
       $("cpu-pct").textContent = hasCpu ? `${cp}%` : "--";
@@ -530,9 +580,9 @@
       $("cpu-procs").textContent = `${s.cpu.processes} process${s.cpu.processes === 1 ? "" : "es"}`;
       // Sorted by share; without a reading, the rows that have processes keep their order and show dashes.
       const byCpu = hasCpu
-        ? s.usage.filter((g) => g.cpu !== null && g.cpu !== undefined).sort((a, b) => b.cpu - a.cpu)
+        ? shownRows(s.usage).filter((g) => g.cpu !== null && g.cpu !== undefined).sort((a, b) => b.cpu - a.cpu)
           .map((g) => ({ ...g, items: [...g.items].sort((a, b) => (b.cpu || 0) - (a.cpu || 0)) }))
-        : s.usage.filter((g) => ["chats", "checkers", "workspace", "apps"].includes(g.id));
+        : shownRows(s.usage).filter((g) => ["chats", "checkers", "workspace", "apps"].includes(g.id));
       renderUsage("cpu-table", byCpu, ["cpu"]);
       renderEvents("busy", s.events.filter((e) => e.kind === "busy"), "No busy stretches in the last 24 hours.");
       drawChart("cpu");
@@ -552,7 +602,7 @@
         note.hidden = false;
       } else note.hidden = true;
       $("mem-usage-note").hidden = s.usage_mode === "exact";
-      renderUsage("mem-table", s.usage, ["mem"]);
+      renderUsage("mem-table", shownRows(s.usage), ["mem"]);
       renderStops(s.stops);
       drawChart("mem");
     }
@@ -586,7 +636,7 @@
       const shades = { workspace: "#7096b7", uploads: "#8eafcb", apps: "#aac3d9", caches: "#c6d7e5", other: "#cfcdc7" };
       $("disk-table").hidden = false;
       $("disk-table").querySelector("tbody").innerHTML = scan.rows.map((row) => {
-        const items = row.items.map((i) => `<tr><td class="sub">${esc(i.name)}</td><td class="num sub">${size(i.bytes)}</td></tr>`).join("");
+        const items = row.items.map((i) => `<tr><td class="sub">${esc(i.name)}${i.hint ? ` <span class="tag">${esc(i.hint)}</span>` : ""}</td><td class="num sub">${size(i.bytes)}</td></tr>`).join("");
         return `<tr class="group"><td><i class="sw" style="background:${shades[row.id] || "#cfcdc7"}"></i>${esc(row.label)}${row.hint ? ` <span class="tag">${esc(row.hint)}</span>` : ""}</td><td class="num">${size(row.bytes)}</td></tr>${items}`;
       }).join("");
       $("scan-missing").hidden = !scan.missing.length;

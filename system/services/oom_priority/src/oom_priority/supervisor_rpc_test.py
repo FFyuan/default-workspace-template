@@ -50,3 +50,36 @@ def test_the_supervisor_socket_is_the_one_the_workspace_configures() -> None:
     conf.read(Path(__file__).parents[4] / "supervisord.conf")
 
     assert conf["unix_http_server"]["file"] == str(supervisor_rpc.SUPERVISOR_SOCKET)
+
+
+def test_a_program_is_stopped_through_the_supervisor_socket_without_waiting() -> None:
+    with tempfile.TemporaryDirectory(dir="/tmp") as short_dir:
+        sock = Path(short_dir) / "s.sock"
+        server = _UnixXMLRPCServer(str(sock))
+        asked: list[tuple[object, object]] = []
+
+        def stop_process(name: object, wait: object) -> bool:
+            asked.append((name, wait))
+            if name == "notes":
+                raise ValueError("NOT_RUNNING")
+            return True
+
+        server.register_function(stop_process, "supervisor.stopProcess")
+        serving = threading.Thread(
+            target=server.serve_forever, kwargs={"poll_interval": 0.05}
+        )
+        serving.start()
+        try:
+            assert supervisor_rpc.stop_program("budget", sock) is True
+            # A program supervisord refuses to stop (not running, unknown) is reported as not stopped.
+            assert supervisor_rpc.stop_program("notes", sock) is False
+        finally:
+            server.shutdown()
+            serving.join(timeout=5)
+            server.server_close()
+        assert asked == [("budget", False), ("notes", False)]
+        # No supervisord to ask: nothing stopped, and no error.
+        assert (
+            supervisor_rpc.stop_program("budget", Path(short_dir) / "missing.sock")
+            is False
+        )

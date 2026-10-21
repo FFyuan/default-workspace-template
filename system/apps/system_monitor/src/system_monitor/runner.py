@@ -22,29 +22,33 @@ anything.
 """
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from app_manifest.registry import SHELL_MODULE_PATHS
 from app_schema.api_schema import (
     DEFAULT_API_SCHEMA_PATH,
     AlternateResponse,
+    ErrorResponse,
     RouteModels,
     RouteTable,
     SchemalessRoute,
     register_api_schema_route,
 )
-from app_schema.routes import model_response
+from app_schema.routes import model_response, parse_request_body
 from flask import Flask, Response, abort, request, send_file
 from host_backup.config import get_events_dir
 from werkzeug.serving import run_simple
 
-from system_monitor import backups, cpu, disk, memory, stats
+from system_monitor import actions, backups, cpu, disk, memory, stats
 from system_monitor.data_types import (
     DiskResponse,
     HealthResponse,
     HistoryResponse,
     ScanResponse,
     StatsResponse,
+    StopRequest,
+    StopResponse,
 )
 
 # Listen address. Defaults to this app's assigned port (below 8080, the first
@@ -98,6 +102,9 @@ DISK_SCANNER = disk.DiskScanner(
     lambda: disk.scan(memory.disk(stats.WORKSPACE_DIR)["used"])
 )
 
+# What a Stop button's request runs (kind, id); tests put a stand-in here.
+STOP: Callable[[str, str], None] = actions.stop
+
 # What every route exchanges, which the app's API document publishes and every answer is checked against.
 ROUTE_TABLE: RouteTable = {
     ("GET", "/"): SchemalessRoute(reason="the System Monitor page, on its overview"),
@@ -118,6 +125,9 @@ ROUTE_TABLE: RouteTable = {
             # 200: a walk was already running, so this request started none.
             AlternateResponse(status=200, model=ScanResponse),
         ),
+    ),
+    ("POST", "/api/stop"): RouteModels(
+        request_model=StopRequest, response_model=StopResponse
     ),
     ("GET", "/_static/{basename}"): SchemalessRoute(
         reason="a browser-side module the shell builds"
@@ -219,6 +229,18 @@ def start_disk_scan() -> Response:
         ScanResponse.model_validate({"scan": DISK_SCANNER.snapshot()}),
         status=202 if started else 200,
     )
+
+
+@app.route("/api/stop", methods=["POST"])
+def stop_item() -> Response:
+    """Stop what one of the breakdown's Stop buttons names: a chat's agent, a chat's code checkers, or one of the
+    user's apps; 400 for a body that names nothing, else the refusal's own status and reason."""
+    body = parse_request_body(StopRequest)
+    try:
+        STOP(body.kind, body.id)
+    except actions.StopRefusedError as refused:
+        return model_response(ErrorResponse(detail=refused.detail), refused.status)
+    return model_response(StopResponse(status="ok"))
 
 
 @app.route("/_static/<basename>")
