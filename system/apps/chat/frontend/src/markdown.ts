@@ -41,8 +41,7 @@ export function renderMarkdown(source: string): string {
  */
 function rewritePathLinks(root: DocumentFragment): void {
   for (const anchor of Array.from(root.querySelectorAll("a"))) {
-    const href = anchor.getAttribute("href") ?? "";
-    const target = classifyLink(messageLinkUrl(href), window.location.host);
+    const target = classifyLink(messageLinkUrl(anchor.getAttribute("href") ?? ""), window.location.host);
     anchor.removeAttribute("download");
     if (target.kind === "unroutable") {
       anchor.replaceWith(...Array.from(anchor.childNodes));
