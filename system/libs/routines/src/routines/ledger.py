@@ -20,6 +20,7 @@ from routines.data_types import RunEvent
 from routines.data_types import RunFinishedEvent
 from routines.data_types import RunStartedEvent
 from routines.interfaces import LedgerInterface
+from routines.locks import waited_lock
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 
@@ -87,13 +88,18 @@ def parse_run_event(line: str) -> RunEvent | None:
 
 
 class FileLedger(LedgerInterface):
-    """The ledger as one JSON Lines file, archived with gzip once it is past the cap."""
+    """The ledger as one JSON Lines file, archived with gzip once it is past the cap.
+
+    Appends and the rotation take the ledger lock: the runs append from processes of their own, and an append
+    that opened the file as the rotation moved it aside would land in the archive or be lost with it. Readers
+    take no lock; they read from the tail and skip a line cut short.
+    """
 
     def append(self, event: RunEvent) -> None:
         path = self.paths.events_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(event.model_dump_json() + "\n")
+        with waited_lock(self.paths.ledger_lock_path):
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(event.model_dump_json() + "\n")
 
     def recent_events(self, routine_id: RoutineId, run_limit: int) -> list[RunEvent]:
         path = self.paths.events_path
@@ -130,16 +136,15 @@ class FileLedger(LedgerInterface):
     def rotate_if_large(self, now: datetime) -> bool:
         path = self.paths.events_path
         full = path.with_name(f"{path.name}{_ROTATING_SUFFIX}")
-        if full.is_file():
-            # A rotation that died between moving the file aside and archiving it: its events are archived
-            # now rather than overwritten by this one.
+        with waited_lock(self.paths.ledger_lock_path):
+            if full.is_file():
+                # A rotation that died between moving the file aside and archiving it: its events are archived
+                # now rather than overwritten by this one.
+                self._archive(full, now)
+            if not path.is_file() or path.stat().st_size < LEDGER_SIZE_CAP_BYTES:
+                return False
+            path.replace(full)
             self._archive(full, now)
-        if not path.is_file() or path.stat().st_size < LEDGER_SIZE_CAP_BYTES:
-            return False
-        # Runs append outside the tick lock, so the live file is moved aside first: an append from then on
-        # starts the new file, and nothing lands in the copy between the copy and a truncate.
-        path.replace(full)
-        self._archive(full, now)
         return True
 
     def _archive(self, full: Path, now: datetime) -> None:

@@ -1,4 +1,5 @@
 import gzip
+import threading
 from datetime import datetime
 from datetime import timedelta
 
@@ -10,6 +11,7 @@ from routines.data_types import RunFinishedEvent
 from routines.data_types import RunStartedEvent
 from routines.ledger import FileLedger
 from routines.ledger import LEDGER_SIZE_CAP_BYTES
+from routines.locks import waited_lock
 from routines.primitives import RUN_EVENTS_SOURCE
 from routines.primitives import RoutineId
 from routines.primitives import RunId
@@ -130,3 +132,22 @@ def test_a_file_a_dead_rotation_left_aside_is_archived_before_the_next(ledger: F
     with gzip.open(ledger.paths.events_path.parent / "events.2026-10-20.jsonl.gz", "rt", encoding="utf-8") as handle:
         assert "aside" in handle.read()
     assert ledger.paths.events_path.is_file()
+
+
+def test_an_append_waits_for_a_rotation_holding_the_ledger_lock(ledger: FileLedger) -> None:
+    """A run appends from a process of its own; one that lands while the file is moved aside must not be lost."""
+    ledger.append(_started(TEST_ROUTINE_ID, RunId.generate(), TEST_NOW))
+    appended = threading.Event()
+    run_id = RunId.generate()
+
+    def append() -> None:
+        ledger.append(_started(TEST_ROUTINE_ID, run_id, TEST_NOW))
+        appended.set()
+
+    with waited_lock(ledger.paths.ledger_lock_path):
+        appender = threading.Thread(target=append)
+        appender.start()
+        assert not appended.wait(0.2), "the append went through under the rotation's lock"
+    assert appended.wait(5)
+    appender.join()
+    assert [event.run_id for event in ledger.recent_events(TEST_ROUTINE_ID, run_limit=1)] == [run_id]

@@ -21,6 +21,7 @@ RUN_LOG_FILENAME: Final[str] = "log"
 RESULT_FILENAME: Final[str] = "result.json"
 EVENTS_PATH: Final[Path] = Path(LEDGER_DIRNAME) / RUN_EVENTS_SOURCE / "events.jsonl"
 TICK_LOCK_FILENAME: Final[str] = "tick.lock"
+LEDGER_LOCK_FILENAME: Final[str] = "ledger.lock"
 HOUSEKEEPING_FILENAME: Final[str] = "housekeeping.json"
 
 # Names another checkout; absent, the repo root is the current directory, which supervisord, cron (through the
@@ -48,6 +49,10 @@ class RoutinesPaths(FrozenModel):
     @property
     def tick_lock_path(self) -> Path:
         return self.state_dir / TICK_LOCK_FILENAME
+
+    @property
+    def ledger_lock_path(self) -> Path:
+        return self.events_path.with_name(LEDGER_LOCK_FILENAME)
 
     @property
     def housekeeping_path(self) -> Path:
