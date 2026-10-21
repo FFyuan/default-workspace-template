@@ -288,9 +288,13 @@ is then compared against the file's `lockfile_base`. Each `incoming` file also
 selects whatever it would of the pass's creations' own suites and npm
 packages, and nothing else: no suite has yet run those creations against that
 work and the pass's together, while the rest of what it reaches was tested
-where it was committed. An incoming `uv.lock` is compared from
-`incoming_base` to the fork point; when that cannot be read, every creation's
-own suite runs. A `--diff-base` selection that runs to
+where it was committed. The root project's own `pyproject.toml` or
+`conftest.py` runs the suite of each creation in the pass that the root project
+collects rather than the full root suite. A skill also runs on the root
+project's dependencies, so a package the root project depends on, or a
+`uv.lock` upgrade of one, runs the suite of each skill in the pass. An incoming
+`uv.lock` is compared from `incoming_base` to the fork point; when that cannot
+be read, every creation's own suite runs. A `--diff-base` selection that runs to
 the checked-out commit refuses to run while the working tree holds uncommitted
 or untracked changes, and names them, since the tests would run against
 changes the diff leaves out; a `--scope-file` selection always does, and also
