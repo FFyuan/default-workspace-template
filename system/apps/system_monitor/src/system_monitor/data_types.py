@@ -151,8 +151,8 @@ class StatsResponse(FrozenModel):
         description="What is using the workspace, as the page's breakdown rows"
     )
     usage_mode: Literal["exact", "scaled"] = Field(
-        description="exact: memory rows are private memory plus Shared and System; scaled: resident sizes shrunk by "
-        "one factor"
+        description="exact: memory rows are anonymous memory plus Shared and System; scaled: resident sizes shrunk "
+        "by one factor, then System for the rest"
     )
     stops: tuple[StopRecord, ...] = Field(
         description="What the memory guard stopped in the last 24 hours, newest first"
