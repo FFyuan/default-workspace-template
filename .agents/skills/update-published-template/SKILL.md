@@ -81,7 +81,9 @@ format) and a template's own publish count. See
   `record_publish.py`; §1 reads it and §8 appends to it.
 - **`PT=/home/user/workspace/.agents/skills/publish-template/scripts`** -- the
   publish tools this flow shares. Always run them from the live workspace's copy;
-  the copies in `$WT` are the published tip's.
+  the copies in `$WT` are the published tip's. Like `$WT`, `PUBLISHED_TIP` and
+  `SOURCE_SHA`, it is a value to note, not shell state: every command runs in a
+  fresh shell, so set the ones a command uses at its start.
 - **`$WT` -- the worker's worktree.** `mngr create` places worker worktrees under
   `/home/user/worktrees/<name>-<uuid>/`; the path cannot be guessed -- resolve it from
   the worker's `done` report per §3. Everything after re-assembly runs with cwd =

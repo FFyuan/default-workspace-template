@@ -51,6 +51,10 @@ conversation, the GitHub side and the push.
 - `PT=/home/user/workspace/.agents/skills/publish-template/scripts`: this skill's
   tools. Always run them from here; the copies inside `$WT` are the base's.
 
+Note each value when you resolve it. Every command runs in a fresh shell, so a
+variable set in one is empty in the next: set the ones a command uses at its
+start (`PT=...; WT=...; python3 "$PT/..." ...`).
+
 ## Steps
 
 ```
