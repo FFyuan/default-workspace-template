@@ -37,7 +37,8 @@ basic-string escaping -- and any mistake is caught immediately, because
 
 Usage (from the assembled repo root):
 
-    python3 write_template_manifest.py --slug S --title T --description D \\
+    uv run --no-project --with 'pydantic>=2' python write_template_manifest.py \\
+        --slug S --title T --description D \\
         --version v1 --include PATH [--include PATH ...] \\
         [--data-include PATH ...] [--previous-manifest PATH] \\
         [--workspace-dir PATH] [--secret-lines-output PATH] --output PATH
