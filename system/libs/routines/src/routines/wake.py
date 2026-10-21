@@ -66,7 +66,8 @@ def slash_command_of(skill: str) -> str:
 def _wait_until_idle(
     chat_app: ChatAppInterface, clock: ClockInterface, chat_id: str, deadline: datetime
 ) -> RestartVerdict:
-    """Poll a restarted chat until it is idle; one still unlisted, stopped or in error past the start grace is gone."""
+    """Poll a chat that is coming back (from a restart, or a handoff delivering a held message) until it is idle;
+    one still unlisted, stopped or in error past the start grace is gone."""
     grace_until = clock.now() + START_DEADLINE
     while clock.now() < deadline:
         status = chat_app.chat_status(chat_id)
