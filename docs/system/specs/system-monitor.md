@@ -177,6 +177,7 @@ Memory: the 10-minute ring (120 samples) and the per-pid dictionaries, under 100
 | `GET /api/history?span=1h\|24h` | both histories over the span from `history.jsonl`: 1-minute points for an hour, 5-minute means for a day |
 | `GET /api/disk` | the disk's figures, the backups summary, and the last on-demand breakdown with its state |
 | `POST /api/disk/scan` | starts a breakdown unless one is running; answers the state |
+| `POST /api/stop` | stops what one Stop button names (section 4.6): a chat's agent, a chat's code checkers, or one of the user's apps; 400 for a body that names nothing, else the refusal's status and reason |
 | `GET /_static/<basename>`, `/health`, `/api/schema` | as today |
 
 Moving between views is a real navigation (`location.href`), so the shell's handshake reports the new path and a reopened window lands on the same view.
