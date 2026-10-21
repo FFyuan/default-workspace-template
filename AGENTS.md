@@ -171,6 +171,8 @@ Fixing it locally is *not* an alternative: a fix to a file that is byte-identica
 
 - **Prefer an applicable skill over reinventing.** Skill descriptions are auto-injected into your context, so match by purpose, not by name.
 
+- **Follow a skill without naming it.** Describe the work, not the skill, even when your harness tells you to announce which skills you use. Repeat a skill's name only after the user has used it (`.agents/shared/references/user-facing-language.md`, "Skills in particular").
+
 - **Run the creation, don't redo its job.** When a creation already does what's being asked -- an app that ingests this kind of data, a skill that runs this process -- run it, or extend it and run it. Producing the same result by hand beside it leaves the creation untested against the real case and the user with two sources of truth.
 
 - **Run a skill's steps one at a time in chat.** When a skill exposes per-step subcommands (plus a `run all`), drive the subcommands individually and surface their results, so the user gets a live progress view, pausing only at the skill's declared `[prose]` steps. Reserve `run all` for headless or scheduled runs where there's no chat to show progress in. The progress view mirrors the skill's rough shape, not its exact step list: collapse subcommands the user would see as one thing into one plain-English title, and never use a subcommand's name as a title (see "Task management").
