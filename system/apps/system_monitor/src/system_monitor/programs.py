@@ -204,8 +204,9 @@ def program_names(
 ) -> dict[str, str]:
     """supervisord program -> the name the page shows it under, for every running program.
 
-    An app is named by its registry row (whatever its priority); a program that is not an app by
-    ``PROGRAM_NAMES``; the rest by their program name.
+    ``PROGRAM_NAMES`` names a program first (the shell's own registry row calls it Workspace,
+    which is the row these items sit under), then its registry row (an app, whatever its
+    priority), and the rest show under their program name.
     """
     registered = {
         str(row["program"]): _display_name(row)
