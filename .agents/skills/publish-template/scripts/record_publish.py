@@ -15,11 +15,13 @@ by `publish-template` (note `first published`) and `update-published-template`
     - v1  2026-10-20  first published                    1a2b3c4
     - v2  2026-11-02  adds a reminders column            5d6e7f8
 
-The version is computed -- one past the highest already under the slug's heading
--- and the sha is the source workspace commit the snapshot was cut from. A slug
-with no entries yet (an update of a template published before the ledger recorded
-it) takes `--version`, the version just published; with entries, a `--version`
-other than the computed one is refused. Recording the same note at the same sha
+Each heading is one slug published to one repo; the same slug published afresh
+to another repo gets a heading of its own and starts again at v1. The version is
+computed -- one past the highest already under the heading -- and the sha is the
+source workspace commit the snapshot was cut from. A heading with no entries yet
+(an update of a template published before the ledger recorded it) takes
+`--version`, the version just published; with entries, a `--version` other than
+the computed one is refused. Recording the same note at the same sha
 again never duplicates an entry: it changes nothing once the entry is committed,
 and commits it if an earlier run wrote it but failed to commit. Two templates
 published from one commit on one day have their own headings, so they never
@@ -120,7 +122,7 @@ def add_template_entry(
         (
             index
             for index in range(section + 1, section_end)
-            if lines[index].startswith(f"### {slug}  --  ")
+            if lines[index].rstrip() == f"### {slug}  --  {repo_url}"
         ),
         None,
     )

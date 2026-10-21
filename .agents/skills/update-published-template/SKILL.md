@@ -118,6 +118,10 @@ From that block extract:
 - **the source sha version `n` was cut from** -- the 7-char sha ending the newest
   `v<n>` line. This is the **anchor** for the "what changed since" diff.
 
+Each heading is one repo. If the slug has more than one (it was published afresh
+to another repo), the last heading is the newest publish; confirm with the user
+which repo they mean, and read only that heading's lines.
+
 **If there is no row for this slug** (the template was published before this
 feature existed, from another workspace, or the ledger was lost): do not guess.
 Ask the user for the published repo's URL and confirm the slug, then reconstruct

@@ -31,7 +31,12 @@ def workspace(tmp_path: Path) -> Path:
 
 
 def _record(
-    workspace: Path, note: str, *extra: str, slug: str = "inbox", sha: str = "HEAD"
+    workspace: Path,
+    note: str,
+    *extra: str,
+    slug: str = "inbox",
+    sha: str = "HEAD",
+    repo: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -42,7 +47,7 @@ def _record(
             "--slug",
             slug,
             "--repo-url",
-            f"github.com/octo/{slug}",
+            f"github.com/octo/{repo or slug}",
             "--note",
             note,
             "--source-sha",
@@ -57,9 +62,9 @@ def _record(
     )
 
 
-def _templates_block(workspace: Path, slug: str) -> list[str]:
+def _templates_block(workspace: Path, slug: str, repo: str | None = None) -> list[str]:
     lines = (workspace / _LEDGER).read_text().splitlines()
-    start = lines.index(f"### {slug}  --  github.com/octo/{slug}")
+    start = lines.index(f"### {slug}  --  github.com/octo/{repo or slug}")
     block = []
     for line in lines[start + 1 :]:
         if line.startswith("#"):
@@ -195,6 +200,25 @@ def test_two_templates_from_one_commit_are_recorded_separately(
     assert completed.stdout.strip() == "v1"
     assert len(_templates_block(workspace, "inbox")) == 1
     assert len(_templates_block(workspace, "digest")) == 1
+
+
+def test_a_slug_published_afresh_to_another_repo_starts_its_own_history(
+    workspace: Path,
+) -> None:
+    """A repo that had to be deleted is no predecessor: its replacement is a v1."""
+    assert _record(workspace, "first published").returncode == 0
+
+    completed = _record(workspace, "first published", repo="inbox-fresh")
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "v1"
+    assert len(_templates_block(workspace, "inbox")) == 1
+    assert _templates_block(workspace, "inbox", repo="inbox-fresh")[0].startswith(
+        "- v1  "
+    )
+    assert git(workspace, "log", "-1", "--format=%s") == (
+        "version history: published template inbox v1"
+    )
 
 
 def test_a_long_note_still_leaves_two_spaces_before_the_sha(workspace: Path) -> None:
