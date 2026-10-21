@@ -28,7 +28,8 @@ from oom_priority.meminfo import PROC
 from system_monitor.programs import Process, chat_agent_id, is_code_checker
 
 SCRATCH_DIR = Path("/tmp")
-# The item every process that no chat, app or program owns lands under.
+# The item for a code checker no chat started, and for a process no chat, app or program owns
+# whose command is not in the table below.
 OTHER_ITEM = "Other"
 # Where a process no chat, app or program started is shown, by the name of its command: the
 # SSH daemon and its sessions, and the machinery that boots and holds the workspace together
