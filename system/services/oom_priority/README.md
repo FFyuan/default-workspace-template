@@ -441,7 +441,10 @@ restart does not cut the graph), a day of minute averages (`history.jsonl`),
 and a `cpu_stretch` event (`events/cpu_stretches/events.jsonl`) whenever usage
 stayed at or above 90% of the available cores for at least two minutes,
 crediting the CPU to the registered agents and supervised programs whose
-descendants used it (`resource_sampler.StretchTracker`). The memory figure
-beside each reading is the guard's own (`meminfo`, the headroom file while it
-is fresh, else `/proc/meminfo`). The design is
-`docs/system/specs/system-monitor.md`.
+descendants used it (`resource_sampler.StretchTracker`). The supervised
+programs come from `supervisor_rpc`, the reader of supervisord's control
+socket (`supervised_pids`), which also carries `stop_program`, the stop the
+System Monitor app's Quit for one of the user's apps goes through (a program
+that is not running already counts as stopped). The memory figure beside each
+reading is the guard's own (`meminfo`, the headroom file while it is fresh,
+else `/proc/meminfo`). The design is `docs/system/specs/system-monitor.md`.
