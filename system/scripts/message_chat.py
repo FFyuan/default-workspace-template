@@ -123,7 +123,7 @@ CREATE_CHAT_PATH = "/api/chats/create"
 # from before it rejects the field by name.
 WAIT_FIELD = "should_wait"
 # The create route's field for a display name apart from the agent's name; a route from before it
-# refuses it by name.
+# refuses it by name, on a line of its own.
 TITLE_FIELD = "title"
 
 # Mirrors ``SKIP_CLAUDE_INSTALLATION_CHECK_SETTING`` in the chat app's ``agent_manager.py``,
@@ -370,13 +370,6 @@ def create_request_body(request: CreateRequest) -> dict[str, object]:
     return body
 
 
-def _is_field_refused(detail: str, field: str) -> bool:
-    """Whether a create's 400 names ``field`` as the one it refused: app_schema's one line
-    (``field 'title': Extra inputs are not permitted``), or, from a chat app before app_schema,
-    pydantic's own text, which gives the field a line of its own."""
-    return f"field {field!r}" in detail or field in detail.splitlines()
-
-
 def create_through_chat_app(
     base_url: str,
     request: CreateRequest,
@@ -401,7 +394,7 @@ def create_through_chat_app(
     if (
         answer.status == 400
         and request.title
-        and _is_field_refused(answer.detail, TITLE_FIELD)
+        and TITLE_FIELD in answer.detail.splitlines()
     ):
         # A route from before ``title`` takes the rest: the chat is made under its name.
         untitled = CreateRequest(request.name, request.message, request.labels)

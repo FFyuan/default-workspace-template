@@ -494,20 +494,20 @@ def test_a_titled_create_names_the_agent_and_shows_the_title(
     assert _mngr_calls(fake_mngr) == []
 
 
-@pytest.mark.parametrize(
-    "refusal",
-    [
-        "field 'title': Extra inputs are not permitted",
-        "1 validation error for CreateChatRequest\ntitle\n  Extra inputs are not permitted",
-    ],
-    ids=["app-schema", "before-app-schema"],
-)
 def test_a_chat_app_from_before_the_title_is_asked_again_without_it(
-    fake_chat_app: Any, fake_mngr: Path, refusal: str
+    fake_chat_app: Any, fake_mngr: Path
 ) -> None:
     """A route that knows the other fields but not ``title`` refuses it by name; the chat is still worth making
     there, under its name, rather than handed to the bare ``mngr create``."""
-    fake_chat_app.answers = [(400, {"detail": refusal}), _CREATED_ANSWER]
+    fake_chat_app.answers = [
+        (
+            400,
+            {
+                "detail": "1 validation error for CreateChatRequest\ntitle\n  Extra inputs are not permitted"
+            },
+        ),
+        _CREATED_ANSWER,
+    ]
 
     rc, _ = _run_create(
         "--name",
