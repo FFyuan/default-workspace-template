@@ -26,11 +26,16 @@ deleted, your task file included. So first, from your worktree root:
 eval "$(uv run .agents/shared/scripts/parse_task_frontmatter.py data/.tasks/launch-task/<slug>/task.md)"
 LEAD_WORKTREE="${LEAD_WORK_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")}"
 PT="$LEAD_WORKTREE/.agents/skills/publish-template/scripts"
+echo "PT=$PT LEAD_WORKTREE=$LEAD_WORKTREE FINISH_REPORT_PATH=$FINISH_REPORT_PATH"
 ```
 
 `$PT` is the publishing workspace's own copy of this skill's tools. Use it for
 every tool after step 1: the base your checkout becomes may carry older copies,
 or none.
+
+Note the three values that prints. Every command runs in a fresh shell, and after
+step 1 the task file is gone, so they cannot be worked out again: set the ones a
+command uses at its start (`PT=...; bash "$PT/scan_secrets.sh" ...`).
 
 ## 1. Assemble
 

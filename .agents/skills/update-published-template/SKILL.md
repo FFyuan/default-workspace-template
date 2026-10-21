@@ -321,7 +321,9 @@ the bundle is pushed to the worker. The task body directs the worker to:
    before any reset that could remove the task file, and set
    `PT="${LEAD_WORK_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")}/.agents/skills/publish-template/scripts"`
    -- the publishing workspace's copy of the shared tools, used in every step
-   below. Deliver the report itself by hand at the end, as `publish-template`'s
+   below. Note these values: every command runs in a fresh shell and the reset
+   removes the task file, so set the ones a command uses at its start. Deliver
+   the report itself by hand at the end, as `publish-template`'s
    `references/assembly-worker.md` does and for the same reason: the reset leaves
    your checkout at the published tip, whose launcher may predate the `report`
    subcommand.
