@@ -43,7 +43,6 @@ UNOWNED_ITEMS = {
     "bootstrap": INTERNAL_ITEM,
     "supervisord": INTERNAL_ITEM,
     "tmux": INTERNAL_ITEM,
-    "tmux: server": INTERNAL_ITEM,
     "bash": INTERNAL_ITEM,
     "sh": INTERNAL_ITEM,
     "sleep": INTERNAL_ITEM,
