@@ -220,7 +220,8 @@ def test_program_names_come_from_the_name_table_then_the_registry_then_the_progr
         "system_interface": 2,
         "budget": 3,
         "earlyoom": 4,
-        "mystery": 5,
+        "env-converge": 5,
+        "mystery": 6,
     }
 
     assert programs.program_names(supervised, registry) == {
@@ -229,6 +230,7 @@ def test_program_names_come_from_the_name_table_then_the_registry_then_the_progr
         "system_interface": "Desktop",
         "budget": "Budget",
         "earlyoom": "Memory guard",
+        "env-converge": "Environment setup",
         "mystery": "mystery",
     }
     assert programs.program_names({"chat": 1}, tmp_path / "missing.toml") == {

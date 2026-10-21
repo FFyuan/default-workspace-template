@@ -41,7 +41,8 @@ PROGRAM_NAMES = {
     "xvfb": "Virtual display",
     "terminal-pty": "Terminal",
     "owner-exec": "Imbue Studio connection",
-    "update-apply-recover": "Updates",
+    "vm-exec-register": "Imbue Studio connection",
+    "env-converge": "Environment setup",
 }
 
 
