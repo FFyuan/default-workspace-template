@@ -40,8 +40,9 @@ CACHE_HINTS: Final[dict[str, str]] = {
     ".local/share/uv": "Python packages",
     ".local/share/pnpm": "Node packages",
 }
-# How many of the workspace's folders the row lists.
+# How many of the workspace's folders the row lists, and the least a listed item holds.
 WORKSPACE_ITEM_COUNT: Final[int] = 8
+MIN_ITEM_BYTES: Final[int] = 1024 * 1024
 # What is not the machine's system software: the home tree (the rows above), kernel and memory
 # filesystems, and the container engines' own stores where a machine keeps them on this disk.
 SYSTEM_EXCLUDES: Final[tuple[Path, ...]] = (
@@ -109,13 +110,13 @@ def _items(
     name_of: Callable[[Path], str],
     limit: int | None,
 ) -> list[dict[str, Any]]:
-    """The measured paths as a row's items, largest first, leaving out empty ones."""
+    """The measured paths as a row's items, largest first, leaving out those under a megabyte."""
     if measured is None:
         return []
     items = [
         {"name": name_of(path), "hint": hints.get(name_of(path), ""), "bytes": size}
         for path, size in measured.by_path.items()
-        if size
+        if size >= MIN_ITEM_BYTES
     ]
     items.sort(key=lambda item: item["bytes"], reverse=True)
     return items[:limit] if limit is not None else items

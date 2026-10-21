@@ -6,10 +6,12 @@ from pathlib import Path
 
 from system_monitor import disk
 
+_MIB = 1024 * 1024
+
 
 def _measure_from(sizes: dict[str, int]) -> disk.Measure:
     def measure(paths: list[Path], excludes: list[Path]) -> disk.Measured | None:
-        by_path = {path: sizes.get(str(path), 0) for path in paths}
+        by_path = {path: sizes.get(str(path), 0) * _MIB for path in paths}
         return disk.Measured(sum(by_path.values()), by_path)
 
     return measure
@@ -42,15 +44,15 @@ def test_the_rows_cover_the_buckets_and_the_rest_of_the_disk(tmp_path: Path) -> 
         measured.append((paths, excludes))
         return _measure_from(sizes)(paths, excludes)
 
-    rows, missing = disk.scan(12_000, workspace, home, measure, root)
+    rows, missing = disk.scan(12_000 * _MIB, workspace, home, measure, root)
 
     assert missing == []
     assert [(row["id"], row["bytes"]) for row in rows] == [
-        ("workspace", 3000),
-        ("uploads", 1200),
-        ("apps", 900),
-        ("caches", 3000),
-        ("other", 3900),
+        ("workspace", 3000 * _MIB),
+        ("uploads", 1200 * _MIB),
+        ("apps", 900 * _MIB),
+        ("caches", 3000 * _MIB),
+        ("other", 3900 * _MIB),
     ]
     by_id = {row["id"]: row for row in rows}
     # The workspace's folders, largest first, with what the user would not know explained;
@@ -59,26 +61,30 @@ def test_the_rows_cover_the_buckets_and_the_rest_of_the_disk(tmp_path: Path) -> 
         {
             "name": ".venv",
             "hint": "installed packages, rebuilt on demand",
-            "bytes": 2000,
+            "bytes": 2000 * _MIB,
         },
-        {"name": "system", "hint": "the workspace's own code", "bytes": 700},
-        {"name": "data", "hint": "documents, notes, settings", "bytes": 250},
+        {"name": "system", "hint": "the workspace's own code", "bytes": 700 * _MIB},
+        {"name": "data", "hint": "documents, notes, settings", "bytes": 250 * _MIB},
     ]
     assert by_id["apps"]["items"] == [
-        {"name": "recipe-box", "hint": "", "bytes": 610},
-        {"name": "habit-tracker", "hint": "", "bytes": 290},
+        {"name": "recipe-box", "hint": "", "bytes": 610 * _MIB},
+        {"name": "habit-tracker", "hint": "", "bytes": 290 * _MIB},
     ]
     assert by_id["caches"]["items"] == [
-        {"name": ".cache", "hint": "downloads and build caches", "bytes": 2400},
-        {"name": ".local/share/uv", "hint": "Python packages", "bytes": 600},
+        {"name": ".cache", "hint": "downloads and build caches", "bytes": 2400 * _MIB},
+        {"name": ".local/share/uv", "hint": "Python packages", "bytes": 600 * _MIB},
     ]
     # The rest: the machine's system software, then whatever else the disk holds.
     assert by_id["other"]["items"] == [
-        {"name": "System software", "hint": "the workspace's tools", "bytes": 1500},
+        {
+            "name": "System software",
+            "hint": "the workspace's tools",
+            "bytes": 1500 * _MIB,
+        },
         {
             "name": "Other files on the machine's disk",
             "hint": "outside this workspace",
-            "bytes": 2400,
+            "bytes": 2400 * _MIB,
         },
     ]
     # The workspace is measured as its top-level entries in one du, without the app data and
