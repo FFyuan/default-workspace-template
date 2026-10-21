@@ -239,6 +239,24 @@ def test_a_locked_index_says_the_template_is_published_and_to_commit_by_hand(
     assert _templates_block(workspace, "inbox")[0].startswith("- v1  ")
 
 
+def test_a_rerun_after_a_failed_commit_commits_the_entry_it_left_behind(
+    workspace: Path,
+) -> None:
+    """The entry is already in the file, so only the commit is left to do."""
+    lock = workspace / ".git/index.lock"
+    lock.write_text("")
+    assert _record(workspace, "first published").returncode == 1
+    lock.unlink()
+
+    completed = _record(workspace, "first published")
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "v1"
+    assert git(workspace, "show", "--name-only", "--format=", "HEAD") == _LEDGER
+    assert git(workspace, "status", "--porcelain") == ""
+    assert len(_templates_block(workspace, "inbox")) == 1
+
+
 def test_a_source_sha_that_does_not_resolve_says_why_and_writes_nothing(
     workspace: Path,
 ) -> None:

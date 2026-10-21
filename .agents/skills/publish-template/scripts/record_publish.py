@@ -20,8 +20,10 @@ The version is computed -- one past the highest already under the slug's heading
 with no entries yet (an update of a template published before the ledger recorded
 it) takes `--version`, the version just published; with entries, a `--version`
 other than the computed one is refused. Recording the same note at the same sha
-again changes nothing, so a retried step never duplicates an entry. Two templates published from one commit on one day have
-their own headings, so they never collide.
+again never duplicates an entry: it changes nothing once the entry is committed,
+and commits it if an earlier run wrote it but failed to commit. Two templates
+published from one commit on one day have their own headings, so they never
+collide.
 
 The workspace's `## Workspace` origin line is seeded first if it is missing, and a
 deleted ledger is recreated from the shipped starter -- both with `update-self`'s
@@ -38,6 +40,7 @@ import importlib
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
@@ -48,11 +51,19 @@ _WORKSPACE_HEADING = "## Workspace"
 # two-space gap instead of landing flush against its sha.
 _NOTE_WIDTH = 35
 _VERSION_PATTERN = re.compile(r"^- v(\d+)\s")
-_ENTRY_PATTERN = re.compile(r"^- v\d+  \S+  (?P<note>.*?)\s+(?P<sha>\S+)$")
+_ENTRY_PATTERN = re.compile(r"^- v(?P<version>\d+)  \S+  (?P<note>.*?)\s+(?P<sha>\S+)$")
 
 
 class RecordPublishError(Exception):
     """Raised when the entry cannot be written or committed."""
+
+
+@dataclass(frozen=True)
+class LedgerEntry:
+    """The slug's entry for this note and sha, and whether this run added it."""
+
+    version: int
+    is_new: bool
 
 
 def _update_self_module(name: str) -> ModuleType:
@@ -68,14 +79,16 @@ def template_line(version: int, date: str, note: str, sha: str) -> str:
     return f"- v{version}  {date}  {padded}{sha}"
 
 
-def _records(line: str, note: str, sha: str) -> bool:
-    """Whether an entry line records exactly this note at this sha, at any version."""
+def _recorded_version(line: str, note: str, sha: str) -> int | None:
+    """The version an entry line records exactly this note at this sha as, if it does."""
     match = _ENTRY_PATTERN.match(line)
-    return (
-        match is not None
-        and match.group("sha") == sha
-        and match.group("note").strip() == note.strip()
-    )
+    if (
+        match is None
+        or match.group("sha") != sha
+        or match.group("note").strip() != note.strip()
+    ):
+        return None
+    return int(match.group("version"))
 
 
 def _next_heading(lines: list[str], start: int, prefixes: tuple[str, ...]) -> int:
@@ -93,8 +106,8 @@ def add_template_entry(
     sha: str,
     date: str,
     expected_version: int | None = None,
-) -> int | None:
-    """Add the entry in place; the version recorded, or None if it already was.
+) -> LedgerEntry:
+    """Add the entry in place, unless an entry already records this note at this sha.
 
     `expected_version` is the version the caller published. With entries under the
     slug it must be the computed one; with none, it is what gets recorded.
@@ -120,8 +133,10 @@ def add_template_entry(
 
     block_end = _next_heading(lines, heading + 1, ("## ", "### "))
     entries = [index for index in range(heading + 1, block_end) if lines[index].strip()]
-    if any(_records(lines[index], note, sha) for index in entries):
-        return None
+    for index in entries:
+        existing = _recorded_version(lines[index], note, sha)
+        if existing is not None:
+            return LedgerEntry(existing, is_new=False)
     versions = [
         int(match.group(1))
         for match in (_VERSION_PATTERN.match(lines[index]) for index in entries)
@@ -140,7 +155,7 @@ def add_template_entry(
     lines.insert(position, template_line(version, date, note, sha))
     if position + 1 < len(lines) and lines[position + 1].startswith("#"):
         lines.insert(position + 1, "")
-    return version
+    return LedgerEntry(version, is_new=True)
 
 
 def _git(workspace: Path, *args: str) -> str:
@@ -152,6 +167,25 @@ def _git(workspace: Path, *args: str) -> str:
     return completed.stdout.strip()
 
 
+def _commit_ledger(workspace: Path, slug: str, version: int) -> None:
+    message = (
+        f"version history: published template {slug} v1"
+        if version == 1
+        else f"version history: updated template {slug} to v{version}"
+    )
+    try:
+        _git(workspace, "add", _LEDGER)
+        _git(workspace, "commit", "-q", "-m", message, "--", _LEDGER)
+    except RecordPublishError as e:
+        subprocess.run(
+            ["git", "reset", "-q", "--", _LEDGER], cwd=workspace, check=False
+        )
+        raise RecordPublishError(
+            f"the entry is written to {_LEDGER} but {e}; the template IS published "
+            "-- commit that one file by hand, never re-push"
+        ) from e
+
+
 def record(
     workspace: Path,
     slug: str,
@@ -161,6 +195,7 @@ def record(
     date: str,
     expected_version: int | None = None,
 ) -> int | None:
+    """Record and commit the entry; the version committed, or None if it already was."""
     try:
         sha = _git(workspace, "rev-parse", "--short=7", f"{source_sha}^{{commit}}")
     except RecordPublishError as e:
@@ -180,29 +215,13 @@ def record(
         ledger.insert_under_workspace(
             lines, ledger.origin_line(workspace, runner), first=True
         )
-    version = add_template_entry(
-        lines, slug, repo_url, note, sha, date, expected_version
-    )
-    if version is None:
+    entry = add_template_entry(lines, slug, repo_url, note, sha, date, expected_version)
+    if entry.is_new:
+        path.write_text("\n".join(lines) + "\n")
+    elif not _git(workspace, "status", "--porcelain", "--", _LEDGER):
         return None
-    path.write_text("\n".join(lines) + "\n")
-    message = (
-        f"version history: published template {slug} v1"
-        if version == 1
-        else f"version history: updated template {slug} to v{version}"
-    )
-    try:
-        _git(workspace, "add", _LEDGER)
-        _git(workspace, "commit", "-q", "-m", message, "--", _LEDGER)
-    except RecordPublishError as e:
-        subprocess.run(
-            ["git", "reset", "-q", "--", _LEDGER], cwd=workspace, check=False
-        )
-        raise RecordPublishError(
-            f"the entry is written to {_LEDGER} but {e}; the template IS published "
-            "-- commit that one file by hand, never re-push"
-        ) from e
-    return version
+    _commit_ledger(workspace, slug, entry.version)
+    return entry.version
 
 
 def main(argv: list[str] | None = None) -> int:
