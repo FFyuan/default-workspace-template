@@ -11,6 +11,7 @@ import signal
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
+from urllib.parse import quote
 
 import httpx
 from oom_priority.supervisor_rpc import SUPERVISOR_SOCKET, stop_program
@@ -48,7 +49,7 @@ def stop_chat(chat_id: str, registry: Path = programs.APPS_REGISTRY) -> None:
         )
     try:
         response = httpx.post(
-            f"{url.rstrip('/')}/api/chats/{chat_id}/stop",
+            f"{url.rstrip('/')}/api/chats/{quote(chat_id, safe='')}/stop",
             timeout=_CHAT_STOP_TIMEOUT_SECONDS,
         )
     except httpx.HTTPError as error:

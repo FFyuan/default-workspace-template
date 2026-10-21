@@ -83,6 +83,9 @@ def test_a_chat_is_stopped_through_the_chat_app_and_its_refusal_is_relayed(
     actions.stop_chat("chat-ok", registry)
     with pytest.raises(actions.StopRefusedError) as refused:
         actions.stop_chat("chat-missing", registry)
+    # An id is one path segment however it is spelled.
+    with pytest.raises(actions.StopRefusedError):
+        actions.stop_chat("odd/id?", registry)
 
     assert (refused.value.status, refused.value.detail) == (
         404,
@@ -91,6 +94,7 @@ def test_a_chat_is_stopped_through_the_chat_app_and_its_refusal_is_relayed(
     assert _ChatAppHandler.asked == [
         "/api/chats/chat-ok/stop",
         "/api/chats/chat-missing/stop",
+        "/api/chats/odd%2Fid%3F/stop",
     ]
 
 
