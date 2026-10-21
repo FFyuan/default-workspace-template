@@ -42,6 +42,9 @@ mirror -- ship it as an `env.d` unit instead, or drop it.
 
 Never re-create the repo to retry a push. The script names the likely cause:
 
+- `... is a repo's main worktree`: `--worktree` was not `$WT` (an unset `$WT`
+  names the cwd, usually the live workspace). Re-resolve `$WT` from the worker's
+  `done` report and run the push again with it.
 - `--parent ... is not a commit`: the value was empty or wrong (an unset
   `$BASE_REF`, a mistyped sha). Re-resolve it and run the push again.
 - the published `main` moved (non-fast-forward): someone else pushed there. Stop

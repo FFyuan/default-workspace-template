@@ -8,7 +8,9 @@
 `--parent` is `BASE_REF` for a first publish and the published tip for an update.
 In order, and stopping at the first failure with nothing pushed:
 
-  1. the worktree must be clean -- anything uncommitted would be left out;
+  1. the worktree must be a linked worktree -- never the live workspace or any
+     repo's main checkout, whose tree is everything the agent built -- and
+     clean, since anything uncommitted would be left out;
   2. the pre-push gate: `validate_template.py --pre-push` over the worktree;
   3. one commit is minted from the worktree's final tree, parented on `--parent`
      (a parentless snapshot would share no merge-base with the template, so an
@@ -127,6 +129,21 @@ def _push(worktree: Path, repo: str, refspec: str) -> None:
     raise PushSnapshotError(f"the push failed: {output}")
 
 
+def _require_linked_worktree(worktree: Path) -> None:
+    """Refuse a repo's main worktree: the assembly always runs in a linked one.
+
+    The same check `build_template.sh` makes. An unset `$WT` passed as
+    `--worktree ""` resolves to the cwd, which is usually the live workspace.
+    """
+    git_dir = (worktree / _git(worktree, "rev-parse", "--absolute-git-dir")).resolve()
+    common_dir = (worktree / _git(worktree, "rev-parse", "--git-common-dir")).resolve()
+    if git_dir == common_dir:
+        raise PushSnapshotError(
+            f"{worktree} is a repo's main worktree, not the assembly worktree; only "
+            "$WT's tree is ever published -- re-resolve $WT and pass it as --worktree"
+        )
+
+
 def mint_snapshot(worktree: Path, parent: str, message: str) -> str:
     """One commit holding the worktree's final tree, parented on `parent`."""
     try:
@@ -160,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     worktree = args.worktree.resolve()
 
     try:
+        _require_linked_worktree(worktree)
         if _git(worktree, "status", "--porcelain"):
             raise PushSnapshotError(
                 f"{worktree} has uncommitted changes; commit them first, so the push carries them"

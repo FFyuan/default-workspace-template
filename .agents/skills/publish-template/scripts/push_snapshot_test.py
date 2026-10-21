@@ -19,19 +19,29 @@ _GATEWAY = "http://gateway.invalid"
 
 
 class _Publish:
-    """A template base, an assembled worktree with intermediate commits, and a remote."""
+    """A workspace on a template base, its assembly worktree with intermediate commits, and a remote."""
 
     def __init__(self, root: Path) -> None:
-        self.worktree = root / "wt"
-        self.worktree.mkdir()
-        git(self.worktree, "init", "-q", "-b", "main", ".")
-        git(self.worktree, "config", "user.email", "t@t.t")
-        git(self.worktree, "config", "user.name", "T")
-        (self.worktree / "pyproject.toml").write_text("[project]\nname = 'x'\n")
-        git(self.worktree, "add", "-A")
-        git(self.worktree, "commit", "-qm", "Template release")
-        self.base = git(self.worktree, "rev-parse", "HEAD")
+        self.workspace = root / "workspace"
+        self.workspace.mkdir()
+        git(self.workspace, "init", "-q", "-b", "main", ".")
+        git(self.workspace, "config", "user.email", "t@t.t")
+        git(self.workspace, "config", "user.name", "T")
+        (self.workspace / "pyproject.toml").write_text("[project]\nname = 'x'\n")
+        git(self.workspace, "add", "-A")
+        git(self.workspace, "commit", "-qm", "Template release")
+        self.base = git(self.workspace, "rev-parse", "HEAD")
 
+        self.worktree = root / "wt"
+        git(
+            self.workspace,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "mngr/demo",
+            str(self.worktree),
+        )
         (self.worktree / "system/apps/demo").mkdir(parents=True)
         (self.worktree / "system/apps/demo/config.py").write_text(
             "CHANNEL = 'team-private'\n"
@@ -64,14 +74,14 @@ class _Publish:
         return env
 
     def push(
-        self, *extra: str, parent: str | None = None
+        self, *extra: str, parent: str | None = None, worktree: str | None = None
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 sys.executable,
                 str(_SCRIPT),
                 "--worktree",
-                str(self.worktree),
+                str(self.worktree) if worktree is None else worktree,
                 "--parent",
                 parent or self.base,
                 "--repo",
@@ -80,6 +90,7 @@ class _Publish:
                 "template: demo",
                 *extra,
             ],
+            cwd=self.workspace,
             env=self.env(),
             capture_output=True,
             text=True,
@@ -115,6 +126,24 @@ def test_one_snapshot_commit_on_the_base_is_published_and_nothing_in_between(
     published = git(publish.remote, "rev-list", snapshot).splitlines()
     assert published == [snapshot, publish.base]
     assert publish.intermediate not in published
+
+
+@pytest.mark.parametrize("worktree", ["workspace", ""])
+def test_the_live_workspace_is_never_published(
+    publish: _Publish, worktree: str
+) -> None:
+    """Its tree is everything the agent built; an unset `$WT` names it via the cwd."""
+    write_finished_template(publish.workspace, "[Open](https://github.com/octo/demo)\n")
+    git(publish.workspace, "add", "-A")
+    git(publish.workspace, "commit", "-qm", "a template adopted earlier")
+
+    completed = publish.push(
+        worktree=str(publish.workspace) if worktree == "workspace" else worktree
+    )
+
+    assert completed.returncode == 1
+    assert "main worktree" in completed.stderr
+    assert publish.remote_main() == ""
 
 
 def test_a_dirty_worktree_is_refused_before_anything_is_pushed(
