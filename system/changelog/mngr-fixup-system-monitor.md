@@ -1,5 +1,3 @@
-Added `docs/design/system-monitor-mocks/`: static HTML design mocks for the Memory & disk app, with the shipped page reproduced on sample data and ten variants that add CPU usage and try different layouts (overview tiles, tabs, Activity Monitor and Task Manager styles, AI token usage, a timeline, a per-chat view, a pinned widget, a health-first page, and a terminal look). `index.html` frames each one at the app's usual window size; variant 01 is the direction the app was then built toward.
-
 Added `docs/system/specs/system-monitor.md`, the design of the System Monitor app and its resource sampler, and the `resource_sampler` supervisord program in `system/supervisord.conf.d/`. The docs and the manifest contract tables follow the app's new name.
 
 The spec gained the breakdown's accounting rules (anonymous memory, a System row that makes the memory and CPU columns add up), the Workspace row's items, the disk walk's items, and a section on the Stop buttons (with `POST /api/stop` in its route table); the disk view's figure is documented as the machine's whole disk.

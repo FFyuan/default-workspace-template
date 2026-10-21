@@ -4,7 +4,6 @@ Status: agreed design (2026-10-20), implemented on `mngr/fixup-system-monitor`.
 Audience: implementers of the system monitor app (`system/apps/system_monitor`), the memory guard package (`system/services/oom_priority`), the supervisord drop-ins, and the manifest contract tables.
 
 The Memory & disk app becomes System Monitor: it adds CPU, keeps its memory and disk pages, and opens each resource's own view from an overview.
-The design was chosen from the mocks in [`docs/design/system-monitor-mocks/`](../../design/system-monitor-mocks/README.md) (variant 01).
 This spec covers two pieces:
 
 - **Part A: the resource sampler.** A small always-on program beside the memory guard that records overall CPU and memory every few seconds, keeps a day of history, and records "busy stretches" with who caused them.
