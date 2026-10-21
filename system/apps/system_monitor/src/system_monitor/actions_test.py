@@ -2,18 +2,16 @@
 of the user's apps through supervisord."""
 
 import json
-import socketserver
 import subprocess
 import sys
-import tempfile
 import threading
 import xmlrpc.client
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from xmlrpc.server import SimpleXMLRPCDispatcher, SimpleXMLRPCRequestHandler
 
 import pytest
+from oom_priority.testing import fake_supervisord
 
 from system_monitor import actions
 from system_monitor.programs import Process
@@ -147,45 +145,22 @@ def test_a_chats_code_checkers_are_told_to_stop_and_a_chat_without_any_is_refuse
     assert refused.value.status == 404
 
 
-class _UnixRequestHandler(SimpleXMLRPCRequestHandler):
-    disable_nagle_algorithm = False
-
-
-class _UnixXMLRPCServer(socketserver.UnixStreamServer, SimpleXMLRPCDispatcher):
-    def __init__(self, path: str) -> None:
-        SimpleXMLRPCDispatcher.__init__(self, allow_none=True)
-        socketserver.UnixStreamServer.__init__(self, path, _UnixRequestHandler)
-        self.logRequests = False
-
-
 def test_only_the_users_own_apps_are_quit_and_through_supervisord() -> None:
-    with tempfile.TemporaryDirectory(dir="/tmp") as short_dir:
-        sock = Path(short_dir) / "s.sock"
-        server = _UnixXMLRPCServer(str(sock))
-        asked: list[object] = []
+    asked: list[object] = []
 
-        def stop_process(name: object, wait: object) -> bool:
-            asked.append(name)
-            if name == "notes":
-                raise xmlrpc.client.Fault(10, "BAD_NAME: notes")
-            return True
+    def stop_process(name: object, wait: object) -> bool:
+        asked.append(name)
+        if name == "notes":
+            raise xmlrpc.client.Fault(10, "BAD_NAME: notes")
+        return True
 
-        server.register_function(stop_process, "supervisor.stopProcess")
-        serving = threading.Thread(
-            target=server.serve_forever, kwargs={"poll_interval": 0.05}
-        )
-        serving.start()
-        try:
-            apps = {"budget": "Budget", "notes": "Notes"}
-            actions.stop_app("budget", apps, sock)
-            with pytest.raises(actions.StopRefusedError) as unknown:
-                actions.stop_app("notes", apps, sock)
-            with pytest.raises(actions.StopRefusedError) as built_in:
-                actions.stop_app("chat", apps, sock)
-        finally:
-            server.shutdown()
-            serving.join(timeout=5)
-            server.server_close()
+    with fake_supervisord(stopProcess=stop_process) as sock:
+        apps = {"budget": "Budget", "notes": "Notes"}
+        actions.stop_app("budget", apps, sock)
+        with pytest.raises(actions.StopRefusedError) as unknown:
+            actions.stop_app("notes", apps, sock)
+        with pytest.raises(actions.StopRefusedError) as built_in:
+            actions.stop_app("chat", apps, sock)
     assert unknown.value.status == 502 and "Notes" in unknown.value.detail
     assert built_in.value.status == 403
     # The built-in program was never asked about.
