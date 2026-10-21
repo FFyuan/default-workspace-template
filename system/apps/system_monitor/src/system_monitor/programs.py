@@ -178,6 +178,24 @@ def chat_ids(agents_dir: Path = MNGR_AGENTS_DIR) -> dict[str, str]:
     }
 
 
+def registry_rows(registry: Path = APPS_REGISTRY) -> list[dict[str, Any]]:
+    """The app registry's rows; none when it cannot be read or is not shaped as one.
+
+    A row of an unexpected shape is skipped, so one bad row cannot fail the page.
+    """
+    try:
+        rows = tomllib.loads(registry.read_text()).get("apps", [])
+    except (OSError, ValueError):
+        return []
+    return (
+        [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    )
+
+
+def _display_name(row: dict[str, Any]) -> str:
+    return str(row.get("display_name") or row.get("name") or row["program"])
+
+
 def program_names(
     supervised: Mapping[str, int], registry: Path = APPS_REGISTRY
 ) -> dict[str, str]:
@@ -186,16 +204,11 @@ def program_names(
     An app is named by its registry row (whatever its priority); a program that is not an app by
     ``PROGRAM_NAMES``; the rest by their program name.
     """
-    registered: dict[str, str] = {}
-    try:
-        rows = tomllib.loads(registry.read_text()).get("apps", [])
-    except (OSError, ValueError):
-        rows = []
-    for row in rows if isinstance(rows, list) else []:
-        if isinstance(row, dict) and row.get("program"):
-            registered[str(row["program"])] = str(
-                row.get("display_name") or row.get("name") or row["program"]
-            )
+    registered = {
+        str(row["program"]): _display_name(row)
+        for row in registry_rows(registry)
+        if row.get("program")
+    }
     return {
         program: PROGRAM_NAMES.get(program) or registered.get(program) or program
         for program in supervised
@@ -221,13 +234,8 @@ def agents_by_pid(
 
 def user_apps(registry: Path = APPS_REGISTRY) -> dict[str, str]:
     """supervisord program -> display name, for the apps the user built."""
-    try:
-        rows = tomllib.loads(registry.read_text()).get("apps", [])
-    except (OSError, ValueError):
-        return {}
-    # A row of an unexpected shape is skipped, so one bad row cannot fail the page.
     return {
-        str(r["program"]): str(r.get("display_name") or r.get("name") or r["program"])
-        for r in (rows if isinstance(rows, list) else [])
-        if isinstance(r, dict) and r.get("priority") == "user" and r.get("program")
+        str(row["program"]): _display_name(row)
+        for row in registry_rows(registry)
+        if row.get("priority") == "user" and row.get("program")
     }

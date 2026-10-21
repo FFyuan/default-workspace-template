@@ -8,7 +8,6 @@ The workspace's own programs cannot be stopped from here: the breakdown gives th
 
 import os
 import signal
-import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
@@ -34,12 +33,8 @@ class StopRefusedError(Exception):
 
 def app_url(program: str, registry: Path = programs.APPS_REGISTRY) -> str | None:
     """Where the app the ``program`` runs is served, from the app registry; None when it is not registered."""
-    try:
-        rows = tomllib.loads(registry.read_text()).get("apps", [])
-    except (OSError, ValueError):
-        return None
-    for row in rows if isinstance(rows, list) else []:
-        if isinstance(row, dict) and row.get("program") == program and row.get("url"):
+    for row in programs.registry_rows(registry):
+        if row.get("program") == program and row.get("url"):
             return str(row["url"])
     return None
 
