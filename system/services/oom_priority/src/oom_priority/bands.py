@@ -191,8 +191,8 @@ def chat_agent_oom_score_adj(
 # terminal) come first, then the UI and the chat app, then the sharing stack,
 # then the runtime-state sync (github-sync, opt-in) and the host backup, then
 # the job scheduler, then the browser stack (its X display, then the
-# coordinator), then the Files app, and last the two single-page apps
-# (Getting Started, then Memory & disk).
+# coordinator), then the Files app, then the two single-page apps (Getting
+# Started, then System Monitor), and last the System Monitor's resource sampler.
 # ``user`` is the single band every *user-created* service shares;
 # it sits above every built-in service so a user's own service is shed before any
 # built-in one, while staying below USER_AGENT.
@@ -277,10 +277,12 @@ SERVICE_BANDS: Final[dict[str, int]] = {
     # The Getting Started page: one static page and a cached catalog. A shed costs
     # one reload of a window that shows nothing of the user's.
     "getting-started": 80,
-    # The Memory & disk page: one polling page that writes nothing to disk, so a
-    # shed costs a reload and the memory graph's last 10 minutes. The most
-    # expendable built-in service of all.
+    # The System Monitor page: one polling page that writes nothing to disk, so a
+    # shed costs a reload. The most expendable built-in service of all, with the
+    # sampler that feeds its graphs just below it: a shed sampler costs a gap in
+    # the graphs until supervisord brings it back, and it holds almost no memory.
     "system-monitor": 85,
+    "resource_sampler": 86,
     "user": USER_SERVICE,
     # The shell of a workspace terminal window (and everything run in it), tagged by the
     # terminal app's session command. Not a supervisord program: the pane is a child of the
