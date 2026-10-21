@@ -39,6 +39,10 @@ Built-in apps:
   frontend from that same npm workspace.
 - `browser/` - The live browser: a fleet of Chromium browsers streamed to the
   UI by its daemon (`browser-service`).
+- `routines/` - Routines: everything that runs on a schedule (the routines
+  library, `system/libs/routines/`), each with its health, next run and history,
+  and run-now, on/off, reschedule and fix controls. Served on port 8050 by the
+  `routines-app` package; it stores nothing of its own.
 - `system_monitor/` - Memory & disk: one page showing how much memory and disk
   the workspace is using, which chats, code checkers, and apps hold the memory,
   and which programs the memory guard stopped in the last 24 hours. Served on
