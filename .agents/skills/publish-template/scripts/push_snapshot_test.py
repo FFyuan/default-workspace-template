@@ -199,6 +199,12 @@ def test_a_published_main_that_moved_is_never_overwritten(publish: _Publish) -> 
             "body cap",
         ),
         ('{"error": "request not permitted by the user"}', "github-git-write"),
+        (
+            '{"error": "request not permitted by the user"}\n'
+            "error: failed to push some refs to "
+            "'http://gateway.invalid/gateway/https://github.com/octo/workflow-digest.git'",
+            "github-git-write",
+        ),
     ],
 )
 def test_a_refused_push_is_explained_by_its_actual_cause(
@@ -207,3 +213,13 @@ def test_a_refused_push_is_explained_by_its_actual_cause(
     hint = hint_for_push_failure(stderr)
 
     assert hint is not None and expected in hint
+
+
+def test_a_repo_name_alone_never_suggests_a_cause() -> None:
+    """git's stderr names the remote URL, so a cause must come from git's own words."""
+    hint = hint_for_push_failure(
+        "fatal: unable to access 'http://gateway.invalid/gateway/https://github.com/"
+        "octo/non-fast-forward-workflow.git/': Could not resolve host: gateway.invalid"
+    )
+
+    assert hint is None

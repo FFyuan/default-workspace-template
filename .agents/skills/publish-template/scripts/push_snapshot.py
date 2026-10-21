@@ -43,10 +43,11 @@ from validate_template import main as validate_template
 
 # What a refused push most likely means, matched against git's stderr. Ordered so
 # the specific causes win: GitHub's workflow-scope refusal is also printed as a
-# "[remote rejected]" line.
+# "[remote rejected]" line. The stderr also carries the remote URL, so no needle
+# may be something a repo name can contain.
 _PUSH_FAILURE_HINTS = (
     (
-        ("workflow",),
+        ("create or update workflow", "`workflow` scope"),
         "the stored GitHub credential cannot push .github/workflows/ files; tell the "
         "user and stop -- never strip files to get the push through",
     ),
@@ -60,7 +61,7 @@ _PUSH_FAILURE_HINTS = (
         "cannot proxy a push this size; tell the user and stop",
     ),
     (
-        ("non-fast-forward", "fetch first"),
+        ("(non-fast-forward)", "fetch first"),
         "the published main moved since its tip was read; someone else pushed there. "
         "Stop and tell the user -- never force-push over it",
     ),
