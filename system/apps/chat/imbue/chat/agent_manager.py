@@ -4789,7 +4789,9 @@ class AgentManager:
             time.monotonic() - RELAXED_CONFIRMATION_TIMEOUT_SECONDS if sweep_started_at is None else sweep_started_at
         )
         if finished_at is not None and finished_at >= requested_at:
-            _loguru_logger.debug("Skipped the compaction status of agent {}: its compaction already finished", agent_id)
+            _loguru_logger.debug(
+                "Skipped the compaction status of agent {}: its compaction already finished", agent_id
+            )
             return
         self.note_compaction_requested(agent_id, CompactionCause.IDLE, requested_at)
 
@@ -4847,8 +4849,7 @@ class AgentManager:
             cause_seen_at = self._compaction_cause_seen_at_by_agent.get(agent_id)
             remembered_cause = (
                 self._compaction_cause_by_agent.get(agent_id)
-                if cause_seen_at is not None
-                and time.monotonic() - cause_seen_at < PENDING_COMPACTION_TIMEOUT_SECONDS
+                if cause_seen_at is not None and time.monotonic() - cause_seen_at < PENDING_COMPACTION_TIMEOUT_SECONDS
                 else None
             )
         pending_requested_at = None if pending is None else _monotonic_to_epoch(pending[0], now)
@@ -4926,7 +4927,8 @@ class AgentManager:
             if is_marker_fresh:
                 requested_cause = self._sweep_cause_of(agent_id) if pending_cause is None else pending_cause
                 return _LiveCompaction(
-                    marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause), pending_cause=pending_cause
+                    marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause),
+                    pending_cause=pending_cause,
                 )
             self._log_stale_compacting_marker_once(agent_id, marker, marker_age_seconds)
             return _LiveCompaction(marker_cause=None, pending_cause=pending_cause)
