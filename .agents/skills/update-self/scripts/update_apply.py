@@ -1700,8 +1700,8 @@ def _ride_along(
 
     The pass scope's wiring is the one account of what runs each creation, so the
     programs come from it. A creation the merge added is removed by the rollback, so it
-    has nothing to restart; an ordinary one with no wiring (a service cron runs, say) is
-    left for the agent to restart, and the notice names it.
+    has nothing to restart; an ordinary one with no wiring (a service a routine runs,
+    say) is left for the agent to restart, and the notice names it.
     """
     added_paths = {path for status, path in name_status if status.startswith("A")}
     apps: list[str] = []
