@@ -140,6 +140,33 @@ describe("AppModel", () => {
     model.dispose();
   });
 
+  it("reads a log page's run, routine and whole log, and re-reads them while the run is still going", async () => {
+    const run = runOf({ outcome: null, finished_at: null });
+    vi.stubGlobal("fetch", (url: string) => {
+      requests.push(`GET ${url}`);
+      if (url.endsWith("/log")) return Promise.resolve(new Response("pulling...\n", { status: 200 }));
+      const body = url.includes("/runs/") ? runDetailOf({ run }) : detailOf();
+      return Promise.resolve(
+        new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+      );
+    });
+    const page = host();
+    const model = new AppModel("/news-sync/runs/run-1/log", page, () => undefined);
+    await model.load();
+    expect(model.loaded).toEqual({ kind: "log", run, log: "pulling...\n", routineTitle: "News sync" });
+    expect(page.locations[page.locations.length - 1]).toEqual(["/news-sync/runs/run-1/log", "News sync: a run's log"]);
+    expect(requests).toEqual([
+      "GET /api/routines/news-sync/runs/run-1",
+      "GET /api/routines/news-sync",
+      "GET /api/routines/news-sync/runs/run-1/log",
+    ]);
+
+    await vi.advanceTimersByTimeAsync(RUNNING_REFRESH_MS);
+    await settle();
+    expect(requests).toHaveLength(6);
+    model.dispose();
+  });
+
   it("keeps a failed read on screen with its reason", async () => {
     vi.stubGlobal("fetch", () =>
       Promise.resolve(new Response(JSON.stringify({ detail: "the ledger is unreadable" }), { status: 500 })),
