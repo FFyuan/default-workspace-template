@@ -97,6 +97,18 @@ def test_a_first_publish_records_v1_and_seeds_where_the_workspace_started(
     assert git(workspace, "status", "--porcelain") == "M app.py"
 
 
+def test_the_entry_is_committed_alone_and_other_staged_work_stays_staged(
+    workspace: Path,
+) -> None:
+    (workspace / "app.py").write_text("x = 2\n")
+    git(workspace, "add", "app.py")
+
+    assert _record(workspace, "first published").returncode == 0
+
+    assert git(workspace, "show", "--name-only", "--format=", "HEAD") == _LEDGER
+    assert git(workspace, "diff", "--cached", "--name-only") == "app.py"
+
+
 def test_recording_the_same_publish_again_changes_nothing(workspace: Path) -> None:
     source = git(workspace, "rev-parse", "HEAD")
     assert _record(workspace, "first published", sha=source).returncode == 0

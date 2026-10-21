@@ -22,8 +22,9 @@ their own headings, so they never collide.
 
 The workspace's `## Workspace` origin line is seeded first if it is missing, and a
 deleted ledger is recreated from the shipped starter -- both with `update-self`'s
-own helpers, so the format lives in one place. The commit stages exactly this one
-file on whatever branch the workspace is on. Prints the version recorded.
+own helpers, so the format lives in one place. The commit holds exactly this one
+file, whatever else is staged, on whatever branch the workspace is on. Prints the
+version recorded.
 """
 
 from __future__ import annotations
@@ -163,7 +164,7 @@ def record(
     )
     try:
         _git(workspace, "add", _LEDGER)
-        _git(workspace, "commit", "-q", "-m", message)
+        _git(workspace, "commit", "-q", "-m", message, "--", _LEDGER)
     except RecordPublishError as e:
         subprocess.run(
             ["git", "reset", "-q", "--", _LEDGER], cwd=workspace, check=False
