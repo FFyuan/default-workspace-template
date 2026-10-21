@@ -403,15 +403,8 @@ def create_through_chat_app(
         and request.title
         and _is_field_refused(answer.detail, TITLE_FIELD)
     ):
-        # A route from before ``title`` takes the rest: the chat is made under its name, the
-        # title standing in for a name the caller did not give.
-        print(
-            "The chat app does not take a title; creating the chat under its name instead.",
-            file=sys.stderr,
-        )
-        untitled = CreateRequest(
-            request.name or request.title, request.message, request.labels
-        )
+        # A route from before ``title`` takes the rest: the chat is made under its name.
+        untitled = CreateRequest(request.name, request.message, request.labels)
         return create_through_chat_app(base_url, untitled, clock, sleep)
     if not 200 <= answer.status < 300:
         return SendResult(Outcome.REFUSED, answer.detail)
