@@ -1,0 +1,1 @@
+The desktop launcher's Enter now sends a typed text to the default chat: the chat app lists "Send to default chat" first among its text rows, ahead of "New Chat" (now Cmd+Enter, or Ctrl+Enter off a Mac). The inventory test expects the new row.

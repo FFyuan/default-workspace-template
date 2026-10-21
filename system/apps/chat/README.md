@@ -324,7 +324,8 @@ seconds is retried rather than mistaken for an unknown chat. See `docs/system/bl
 
 The intake route is how a text enters a chat from outside a chat page
 (`docs/system/blueprint/post-launch-paths/`): `POST /api/chats/intake` takes the
-text, how the receiving chat is chosen (`target`: `new_chat`, `current_chat` from
+text, how the receiving chat is chosen (`target`: `new_chat`, `default_chat` (the
+default chat, else the most recently messaged chat, else a new one; the desktop launcher's Enter), `current_chat` from
 the `window_path` the text was typed into, else the default chat, else the most recently messaged chat;
 `chat_selector`, the one chat there is or the user's pick; or `chat` with a
 `chat_id`), and whether the text is sent or drafted (`is_draft`), plus the
@@ -414,8 +415,9 @@ messaged most recently, never a helper another agent started; with no chat left,
 chat the list opens (one awaiting its first send) takes it. Every `chats_updated` push
 and `GET /api/chats` carry its id as `default_chat_id`. The chat list leads with it (its
 helpers under it), in a medium weight and set off from the rest by a rule; the root
-shows it when nothing is selected, including after the chat on screen is deleted; and a
-`current_chat` intake from a window showing no chat lands in it. It can be renamed and
+shows it when nothing is selected, including after the chat on screen is deleted; a text
+sent from the desktop launcher with Enter (the `default` launch path, a `default_chat` intake) lands in it;
+and a `current_chat` intake from a window showing no chat lands in it. It can be renamed and
 deleted like any chat.
 
 A chat that starts with no message sends nothing and waits for the user's

@@ -4,6 +4,8 @@ The workspace now has a **default chat**, where a message with no chat of its ow
 
 - With no chat selected, the chat list opens on it rather than on the most recently messaged chat; deleting the chat on screen also returns you to it.
 
+- Pressing Enter in the desktop's launcher sends the text to the default chat ("Send to default chat"). "New Chat" moves to the second row, so Cmd+Enter (Ctrl+Enter elsewhere) starts a new chat, and "Send to chat..." stays in the list without a key.
+
 - A draft or message sent to the "current chat" from a window that shows none (the desktop's "Design your own...") lands in it.
 
 - Any chat you started can be made the default from its right-click menu (and the phone layout's kebab): "Make default chat". It moves to the top in place of the old default.

@@ -13,6 +13,7 @@ import threading
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 from typing import Final
@@ -1723,11 +1724,20 @@ def _agent_chat_snapshot(agent_manager: AgentManager, chat_id: ChatId) -> ChatSn
     return agent_manager.get_chat_snapshot(str(chat_id))
 
 
+def _default_or_most_recent_intake_chat(
+    agent_manager: AgentManager, snapshots: Sequence[ChatSnapshot]
+) -> _ResolvedIntakeChat:
+    default_id = agent_manager.get_default_chat_id()
+    if default_id is not None:
+        return _ResolvedIntakeChat(chat_id=default_id)
+    return _ResolvedIntakeChat(chat_id=most_recently_messaged_chat_id(snapshots))
+
+
 def _resolve_intake_chat(agent_manager: AgentManager, intake: IntakeRequest) -> _ResolvedIntakeChat | Response:
     """The chat an intake's target names (spec 3.5), or the 404 for an explicit chat the app does not list.
 
-    ``new_chat`` answers no chat: the caller creates or mints one. ``current_chat`` and
-    ``chat_selector`` fall back to that when nothing qualifies.
+    ``new_chat`` answers no chat: the caller creates or mints one. ``current_chat``,
+    ``default_chat`` and ``chat_selector`` fall back to that when nothing qualifies.
     """
     snapshots = agent_manager.get_chat_snapshots()
     match intake.target:
@@ -1740,10 +1750,9 @@ def _resolve_intake_chat(agent_manager: AgentManager, intake: IntakeRequest) -> 
             selected = chat_id_selected_by_window_path(intake.window_path)
             if selected is not None and agent_manager.knows_chat(selected):
                 return _ResolvedIntakeChat(chat_id=selected)
-            default_id = agent_manager.get_default_chat_id()
-            if default_id is not None:
-                return _ResolvedIntakeChat(chat_id=default_id)
-            return _ResolvedIntakeChat(chat_id=most_recently_messaged_chat_id(snapshots))
+            return _default_or_most_recent_intake_chat(agent_manager, snapshots)
+        case IntakeTarget.DEFAULT_CHAT:
+            return _default_or_most_recent_intake_chat(agent_manager, snapshots)
         case IntakeTarget.CHAT_SELECTOR:
             if len(snapshots) > 1:
                 return _ResolvedIntakeChat(chat_id=None, needs_pick=True)

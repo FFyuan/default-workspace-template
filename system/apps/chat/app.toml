@@ -38,6 +38,16 @@ path = "/"
 # in the composer unsent.
 
 # The launcher's primary free-text row: what is typed into the desktop's field becomes a new chat's first message.
+# The launcher's Enter: a text typed into the desktop goes to the default chat.
+[[launch_paths]]
+id = "default"
+label = "Send to default chat"
+path = "/api/chats/intake"
+method = "POST"
+params = [{name = "message", label = "Message to send", required = false}]
+presets = {target = "default_chat"}
+text_param = "message"
+
 [[launch_paths]]
 id = "new"
 label = "New Chat"

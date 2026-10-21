@@ -784,6 +784,8 @@ class IntakeTarget(LowerCaseStrEnum):
 
     # A chat created for the text, on the named account or the workspace's default.
     NEW_CHAT = auto()
+    # The default chat, else the most recently messaged one, else a new one.
+    DEFAULT_CHAT = auto()
     # The chat the window the text was typed into shows, else the default chat, else the most recently messaged one,
     # else a new one.
     CURRENT_CHAT = auto()
