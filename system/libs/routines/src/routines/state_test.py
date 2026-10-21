@@ -1,5 +1,4 @@
 import json
-import os
 
 import pytest
 
@@ -48,19 +47,19 @@ def test_removing_a_routine_drops_its_whole_state_directory(states: FileStateSto
     assert not states.paths.routine_state_dir(TEST_ROUTINE_ID).exists()
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root deletes through a directory's permission bits")
 def test_a_state_directory_that_cannot_be_deleted_whole_is_an_error_not_a_warning(states: FileStateStore) -> None:
-    """A removal that leaves state behind would silently apply it to a routine re-added under the same id."""
-    kept = states.paths.runs_dir(TEST_ROUTINE_ID) / "run-1"
-    kept.mkdir(parents=True)
-    (kept / "log").write_text("x")
-    kept.chmod(0o500)
-    try:
-        with pytest.raises(StateRemovalError):
-            states.remove(TEST_ROUTINE_ID)
-    finally:
-        kept.chmod(0o700)
-    assert states.paths.routine_state_dir(TEST_ROUTINE_ID).is_dir()
+    """A removal that leaves state behind would silently apply it to a routine re-added under the same id. The
+    state directory is a symlink here, which a whole-tree delete refuses whoever runs it (root included)."""
+    elsewhere = states.paths.state_dir / "elsewhere"
+    (elsewhere / "runs" / "run-1").mkdir(parents=True)
+    (elsewhere / "runs" / "run-1" / "log").write_text("x")
+    states.paths.state_dir.mkdir(parents=True, exist_ok=True)
+    states.paths.routine_state_dir(TEST_ROUTINE_ID).symlink_to(elsewhere, target_is_directory=True)
+
+    with pytest.raises(StateRemovalError):
+        states.remove(TEST_ROUTINE_ID)
+
+    assert (elsewhere / "runs" / "run-1" / "log").is_file()
 
 
 def test_a_field_a_newer_writer_added_is_ignored_in_the_state_and_in_its_runs(states: FileStateStore) -> None:
