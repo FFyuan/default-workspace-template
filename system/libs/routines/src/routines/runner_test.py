@@ -683,11 +683,14 @@ def test_a_command_run_records_its_process_group_while_it_runs(
     runner: Runner, definitions: FileDefinitionStore, states: FileStateStore
 ) -> None:
     seen = runner.paths.repo_root / "seen.json"
+    state_path = runner.paths.state_path(SYNC)
+    # The runner records the group after the command has started, so the command waits (bounded) for it.
     _command_routine(
         definitions,
         "sh",
         "-c",
-        f'cat "{runner.paths.state_path(SYNC)}" > "{seen}"',
+        f'for i in $(seq 1 250); do grep -q \'"command_pgid": *[1-9]\' "{state_path}" && break; sleep 0.02; done; '
+        f'cat "{state_path}" > "{seen}"',
     )
 
     runner.run(SYNC, RunTrigger.MANUAL, None)
