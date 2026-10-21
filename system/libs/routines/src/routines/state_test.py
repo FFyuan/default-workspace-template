@@ -53,7 +53,6 @@ def test_a_state_directory_that_cannot_be_deleted_whole_is_an_error_not_a_warnin
     elsewhere = states.paths.state_dir / "elsewhere"
     (elsewhere / "runs" / "run-1").mkdir(parents=True)
     (elsewhere / "runs" / "run-1" / "log").write_text("x")
-    states.paths.state_dir.mkdir(parents=True, exist_ok=True)
     states.paths.routine_state_dir(TEST_ROUTINE_ID).symlink_to(elsewhere, target_is_directory=True)
 
     with pytest.raises(StateRemovalError):
