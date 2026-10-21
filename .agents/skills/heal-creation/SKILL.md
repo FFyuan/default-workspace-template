@@ -180,9 +180,11 @@ the merge; an **app** wants a window refresh (`uv run --no-sync
 workspace-layout refresh --app <app-name>`); a background **service** has no
 window -- restart its programs (`supervisorctl restart <program>`) instead: the
 one named after the package (`host_backup` runs as `host-backup`) and any
-`<program>-<role>` ones; one with no program of its own (the Caretaker's check,
-which a routine runs) has nothing to restart, since its next run reads the
-merged code. Then close the ticket:
+`<program>-<role>` ones (`oom_priority`'s are named otherwise: restart those of
+`earlyoom`, `publish_cgroup_meminfo`, and `resource_sampler` the fix reaches);
+one with no program of its own (the Caretaker's check, which a routine runs)
+has nothing to restart, since its next run reads the merged code. Then close
+the ticket:
 
 ```bash
 tk close "$TICKET_ID" "Healed $CREATIONS -- worker branch merged."
