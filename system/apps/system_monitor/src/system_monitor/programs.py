@@ -181,16 +181,6 @@ def chats(agents_dir: Path = MNGR_AGENTS_DIR) -> dict[str, Chat]:
     return found
 
 
-def chat_names(agents_dir: Path = MNGR_AGENTS_DIR) -> dict[str, str]:
-    """Agent id -> the name the user knows the chat by."""
-    return {agent_id: chat.name for agent_id, chat in chats(agents_dir).items()}
-
-
-def chat_ids(agents_dir: Path = MNGR_AGENTS_DIR) -> dict[str, str]:
-    """Agent id -> the id the chat app knows the chat by (its ``chat_id`` label, else the agent id itself)."""
-    return {agent_id: chat.chat_id for agent_id, chat in chats(agents_dir).items()}
-
-
 def registry_rows(registry: Path = APPS_REGISTRY) -> list[dict[str, Any]]:
     """The app registry's rows; none when it cannot be read or is not shaped as one.
 

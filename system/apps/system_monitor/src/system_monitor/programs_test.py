@@ -69,12 +69,14 @@ def test_chat_names_prefer_the_display_label_and_drop_the_agent_suffix(
     (tmp_path / "agent-d").mkdir()
     (tmp_path / "agent-d" / "data.json").write_text("not json")
 
-    assert programs.chat_names(tmp_path) == {
+    chats = programs.chats(tmp_path)
+
+    assert {agent_id: chat.name for agent_id, chat in chats.items()} == {
         "agent-a": "Budget",
         "agent-b": "notes",
         "agent-c": "agent-c",
     }
-    assert programs.chat_names(tmp_path / "missing") == {}
+    assert programs.chats(tmp_path / "missing") == {}
 
 
 def test_user_apps_lists_only_the_user_band_rows_that_name_a_program(
@@ -111,7 +113,9 @@ def test_malformed_workspace_records_are_skipped_rather_than_failing(
     ):
         (agents / agent_id).mkdir(parents=True)
         (agents / agent_id / "data.json").write_text(body)
-    assert programs.chat_names(agents) == {"agent-labels": "notes"}
+    assert programs.chats(agents) == {
+        "agent-labels": programs.Chat("notes", "agent-labels")
+    }
 
 
 def test_chats_on_any_harness_are_found_through_the_agent_registry(
@@ -195,8 +199,10 @@ def test_chat_ids_come_from_the_chat_id_label_and_fall_back_to_the_agent_id(
         (tmp_path / agent_id).mkdir()
         (tmp_path / agent_id / "data.json").write_text(json.dumps(data))
 
-    assert programs.chat_ids(tmp_path) == {"agent-a": "chat-123", "agent-b": "agent-b"}
-    assert programs.chat_ids(tmp_path / "missing") == {}
+    assert programs.chats(tmp_path) == {
+        "agent-a": programs.Chat("Budget", "chat-123"),
+        "agent-b": programs.Chat("notes", "agent-b"),
+    }
 
 
 def test_program_names_come_from_the_name_table_then_the_registry_then_the_program(
