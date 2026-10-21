@@ -142,6 +142,18 @@ def test_the_live_workspace_is_never_published(
     assert publish.remote_main() == ""
 
 
+def test_a_worktree_that_is_gone_is_refused_by_name(publish: _Publish) -> None:
+    """A `$WT` kept from before the worker was destroyed names nothing."""
+    gone = publish.root / "destroyed-wt"
+
+    completed = publish.push(worktree=str(gone))
+
+    assert completed.returncode == 1
+    assert f"{gone} does not exist" in completed.stderr
+    assert "Traceback" not in completed.stderr
+    assert publish.remote_main() == ""
+
+
 def test_a_dirty_worktree_is_refused_before_anything_is_pushed(
     publish: _Publish,
 ) -> None:

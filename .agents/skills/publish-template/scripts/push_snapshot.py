@@ -135,6 +135,11 @@ def _require_linked_worktree(worktree: Path) -> None:
     The same check `build_template.sh` makes. An unset `$WT` passed as
     `--worktree ""` resolves to the cwd, which is usually the live workspace.
     """
+    if not worktree.is_dir():
+        raise PushSnapshotError(
+            f"{worktree} does not exist; re-resolve $WT from the worker's done report "
+            "and pass it as --worktree"
+        )
     git_dir = (worktree / _git(worktree, "rev-parse", "--absolute-git-dir")).resolve()
     common_dir = (worktree / _git(worktree, "rev-parse", "--git-common-dir")).resolve()
     if git_dir == common_dir:
