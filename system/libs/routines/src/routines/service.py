@@ -33,7 +33,6 @@ from routines.interfaces import NotifierInterface
 from routines.interfaces import StateStoreInterface
 from routines.ledger import FileLedger
 from routines.locks import held_lock
-from routines.locks import is_lock_held
 from routines.notifications import GatewayNotifier
 from routines.paths import RoutinesPaths
 from routines.presentation import build_listing
@@ -189,15 +188,15 @@ class RoutinesService(MutableModel):
             self.definitions.remove(routine_id)
 
     def is_running(self, routine_id: RoutineId) -> bool:
-        """Whether a run is going: its lock is held, or the state records a run whose process still runs (the
-        record a killed runner left behind is the tick's to reap, not a run)."""
+        """Whether a run is going: the state records a run whose process still runs (the record a killed runner
+        left behind is the tick's to reap, not a run). The run lock is never probed: a probe takes it for an
+        instant, which would refuse a run starting at that very moment."""
         current = self.states.read(routine_id).current_run
-        if current is not None and is_run_process_alive(current):
-            return True
-        return is_lock_held(self.paths.run_lock_path(routine_id))
+        return current is not None and is_run_process_alive(current)
 
     def start_run_detached(self, routine_id: RoutineId) -> RunStartReceipt:
-        """A manual run in a process of its own; raises RunInFlightError when one is already going."""
+        """A manual run in a process of its own; raises RunInFlightError when one is already going, including one
+        that took the routine between this check and the spawn (the spawned run then stops at the lock)."""
         loaded = self.definitions.load(routine_id)
         if loaded.definition is None:
             raise DefinitionValidationError(f"{routine_id} cannot run: {loaded.error}")
@@ -209,13 +208,19 @@ class RoutinesService(MutableModel):
         return RunStartReceipt(routine_id=routine_id, run_id=run_id)
 
     def _wait_for_run_to_take_hold(self, routine_id: RoutineId, run_id: RunId) -> None:
-        """Wait, for a bounded time, until the spawned run holds the lock or has its books: the receipt then means
-        a run is going, so a page that reads the routine right after it sees the run rather than a gap."""
+        """Wait, for a bounded time, until the spawned run has its books: the receipt then means a run is going,
+        so a page that reads the routine right after it sees the run rather than a gap. Raises RunInFlightError
+        when another run took the routine instead, whose lock the spawned run stops at."""
         deadline = self.clock.now() + timedelta(seconds=RUN_START_WAIT_SECONDS)
         while self.clock.now() < deadline:
-            last_run = self.states.read(routine_id).last_run
-            if self.is_running(routine_id) or (last_run is not None and last_run.run_id == run_id):
+            state = self.states.read(routine_id)
+            current = state.current_run
+            if current is not None and current.run_id == run_id:
                 return
+            if state.last_run is not None and state.last_run.run_id == run_id:
+                return
+            if current is not None and is_run_process_alive(current):
+                raise RunInFlightError(f"A run of {routine_id} is already going.")
             self.clock.pause(RUN_START_POLL_SECONDS)
         logger.warning(
             "The run {} of {} had not taken hold after {} seconds", run_id, routine_id, RUN_START_WAIT_SECONDS

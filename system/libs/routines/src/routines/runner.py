@@ -65,6 +65,9 @@ from routines.wake import slash_command_of
 from routines.wake import wake_skill
 
 OUTPUT_TAIL_BYTES: Final[int] = 4096
+# A run finding its lock held tries again this often before it counts as refused: a removal holds the lock for
+# an instant, and two spawns of one routine must end with one run and one refusal, not two refusals.
+RUN_LOCK_RETRY_PAUSES: Final[tuple[float, ...]] = (0.1,) * 5
 # After the timeout the process group is asked to stop, then killed if it has not.
 TERMINATE_GRACE_SECONDS: Final[float] = 5.0
 _GROUP_DRAIN_POLL_SECONDS: Final[float] = 0.05
@@ -166,7 +169,9 @@ class Runner(MutableModel):
         if loaded.definition is None:
             raise DefinitionValidationError(f"{routine_id} cannot run: {loaded.error}")
         definition = loaded.definition
-        with held_lock(self.paths.run_lock_path(routine_id), f"A run of {routine_id}"):
+        with held_lock(
+            self.paths.run_lock_path(routine_id), f"A run of {routine_id}", RUN_LOCK_RETRY_PAUSES, self.clock.pause
+        ):
             effective_run_id = run_id if run_id is not None else RunId.generate()
             run_dir = self.paths.run_dir(routine_id, effective_run_id)
             run_dir.mkdir(parents=True, exist_ok=True)

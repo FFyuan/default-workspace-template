@@ -14,11 +14,14 @@ from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.mock_notifier_test import RecordingNotifier
 from routines.mock_repository_test import RecordingRepository
+from routines.mock_state_store_test import StateStoreWithARunArriving
 from routines.paths import RoutinesPaths
 from routines.primitives import RoutineId
 from routines.primitives import RunId
 from routines.primitives import RunTrigger
 from routines.state import FileStateStore
+from routines.testing import TEST_NOW
+from routines.testing import TEST_ZONE
 from routines.testing import build_test_service
 from routines.testing import wait_for_last_run
 
@@ -128,3 +131,26 @@ def test_a_manual_start_answers_once_the_run_has_taken_hold(
     last_run = wait_for_last_run(service.states, SYNC, 15)
     assert last_run.run_id == receipt.run_id
     assert last_run.trigger is RunTrigger.MANUAL
+
+
+def test_a_manual_start_that_loses_the_routine_to_another_run_is_refused(
+    paths: RoutinesPaths,
+    repository: RecordingRepository,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+) -> None:
+    """Between the check and the spawn a scheduled run can take the lock; the spawned run then stops at it, and the
+    caller is told rather than handed a receipt for a run that never happens."""
+    states = StateStoreWithARunArriving(paths=paths)
+    service = build_test_service(
+        paths, repository, states, FakeClock(current=TEST_NOW, zone=TEST_ZONE), chat_app, notifier
+    )
+    service.add(
+        SYNC,
+        RoutineDefinition.model_validate(
+            {"title": "Nightly sync", "what": "Syncs.", "every": "1d", "command": ["true"]}
+        ),
+    )
+
+    with pytest.raises(RunInFlightError):
+        service.start_run_detached(SYNC)

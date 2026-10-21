@@ -1,5 +1,7 @@
 import fcntl
+from collections.abc import Callable
 from collections.abc import Generator
+from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -26,8 +28,25 @@ def _flocked(path: Path, is_waited: bool) -> Generator[bool, None, None]:
 
 
 @contextmanager
-def held_lock(path: Path, what_is_held: str) -> Generator[None, None, None]:
-    """Hold the file lock for the block; raises RunInFlightError at once when another process holds it."""
+def held_lock(
+    path: Path,
+    what_is_held: str,
+    retry_pauses: Sequence[float] = (),
+    pause: Callable[[float], None] | None = None,
+) -> Generator[None, None, None]:
+    """Hold the file lock for the block; raises RunInFlightError when another process holds it.
+
+    With ``retry_pauses``, a held lock is tried again after each pause (through ``pause``) before it counts as
+    held: a holder that has it for an instant, such as a check that takes it to answer whether it is free, does
+    not refuse a run.
+    """
+    for seconds in retry_pauses:
+        with _flocked(path, is_waited=False) as is_held:
+            if is_held:
+                yield
+                return
+        assert pause is not None, "retry pauses need a way to pause"
+        pause(seconds)
     with _flocked(path, is_waited=False) as is_held:
         if not is_held:
             raise RunInFlightError(f"{what_is_held} is already going.")
@@ -46,11 +65,3 @@ def waited_lock(path: Path) -> Generator[None, None, None]:
     """Hold the file lock for the block, waiting for whoever holds it; for the short state writes."""
     with _flocked(path, is_waited=True):
         yield
-
-
-def is_lock_held(path: Path) -> bool:
-    """Whether another process holds the lock right now."""
-    if not path.exists():
-        return False
-    with _flocked(path, is_waited=False) as is_held:
-        return not is_held

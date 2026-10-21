@@ -7,7 +7,6 @@ from flask.testing import FlaskClient
 from app_schema.testing import assert_api_schema_describes_app
 from imbue.imbue_common.model_update import to_update
 from routines.data_types import CurrentRun
-from routines.locks import held_lock
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
 from routines.mock_notifier_test import RecordingNotifier
@@ -121,13 +120,21 @@ def test_a_run_and_its_log_are_read_back(
 
 
 @pytest.mark.timeout(30)
-def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_holds_the_lock(
+def test_run_now_answers_a_receipt_and_refuses_a_second_run_while_one_is_going(
     client: FlaskClient, service: RoutinesService, sync_routine: RoutineId
 ) -> None:
-    with held_lock(service.paths.run_lock_path(sync_routine), "A run"):
-        refused = client.post(f"/api/routines/{sync_routine}/run", json={})
-        assert refused.status_code == 409
-        assert "already going" in refused.get_json()["detail"]
+    in_flight = CurrentRun(
+        run_id=RunId.generate(), pid=os.getpid(), pid_start="", trigger=RunTrigger.MANUAL, started_at=TEST_NOW
+    )
+    service.states.update(
+        sync_routine, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, in_flight))
+    )
+    refused = client.post(f"/api/routines/{sync_routine}/run", json={})
+    assert refused.status_code == 409
+    assert "already going" in refused.get_json()["detail"]
+    service.states.update(
+        sync_routine, lambda state: state.model_copy_update(to_update(state.field_ref().current_run, None))
+    )
 
     started = client.post(f"/api/routines/{sync_routine}/run", json={})
 
