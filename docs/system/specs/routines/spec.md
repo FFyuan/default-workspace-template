@@ -162,7 +162,7 @@ The bootstrap writes one code-owned entry into `/etc/cron.d/routines` at every b
 `routines tick`:
 
 1. Takes the tick lock (`data/.state/routines/tick.lock`, `flock -n`) and exits silently if held.
-2. Reaps: for every state whose `current_run` names a pid that is gone, or whose start time (`/proc/<pid>/stat`, recorded beside the pid as `chat_background_tasks` records it for its markers, so a reused pid never passes) is not the one recorded, writes a `run_finished` event with outcome `interrupted` and clears it (section 7.2).
+2. Reaps: for every state whose `current_run` names a pid that is gone, or whose start time (`/proc/<pid>/stat`, recorded beside the pid as `chat_background_tasks` records it for its markers, so a reused pid never passes) is not the one recorded, first stops the command's process group if the state recorded one and it still runs (a dead runner's command must not run beside the next run), then writes a `run_finished` event with outcome `interrupted` and closes the books as for a failed attempt: the streak grows and the notification rules of section 8 apply (section 7.2).
 3. Reads every definition.
    For each that is enabled, not running, and due, spawns `routines run <id> --trigger scheduled` detached (its own session, the run's log as stdout and stderr) and moves on.
 4. Once a day, by the stamp in `data/.state/routines/housekeeping.json`, rotates the ledger and prunes old run directories (section 7.2).
@@ -178,7 +178,7 @@ The tick's own output is a line per spawned run and a line per reaped run, nothi
 1. Takes the routine's lock (`data/.state/routines/<id>/run.lock`, `flock -n`; `state.lock` beside it guards the state file's short writes).
    Held means a run is in flight: a scheduled run exits silently, a manual run exits 1 saying so.
    The switch gates scheduled runs only; a manual run of a routine that is off runs, since the user asked for exactly that.
-2. Takes the run id the tick or the app minted (or mints one), creates the run directory `data/.state/routines/<id>/runs/<run_id>/`, writes `run_started` to the ledger, and records the run as `current_run` in the state with this process's pid and start time.
+2. Takes the run id the tick or the app minted (or mints one), creates the run directory `data/.state/routines/<id>/runs/<run_id>/`, records the run as `current_run` in the state with this process's pid and start time, and then writes `run_started` to the ledger (the state first, so a runner that dies between the two leaves a run the tick can close off); a command run adds its process group to `current_run` once the command starts.
 3. Runs the routine (6.3 or 6.4), streaming output to `<run_dir>/log` as it arrives.
 4. Reads `<run_dir>/result.json` if the routine wrote one (6.5).
 5. Writes `run_finished` with the outcome, updates the state, and applies the notification rules (section 8).

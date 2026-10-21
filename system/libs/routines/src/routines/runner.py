@@ -214,6 +214,22 @@ class Runner(MutableModel):
         now: datetime,
     ) -> None:
         command = shlex.join(definition.command) if definition.command else slash_command_of(str(definition.skill))
+        current = CurrentRun(
+            run_id=run_id,
+            pid=os.getpid(),
+            pid_start=process_start_time(os.getpid()),
+            trigger=trigger,
+            started_at=now,
+        )
+        # The state first: it is what the reaper reads, so a runner that dies between the two writes leaves a
+        # run the tick can close off rather than a ledger start nothing ever finishes.
+        self.states.update(
+            routine_id,
+            lambda state: state.model_copy_update(
+                to_update(state.field_ref().current_run, current),
+                to_update(state.field_ref().last_started_at, now),
+            ),
+        )
         self.ledger.append(
             RunStartedEvent(
                 **_envelope(RUN_STARTED_EVENT, now),
@@ -223,20 +239,6 @@ class Runner(MutableModel):
                 kind=definition.kind,
                 command=command,
             )
-        )
-        current = CurrentRun(
-            run_id=run_id,
-            pid=os.getpid(),
-            pid_start=process_start_time(os.getpid()),
-            trigger=trigger,
-            started_at=now,
-        )
-        self.states.update(
-            routine_id,
-            lambda state: state.model_copy_update(
-                to_update(state.field_ref().current_run, current),
-                to_update(state.field_ref().last_started_at, now),
-            ),
         )
 
     def _execute(
@@ -292,6 +294,7 @@ class Runner(MutableModel):
                     chat_id=None,
                     warnings=(),
                 )
+            self.states.update(routine_id, _recording_command_group(run_id, process.pid))
             try:
                 exit_code = process.wait(timeout=timeout.total_seconds())
             except subprocess.TimeoutExpired:
@@ -418,28 +421,10 @@ class Runner(MutableModel):
             warnings=execution.warnings,
         )
         is_success = execution.outcome is RunOutcome.SUCCEEDED
-
-        def close_books(state: RoutineState) -> RoutineState:
-            failures = NonNegativeInt(0) if is_success else NonNegativeInt(int(state.consecutive_failures) + 1)
-            updates = [
-                to_update(state.field_ref().current_run, None),
-                to_update(state.field_ref().last_run, last_run),
-                to_update(state.field_ref().consecutive_failures, failures),
-            ]
-            if is_success:
-                updates.append(to_update(state.field_ref().last_succeeded_at, finished_at))
-                updates.append(to_update(state.field_ref().last_success_started_at, started_at))
-            elif int(state.consecutive_failures) == 0:
-                # A new streak: a recovery the feed never took is moot now, and this streak is told at its threshold.
-                updates.append(to_update(state.field_ref().is_failure_notified, False))
-            else:
-                # A streak already going keeps whether it has been told.
-                pass
-            if execution.chat_id is not None:
-                updates.append(to_update(state.field_ref().chat_id, execution.chat_id))
-            return state.model_copy_update(*updates)
-
-        state = self.states.update(routine_id, close_books)
+        state = self.states.update(
+            routine_id,
+            lambda current: _close_books(current, last_run, is_success, execution.chat_id, finished_at),
+        )
         self._notify_after_run(routine_id, run_id, definition, state)
         return event
 
@@ -499,6 +484,10 @@ class Runner(MutableModel):
             current = state.current_run
             if current is None or is_run_process_alive(current):
                 continue
+            if current.command_pgid:
+                # The runner is gone but its command may not be: a run is closed only once nothing of it still
+                # runs, or the next run of the routine would go beside it.
+                _kill_process_group(current.command_pgid)
             now = self.clock.now()
             kind = loaded.definition.kind if loaded.definition is not None else RunKind.COMMAND
             last_run = LastRun(
@@ -534,6 +523,10 @@ class Runner(MutableModel):
                     output_tail=_read_output_tail(self.paths.run_log_path(routine_id, current.run_id)),
                 )
             )
+            # An interruption is a failed attempt: a runner that keeps dying is as broken as a command that
+            # keeps failing, and the user is told the same way.
+            if loaded.definition is not None:
+                self._notify_after_run(routine_id, current.run_id, loaded.definition, closed)
             reaped.append(routine_id)
         return reaped
 
@@ -608,18 +601,51 @@ def _read_housekeeping_date(stamp_path: Path) -> str | None:
     return date
 
 
+def _recording_command_group(run_id: RunId, pgid: int) -> Callable[[RoutineState], RoutineState]:
+    """Note the command's process group on the run in flight, so a reaper can stop it if this runner dies."""
+
+    def record(state: RoutineState) -> RoutineState:
+        if state.current_run is None or state.current_run.run_id != run_id:
+            return state
+        current = state.current_run.model_copy_update(to_update(state.current_run.field_ref().command_pgid, pgid))
+        return state.model_copy_update(to_update(state.field_ref().current_run, current))
+
+    return record
+
+
 def _closing_off(run_id: RunId, last_run: LastRun) -> Callable[[RoutineState], RoutineState]:
-    """Close the books on the run, unless the state no longer names it as the one in flight."""
+    """Close the books on the run as a failed attempt, unless the state no longer names it as the one in flight."""
 
     def close(state: RoutineState) -> RoutineState:
         if state.current_run is None or state.current_run.run_id != run_id:
             return state
-        return state.model_copy_update(
-            to_update(state.field_ref().current_run, None),
-            to_update(state.field_ref().last_run, last_run),
-        )
+        return _close_books(state, last_run, is_success=False, chat_id=None, finished_at=last_run.finished_at)
 
     return close
+
+
+def _close_books(
+    state: RoutineState, last_run: LastRun, is_success: bool, chat_id: str | None, finished_at: datetime
+) -> RoutineState:
+    """The state after a run: no run in flight, the last run recorded, the streak counted, the chat kept."""
+    failures = NonNegativeInt(0) if is_success else NonNegativeInt(int(state.consecutive_failures) + 1)
+    updates = [
+        to_update(state.field_ref().current_run, None),
+        to_update(state.field_ref().last_run, last_run),
+        to_update(state.field_ref().consecutive_failures, failures),
+    ]
+    if is_success:
+        updates.append(to_update(state.field_ref().last_succeeded_at, finished_at))
+        updates.append(to_update(state.field_ref().last_success_started_at, last_run.started_at))
+    elif int(state.consecutive_failures) == 0:
+        # A new streak: a recovery the feed never took is moot now, and this streak is told at its threshold.
+        updates.append(to_update(state.field_ref().is_failure_notified, False))
+    else:
+        # A streak already going keeps whether it has been told.
+        pass
+    if chat_id is not None:
+        updates.append(to_update(state.field_ref().chat_id, chat_id))
+    return state.model_copy_update(*updates)
 
 
 def _mark_current_run_blocked(state: RoutineState) -> RoutineState:
@@ -656,31 +682,44 @@ def _stop_process_group(process: subprocess.Popen[bytes]) -> None:
     The direct child is reaped here; its descendants are reaped by whoever inherits them, so the group is
     polled for every member to be gone (a run is closed only once nothing of it still runs).
     """
-    if _signal_group_and_drain(process, signal.SIGTERM):
+    if _signal_group_and_drain(process.pid, signal.SIGTERM, process):
         return
-    if not _signal_group_and_drain(process, signal.SIGKILL):
+    if not _signal_group_and_drain(process.pid, signal.SIGKILL, process):
         logger.warning("The process group {} of the timed-out run is still alive after SIGKILL", process.pid)
 
 
-def _signal_group_and_drain(process: subprocess.Popen[bytes], signal_number: signal.Signals) -> bool:
-    """Send the signal to the group and wait up to the grace for it to empty; whether it did."""
+def _kill_process_group(pgid: int) -> None:
+    """Stop a command's process group whose runner is gone, as the timeout does, with nobody to reap its leader."""
+    if not _is_process_group_alive(pgid):
+        return
+    logger.warning("Stopping the process group {} a dead runner left behind", pgid)
+    if _signal_group_and_drain(pgid, signal.SIGTERM, None):
+        return
+    if not _signal_group_and_drain(pgid, signal.SIGKILL, None):
+        logger.warning("The process group {} a dead runner left behind is still alive after SIGKILL", pgid)
+
+
+def _signal_group_and_drain(pgid: int, signal_number: signal.Signals, process: subprocess.Popen[bytes] | None) -> bool:
+    """Send the signal to the group and wait up to the grace for it to empty; whether it did. The leader is
+    reaped through its handle when this process is its parent."""
     try:
-        os.killpg(process.pid, signal_number)
+        os.killpg(pgid, signal_number)
     except ProcessLookupError:
         return True
     except OSError as e:
-        logger.warning("Could not send {} to the process group {}: {}", signal_number.name, process.pid, e)
+        logger.warning("Could not send {} to the process group {}: {}", signal_number.name, pgid, e)
         return False
-    try:
-        process.wait(timeout=TERMINATE_GRACE_SECONDS)
-    except subprocess.TimeoutExpired:
-        return False
+    if process is not None:
+        try:
+            process.wait(timeout=TERMINATE_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            return False
     sleeper = threading.Event()
     for _ in range(int(TERMINATE_GRACE_SECONDS / _GROUP_DRAIN_POLL_SECONDS)):
-        if not _is_process_group_alive(process.pid):
+        if not _is_process_group_alive(pgid):
             return True
         sleeper.wait(_GROUP_DRAIN_POLL_SECONDS)
-    return not _is_process_group_alive(process.pid)
+    return not _is_process_group_alive(pgid)
 
 
 def _is_process_group_alive(pgid: int) -> bool:

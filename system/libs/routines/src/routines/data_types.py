@@ -141,6 +141,11 @@ class CurrentRun(FrozenModel):
     trigger: RunTrigger = Field(description="What started it")
     started_at: datetime = Field(description="When it started")
     is_blocked: bool = Field(default=False, description="Whether a skill run's agent is waiting on the user")
+    command_pgid: int = Field(
+        default=0,
+        description="The process group of a command run's process, so the reaper can stop what a dead runner "
+        "left running; 0 before the command starts and for a skill run",
+    )
 
 
 class LastRun(FrozenModel):

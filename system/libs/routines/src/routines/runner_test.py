@@ -4,6 +4,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
@@ -29,6 +30,7 @@ from routines.locks import held_lock
 from routines.mock_chat_app_test import BrokenChatApp
 from routines.mock_chat_app_test import ScriptedChatApp
 from routines.mock_clock_test import FakeClock
+from routines.mock_ledger_test import StateWatchingLedger
 from routines.mock_notifier_test import RecordingNotifier
 from routines.mock_state_store_test import OneRefusingStateStore
 from routines.mock_state_store_test import StaleReadStateStore
@@ -68,6 +70,17 @@ def _dead_pid() -> int:
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()
     return dead.pid
+
+
+def _with_command_group(run_id: RunId, pgid: int) -> Callable[[RoutineState], RoutineState]:
+    """Note a command's process group on the run in flight, as the runner does once the command starts."""
+
+    def record(state: RoutineState) -> RoutineState:
+        assert state.current_run is not None and state.current_run.run_id == run_id
+        current = state.current_run.model_copy_update(to_update(state.current_run.field_ref().command_pgid, pgid))
+        return state.model_copy_update(to_update(state.field_ref().current_run, current))
+
+    return record
 
 
 def _record_current_run(
@@ -593,3 +606,92 @@ def test_a_run_in_flight_in_this_very_process_is_left_alone(
 
     assert runner.tick().reaped == ()
     assert states.read(SYNC).current_run is not None
+
+
+def test_the_state_names_a_run_before_the_ledger_does(
+    paths: RoutinesPaths,
+    definitions: FileDefinitionStore,
+    states: FileStateStore,
+    chat_app: ScriptedChatApp,
+    notifier: RecordingNotifier,
+    clock: FakeClock,
+) -> None:
+    """A runner that dies between the two writes then leaves a run the tick can close off, not a start nothing finishes."""
+    _command_routine(definitions, "true")
+    ledger = StateWatchingLedger(paths=paths, states=states)
+    runner = Runner(
+        paths=paths,
+        definitions=definitions,
+        states=states,
+        ledger=ledger,
+        chat_app=chat_app,
+        notifier=notifier,
+        clock=clock,
+    )
+
+    event = runner.run(SYNC, RunTrigger.MANUAL, None)
+
+    assert ledger.run_in_flight_at_start == [event.run_id]
+
+
+def test_a_reaped_run_counts_toward_the_streak_and_tells_the_feed(
+    runner: Runner,
+    definitions: FileDefinitionStore,
+    states: FileStateStore,
+    notifier: RecordingNotifier,
+    clock: FakeClock,
+) -> None:
+    """A runner that keeps dying is as broken as a command that keeps failing."""
+    _command_routine(definitions, "true", enabled=False, notify_after_failures=2)
+    _record_current_run(states, RunId.generate(), _dead_pid(), clock.now())
+    runner.tick()
+    assert states.read(SYNC).consecutive_failures == 1
+    assert notifier.sent == []
+
+    _record_current_run(states, RunId.generate(), _dead_pid(), clock.now())
+    runner.tick()
+
+    state = states.read(SYNC)
+    assert state.consecutive_failures == 2
+    assert state.is_failure_notified
+    assert notifier.sent == [(SYNC, "Nightly sync", "Nightly sync has failed 2 times in a row.")]
+
+
+def test_the_reaper_stops_the_command_a_dead_runner_left_running(
+    runner: Runner, definitions: FileDefinitionStore, states: FileStateStore, clock: FakeClock
+) -> None:
+    _command_routine(definitions, "true", enabled=False)
+    orphan = subprocess.Popen(["sleep", "73842"], start_new_session=True)
+    # In the workspace the orphan's parent is the dead runner, so init reaps it; here this process is its parent.
+    reap_in_background(orphan)
+    try:
+        run_id = RunId.generate()
+        _record_current_run(states, run_id, _dead_pid(), clock.now())
+        states.update(SYNC, _with_command_group(run_id, orphan.pid))
+
+        report = runner.tick()
+
+        assert report.reaped == (SYNC,)
+        assert orphan.wait(timeout=10) != 0, "the orphaned command was not stopped"
+    finally:
+        if orphan.poll() is None:
+            orphan.kill()
+            orphan.wait()
+
+
+def test_a_command_run_records_its_process_group_while_it_runs(
+    runner: Runner, definitions: FileDefinitionStore, states: FileStateStore
+) -> None:
+    seen = runner.paths.repo_root / "seen.json"
+    _command_routine(
+        definitions,
+        "sh",
+        "-c",
+        f'cat "{runner.paths.state_path(SYNC)}" > "{seen}"',
+    )
+
+    runner.run(SYNC, RunTrigger.MANUAL, None)
+
+    recorded = json.loads(seen.read_text())["current_run"]
+    assert recorded["command_pgid"] > 0
+    assert states.read(SYNC).current_run is None
