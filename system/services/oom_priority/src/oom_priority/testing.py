@@ -9,7 +9,7 @@ Stop actions against the same stand-in for supervisord's control socket.
 import socketserver
 import tempfile
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -44,7 +44,7 @@ class _UnixXMLRPCServer(socketserver.UnixStreamServer, SimpleXMLRPCDispatcher):
 
 
 @contextmanager
-def fake_supervisord(**methods: Callable[..., Any]) -> Iterator[Path]:
+def fake_supervisord(**methods: Callable[..., Any]) -> Generator[Path, None, None]:
     """A stand-in for supervisord's control socket that answers the given XML-RPC methods, served on a
     thread for the duration of the block; yields the socket's path.
 
