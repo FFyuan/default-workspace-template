@@ -1,1 +1,1 @@
-Bump the Latchkey version to 3.19.2.
+Bump the Latchkey version to 3.19.3.
