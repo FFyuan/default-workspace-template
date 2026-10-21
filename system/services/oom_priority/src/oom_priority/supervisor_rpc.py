@@ -16,6 +16,8 @@ from typing import Any, Final, cast
 # supervisord's control socket (system/supervisord.conf's [unix_http_server]).
 SUPERVISOR_SOCKET: Final[Path] = Path("/var/run/supervisor.sock")
 _TIMEOUT_SECONDS: Final[float] = 2.0
+# supervisord's fault code for stopProcess on a program that is not running (supervisor.xmlrpc.Faults).
+NOT_RUNNING_FAULT: Final[int] = 70
 _logger = logging.getLogger(__name__)
 
 
@@ -69,11 +71,17 @@ def supervised_pids(sock: Path = SUPERVISOR_SOCKET) -> dict[str, int]:
 
 
 def stop_program(name: str, sock: Path = SUPERVISOR_SOCKET) -> bool:
-    """Ask supervisord to stop ``name``, without waiting for it to exit; whether it agreed (False when
-    supervisord cannot be asked, knows no such program, or the program was not running)."""
+    """Ask supervisord to stop ``name``, without waiting for it to exit; whether the program is now stopped or
+    stopping (a program that was not running already is), False when supervisord cannot be asked or knows no
+    such program."""
     proxy = _proxy(sock)
     try:
         return bool(proxy.supervisor.stopProcess(name, False))
+    except xmlrpc.client.Fault as fault:
+        if fault.faultCode == NOT_RUNNING_FAULT:
+            return True
+        _logger.debug("supervisord at %s would not stop %s: %s", sock, name, fault)
+        return False
     except (OSError, xmlrpc.client.Error, http.client.HTTPException) as error:
         _logger.debug(
             "Could not ask supervisord at %s to stop %s: %s", sock, name, error

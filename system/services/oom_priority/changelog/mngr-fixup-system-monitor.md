@@ -2,4 +2,4 @@ Added the `resource_sampler` program (`bin/resource_sampler.py`, policy in `reso
 
 The memory reader the app used (`meminfo.read_meminfo`) and the supervisord control-socket reader (`supervisor_rpc.supervised_pids`) moved into this package so the sampler and the app share them.
 
-`supervisor_rpc` gained `stop_program`, which asks supervisord over its socket to stop one program (the System Monitor app's Quit for a user app).
+`supervisor_rpc` gained `stop_program`, which asks supervisord over its socket to stop one program (the System Monitor app's Quit for a user app); a program that is not running counts as stopped.

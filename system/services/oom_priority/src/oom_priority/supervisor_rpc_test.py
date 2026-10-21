@@ -4,6 +4,7 @@ import configparser
 import socketserver
 import tempfile
 import threading
+import xmlrpc.client
 from pathlib import Path
 from xmlrpc.server import SimpleXMLRPCDispatcher, SimpleXMLRPCRequestHandler
 
@@ -61,7 +62,9 @@ def test_a_program_is_stopped_through_the_supervisor_socket_without_waiting() ->
         def stop_process(name: object, wait: object) -> bool:
             asked.append((name, wait))
             if name == "notes":
-                raise ValueError("NOT_RUNNING")
+                raise xmlrpc.client.Fault(70, "NOT_RUNNING: notes")
+            if name == "ghost":
+                raise xmlrpc.client.Fault(10, "BAD_NAME: ghost")
             return True
 
         server.register_function(stop_process, "supervisor.stopProcess")
@@ -71,13 +74,14 @@ def test_a_program_is_stopped_through_the_supervisor_socket_without_waiting() ->
         serving.start()
         try:
             assert supervisor_rpc.stop_program("budget", sock) is True
-            # A program supervisord refuses to stop (not running, unknown) is reported as not stopped.
-            assert supervisor_rpc.stop_program("notes", sock) is False
+            # A program that is not running is already what a stop asks for; an unknown one is not stopped.
+            assert supervisor_rpc.stop_program("notes", sock) is True
+            assert supervisor_rpc.stop_program("ghost", sock) is False
         finally:
             server.shutdown()
             serving.join(timeout=5)
             server.server_close()
-        assert asked == [("budget", False), ("notes", False)]
+        assert asked == [("budget", False), ("notes", False), ("ghost", False)]
         # No supervisord to ask: nothing stopped, and no error.
         assert (
             supervisor_rpc.stop_program("budget", Path(short_dir) / "missing.sock")

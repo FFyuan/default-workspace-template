@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import xmlrpc.client
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -165,7 +166,9 @@ def test_only_the_users_own_apps_are_quit_and_through_supervisord() -> None:
 
         def stop_process(name: object, wait: object) -> bool:
             asked.append(name)
-            return name == "budget"
+            if name == "notes":
+                raise xmlrpc.client.Fault(10, "BAD_NAME: notes")
+            return True
 
         server.register_function(stop_process, "supervisor.stopProcess")
         serving = threading.Thread(
@@ -175,7 +178,7 @@ def test_only_the_users_own_apps_are_quit_and_through_supervisord() -> None:
         try:
             apps = {"budget": "Budget", "notes": "Notes"}
             actions.stop_app("budget", apps, sock)
-            with pytest.raises(actions.StopRefusedError) as not_running:
+            with pytest.raises(actions.StopRefusedError) as unknown:
                 actions.stop_app("notes", apps, sock)
             with pytest.raises(actions.StopRefusedError) as built_in:
                 actions.stop_app("chat", apps, sock)
@@ -183,7 +186,7 @@ def test_only_the_users_own_apps_are_quit_and_through_supervisord() -> None:
             server.shutdown()
             serving.join(timeout=5)
             server.server_close()
-    assert not_running.value.status == 502 and "Notes" in not_running.value.detail
+    assert unknown.value.status == 502 and "Notes" in unknown.value.detail
     assert built_in.value.status == 403
     # The built-in program was never asked about.
     assert asked == ["budget", "notes"]
