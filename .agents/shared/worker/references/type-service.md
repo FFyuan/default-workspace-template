@@ -17,7 +17,10 @@ solely to support one app lives in that app's folder under
   its package with underscores as hyphens (`host_backup` runs as
   `host-backup`), and any further program it runs is `<name>-<role>`: the scope
   file's `wiring` and the update apply's rollback find its programs only by
-  those names.
+  those names. `oom_priority`'s programs (`earlyoom`, `publish_cgroup_meminfo`,
+  `resource_sampler`) are named otherwise, so its `wiring` is empty: an edit to
+  their blocks lands in `outside_footprint`, and a rollback leaves restarting
+  them to the agent.
 
 ## Running and testing
 

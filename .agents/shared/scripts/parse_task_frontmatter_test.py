@@ -414,7 +414,9 @@ body
 """
 
 
-def test_a_pass_over_three_creations_reaches_the_worker_as_type_and_name(tmp_path: Path) -> None:
+def test_a_pass_over_three_creations_reaches_the_worker_as_type_and_name(
+    tmp_path: Path,
+) -> None:
     """What the worker's `eval` defines for a pass covering an app, a service, and a
     shared reference (whose name is a path), read the way the worker reads it: one
     `<type>:<name>` token per creation."""
@@ -451,7 +453,10 @@ def test_a_harden_task_in_the_single_creation_shape_fails_loud(tmp_path: Path) -
     [
         ("scope_file: s.json", "needs a non-empty string `creations`"),
         ("creations: app:roadmap", "needs a non-empty string `scope_file`"),
-        ("scope_file: s.json\ncreations: [app:roadmap]", "needs a non-empty string `creations`"),
+        (
+            "scope_file: s.json\ncreations: [app:roadmap]",
+            "needs a non-empty string `creations`",
+        ),
         ("scope_file: s.json\ncreations: ' '", "needs a non-empty string `creations`"),
     ],
 )
@@ -459,7 +464,8 @@ def test_a_malformed_harden_task_fails_loud(
     tmp_path: Path, fields: str, message: str
 ) -> None:
     task = _write_task(
-        tmp_path, f"---\nfinish_report_path: b\noperation: update\n{fields}\n---\nbody\n"
+        tmp_path,
+        f"---\nfinish_report_path: b\noperation: update\n{fields}\n---\nbody\n",
     )
     with pytest.raises(ValueError, match=message):
         parse_task_frontmatter.parse(task)
