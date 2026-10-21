@@ -31,7 +31,8 @@ echo "PT=$PT LEAD_WORKTREE=$LEAD_WORKTREE FINISH_REPORT_PATH=$FINISH_REPORT_PATH
 
 `$PT` is the publishing workspace's own copy of this skill's tools. Use it for
 every tool after step 1: the base your checkout becomes may carry older copies,
-or none.
+or none. The same goes for this guide: after step 1, re-read it at
+`$PT/../references/assembly-worker.md`.
 
 Note the three values that prints. Every command runs in a fresh shell, and after
 step 1 the task file is gone, so they cannot be worked out again: set the ones a
