@@ -109,11 +109,12 @@ def stop_app(
 
 def stop(kind: str, target_id: str) -> None:
     """Carry out one Stop button's request. Raises StopRefusedError when it cannot be."""
-    if kind == "chat":
-        stop_chat(target_id)
-    elif kind == "checkers":
-        stop_checkers(target_id)
-    elif kind == "app":
-        stop_app(target_id)
-    else:
-        raise StopRefusedError(400, f"Nothing of kind {kind!r} can be stopped")
+    match kind:
+        case "chat":
+            stop_chat(target_id)
+        case "checkers":
+            stop_checkers(target_id)
+        case "app":
+            stop_app(target_id)
+        case _:
+            raise StopRefusedError(400, f"Nothing of kind {kind!r} can be stopped")
