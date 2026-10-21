@@ -30,7 +30,7 @@ _AGENT_DIR = re.compile(r"/\.mngr/agents/(agent-[^/\s]+)")
 # registry). A program named nowhere shows under its program name.
 PROGRAM_NAMES = {
     "system_interface": "Desktop",
-    "agent-observer": "Chat activity watcher",
+    "agent-observer": "Agent manager",
     "earlyoom": "Memory guard",
     "oom-tag-backstop": "Memory guard",
     "publish_cgroup_meminfo": "Memory guard",
@@ -40,8 +40,8 @@ PROGRAM_NAMES = {
     "cron": "Scheduled tasks",
     "xvfb": "Virtual display",
     "terminal-pty": "Terminal",
-    "owner-exec": "Imbue Studio connection",
-    "vm-exec-register": "Imbue Studio connection",
+    "owner-exec": "Web access",
+    "vm-exec-register": "Web access",
     "env-converge": "Environment setup",
 }
 

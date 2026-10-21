@@ -30,6 +30,24 @@ from system_monitor.programs import Process, chat_agent_id, is_code_checker
 SCRATCH_DIR = Path("/tmp")
 # The item every process that no chat, app or program owns lands under.
 OTHER_ITEM = "Other"
+# Where a process no chat, app or program started is shown, by the name of its command: the
+# SSH daemon and its sessions, and the machinery that boots and holds the workspace together
+# (tini, the bootstrap and its uv wrapper, supervisord, the services agent's tmux and shell).
+SSH_ITEM = "SSH access"
+INTERNAL_ITEM = "Internal system"
+UNOWNED_ITEMS = {
+    "sshd": SSH_ITEM,
+    "sshd-session": SSH_ITEM,
+    "tini": INTERNAL_ITEM,
+    "uv": INTERNAL_ITEM,
+    "bootstrap": INTERNAL_ITEM,
+    "supervisord": INTERNAL_ITEM,
+    "tmux": INTERNAL_ITEM,
+    "tmux: server": INTERNAL_ITEM,
+    "bash": INTERNAL_ITEM,
+    "sh": INTERNAL_ITEM,
+    "sleep": INTERNAL_ITEM,
+}
 # How far up a ppid chain to look for an owner before giving up.
 _MAX_ANCESTRY = 64
 
@@ -77,6 +95,19 @@ def _total_row(
         "cpu": cpu,
         "items": [],
     }
+
+
+def unowned_item(p: Process) -> str:
+    """The Workspace item a process nothing started belongs under: by its command, else Other.
+
+    The command is the first word of its first argument (sshd rewrites its own to ``sshd: ...``),
+    or the script a Python interpreter runs (supervisord is ``python3 /usr/bin/supervisord``).
+    """
+    words = p.argv[0].split() if p.argv else []
+    command = Path(words[0]).name.rstrip(":") if words else ""
+    if command.startswith("python") and len(p.argv) > 1:
+        command = Path(p.argv[1]).name
+    return UNOWNED_ITEMS.get(command, OTHER_ITEM)
 
 
 def _anonymous(p: Process) -> int:
@@ -152,7 +183,8 @@ def group_usage(
     registered ones (``agents``, any harness) and, failing that, claude found by its command line.
     A process's CPU share includes the children it has reaped, so it lands with the group of
     whatever started it. The workspace's own programs (``program_names``: supervised program ->
-    the name shown) are the items of the Workspace row; what none of them started is "Other".
+    the name shown) are the items of the Workspace row; what none of them started is "SSH access",
+    "Internal system" or "Other" by its command (``unowned_item``).
     Chats, checkers and apps carry the target their Stop button acts on: the chat's id
     (``chat_ids``: agent id -> chat id), the agent whose checkers, or the app's program.
     """
@@ -201,7 +233,7 @@ def group_usage(
             app_cpu[who[1]] = app_cpu.get(who[1], 0.0) + share
             app_stops.setdefault(who[1], {"kind": "app", "id": app_programs[who[1]]})
         else:
-            key = who[1] if who is not None else OTHER_ITEM
+            key = who[1] if who is not None else unowned_item(p)
             programs_mem[key] = programs_mem.get(key, 0) + amount
             programs_cpu[key] = programs_cpu.get(key, 0.0) + share
 
@@ -217,7 +249,7 @@ def group_usage(
         ),
         # Everything not a chat, a code checker, or a user-built app: the built-in apps (this
         # one included) and the background services, each an item, and what none of them
-        # started under "Other".
+        # started under SSH access, Internal system or Other.
         _group(
             "workspace",
             "Workspace",

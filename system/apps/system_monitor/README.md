@@ -34,8 +34,9 @@ the view it was on.
 codex, pi), each with whatever it is running, found through oom_priority's
 agent-pid registry; code checkers; the workspace's own programs (chat app,
 desktop, built-in apps, background services, each listed under the Workspace
-row by the name its registry row or `programs.PROGRAM_NAMES` gives it, and
-"Other" for what none of them started); and the apps the user built. A row
+row by the name its registry row or `programs.PROGRAM_NAMES` gives it; what
+none of them started is "SSH access", "Internal system" or "Other" by its
+command); and the apps the user built. A row
 with nothing under it (Code checkers, Your apps) is left out until something
 runs there.
 

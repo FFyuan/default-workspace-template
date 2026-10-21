@@ -76,7 +76,7 @@ def test_exact_usage_counts_anonymous_memory_per_group_and_shared_memory_once() 
     ]
     assert by_id["workspace"]["bytes"] == 60 * _MIB
     assert by_id["workspace"]["items"] == [
-        {"name": "Other", "bytes": 60 * _MIB, "cpu": None, "stop": None}
+        {"name": "Internal system", "bytes": 60 * _MIB, "cpu": None, "stop": None}
     ]
     assert by_id["shared"]["bytes"] == (10 + 100 + 100) * _MIB
     # 610 MB anonymous + 210 MB shared held by programs; the remaining 180 MB is the system's.
@@ -179,12 +179,12 @@ def test_memory_is_grouped_by_the_chat_app_or_program_each_process_descends_from
             "stop": {"kind": "app", "id": "budget"},
         }
     ]
-    # The workspace's own programs, largest first, and what no program started under Other;
+    # The workspace's own programs, largest first, and what no program started by its command;
     # none of them can be stopped from the page.
     assert by_id["workspace"]["bytes"] == 290 * _MIB
     assert by_id["workspace"]["items"] == [
         {"name": "Chat", "bytes": 150 * _MIB, "cpu": None, "stop": None},
-        {"name": "Other", "bytes": 100 * _MIB, "cpu": None, "stop": None},
+        {"name": "Internal system", "bytes": 100 * _MIB, "cpu": None, "stop": None},
         {"name": "Memory guard", "bytes": 40 * _MIB, "cpu": None, "stop": None},
     ]
     assert (
@@ -407,3 +407,29 @@ def test_a_chats_code_checkers_are_found_by_pid_for_stopping() -> None:
     ]
     assert usage.checker_pids_of_chat(procs, {30: "agent-codex"}, "agent-codex") == [31]
     assert usage.checker_pids_of_chat(procs, {}, "agent-nobody") == []
+
+
+def test_processes_no_program_started_are_named_by_their_command() -> None:
+    procs = {
+        1: Process(1, 0, 10 * _MIB, ["/sbin/tini", "--"]),
+        5: Process(5, 1, 20 * _MIB, ["sshd: /usr/sbin/sshd -D"]),
+        6: Process(6, 5, 15 * _MIB, ["sshd-session: root [priv]"]),
+        10: Process(10, 1, 100 * _MIB, ["uv", "run", "bootstrap"]),
+        11: Process(
+            11, 10, 40 * _MIB, ["/usr/bin/python3", "/usr/bin/supervisord", "-n"]
+        ),
+        12: Process(12, 1, 12 * _MIB, ["tmux", "new-session", "-d"]),
+        13: Process(13, 12, 5 * _MIB, ["/bin/bash"]),
+        20: Process(20, 1, 30 * _MIB, ["mystery-daemon"]),
+    }
+
+    groups = usage.group_usage(procs, {}, {}, {})
+
+    by_id = {group["id"]: group for group in groups}
+    assert [
+        (item["name"], item["bytes"] // _MIB) for item in by_id["workspace"]["items"]
+    ] == [
+        ("Internal system", 167),
+        ("SSH access", 35),
+        ("Other", 30),
+    ]
