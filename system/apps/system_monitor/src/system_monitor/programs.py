@@ -161,21 +161,34 @@ def _labels(record: dict[str, Any]) -> dict[str, Any]:
     return labels if isinstance(labels, dict) else {}
 
 
+class Chat(NamedTuple):
+    """What the page needs to know about a chat from its agent record."""
+
+    name: str  # the name the user knows the chat by
+    chat_id: str  # the id the chat app knows it by: its chat_id label, else the agent id itself
+
+
+def chats(agents_dir: Path = MNGR_AGENTS_DIR) -> dict[str, Chat]:
+    """Agent id -> its chat, from one read of the agent records."""
+    found: dict[str, Chat] = {}
+    for agent_id, record in _agent_records(agents_dir).items():
+        labels = _labels(record)
+        name = labels.get("display_name") or record.get("name") or agent_id
+        found[agent_id] = Chat(
+            str(name).removesuffix(" Agent").removesuffix("-Agent"),
+            str(labels.get("chat_id") or agent_id),
+        )
+    return found
+
+
 def chat_names(agents_dir: Path = MNGR_AGENTS_DIR) -> dict[str, str]:
     """Agent id -> the name the user knows the chat by."""
-    names: dict[str, str] = {}
-    for agent_id, record in _agent_records(agents_dir).items():
-        name = _labels(record).get("display_name") or record.get("name") or agent_id
-        names[agent_id] = str(name).removesuffix(" Agent").removesuffix("-Agent")
-    return names
+    return {agent_id: chat.name for agent_id, chat in chats(agents_dir).items()}
 
 
 def chat_ids(agents_dir: Path = MNGR_AGENTS_DIR) -> dict[str, str]:
     """Agent id -> the id the chat app knows the chat by (its ``chat_id`` label, else the agent id itself)."""
-    return {
-        agent_id: str(_labels(record).get("chat_id") or agent_id)
-        for agent_id, record in _agent_records(agents_dir).items()
-    }
+    return {agent_id: chat.chat_id for agent_id, chat in chats(agents_dir).items()}
 
 
 def registry_rows(registry: Path = APPS_REGISTRY) -> list[dict[str, Any]]:

@@ -29,11 +29,12 @@ def snapshot(
 ) -> dict[str, Any]:
     moment = now or datetime.now(timezone.utc)
     procs = programs.read_processes()
-    names = programs.chat_names()
+    chats = programs.chats()
+    names = {agent_id: chat.name for agent_id, chat in chats.items()}
+    chat_ids = {agent_id: chat.chat_id for agent_id, chat in chats.items()}
     meminfo = read_meminfo()
     apps, supervised = programs.user_apps(), supervised_pids()
     agents = programs.agents_by_pid()
-    chat_ids = programs.chat_ids()
     program_names = programs.program_names(supervised)
     scratch = memory.disk(usage.SCRATCH_DIR)
     # Scratch space is memory only where /tmp is a tmpfs; elsewhere its files are on disk.
