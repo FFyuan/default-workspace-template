@@ -433,7 +433,7 @@ def test_built_in_manifests_agree_with_the_contract_table() -> None:
     assert by_name["system-monitor"].default_shortcut is not None
     assert by_name["system-monitor"].default_shortcut.launch == "open"
     assert by_name["system-monitor"].default_shortcut.mode == "focus"
-    # Routines: one window over the schedule, focused like Memory & disk; the runner's notifications land on a
+    # Routines: one window over the schedule, focused like System Monitor; the runner's notifications land on a
     # routine's page through the one message type it registers, with the library's routine_id field as the path.
     assert by_name["routines"].critical is False
     assert by_name["routines"].program == "routines"
