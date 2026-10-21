@@ -10,6 +10,7 @@ from routines.mock_clock_test import FakeClock
 from routines.mock_http_server_test import FakeHttpServer
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
+from routines.primitives import SendVerdict
 
 
 def test_the_status_is_read_from_the_chat_list_and_unknown_words_read_as_unknown(
@@ -204,3 +205,11 @@ def test_a_create_that_names_no_agent_is_refused(tmp_path: Path, clock: FakeCloc
     chat_app, _ = _chat_app_with_fake_uv(tmp_path, clock, 'echo \'{"event": "progress"}\'\n')
     with pytest.raises(ChatCreateError, match="named no agent"):
         chat_app.create_chat("Morning digest", RoutineId("digest"), "/digest")
+
+
+def test_a_send_the_chat_app_holds_for_a_handoff_is_told_apart_from_one_it_took(
+    http_chat_app: HttpChatApp, http_server: FakeHttpServer
+) -> None:
+    http_server.answer("POST", "/api/chats/a/message", (202, {"status": "held", "phase": "starting"}), (200, {}))
+    assert http_chat_app.send_message("a", "/clear") is SendVerdict.HELD
+    assert http_chat_app.send_message("a", "/digest") is SendVerdict.ACCEPTED

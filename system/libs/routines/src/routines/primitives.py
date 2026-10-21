@@ -200,6 +200,13 @@ class RoutineHealth(UpperCaseStrEnum):
     WORKING = auto()
 
 
+class SendVerdict(UpperCaseStrEnum):
+    """How the chat app took a message: handed to the agent, or held for the agent the chat is moving to."""
+
+    ACCEPTED = "ACCEPTED"
+    HELD = "HELD"
+
+
 class RestartVerdict(UpperCaseStrEnum):
     """How a restarted chat came back: ready, gone for good, or not within the run's time."""
 

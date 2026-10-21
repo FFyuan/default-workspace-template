@@ -16,6 +16,7 @@ from routines.paths import RoutinesPaths
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
 from routines.primitives import RunId
+from routines.primitives import SendVerdict
 
 
 class ClockInterface(MutableModel, ABC):
@@ -135,8 +136,9 @@ class ChatAppInterface(MutableModel, ABC):
         """Interrupt the chat's current turn."""
 
     @abstractmethod
-    def send_message(self, chat_id: str, text: str) -> None:
-        """Send a message, returning once the harness has accepted it; raises ChatAppError on a refusal."""
+    def send_message(self, chat_id: str, text: str) -> SendVerdict:
+        """Send a message, returning once the harness has accepted it, or once the chat app has held it for the
+        agent the chat is moving to (a handoff delivers it later); raises ChatAppError on a refusal."""
 
     @abstractmethod
     def latest_event_id(self, chat_id: str) -> str | None:

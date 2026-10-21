@@ -45,7 +45,8 @@ routine that is due, and once a day archives the ledger past 16 MB and prunes
 run directories older than 90 days.
 
 A run holds the routine's lock for its whole length (a second run, scheduled
-or manual, is refused), writes `run_started` to the ledger, streams the
+or manual, is refused once a few tries over half a second have found it held),
+records itself in the state, writes `run_started` to the ledger, streams the
 command's output to `data/.state/routines/<id>/runs/<run id>/log`, and writes
 `run_finished` with the outcome (`SUCCEEDED`, `FAILED`, `TIMED_OUT` or
 `INTERRUPTED`). A command may leave `$ROUTINES_RUN_DIR/result.json` with a

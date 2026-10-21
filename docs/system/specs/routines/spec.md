@@ -175,8 +175,9 @@ The tick's own output is a line per spawned run and a line per reaped run, nothi
 
 `routines run <id> --trigger scheduled|manual`:
 
-1. Takes the routine's lock (`data/.state/routines/<id>/run.lock`, `flock -n`; `state.lock` beside it guards the state file's short writes).
-   Held means a run is in flight: a scheduled run exits silently, a manual run exits 1 saying so.
+1. Takes the routine's lock (`data/.state/routines/<id>/run.lock`, `flock -n`, tried again a few times over half a second so a holder that has it for an instant, such as a removal, does not refuse the run; `state.lock` beside it guards the state file's short writes).
+   Held past the tries means a run is in flight: a scheduled run exits silently, a manual run exits 1 saying so.
+   Nothing else ever takes the lock to ask whether it is free: whether a run is going is read from the state (a `current_run` whose process is alive), since a probe would refuse a run starting at that instant.
    The switch gates scheduled runs only; a manual run of a routine that is off runs, since the user asked for exactly that.
 2. Takes the run id the tick or the app minted (or mints one), creates the run directory `data/.state/routines/<id>/runs/<run_id>/`, records the run as `current_run` in the state with this process's pid and start time, and then writes `run_started` to the ledger (the state first, so a runner that dies between the two leaves a run the tick can close off); a command run adds its process group to `current_run` once the command starts.
 3. Runs the routine (6.3 or 6.4), streaming output to `<run_dir>/log` as it arrives.
@@ -206,6 +207,7 @@ Inside a run (`ROUTINES_RUN_ID` set) the wake attaches the chat to that run and 
    That note is a warning in the row and the run page, since it means the routine's timeout or cadence is wrong.
 3. **Start fresh.** Send `/clear` through the chat app's message route, then `/<skill>` with a message id the wake minted.
    The send route answers only once the harness has accepted the text, so a returned send is the acknowledgement; nothing sleeps.
+   A send the chat app answers with 202 is held for the agent the chat is moving to, which the handoff delivers later: a held `/clear` is waited out (the chat listed and idle again, within two minutes) before the cursor is read, so the cursor sits after the clear; a held `/<skill>` gets the same two minutes, rather than one, before the agent counts as never started.
 4. **Wait for the turn.** Poll the chat's snapshot every second.
    The turn is over when the status is `idle` and the transcript (`GET /api/chats/<id>/events`) holds an agent message after the sent one; that is `succeeded`.
    `stopped` or `error` is `failed`.
@@ -260,6 +262,7 @@ Every enum value is written in upper case, as the JSON of the state, the ledger,
 
 Readers take the file from its tail and stop once they have what they need; the app never reads the whole file for one routine.
 The tick's daily housekeeping (6.1) rotates the file past 16 MB to `events.<date>.jsonl.gz` and prunes run directories older than 90 days.
+Appends and the rotation take `ledger.lock` beside the file, since runs append from processes of their own; readers take nothing and read from the tail.
 Every event is self-describing, so the per-routine run directory is a convenience and the ledger is the record.
 
 ### 7.3 The log

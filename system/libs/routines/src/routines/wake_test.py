@@ -234,3 +234,48 @@ def test_the_summary_is_the_first_real_line_of_the_message_without_its_heading_m
     assert summary_of_message("\n## Done\nThe rest.") == "Done"
     assert summary_of_message("x" * 300) == "x" * 200
     assert summary_of_message(None) == ""
+
+
+def test_a_clear_the_chat_app_held_for_a_handoff_is_waited_out_before_the_cursor_is_read(
+    chat_app: ScriptedChatApp, clock: FakeClock
+) -> None:
+    """The cursor must sit after the clear, so a held clear is given time to reach the new agent and run."""
+    chat_app.script(
+        "agent-1",
+        (
+            ChatStatusWord.IDLE,
+            ChatStatusWord.WORKING,
+            ChatStatusWord.IDLE,
+            ChatStatusWord.WORKING,
+            ChatStatusWord.IDLE,
+        ),
+        "Summarized 3 messages.",
+    )
+    chat_app.held_sends_left = 1
+
+    outcome, _, _ = _wake(chat_app, clock, "agent-1")
+
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+    assert chat_app.sent == [("agent-1", "/clear"), ("agent-1", "/digest")]
+    # The first poll listed the chat; the next two watched the held clear run and settle before the command went.
+    assert chat_app.polls_by_chat["agent-1"] == 5
+
+
+def test_a_held_command_gets_a_longer_start_grace(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
+    """The handoff delivers the command once the chat has its new agent, which takes longer than a send."""
+    chat_app.script("agent-1", (ChatStatusWord.IDLE,) * 100 + (ChatStatusWord.WORKING, ChatStatusWord.IDLE), "Done.")
+    chat_app.held_sends_left = 2
+
+    outcome, _, _ = _wake(chat_app, clock, "agent-1")
+
+    assert outcome.outcome is RunOutcome.SUCCEEDED
+
+
+def test_a_held_clear_whose_chat_never_comes_back_is_a_failed_run(chat_app: ScriptedChatApp, clock: FakeClock) -> None:
+    chat_app.script("agent-1", (ChatStatusWord.IDLE, ChatStatusWord.STOPPED), None)
+    chat_app.held_sends_left = 1
+
+    outcome, _, _ = _wake(chat_app, clock, "agent-1")
+
+    assert outcome.outcome is RunOutcome.FAILED
+    assert chat_app.sent == [("agent-1", "/clear")]

@@ -19,6 +19,7 @@ from routines.interfaces import ChatAppInterface
 from routines.interfaces import ClockInterface
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
+from routines.primitives import SendVerdict
 from routines.registry import chat_app_url
 
 # The create template every routine's chat is made from: the one the automation runner used.
@@ -31,6 +32,7 @@ SEND_READ_TIMEOUT_SECONDS: Final[float] = 300.0
 NOT_READY_RETRY_WINDOW_SECONDS: Final[float] = 30.0
 NOT_READY_RETRY_PAUSE_SECONDS: Final[float] = 1.0
 CREATE_TIMEOUT_SECONDS: Final[float] = 300.0
+HELD_SEND_STATUS: Final[int] = 202
 LIST_TIMEOUT_SECONDS: Final[float] = 60.0
 # The label a routine's chat carries, and the one the retired automation runner gave its agent.
 ROUTINE_LABEL: Final[str] = "routine"
@@ -154,7 +156,7 @@ class HttpChatApp(ChatAppInterface):
     def interrupt_chat(self, chat_id: str) -> None:
         self._post_verb(chat_id, "interrupt")
 
-    def send_message(self, chat_id: str, text: str) -> None:
+    def send_message(self, chat_id: str, text: str) -> SendVerdict:
         body = {"message": text, "message_id": uuid4().hex}
         response = self._request_until_ready(
             "POST",
@@ -164,6 +166,8 @@ class HttpChatApp(ChatAppInterface):
         )
         if response.status_code >= 300:
             raise ChatAppError(f"The chat app refused the message: {self._detail(response)}")
+        # A 202 is the chat app holding the message while the chat moves to a new agent, which gets it next.
+        return SendVerdict.HELD if response.status_code == HELD_SEND_STATUS else SendVerdict.ACCEPTED
 
     def _events(self, chat_id: str, query: str) -> list[dict[str, Any]]:
         response = self._request_until_ready(

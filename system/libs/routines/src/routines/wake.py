@@ -21,6 +21,7 @@ from routines.primitives import RestartVerdict
 from routines.primitives import RoutineId
 from routines.primitives import RunOutcome
 from routines.primitives import RunWarning
+from routines.primitives import SendVerdict
 
 POLL_PAUSE_SECONDS: Final[float] = 1.0
 # A chat that neither works nor answers this long after the send never started; one that worked and has been
@@ -29,6 +30,8 @@ POLL_PAUSE_SECONDS: Final[float] = 1.0
 START_DEADLINE: Final[timedelta] = timedelta(seconds=60)
 # How long the chat app may go unreachable mid-turn before the run is given up as failed.
 CHAT_APP_OUTAGE_GRACE: Final[timedelta] = timedelta(minutes=2)
+# How long a message the chat app held for a handoff may take to reach the agent before the run is given up.
+HELD_SEND_GRACE: Final[timedelta] = timedelta(minutes=2)
 SUMMARY_MAX_CHARS: Final[int] = 200
 CLEAR_COMMAND: Final[str] = "/clear"
 NEVER_STARTED_SUMMARY: Final[str] = "The agent never started on the message."
@@ -153,19 +156,48 @@ def _restart_busy_chat(
             assert_never(unreachable)
 
 
+def _settle_held_send(
+    chat_app: ChatAppInterface,
+    clock: ClockInterface,
+    routine_id: RoutineId,
+    chat_id: str,
+    deadline: datetime,
+    warnings: tuple[RunWarning, ...],
+) -> WakeOutcome | None:
+    """Wait for a message the chat app held for a handoff to have been delivered and acted on: the chat is listed
+    and idle again; the outcome that ends the wake when it is gone or the time runs out, else None."""
+    logger.info("The chat app held the clear for the chat {} of {} while it changes agents", chat_id, routine_id)
+    match _wait_until_idle(chat_app, clock, chat_id, min(deadline, clock.now() + HELD_SEND_GRACE)):
+        case RestartVerdict.IDLE:
+            return None
+        case RestartVerdict.GONE:
+            return WakeOutcome(outcome=RunOutcome.FAILED, summary=STOPPED_SUMMARY, chat_id=chat_id, warnings=warnings)
+        case RestartVerdict.TIMED_OUT:
+            return WakeOutcome(
+                outcome=RunOutcome.TIMED_OUT,
+                summary="The chat did not come back from a change of agents.",
+                chat_id=chat_id,
+                warnings=warnings,
+            )
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
 def _wait_for_turn(
     chat_app: ChatAppInterface,
     clock: ClockInterface,
     chat_id: str,
     is_fresh_chat: bool,
     sent_at: datetime,
+    start_grace: timedelta,
     cursor: str | None,
     deadline: datetime,
     warnings: tuple[RunWarning, ...],
     on_blocked: Callable[[], None],
 ) -> WakeOutcome:
-    """Wait for the turn: poll the chat until the agent has answered, never started, stopped, finished without
-    answering, or the deadline passes, telling on_blocked once when the agent waits on the user."""
+    """Wait for the turn: poll the chat until the agent has answered, never started (within start_grace of the
+    send), stopped, finished without answering, or the deadline passes, telling on_blocked once when the agent
+    waits on the user."""
     is_blocked_told = False
     has_worked = False
     idle_without_answer_since: datetime | None = None
@@ -212,7 +244,7 @@ def _wait_for_turn(
                     chat_id=chat_id,
                     warnings=warnings,
                 )
-            if not has_worked and now - sent_at > START_DEADLINE:
+            if not has_worked and now - sent_at > start_grace:
                 return WakeOutcome(
                     outcome=RunOutcome.FAILED, summary=NEVER_STARTED_SUMMARY, chat_id=chat_id, warnings=warnings
                 )
@@ -260,18 +292,35 @@ def wake_skill(
     warnings: tuple[RunWarning, ...] = ()
     try:
         cursor: str | None = None
+        start_grace = START_DEADLINE
         if not chat.is_fresh:
             if chat.status in _BUSY_STATUSES:
                 warnings = (RunWarning.RESTARTED_PREVIOUS_RUN,)
                 not_back = _restart_busy_chat(chat_app, clock, routine_id, chat.chat_id, deadline, warnings)
                 if not_back is not None:
                     return not_back
-            # Start fresh: the send answers once the harness has accepted the text.
-            chat_app.send_message(chat.chat_id, CLEAR_COMMAND)
+            # Start fresh: the send answers once the harness has accepted the text, or once the chat app has
+            # held it for the agent the chat is moving to; a held clear is waited out before the cursor is read,
+            # since the cursor must sit after the clear, not before it.
+            if chat_app.send_message(chat.chat_id, CLEAR_COMMAND) is SendVerdict.HELD:
+                not_settled = _settle_held_send(chat_app, clock, routine_id, chat.chat_id, deadline, warnings)
+                if not_settled is not None:
+                    return not_settled
             cursor = chat_app.latest_event_id(chat.chat_id)
-            chat_app.send_message(chat.chat_id, command)
+            if chat_app.send_message(chat.chat_id, command) is SendVerdict.HELD:
+                # The agent starts on the command once the handoff delivers it, which takes longer than a send.
+                start_grace = HELD_SEND_GRACE
         return _wait_for_turn(
-            chat_app, clock, chat.chat_id, chat.is_fresh, clock.now(), cursor, deadline, warnings, on_blocked
+            chat_app,
+            clock,
+            chat.chat_id,
+            chat.is_fresh,
+            clock.now(),
+            start_grace,
+            cursor,
+            deadline,
+            warnings,
+            on_blocked,
         )
     except ChatAppError as e:
         return WakeOutcome(outcome=RunOutcome.FAILED, summary=str(e), chat_id=chat.chat_id, warnings=warnings)

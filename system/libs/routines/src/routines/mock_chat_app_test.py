@@ -6,6 +6,7 @@ from routines.errors import ChatCreateError
 from routines.interfaces import ChatAppInterface
 from routines.primitives import ChatStatusWord
 from routines.primitives import RoutineId
+from routines.primitives import SendVerdict
 
 
 class ScriptedChat(FrozenModel):
@@ -27,6 +28,7 @@ class ScriptedChatApp(ChatAppInterface):
     is_create_refused: bool = Field(default=False, description="Whether creates fail")
     is_list_refused: bool = Field(default=False, description="Whether the chat list cannot be read")
     is_interrupt_refused: bool = Field(default=False, description="Whether interrupts are refused, as of an idle chat")
+    held_sends_left: int = Field(default=0, description="How many of the next sends the app holds for a handoff")
     event_ids: dict[str, str] = Field(default_factory=dict, description="The latest event id per chat")
     findable: dict[RoutineId, str] = Field(
         default_factory=dict, description="The agent a routine's label finds, as mngr would list it"
@@ -69,10 +71,14 @@ class ScriptedChatApp(ChatAppInterface):
         if self.is_interrupt_refused:
             raise ChatAppError("The chat app refused to interrupt the chat: the chat is idle.")
 
-    def send_message(self, chat_id: str, text: str) -> None:
+    def send_message(self, chat_id: str, text: str) -> SendVerdict:
         if chat_id not in self.chats:
             raise ChatAppError("The chat app refused the message: no such chat.")
         self.sent.append((chat_id, text))
+        if self.held_sends_left > 0:
+            self.held_sends_left -= 1
+            return SendVerdict.HELD
+        return SendVerdict.ACCEPTED
 
     def latest_event_id(self, chat_id: str) -> str | None:
         return self.event_ids.get(chat_id)
