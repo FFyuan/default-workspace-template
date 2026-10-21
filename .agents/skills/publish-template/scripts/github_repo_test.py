@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from latchkey_testing import FakeLatchkey
-from publish_testing import git
+from publish_testing import git, init_repo
 
 _SCRIPT = Path(__file__).resolve().parent / "github_repo.py"
 _CREATE = "POST https://api.github.com/user/repos"
@@ -21,11 +21,7 @@ _CREATED_AND_LOCKED_DOWN = {**_CREATED, _LOCKDOWN: json.dumps({"name": "demo"})}
 
 
 def _worktree(tmp_path: Path) -> Path:
-    worktree = tmp_path / "wt"
-    worktree.mkdir()
-    git(worktree, "init", "-q", ".")
-    git(worktree, "config", "user.email", "t@t.t")
-    git(worktree, "config", "user.name", "T")
+    worktree = init_repo(tmp_path / "wt")
     (worktree / "README.md").write_text(_README)
     git(worktree, "add", "-A")
     git(worktree, "commit", "-qm", "assembled")

@@ -33,6 +33,15 @@ def git(cwd: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def init_repo(root: Path) -> Path:
+    """An empty repo on `main` at `root`, with a commit identity set."""
+    root.mkdir(parents=True, exist_ok=True)
+    git(root, "init", "-q", "-b", "main", ".")
+    git(root, "config", "user.email", "t@t.t")
+    git(root, "config", "user.name", "T")
+    return root
+
+
 def write_finished_template(root: Path, readme: str) -> None:
     """The manifest pair, a real thumbnail and a README: a tree the validator passes."""
     (root / "template.toml").write_text(FINISHED_TEMPLATE_TOML)

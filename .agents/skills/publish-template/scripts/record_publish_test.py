@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from publish_testing import git
+from publish_testing import git, init_repo
 
 _SCRIPT = Path(__file__).resolve().parent / "record_publish.py"
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -17,11 +17,8 @@ _TODAY = "2026-10-20"
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
     """A template release tagged minds-v0.9.1, then bootstrap's marker, then work."""
-    root = tmp_path / "workspace"
-    (root / "docs").mkdir(parents=True)
-    git(root, "init", "-q", ".")
-    git(root, "config", "user.email", "t@t.t")
-    git(root, "config", "user.name", "T")
+    root = init_repo(tmp_path / "workspace")
+    (root / "docs").mkdir()
     (root / _LEDGER).write_text((_REPO_ROOT / _LEDGER).read_text())
     git(root, "add", "-A")
     git(root, "commit", "-qm", "Template release")

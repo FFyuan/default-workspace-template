@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from publish_testing import git, write_finished_template
+from publish_testing import git, init_repo, write_finished_template
 from push_snapshot import hint_for_push_failure
 
 _SCRIPT = Path(__file__).resolve().parent / "push_snapshot.py"
@@ -22,11 +22,7 @@ class _Publish:
     """A workspace on a template base, its assembly worktree with intermediate commits, and a remote."""
 
     def __init__(self, root: Path) -> None:
-        self.workspace = root / "workspace"
-        self.workspace.mkdir()
-        git(self.workspace, "init", "-q", "-b", "main", ".")
-        git(self.workspace, "config", "user.email", "t@t.t")
-        git(self.workspace, "config", "user.name", "T")
+        self.workspace = init_repo(root / "workspace")
         (self.workspace / "pyproject.toml").write_text("[project]\nname = 'x'\n")
         git(self.workspace, "add", "-A")
         git(self.workspace, "commit", "-qm", "Template release")
