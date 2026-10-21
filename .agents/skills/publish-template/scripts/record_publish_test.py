@@ -31,7 +31,7 @@ def workspace(tmp_path: Path) -> Path:
 
 
 def _record(
-    workspace: Path, note: str, *, slug: str = "inbox", sha: str = "HEAD"
+    workspace: Path, note: str, *extra: str, slug: str = "inbox", sha: str = "HEAD"
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -49,6 +49,7 @@ def _record(
             sha,
             "--date",
             _TODAY,
+            *extra,
         ],
         capture_output=True,
         text=True,
@@ -151,6 +152,37 @@ def test_a_shorter_note_at_the_same_sha_is_a_new_version_not_a_retry(
     assert git(workspace, "log", "-1", "--format=%s") == (
         "version history: updated template inbox to v2"
     )
+
+
+def test_an_update_of_a_template_the_ledger_never_recorded_takes_its_published_version(
+    workspace: Path,
+) -> None:
+    """Published before the ledger recorded it: there is no entry to count from."""
+    head = git(workspace, "rev-parse", "--short=7", "HEAD")
+
+    completed = _record(workspace, "adds a reminders column", "--version", "3")
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "v3"
+    assert _templates_block(workspace, "inbox") == [
+        f"- v3  {_TODAY}  {'adds a reminders column':<35}{head}"
+    ]
+    assert git(workspace, "log", "-1", "--format=%s") == (
+        "version history: updated template inbox to v3"
+    )
+
+
+def test_a_version_the_ledger_contradicts_is_refused_and_nothing_is_written(
+    workspace: Path,
+) -> None:
+    assert _record(workspace, "first published").returncode == 0
+    ledger = (workspace / _LEDGER).read_text()
+
+    completed = _record(workspace, "adds a reminders column", "--version", "5")
+
+    assert completed.returncode == 1
+    assert "this publish is v2, not v5" in completed.stderr
+    assert (workspace / _LEDGER).read_text() == ledger
 
 
 def test_two_templates_from_one_commit_are_recorded_separately(

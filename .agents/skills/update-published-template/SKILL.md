@@ -517,7 +517,9 @@ python3 "$PT/record_publish.py" --workspace /home/user/workspace --slug <slug> \
 (not the workspace's HEAD now, which may have moved on; not `BASE_REF`, not the
 published tip, nothing from `$WT`). The script computes `v(n+1)` itself,
 appends it under the slug's heading, and commits that one file; recording the
-same note at the same sha again changes nothing. If it reports a failed commit,
+same note at the same sha again changes nothing. If §1 found no row for this
+slug, add `--version <n+1>` (the version you just pushed and tagged): with no
+entry to count from, the script would otherwise record it as v1. If it reports a failed commit,
 the update IS published -- say so, and commit the file rather than re-pushing.
 
 ## 9. Close out

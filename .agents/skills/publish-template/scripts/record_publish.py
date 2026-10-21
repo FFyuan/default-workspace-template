@@ -2,7 +2,8 @@
 """Record a template publish in the workspace's `docs/VERSION_HISTORY.md`, committed.
 
     python3 record_publish.py --workspace /home/user/workspace --slug <slug> \\
-        --repo-url github.com/<owner>/<repo> --note <one line> --source-sha <sha>
+        --repo-url github.com/<owner>/<repo> --note <one line> --source-sha <sha> \\
+        [--version <n>]
 
 Run only after the push succeeded: an unpublished version is never recorded. Used
 by `publish-template` (note `first published`) and `update-published-template`
@@ -15,9 +16,11 @@ by `publish-template` (note `first published`) and `update-published-template`
     - v2  2026-11-02  adds a reminders column            5d6e7f8
 
 The version is computed -- one past the highest already under the slug's heading
--- and the sha is the source workspace commit the snapshot was cut from. Recording
-the same note at the same sha again changes nothing, so a retried step never
-duplicates an entry. Two templates published from one commit on one day have
+-- and the sha is the source workspace commit the snapshot was cut from. A slug
+with no entries yet (an update of a template published before the ledger recorded
+it) takes `--version`, the version just published; with entries, a `--version`
+other than the computed one is refused. Recording the same note at the same sha
+again changes nothing, so a retried step never duplicates an entry. Two templates published from one commit on one day have
 their own headings, so they never collide.
 
 The workspace's `## Workspace` origin line is seeded first if it is missing, and a
@@ -83,9 +86,19 @@ def _next_heading(lines: list[str], start: int, prefixes: tuple[str, ...]) -> in
 
 
 def add_template_entry(
-    lines: list[str], slug: str, repo_url: str, note: str, sha: str, date: str
+    lines: list[str],
+    slug: str,
+    repo_url: str,
+    note: str,
+    sha: str,
+    date: str,
+    expected_version: int | None = None,
 ) -> int | None:
-    """Add the entry in place; the version recorded, or None if it already was."""
+    """Add the entry in place; the version recorded, or None if it already was.
+
+    `expected_version` is the version the caller published. With entries under the
+    slug it must be the computed one; with none, it is what gets recorded.
+    """
     if _TEMPLATES_HEADING not in lines:
         lines.extend(["", _TEMPLATES_HEADING, ""])
     section = lines.index(_TEMPLATES_HEADING)
@@ -114,7 +127,15 @@ def add_template_entry(
         for match in (_VERSION_PATTERN.match(lines[index]) for index in entries)
         if match
     ]
-    version = max(versions, default=0) + 1
+    if not versions:
+        version = expected_version or 1
+    elif expected_version is None or expected_version == max(versions) + 1:
+        version = max(versions) + 1
+    else:
+        raise RecordPublishError(
+            f"the newest {slug} entry is v{max(versions)}, so this publish is "
+            f"v{max(versions) + 1}, not v{expected_version}"
+        )
     position = entries[-1] + 1 if entries else heading + 1
     lines.insert(position, template_line(version, date, note, sha))
     if position + 1 < len(lines) and lines[position + 1].startswith("#"):
@@ -132,7 +153,13 @@ def _git(workspace: Path, *args: str) -> str:
 
 
 def record(
-    workspace: Path, slug: str, repo_url: str, note: str, source_sha: str, date: str
+    workspace: Path,
+    slug: str,
+    repo_url: str,
+    note: str,
+    source_sha: str,
+    date: str,
+    expected_version: int | None = None,
 ) -> int | None:
     try:
         sha = _git(workspace, "rev-parse", "--short=7", f"{source_sha}^{{commit}}")
@@ -153,7 +180,9 @@ def record(
         ledger.insert_under_workspace(
             lines, ledger.origin_line(workspace, runner), first=True
         )
-    version = add_template_entry(lines, slug, repo_url, note, sha, date)
+    version = add_template_entry(
+        lines, slug, repo_url, note, sha, date, expected_version
+    )
     if version is None:
         return None
     path.write_text("\n".join(lines) + "\n")
@@ -190,7 +219,14 @@ def main(argv: list[str] | None = None) -> int:
         help="The source commit the snapshot was cut from",
     )
     parser.add_argument("--date", default=datetime.date.today().isoformat())
+    parser.add_argument(
+        "--version",
+        type=int,
+        help="The version published, when the ledger has no entry for this slug yet",
+    )
     args = parser.parse_args(argv)
+    if args.version is not None and args.version < 1:
+        parser.error(f"--version must be at least 1, not {args.version}")
 
     try:
         version = record(
@@ -200,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
             args.note,
             args.source_sha,
             args.date,
+            args.version,
         )
     except (RecordPublishError, subprocess.CalledProcessError) as e:
         print(f"record_publish: {e}", file=sys.stderr)
