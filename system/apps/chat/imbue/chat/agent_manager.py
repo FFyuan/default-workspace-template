@@ -350,7 +350,6 @@ def _build_chat_create_command(
     initial_message: str = "",
     extra_labels: Sequence[str] = (),
     settings: Sequence[str] = (),
-    agent_name: str = "",
 ) -> list[str]:
     """Build the ``mngr create`` argv for a chat's agent on a given harness.
 
@@ -360,9 +359,7 @@ def _build_chat_create_command(
     shares this one builder: adding a harness means passing a different name here, not
     writing another near-identical builder, and not adding a per-harness create template.
     ``MINDS_CHAT_ID`` names the chat the agent belongs to in its env file, so the agent and
-    every skill it runs can address the chat rather than themselves. The agent's true name is
-    ``agent_name`` when the create named one apart from the display name ``name``, else
-    ``name``'s canonical form.
+    every skill it runs can address the chat rather than themselves.
 
     Pure: argv assembly only, so the repo<->mngr CLI contract is testable against the
     live CLI without constructing an ``AgentManager`` or running a subprocess (see
@@ -371,7 +368,7 @@ def _build_chat_create_command(
     cmd = [
         mngr_binary,
         "create",
-        agent_name or canonical_agent_name(name) or name,
+        canonical_agent_name(name) or name,
         "--id",
         agent_id,
         "--transfer",
@@ -2648,7 +2645,6 @@ class AgentManager:
             spec.project_id,
             _account_binding_args(spec.harness, spec.account_id, self._get_agent_state_dir(spec.agent_id)),
             extra_labels=spec.extra_labels,
-            agent_name=spec.agent_name,
         )
 
     def _broadcast_chat_events(self, chat_id: ChatId, events: list[dict[str, Any]]) -> None:
@@ -3181,8 +3177,6 @@ class AgentManager:
                 continue
             if provisional.name:
                 taken.append(provisional.name)
-            if provisional.agent_name:
-                taken.append(provisional.agent_name)
         return taken
 
     def _mint_display_name_locked(self, explicit_name: str) -> str:
@@ -3398,7 +3392,6 @@ class AgentManager:
         labels: Mapping[str, str] | None = None,
         is_installation_check_skipped: bool = False,
         model_pick: ModelPick | None = None,
-        title: str = "",
     ) -> CreatedChat:
         """Create a chat, as an agent in the primary agent's work dir on the given harness.
 
@@ -3449,10 +3442,6 @@ class AgentManager:
         with a pick the create is silent and the message is delivered afterwards through the
         send path, the way a handoff's successor gets its prompt; a pick the agent refuses is
         logged and the chat runs on its harness's default.
-
-        ``title`` is the chat's display name when it should differ from ``requested_name``, which
-        then names the agent alone, in its canonical form; only that true name is checked for a
-        collision, since only it must be unique. A title with no name is the name.
         """
         extra_labels = dict(labels or {})
         try:
@@ -3469,9 +3458,6 @@ class AgentManager:
         assert harness is not None, "resolve_binding rejects an account whose lane is unknown"
 
         explicit_name = explicit_chat_name(requested_name)
-        explicit_title = title.strip()
-        if explicit_title and not explicit_name:
-            explicit_name, explicit_title = explicit_chat_name(explicit_title), ""
         if chat_id and (explicit_name or project_id or extra_labels or is_installation_check_skipped):
             raise AgentCreationError(
                 f"Chat {chat_id} keeps the name and project it was minted with, and its create's labels "
@@ -3526,17 +3512,12 @@ class AgentManager:
                     message = provisional.message
                 launched_chat_id = provisional.chat_id
                 display_name = provisional.name
-                agent_name = provisional.agent_name
                 project_id = provisional.project_id
                 extra_labels = dict(provisional.labels)
                 is_installation_check_skipped = provisional.is_installation_check_skipped
             else:
                 launched_chat_id = ChatId(str(AgentId()))
                 display_name = self._mint_display_name_locked(explicit_name)
-                agent_name = ""
-                if explicit_title:
-                    agent_name = canonical_agent_name(display_name)
-                    display_name = explicit_title
 
             # A seeded chat's id is its seed's; its first agent is a member of its own, like a
             # handoff's successor, with a fresh id and the membership labels. It goes on the
@@ -3548,7 +3529,6 @@ class AgentManager:
             provisional = ProvisionalChat(
                 chat_id=launched_chat_id,
                 name=display_name,
-                agent_name=agent_name,
                 project_id=project_id,
                 account_id=account.id,
                 message=message,
@@ -3608,7 +3588,6 @@ class AgentManager:
             initial_message="" if deferred_message else launch_message,
             extra_labels=create_labels,
             settings=[SKIP_CLAUDE_INSTALLATION_CHECK_SETTING] if is_installation_check_skipped else [],
-            agent_name=agent_name,
         )
 
         self._broadcast_provisional(provisional)
@@ -3619,7 +3598,7 @@ class AgentManager:
         labels = created_chat_agent_labels(
             display_name, account.id, _chat_project_label(primary_labels, project_id), create_labels
         )
-        canonical_name = agent_name or canonical_agent_name(display_name)
+        canonical_name = canonical_agent_name(display_name)
         with self._lock:
             self._creation_settled_by_chat[launched_chat_id] = threading.Event()
         self._launch_creation_thread(
@@ -4810,9 +4789,7 @@ class AgentManager:
             time.monotonic() - RELAXED_CONFIRMATION_TIMEOUT_SECONDS if sweep_started_at is None else sweep_started_at
         )
         if finished_at is not None and finished_at >= requested_at:
-            _loguru_logger.debug(
-                "Skipped the compaction status of agent {}: its compaction already finished", agent_id
-            )
+            _loguru_logger.debug("Skipped the compaction status of agent {}: its compaction already finished", agent_id)
             return
         self.note_compaction_requested(agent_id, CompactionCause.IDLE, requested_at)
 
@@ -4870,7 +4847,8 @@ class AgentManager:
             cause_seen_at = self._compaction_cause_seen_at_by_agent.get(agent_id)
             remembered_cause = (
                 self._compaction_cause_by_agent.get(agent_id)
-                if cause_seen_at is not None and time.monotonic() - cause_seen_at < PENDING_COMPACTION_TIMEOUT_SECONDS
+                if cause_seen_at is not None
+                and time.monotonic() - cause_seen_at < PENDING_COMPACTION_TIMEOUT_SECONDS
                 else None
             )
         pending_requested_at = None if pending is None else _monotonic_to_epoch(pending[0], now)
@@ -4948,8 +4926,7 @@ class AgentManager:
             if is_marker_fresh:
                 requested_cause = self._sweep_cause_of(agent_id) if pending_cause is None else pending_cause
                 return _LiveCompaction(
-                    marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause),
-                    pending_cause=pending_cause,
+                    marker_cause=cause_of_compacting_marker(marker.trigger, requested_cause), pending_cause=pending_cause
                 )
             self._log_stale_compacting_marker_once(agent_id, marker, marker_age_seconds)
             return _LiveCompaction(marker_cause=None, pending_cause=pending_cause)

@@ -3264,12 +3264,10 @@ def test_the_messaging_scripts_create_is_the_one_this_route_takes(app: Flask) ->
             name="assist-1a2b3c",
             message="/assist it broke",
             labels={"auto_open": "true"},
-            title="Fix the login",
         )
     )
 
     parsed = CreateChatRequest.model_validate(body)
-    assert parsed.title == "Fix the login"
     assert parsed.name == "assist-1a2b3c"
     assert parsed.message == "/assist it broke"
     assert parsed.labels == {"auto_open": "true"}
@@ -3288,21 +3286,6 @@ def test_create_chat_refuses_an_id_it_never_minted(
 
     assert response.status_code == 400
     assert "never-minted" in response.get_json()["detail"]
-
-
-def test_create_chat_with_a_title_answers_the_name_beside_the_title(
-    client: FlaskClient, app: Flask, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """What the Imbue Studio app's update dispatcher posts: the agent's name and the chat's title."""
-    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
-    monkeypatch.setenv("MNGR_AGENT_ID", "agent-123")
-    _register_agent(app, "agent-123", "primary", "RUNNING")
-
-    response = client.post("/api/chats/create", json={"name": "update-to-minds-v0-9-0", "title": "Update to v0.9.0"})
-
-    assert response.status_code == 201
-    body = response.get_json()
-    assert (body["name"], body["display_name"]) == ("update-to-minds-v0-9-0", "Update to v0.9.0")
 
 
 def test_create_chat_with_nothing_signed_in_is_refused_as_needing_a_provider(

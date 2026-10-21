@@ -689,14 +689,7 @@ class CreateChatRequest(FrozenModel):
     name: str = Field(
         default="",
         description='Display name for the new chat agent; empty mints the first free "Chat N" server-side, '
-        "whatever harness the account runs on. With a ``title``, the agent's true name instead, in its "
-        "canonical form",
-    )
-    title: str = Field(
-        default="",
-        description="The chat's display name, when it should differ from ``name`` (an update chat named "
-        '``update-to-minds-v0-9-0`` and shown as "Update to v0.9.0"); empty shows ``name``. Only ``name`` is '
-        "checked against the names in use, since only the true name has to be unique",
+        "whatever harness the account runs on",
     )
     account_id: str = Field(
         default="",
@@ -778,11 +771,6 @@ class ProvisionalChat(FrozenModel):
 
     chat_id: ChatId = Field(description="The chat's id, which its first agent will carry")
     name: str = Field(description="The display name minted for it")
-    agent_name: str = Field(
-        default="",
-        description="The true name its agent takes, when its create named one apart from the display name; "
-        "empty for the display name's canonical form",
-    )
     project_id: str = Field(default="", description="The project it was started in, for the agent's label")
     account_id: str = Field(
         default="", description="The account it launches on; empty for a seeded chat before its first send"

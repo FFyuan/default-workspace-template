@@ -462,107 +462,6 @@ def test_a_create_asks_the_chat_app_to_wait_and_prints_the_chat_it_made(
     assert _mngr_calls(fake_mngr) == []
 
 
-_TITLED_ANSWER = (
-    201,
-    {
-        "chat_id": _CHAT_ID,
-        "name": "update-to-minds-v0-9-0",
-        "display_name": "Update to v0.9.0",
-    },
-)
-
-
-def test_a_titled_create_names_the_agent_and_shows_the_title(
-    fake_chat_app: Any, fake_mngr: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    fake_chat_app.answers = [_TITLED_ANSWER]
-
-    rc, _ = _run_create(
-        "--name",
-        "update-to-minds-v0-9-0",
-        "--title",
-        "Update to v0.9.0",
-        "-m",
-        "/update-self",
-    )
-
-    assert rc == message_chat.EXIT_DELIVERED
-    [(_, body)] = fake_chat_app.posted
-    assert body["name"] == "update-to-minds-v0-9-0"
-    assert body["title"] == "Update to v0.9.0"
-    assert json.loads(capsys.readouterr().out) == _TITLED_ANSWER[1]
-    assert _mngr_calls(fake_mngr) == []
-
-
-def test_a_chat_app_from_before_the_title_is_asked_again_without_it(
-    fake_chat_app: Any, fake_mngr: Path
-) -> None:
-    """A route that knows the other fields but not ``title`` refuses it by name; the chat is still worth making
-    there, under its name, rather than handed to the bare ``mngr create``."""
-    fake_chat_app.answers = [
-        (
-            400,
-            {
-                "detail": "1 validation error for CreateChatRequest\ntitle\n  Extra inputs are not permitted"
-            },
-        ),
-        _CREATED_ANSWER,
-    ]
-
-    rc, _ = _run_create(
-        "--name",
-        "update-to-minds-v0-9-0",
-        "--title",
-        "Update to v0.9.0",
-        "-m",
-        "/update-self",
-    )
-
-    assert rc == message_chat.EXIT_DELIVERED
-    [(_, first), (_, second)] = fake_chat_app.posted
-    assert first["title"] == "Update to v0.9.0"
-    assert "title" not in second
-    assert second["name"] == "update-to-minds-v0-9-0"
-    assert _mngr_calls(fake_mngr) == []
-
-
-def test_a_titled_backoff_create_labels_the_chat_with_its_title(
-    fake_mngr: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    registry = tmp_path / "apps.toml"
-    registry.write_text('[[apps]]\nname = "chat"\nurl = "http://127.0.0.1:9"\n')
-    monkeypatch.setenv(message_chat.ENV_APPS_FILE, str(registry))
-    monkeypatch.setenv(
-        "FAKE_MNGR_STDOUT",
-        '{"event": "created", "agent_id": "%s", "host_id": "h", "host_name": "ws"}\n'
-        % _CHAT_ID,
-    )
-
-    rc, _ = _run_create(
-        "--name",
-        "update-to-minds-v0-9-0",
-        "--title",
-        "Update to v0.9.0",
-        "-m",
-        "/update-self",
-    )
-
-    assert rc == message_chat.EXIT_DELIVERED
-    [call] = _mngr_calls(fake_mngr)
-    assert call["argv"][:2] == ["create", "update-to-minds-v0-9-0"]
-    labels = [
-        call["argv"][i + 1]
-        for i, token in enumerate(call["argv"])
-        if token == "--label"
-    ]
-    assert labels == ["user_created=true", "display_name=Update to v0.9.0"]
-    assert_mngr_argv_valid(["mngr", *call["argv"]])
-    assert json.loads(capsys.readouterr().out)["display_name"] == "Update to v0.9.0"
-
-
 def test_a_create_with_no_message_on_a_terminal_sends_an_empty_first_message(
     fake_chat_app: Any,
 ) -> None:
@@ -763,7 +662,6 @@ def test_a_chat_app_without_the_create_route_hands_the_create_to_mngr(
         (["--create", "--browser-fleet", "-m", "x"], "does not apply to --create"),
         ([_CHAT_ID, "--name", "n", "-m", "x"], "apply only with --create"),
         ([_CHAT_ID, "--label", "a=b", "-m", "x"], "apply only with --create"),
-        ([_CHAT_ID, "--title", "T", "-m", "x"], "apply only with --create"),
         (["--create", "--label", "novalue", "-m", "x"], "takes NAME=VALUE"),
         (["-m", "x"], "a chat id is required"),
     ],

@@ -230,7 +230,6 @@ class _FakeWorkspace(MutableModel):
             spec.project_id,
             _account_binding_args(spec.harness, spec.account_id, self.tmp_path / "agents" / spec.agent_id),
             extra_labels=spec.extra_labels,
-            agent_name=spec.agent_name,
         )
 
     def broadcast(self, chat_id: ChatId, events: list[dict[str, Any]]) -> None:
@@ -268,13 +267,7 @@ def _write_fake_mngr(tmp_path: Path) -> tuple[Path, Path]:
     return log, fail_dir
 
 
-def _workspace(
-    tmp_path: Path,
-    *,
-    phase: HandoffPhase = HandoffPhase.DRAINING,
-    chat_name: str = "Chat-1",
-    chat_title: str = "Chat 1",
-) -> tuple[_FakeWorkspace, str, str]:
+def _workspace(tmp_path: Path, *, phase: HandoffPhase = HandoffPhase.DRAINING) -> tuple[_FakeWorkspace, str, str]:
     """A claude chat of one agent with a handoff to codex written in ``phase``; returns it with the two agent ids."""
     log, fail_dir = _write_fake_mngr(tmp_path)
     # The successor's create runs in the primary agent's work dir, which has to exist.
@@ -285,9 +278,9 @@ def _workspace(
     workspace = _FakeWorkspace(tmp_path=tmp_path, chat_id=chat_id, mngr_log=log, fail_dir=fail_dir)
     workspace.agents[first] = AgentStateItem(
         id=first,
-        name=chat_name,
+        name="Chat-1",
         state="RUNNING",
-        labels={"display_name": chat_title, "account": "acct-anthropic", "project": "inbox"},
+        labels={"display_name": "Chat 1", "account": "acct-anthropic", "project": "inbox"},
         work_dir=str(tmp_path / "work"),
         harness=HarnessType.CLAUDE,
     )
@@ -306,8 +299,8 @@ def _workspace(
         retiring_seq=1,
         next_agent_id=successor,
         next_seq=2,
-        chat_name=chat_name,
-        chat_title=chat_title,
+        chat_name="Chat-1",
+        chat_title="Chat 1",
         project_label="inbox",
         trigger_message_id="m-trigger",
         trigger_text="Now do it in Codex",
@@ -415,22 +408,6 @@ def test_a_failed_mngr_verb_names_its_reason_even_when_mngr_printed_nothing() ->
     )
     assert mngr_failure_reason("rename", _finished_rename(-9), 30.0) == "mngr rename was stopped by signal 9"
     assert mngr_failure_reason("label", _finished_rename(2), 30.0) == "mngr label exited with code 2"
-
-
-def test_a_titled_chats_successor_keeps_the_chats_true_name(tmp_path: Path) -> None:
-    """A chat created with a title wears a true name that is not its title's canonical form; its successor
-    takes that true name, the one the chat app tracks it under, not one derived from the title."""
-    workspace, _first, successor = _workspace(
-        tmp_path, chat_name="update-to-minds-v0-9-0", chat_title="Update to v0.9.0"
-    )
-    runner = _runner(workspace)
-
-    runner.drain(workspace.chat_id, "h-1")
-    runner.run(workspace.chat_id, "h-1")
-
-    create = next(line for line in workspace.argv_lines() if line.startswith("create "))
-    assert create.split(" ")[:4] == ["create", "update-to-minds-v0-9-0", "--id", successor]
-    assert "--label display_name=Update to v0.9.0 " in create
 
 
 def test_a_handoff_runs_every_phase_and_the_successor_takes_over(tmp_path: Path) -> None:
