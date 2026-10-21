@@ -1,4 +1,4 @@
-"""What the Stop buttons do (``docs/system/specs/system-monitor.md`` section 4.7): stop a chat's agent through
+"""What the Stop buttons do (``docs/system/specs/system-monitor.md`` section 4.6): stop a chat's agent through
 the chat app (the reversible ``mngr stop`` its own Stop runs; the next message brings the chat back), stop the
 code checkers a chat started (the chat's agent starts them again when it needs them), or quit one of the apps
 the user built through supervisord (the shell starts it again when a window opens it).
