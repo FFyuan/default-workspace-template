@@ -38,7 +38,8 @@ export const OPEN_SHARE_SETTINGS: "minds:open-share-settings" =
 // first agent's id). No page handles it here: the shell relays it to the app
 // whose manifest registers the type.
 const FOCUS_CHAT: "minds:focus-chat" = "FOCUS_CHAT" in embedContract ? embedContract.FOCUS_CHAT : "minds:focus-chat";
-// Workspace -> embedder: this page's endpoint is listening. Payload: {}. The
+// Workspace -> embedder: this page's endpoint is listening. Payload:
+// { opensLinks, opensCustomSchemeLinks } (see ReadyAnnouncement). The
 // embedder holds a focus-chat ask until it arrives, rather than guessing when
 // a freshly-mounted frame's page is live.
 export const WORKSPACE_READY: "minds:workspace-ready" =
@@ -61,7 +62,8 @@ export const WINDOW_DRAG_ENDED: "minds:window-drag-ended" =
 // Payload: { windows: [{ windowId, title }] }.
 export const DETACHED_WINDOWS: "minds:detached-windows" =
   "DETACHED_WINDOWS" in embedContract ? embedContract.DETACHED_WINDOWS : "minds:detached-windows";
-// Embedder -> workspace: what the chrome can do, right after WORKSPACE_READY. Payload: { canPopOut }.
+// Embedder -> workspace: what the chrome can do, right after WORKSPACE_READY. Payload: { canPopOut,
+// opensExternalLinks?, opensCustomSchemeLinks? }: whether it takes OPEN_EXTERNAL, and custom-scheme links there.
 export const EMBEDDER_CAPABILITIES: "minds:embedder-capabilities" =
   "EMBEDDER_CAPABILITIES" in embedContract ? embedContract.EMBEDDER_CAPABILITIES : "minds:embedder-capabilities";
 // Embedder -> workspace: return a pulled-out window to the desktop. Payload: { windowId, frame? }.
