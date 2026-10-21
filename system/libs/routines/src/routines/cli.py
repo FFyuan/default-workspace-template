@@ -175,7 +175,6 @@ def _fail(message: str) -> NoReturn:
 @click.group()
 def routines() -> None:
     """Everything in this workspace that runs on a schedule."""
-    setup_logging(level=os.environ.get("ROUTINES_LOG_LEVEL", "INFO"))
 
 
 @routines.command("list")
@@ -576,6 +575,9 @@ def migrate_cron_command() -> None:
 
 
 def main() -> None:
+    # Configured here, in the process entry point, and never in the group: a test driving the group through
+    # click's runner would otherwise leave the log sink on the runner's since-closed stream.
+    setup_logging(level=os.environ.get("ROUTINES_LOG_LEVEL", "INFO"))
     routines()
 
 
