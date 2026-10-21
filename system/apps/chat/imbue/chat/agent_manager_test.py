@@ -2378,25 +2378,43 @@ def test_a_successor_create_takes_the_chats_true_name_not_its_titles(agent_manag
     assert argv[2] == "update-to-minds-v0-9-0"
 
 
-@pytest.mark.parametrize(
-    ("requested_name", "title", "expected_name", "expected_display_name"),
-    [
-        ("My planning chat", "", "My-planning-chat", "My planning chat"),
-        # A titled create names the agent for the requested name and shows the title.
-        ("update-to-minds-v0-9-0", "Update to v0.9.0", "update-to-minds-v0-9-0", "Update to v0.9.0"),
-    ],
-    ids=["named", "titled"],
-)
+def test_create_chat_registers_a_titled_chat_under_its_name_and_shows_its_title(
+    broadcaster: WebSocketBroadcaster,
+    git_work_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    true_binary: str,
+) -> None:
+    """The agent a titled create makes carries the requested name as its true name and the title as its
+    ``display_name`` label, which is what every surface shows; ``true`` stands in for ``mngr create``."""
+    monkeypatch.setenv("MNGR_AGENT_ID", "test-agent-id")
+    monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(git_work_dir))
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    manager = AgentManager.build(broadcaster, mngr_binary=true_binary, chat_files_root=tmp_path / "chats")
+    try:
+        created = manager.create_chat("update-to-minds-v0-9-0", title="Update to v0.9.0")
+        assert (created.name, created.display_name) == ("update-to-minds-v0-9-0", "Update to v0.9.0")
+
+        wait_for(
+            lambda: manager.get_agent_by_id(created.chat_id) is not None,
+            timeout=30.0,
+            error_message="the creation thread never registered the agent",
+        )
+
+        agent = manager.get_agent_by_id(created.chat_id)
+        assert agent is not None
+        assert agent.name == "update-to-minds-v0-9-0"
+        assert agent.labels["display_name"] == "Update to v0.9.0"
+    finally:
+        manager.stop()
+
+
 def test_create_chat_registers_the_pre_observe_state_under_the_name_pair(
     broadcaster: WebSocketBroadcaster,
     git_work_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     true_binary: str,
-    requested_name: str,
-    title: str,
-    expected_name: str,
-    expected_display_name: str,
 ) -> None:
     """The AgentStateItem registered before observe relists carries the same
     canonical name + display_name label the created mngr agent will hold, so
@@ -2410,8 +2428,8 @@ def test_create_chat_registers_the_pre_observe_state_under_the_name_pair(
     monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
     manager = AgentManager.build(broadcaster, mngr_binary=true_binary, chat_files_root=tmp_path / "chats")
     try:
-        created = manager.create_chat(requested_name, title=title)
-        assert (created.name, created.display_name) == (expected_name, expected_display_name)
+        created = manager.create_chat("My planning chat")
+        assert created.name == "My-planning-chat"
 
         wait_for(
             lambda: manager.get_agent_by_id(created.chat_id) is not None,
@@ -2421,8 +2439,8 @@ def test_create_chat_registers_the_pre_observe_state_under_the_name_pair(
 
         agent = manager.get_agent_by_id(created.chat_id)
         assert agent is not None
-        assert agent.name == expected_name
-        assert agent.labels["display_name"] == expected_display_name
+        assert agent.name == "My-planning-chat"
+        assert agent.labels["display_name"] == "My planning chat"
         assert agent.labels["user_created"] == "true"
     finally:
         manager.stop()
