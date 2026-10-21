@@ -216,8 +216,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if not is_readme_pointed:
         print(
-            f"github_repo: follow-up: README.md in {args.worktree} carries no "
-            f"{REPO_URL_PLACEHOLDER}, so its Open in Imbue Studio link was not pointed "
+            f"github_repo: follow-up: README.md in {args.worktree} is missing or carries "
+            f"no {REPO_URL_PLACEHOLDER}, so its Open in Imbue Studio link was not pointed "
             f"at {repo}; check it and commit a fix before the push.",
             file=sys.stderr,
         )

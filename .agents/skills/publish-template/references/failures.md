@@ -31,9 +31,10 @@ mirror -- ship it as an `env.d` unit instead, or drop it.
 - `name already exists`: ask the user for another name and re-run `create`.
 - A `follow-up:` line about the lockdown: the repo exists and stays private unless
   the user chose public; carry on and mention it at the end.
-- A `follow-up:` line saying README.md carries no `MINDS_TEMPLATE_REPO_URL`: the
-  README's Open in Imbue Studio link was edited away from the placeholder, so it
-  was not pointed at the new repo. Fix the link in `$WT` and commit before the push.
+- A `follow-up:` line saying README.md is missing or carries no
+  `MINDS_TEMPLATE_REPO_URL`: the README, or its Open in Imbue Studio link's
+  placeholder, is gone, so nothing was pointed at the new repo. Restore the
+  README or fix the link in `$WT` and commit before the push.
 - `was created, but committing README.md ... failed`: the repo exists (its
   `<owner>/<repo>` is still printed) and README.md already points at it. Commit
   README.md in `$WT` and go on to the push; never re-run `create`.
