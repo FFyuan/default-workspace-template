@@ -785,7 +785,7 @@ def test_the_stock_workspace_programs_need_no_template_secret(tmp_path: Path) ->
 
     Those programs run under files Imbue Studio provides, not anything a template
     could declare, so the template's own include set is all that is checked. Copies
-    the real drop-ins so a new base program or a reworded comment is covered too.
+    the real drop-ins so a new base program is covered too.
     """
     _write_tree(tmp_path)
     shutil.copytree(
