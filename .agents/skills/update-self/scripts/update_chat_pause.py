@@ -16,10 +16,9 @@ to run them again. A pause is ``mngr stop``; a resume is ``mngr start`` followed
 work back up when it is started, so it is named in its lead chat's note instead of being told
 anything itself.
 
-Agents are listed with a ``--format`` template scoped to the local provider, as
-``system/services/oom_priority/bin/memory_candidates.py`` lists them: inside a workspace the
-template path answers from local state where ``--format json`` can fail, and every agent here
-is the local provider's. Background runners are read off ``/proc``, where each one's command line
+Agents are listed with a ``--format`` template scoped to the local provider: inside a workspace
+the template path answers from local state where ``--format json`` can fail, and every agent
+here is the local provider's. Background runners are read off ``/proc``, where each one's command line
 names its chat and the command it runs; a host without it (macOS) has none to find.
 """
 

@@ -406,8 +406,7 @@ def test_a_resumed_chats_workspace_update_note_is_a_notice_showing_only_its_summ
 ) -> None:
     """``run-status resume-chats`` sends a paused chat a note composed by the update-self skill, which is
     standard-library only and cannot import this package, so its copy of the tag is pinned here by classifying
-    a note it composed. Every harness's parser stamps a user message through this one table, so the note
-    renders the same on every harness."""
+    a note it composed."""
     module = _load_repo_script(".agents/skills/update-self/scripts/update_resume_note.py")
     note = module.compose_resume_note(
         landed_ref=landed_ref,

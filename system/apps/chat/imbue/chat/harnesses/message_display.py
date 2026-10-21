@@ -340,8 +340,7 @@ def _match_background_task_report(content: str) -> MessageDisplay | None:
 
 def _match_workspace_update_note(content: str) -> MessageDisplay | None:
     """The note a chat paused for a workspace update gets when it resumes; a NOTICE showing only its
-    summary line, labelled by whether the update landed. Every harness's parser reaches it, since the
-    note is sent as an ordinary message."""
+    summary line, labelled by whether the update landed."""
     match = _WORKSPACE_UPDATE_NOTE_RE.match(content)
     if match is None:
         return None
