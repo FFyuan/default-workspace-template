@@ -278,14 +278,34 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    ```
 3. Find what the worker last said. A report waiting at the task file's
    `finish_report_path` is unread, and the poll in step 4 hands it to you.
-   Otherwise its last report is the newest file in `consumed/` beside it: a
-   `gate` or `question` there, with the worker WAITING, was never answered.
-   Handle it as `lead-proxy.md` says ("Deciding: answer gate yourself vs.
-   escalate"). A `final-creation` gate goes to the user, with a sentence
-   saying it comes from an earlier check of this creation that has been
-   waiting on them. A worker that crashed restarts with that reply, or with
-   `continue` when there is nothing to answer.
-4. Arm the poll (`lead-proxy.md`) and drive the pass to its end as its lead.
+   Otherwise its last report is the newest file in `consumed/` beside it that
+   arrived after this worker was created (an earlier pass under the same name
+   leaves its reports there too):
+
+   ```bash
+   CREATED=$(jq -r 'select(.name == "<worker-name>") | .create_time' /tmp/harden-agents.jsonl)
+   LAST=$(find "$(dirname <finish_report_path>)/consumed" -maxdepth 1 -type f -newermt "$CREATED" \
+       -printf '%T@ %p\n' | sort -n | sed -n '$s/^[^ ]* //p')
+   ```
+
+   An empty `$LAST` means the worker has reported nothing yet. Otherwise the
+   holder read that report but may have stopped before acting on it, so act
+   on it now, by what it is:
+   - A `gate` or `question`, with the worker WAITING, was never answered.
+     Handle it as `lead-proxy.md` says ("Deciding: answer gate yourself vs.
+     escalate"). A `final-creation` gate goes to the user, with a sentence
+     saying it comes from an earlier check of this creation that has been
+     waiting on them.
+   - A `done` was never merged: run the calling skill's merge for it now,
+     its checks before merge first ("Before merge" above). They catch the
+     pass up when your commits moved its base.
+   - A `no-update-needed` or `stuck` is handled as `lead-proxy.md`'s
+     "Terminal status" says.
+
+   A worker that crashed restarts with your reply, or with `continue` when
+   there is nothing to answer.
+4. Unless step 3 ended the pass, arm the poll (`lead-proxy.md`) and drive the
+   pass to its end as its lead.
    Your own commits need nothing extra: the freshness check at merge time
    finds them, and the pass is caught up, adding any of your creations it
    does not cover (the note in step 2 names them).
