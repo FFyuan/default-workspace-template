@@ -73,6 +73,8 @@ _BLOCKED = [
     "tk start cod-step-x && pytest",  # real work after the start would be hidden with it
     "tk start cod-step-x; sleep 1",
     'tk create --step "plan a"; echo hi; tk start cod-step-a',  # real work between tk commands
+    'S1=$(tk create --step "plan a"); tk start "$S1"',  # the capture swallows the Created line
+    'S1=$(tk create --step "plan a") && tk start "$S1"',
     "tk start cod-step-x &",
     "tk start cod-step-x\nfoo",  # a second command after an unquoted newline
     "foo\ntk start cod-step-x",  # a command before it via an unquoted newline
@@ -96,6 +98,10 @@ def test_blocks_chained_or_redirected_start_close() -> None:
 def test_routes_to_the_right_block_reason() -> None:
     """Each violation kind maps to its distinct reason (not just any block)."""
     assert checker.classify('cd /x && tk close cod-step-x "s"') == checker._BEFORE
+    assert (
+        checker.classify('S1=$(tk create --step "a"); tk start "$S1"')
+        == checker._BEFORE
+    )
     assert checker.classify("tk start cod-step-x >/dev/null") == checker._REDIRECT
     assert checker.classify('tk close a "s" && echo hi') == checker._CHAIN
     assert checker.classify("tk start cod-step-x &") == checker._CHAIN

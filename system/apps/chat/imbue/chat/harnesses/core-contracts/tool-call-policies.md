@@ -105,6 +105,8 @@ happened. A sequence of tk lifecycle commands (`tk close s1 "done"; tk start s2`
 of creates followed by the first start) is allowed: the view applies the `Updated` lines of
 one output in transcript order, so a step boundary costs one tool call. `tk create` on its
 own is exempt -- it may be batched, because creating the plan up front is the intended usage.
+Capturing a create's id to start it in the same call (`S1=$(tk create ...); tk start "$S1"`)
+is blocked as a command before the start: the assignment swallows the `Created` line.
 
 Tokenising again lives in the `.py`, single-sourced with P3.
 
