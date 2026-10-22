@@ -400,8 +400,8 @@ def test_a_scaffolded_app_passes_its_own_tests(tmp_path: Path) -> None:
 
     The ratchets list the app's files through git and blame the lines they flag, so the app is
     committed first. Its type-check ratchet is left out: it runs ``uv run ty``, which outside a
-    workspace would install the app's dependencies, and the test above runs ty on a scaffolded
-    app directly.
+    workspace would install the app's dependencies, and
+    ``test_a_scaffolded_app_passes_its_own_type_check`` runs ty on a scaffolded app directly.
     """
     lib_dir = _write_inbox_status_lib(tmp_path)
     init_git_repository(tmp_path)
