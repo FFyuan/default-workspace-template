@@ -245,7 +245,9 @@ reports the workspace by it. Choose it by what happened:
   the user can finish.
 - `ALREADY_CURRENT`: there was nothing to apply.
 - `NEEDS_DECISION`: the update cannot keep something the user built, and the
-  validated merge is kept for their answer ("Needs a decision").
+  validated merge is kept for their answer ("Needs a decision"). Their answer
+  resumes the pass, which then ends with the verdict that answer leads to
+  (SKILL.md, "Resuming after a decision").
 - `NEEDS_RECREATION`: the update cannot be applied in place
   ("Migration-required updates").
 - `REFUSED`: the pass ran as it should and chose not to apply. Nothing is
