@@ -176,13 +176,15 @@ def test_a_record_carries_whether_its_seed_is_pending_and_an_older_file_reads_it
         to_update(two_member_record(first, second).field_ref().is_seed_pending, True)
     )
     store.write(pending)
-    assert store.read(ChatId(first)) == pending
-    assert store.read(ChatId(first)).is_seed_pending is True  # type: ignore[union-attr]
+    read_back = store.read(ChatId(first))
+    assert read_back == pending
+    assert read_back is not None and read_back.is_seed_pending is True
 
     older = two_member_record(first, second).model_dump(mode="json")
     del older["is_seed_pending"]
     (tmp_path / "chats" / first / "record.json").write_text(json.dumps(older))
-    assert store.read(ChatId(first)).is_seed_pending is False  # type: ignore[union-attr]
+    read_older = store.read(ChatId(first))
+    assert read_older is not None and read_older.is_seed_pending is False
 
 
 def test_a_file_store_raises_when_a_record_cannot_be_removed(tmp_path: Path) -> None:
