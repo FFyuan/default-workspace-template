@@ -200,6 +200,9 @@ process restarts:
   python3 system/scripts/smoketest_app.py <name> --restart --marker "<text unique to your change>" --refresh
   ```
 
+  With no window open yet, pass `--open` instead of `--refresh`: the call
+  opens the window only after the checks pass, the order step 3 asks for.
+
   A daemon with no port cannot use `smoketest_app.py` (it needs a port to
   check), so bounce it with supervisord directly; the call waits out the
   program's `startsecs`, which is 30 s only if its block sets `startsecs=30`:
