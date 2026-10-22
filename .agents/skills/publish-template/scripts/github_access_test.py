@@ -1,5 +1,6 @@
 """`github_access.py` against a stand-in `latchkey`, run as the skill runs it."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -80,26 +81,42 @@ def test_wait_gives_up_at_its_timeout(fake_latchkey: FakeLatchkey) -> None:
 _DESKTOP_DOWN = (
     "Desktop host-1 (laptop) is unreachable: connect ECONNREFUSED 127.0.0.1:42379"
 )
+_DESKTOP_DOWN_FAILURE = {"stdout": json.dumps({"error": _DESKTOP_DOWN})}
+_GATEWAY_DOWN = "curl: (7) Failed to connect to latchkey-self.invalid port 80"
 
 
-def test_an_unreachable_desktop_is_unknown_not_a_missing_grant(
-    fake_latchkey: FakeLatchkey,
+@pytest.mark.parametrize(
+    ("failure", "expected_line"),
+    [
+        (_DESKTOP_DOWN_FAILURE, f"git-write: UNKNOWN ({_DESKTOP_DOWN})"),
+        (
+            {"stdout": "<html>502 Bad Gateway</html>"},
+            "git-write: UNKNOWN (unreadable answer: <html>502 Bad Gateway</html>)",
+        ),
+        (
+            {"stderr": _GATEWAY_DOWN + "\n", "exit": 7},
+            f"git-write: UNKNOWN (latchkey exited 7: {_GATEWAY_DOWN})",
+        ),
+    ],
+)
+def test_a_gateway_that_cannot_answer_is_unknown_not_a_missing_grant(
+    fake_latchkey: FakeLatchkey, failure: dict[str, object], expected_line: str
 ) -> None:
     """Whether the git grant is missing cannot be told, so nothing should prompt a request."""
-    fake_latchkey.set_state(api=True, permissions_error=_DESKTOP_DOWN)
+    fake_latchkey.set_state(api=True, permissions_failure=failure)
 
     completed = fake_latchkey.run(_SCRIPT, "check")
 
     assert completed.returncode == 2
     assert "NOT permitted" not in completed.stdout
-    assert f"git-write: UNKNOWN ({_DESKTOP_DOWN})" in completed.stdout
+    assert expected_line in completed.stdout.splitlines()
 
 
 def test_an_unknown_holds_back_the_requests_for_what_is_missing(
     fake_latchkey: FakeLatchkey,
 ) -> None:
     """Filing only the api request would leave `wait` waiting on a git grant nobody asked for."""
-    fake_latchkey.set_state(api=False, permissions_error=_DESKTOP_DOWN)
+    fake_latchkey.set_state(api=False, permissions_failure=_DESKTOP_DOWN_FAILURE)
 
     completed = fake_latchkey.run(_SCRIPT, "check")
 
@@ -108,7 +125,7 @@ def test_an_unknown_holds_back_the_requests_for_what_is_missing(
 
 
 def test_wait_polls_through_an_unreachable_desktop(fake_latchkey: FakeLatchkey) -> None:
-    fake_latchkey.set_state(permissions_error=_DESKTOP_DOWN, grant_after=4)
+    fake_latchkey.set_state(permissions_failure=_DESKTOP_DOWN_FAILURE, grant_after=4)
 
     completed = fake_latchkey.run(
         _SCRIPT, "wait", "--timeout-seconds", "10", "--interval-seconds", "0.1"

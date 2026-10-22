@@ -9,7 +9,8 @@ from pathlib import Path
 # Stands in for `latchkey curl`: answers the GitHub API and the gateway's
 # permissions endpoint from a JSON state file, and logs every argv it was given.
 # `grant_after` flips both kinds of access on once that many probes have run, which
-# is how a test watches a wait loop see an approval land.
+# is how a test watches a wait loop see an approval land. `permissions_failure`
+# ({stdout, stderr, exit}) is what the permissions endpoint answers until then.
 _FAKE_LATCHKEY = """#!{python}
 import json, os, sys
 
@@ -34,9 +35,11 @@ if url == "https://api.github.com/user":
         sys.exit(22)
     print(json.dumps({{"error": "request not permitted by the user"}}))
 elif url == "http://latchkey-self.invalid/permissions/self":
-    if state.get("permissions_error") and not is_granted:
-        print(json.dumps({{"error": state["permissions_error"]}}))
-        sys.exit(0)
+    failure = state.get("permissions_failure")
+    if failure and not is_granted:
+        sys.stdout.write(failure.get("stdout", ""))
+        sys.stderr.write(failure.get("stderr", ""))
+        sys.exit(failure.get("exit", 0))
     rules = state.get("rules", [])
     if is_granted:
         rules = rules + [{{"github-git:octo": ["github-git-write"]}}]
