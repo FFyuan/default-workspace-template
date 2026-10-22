@@ -3,3 +3,5 @@
 - `AGENTS.md` makes app verification in a chat turn one `smoketest_app.py --restart ... --open|--refresh` call and leaves test files to the background harden pass and suite runs to the background test gate.
 
 - The standalone-tk hook allows a tool call made only of `tk create`, `start` and `close` commands joined by `;`, `&&` or a newline, so a step boundary (`tk close <id> "<summary>"; tk start <next>`) is one tool call. A `cd` prefix, real work, a pipe, `||`, `&` or a redirect alongside a start or close is still blocked. `AGENTS.md` has the agent start a step in the same message as its first command and move between steps with one `tk close ...; tk start ...` call.
+
+- The pipe-into-head/tail hook reads through a line continuation after the pipe, so `cmd | \` followed by `tail -30` on the next line reaches the checker instead of running unchecked.
