@@ -36,10 +36,11 @@ structural rather than unwired. Measured against codex-cli 0.147.0 and pi 0.84.1
   stderr goes to a tmux pane nobody reads" -- both true, and neither was the relevant channel.
 - **codex P3 / P6 — partial.** Both policies are counted per TOOL CALL: P3 requires the guarded
   thing to be the only thing in it, P6 that nothing but tk commands share it. Under code mode
-  a tool call is a JS program that may hold several `tools.exec_command(...)` calls; measured, one `custom_tool_call` produced three PreToolUse
-  events with three unrelated `tool_use_id`s and no field naming the outer call, so no guard can
-  count per call. Each inner call is still checked on its own. The display layer no longer acts
-  on the unverifiable claim (see `codex/session_parser.py`).
+  a tool call is a JS program that may hold several `tools.exec_command(...)` calls; measured,
+  one `custom_tool_call` produced three PreToolUse events with three unrelated `tool_use_id`s
+  and no field naming the outer call, so no guard can count per call. Each inner call is still
+  checked on its own. The display layer no longer acts on the unverifiable claim (see
+  `codex/session_parser.py`).
 - **codex P5 — partial.** Its read-only skip list is keyed on claude tool names, none of which
   codex ever sends (measured: `Bash`, `apply_patch`, `update_plan`). The command-shaped
   read-only allowlist now covers the shell half; `apply_patch` is correctly nudge-worthy.
