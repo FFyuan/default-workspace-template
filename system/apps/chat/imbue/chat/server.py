@@ -787,9 +787,12 @@ def _send_to_chat(
             )
         try:
             # A seeded chat whose agent was launched as the user signed in has its conversation to deliver
-            # ahead of the first words sent to it.
-            delivered_text = agent_manager.carry_pending_seed(chat_id, send_message_request.message)
-            outcome = _deliver_message(state, agent_info, delivered_text, message_id)
+            # ahead of the first words sent to it; the seed counts as delivered only with a send that went through.
+            outcome = agent_manager.carry_pending_seed(
+                chat_id,
+                send_message_request.message,
+                lambda text: _deliver_message(state, agent_info, text, message_id),
+            )
         except AgentNotFoundError as e:
             # Destroyed while the send was in flight: the chat is gone, not refusing.
             logger.info("Agent {} was destroyed while a message to it was in flight: {}", agent_info.name, e)

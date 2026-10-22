@@ -2505,20 +2505,29 @@ class AgentManager:
         )
         return entry
 
-    def carry_pending_seed(self, chat_id: ChatId, message: str) -> str:
-        """The message a send to ``chat_id`` delivers: with the seeded conversation ahead of it when the chat's
-        agent was launched without it (``create_chat`` with no message) and this is the first send since, else
-        as given. A slash command is delivered as typed and leaves the seed pending, since a block ahead of it
-        would turn the command into prose."""
-        if message.lstrip().startswith("/"):
-            return message
+    def carry_pending_seed(self, chat_id: ChatId, message: str, deliver: Callable[[str], SendOutcome]) -> SendOutcome:
+        """Deliver ``message`` to ``chat_id`` through ``deliver``, with the seeded conversation ahead of it when
+        the chat's agent was launched without it (``create_chat`` with no message) and this is the first send
+        since, else as given. The seed is marked delivered only once ``deliver`` says the message went through:
+        a send the harness refused or could not take yet (its daemon still starting, as it may be right after
+        the launch) leaves the conversation for the next send rather than losing it. A slash command is
+        delivered as typed and leaves the seed pending, since a block ahead of it would turn the command into
+        prose."""
+        with self._lock:
+            record = self._chat_record_by_id.get(chat_id)
+            is_seed_carried = record is not None and record.is_seed_pending and not message.lstrip().startswith("/")
+        text = seed_context_message(self._chat_files_root / chat_id, message) if is_seed_carried else message
+        outcome = deliver(text)
+        if is_seed_carried and outcome is SendOutcome.OK:
+            self._mark_pending_seed_delivered(chat_id)
+        return outcome
+
+    def _mark_pending_seed_delivered(self, chat_id: ChatId) -> None:
         with self._lock:
             record = self._chat_record_by_id.get(chat_id)
             if record is None or not record.is_seed_pending:
-                return message
-            carried = seed_context_message(self._chat_files_root / chat_id, message)
+                return
             self._write_record_locked(record.model_copy_update(to_update(record.field_ref().is_seed_pending, False)))
-        return carried
 
     def _withdraw_seeded_member_locked(self, chat_id: ChatId, record_entry: ChatAgentEntry) -> str | None:
         """Take a seeded chat's agent back off its record when its create failed: the chat is seed-only

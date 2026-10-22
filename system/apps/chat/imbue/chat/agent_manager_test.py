@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 import tomllib
+from collections.abc import Callable
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
@@ -744,7 +745,8 @@ def test_a_seeded_chat_launched_as_the_user_signs_in_starts_silent_and_its_first
 ) -> None:
     """The sign-in that makes the workspace's first account launches the welcome chat's agent before the user has
     typed: the create carries no message, the record marks the seed as pending, and the first send since carries
-    the conversation ahead of the user's words, once; a slash command goes as typed and leaves the seed pending."""
+    the conversation ahead of the user's words, once it has gone through; a slash command goes as typed and leaves
+    the seed pending, and so does a send the harness could not take yet."""
     monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
     monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(tmp_path))
     mngr_binary, argv_log = write_recording_mngr_binary(tmp_path)
@@ -764,23 +766,57 @@ def test_a_seeded_chat_launched_as_the_user_signs_in_starts_silent_and_its_first
         (argv_line,) = argv_log.read_text().splitlines()
         assert "--message" not in argv_line.split()
 
-        assert manager.carry_pending_seed(chat_id, "/model opus") == "/model opus"
-        assert store.read(chat_id).is_seed_pending is True  # type: ignore[union-attr]
-        carried = manager.carry_pending_seed(chat_id, "1")
+        delivered: list[str] = []
+        assert (
+            manager.carry_pending_seed(chat_id, "/model opus", _delivering(delivered, SendOutcome.OK))
+            is SendOutcome.OK
+        )
+        assert delivered == ["/model opus"]
+        assert _is_seed_pending(store, chat_id) is True
+        assert (
+            manager.carry_pending_seed(chat_id, "1", _delivering(delivered, SendOutcome.NOT_READY))
+            is SendOutcome.NOT_READY
+        )
+        assert delivered[-1].startswith(f"<{SEED_CONTEXT_TAG}>")
+        assert _is_seed_pending(store, chat_id) is True
+        assert manager.carry_pending_seed(chat_id, "1", _delivering(delivered, SendOutcome.OK)) is SendOutcome.OK
+        carried = delivered[-1]
         assert carried.startswith(f"<{SEED_CONTEXT_TAG}>") and carried.endswith(f"</{SEED_CONTEXT_TAG}>\n1")
         assert "Wait.. what is honest software?" in carried
-        assert store.read(chat_id).is_seed_pending is False  # type: ignore[union-attr]
-        assert manager.carry_pending_seed(chat_id, "2") == "2"
+        assert _is_seed_pending(store, chat_id) is False
+        assert manager.carry_pending_seed(chat_id, "2", _delivering(delivered, SendOutcome.OK)) is SendOutcome.OK
+        assert delivered[-1] == "2"
     finally:
         manager.stop()
+
+
+def _is_seed_pending(store: InMemoryChatRecordStore, chat_id: ChatId) -> bool:
+    record = store.read(chat_id)
+    assert record is not None
+    return record.is_seed_pending
+
+
+def _delivering(delivered_out: list[str], outcome: SendOutcome) -> Callable[[str], SendOutcome]:
+    """A delivery that records the text it was given in ``delivered_out`` and answers ``outcome``."""
+
+    def deliver(text: str) -> SendOutcome:
+        delivered_out.append(text)
+        return outcome
+
+    return deliver
 
 
 def test_a_send_to_an_unseeded_or_unknown_chat_is_delivered_as_given(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
     manager, _store = _seed_manager(broadcaster, tmp_path)
+    delivered: list[str] = []
     try:
-        assert manager.carry_pending_seed(ChatId("agent-nobody"), "hello") == "hello"
+        assert (
+            manager.carry_pending_seed(ChatId("agent-nobody"), "hello", _delivering(delivered, SendOutcome.OK))
+            is SendOutcome.OK
+        )
+        assert delivered == ["hello"]
     finally:
         manager.stop()
 
