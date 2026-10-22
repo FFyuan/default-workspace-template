@@ -612,3 +612,18 @@ def test_a_selection_that_runs_nothing_still_prints_its_notes(workspace: Path) -
 
     assert selection.commands == ()
     assert "# note: " in render_selection(selection)
+
+
+def test_a_catch_up_runs_nothing_for_a_documentation_creation(workspace: Path) -> None:
+    """A change to a documentation file selects no tests, so the root configuration coming in
+    under a catch-up selects none for a creation that is one, unlike a shared script."""
+    write_repo_file(workspace, "docs/specs/plan.md", "# plan\n")
+    reach = CreationReach(
+        paths=(RepoRelativePath("conftest.py"),),
+        lockfile_texts=None,
+        creation_directories=(RepoRelativePath("docs/specs/plan.md"),),
+    )
+
+    selection = select_tests(load_repo_layout(workspace), [], None, reach)
+
+    assert selection.commands == ()
