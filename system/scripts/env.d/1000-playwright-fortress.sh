@@ -98,12 +98,20 @@ readonly _CHROMIUM_POLICY_DIR="/etc/chromium/policies/managed"
 readonly _DISTRUST_POLICY="${_CHROMIUM_POLICY_DIR}/distrust-compromised-emudhra-intermediates.json"
 
 _install_distrust_policy() {
-    mkdir -p "$_CHROMIUM_POLICY_DIR"
+    # main() calls this behind `||`, which turns off `set -e` in here, so every
+    # step checks its own result.
+    if ! mkdir -p "$_CHROMIUM_POLICY_DIR"; then
+        _log "policy: could not create $_CHROMIUM_POLICY_DIR; the next converge retries"
+        return 1
+    fi
     # Staged in the parent directory: Chromium parses every file in managed/,
     # whatever its name, so a half-written temp file must never sit there.
     local tmp
-    tmp="$(mktemp "$(dirname "$_CHROMIUM_POLICY_DIR")/.distrust-policy.XXXXXX")"
-    cat > "$tmp" <<'POLICY'
+    if ! tmp="$(mktemp "$(dirname "$_CHROMIUM_POLICY_DIR")/.distrust-policy.XXXXXX")"; then
+        _log "policy: could not stage the distrusted CA policy; the next converge retries"
+        return 1
+    fi
+    if ! cat > "$tmp" <<'POLICY'
 {
   "CADistrustedCertificates": [
     "MIIDaDCCAu6gAwIBAgIPWIsuPCu4zaE+GhIJJUMhMAoGCCqGSM49BAMDMFYxCzAJBgNVBAYTAklOMSUwIwYDVQQKDBxlTXVkaHJhIFRlY2hub2xvZ2llcyBMaW1pdGVkMSAwHgYDVQQDDBdlbVNpZ24gUm9vdCBUTFMgQ0EgLSBHMzAeFw0yNTA0MzAxNTM1MDlaFw00MDA0MjgxODMwMDBaMEAxCzAJBgNVBAYTAlVTMRQwEgYDVQQKDAtlTXVkaHJhIEluYzEbMBkGA1UEAwwSRU0gRFYgVExTIENBIC0gRzNDMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEOnp4YsjETTJN3WkDOmeCwO/u/kBV5ooSP6A3G6O9kZRRTuFypDPjYw8CvRiAN9nlFJ+bd9uUooHfmHsv6oiLdL3+j9pMEJnubKGVZv4+8OX2sJpVbMyLpQVh3xsqRB0Bo4IBljCCAZIwHwYDVR0jBBgwFoAU4TqrIXzx401UrtRyt/2LWUIgkFQwHQYDVR0OBBYEFK5+EFw8KZbBqEcnBVnx4D3U5QrzMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjBdBgNVHSAEVjBUMDkGCysGAQQBg44hAQABMCowKAYIKwYBBQUHAgEWHGh0dHA6Ly9yZXBvc2l0b3J5LmVtc2lnbi5jb20wDQYLKwYBBAGDjiEBAmQwCAYGZ4EMAQIBMHUGCCsGAQUFBwEBBGkwZzAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AtYy5lbXNpZ24uY29tMD8GCCsGAQUFBzAChjNodHRwOi8vcmVwb3NpdG9yeS5lbXNpZ24uY29tL2NlcnRzL0VNRFZUTFNDQUczQy5wN2MwNwYDVR0fBDAwLjAsoCqgKIYmaHR0cDovL2NybC5lbXNpZ24uY29tLz9yb290dGxzY2FnMy5jcmwwDgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwCgYIKoZIzj0EAwMDaAAwZQIxAMEN2HWMocbuWdy1d33pH6JpMvP/V/DIS5PtZbv1Q7TXEbxrcyxgyuddOJscYDJJlAIwB4sH1BpbScDzkdD4tJBSwrG/1Mx82vb8YaySehNuu1+1oXNdAEKwaJ0mVzScy2+6",
@@ -117,13 +125,21 @@ _install_distrust_policy() {
   ]
 }
 POLICY
+    then
+        rm -f "$tmp"
+        _log "policy: could not write the distrusted CA policy; the next converge retries"
+        return 1
+    fi
     if cmp -s "$tmp" "$_DISTRUST_POLICY"; then
         rm -f "$tmp"
         _log "policy: distrusted CA policy already in place, satisfied"
         return 0
     fi
-    chmod 0644 "$tmp"
-    mv -f "$tmp" "$_DISTRUST_POLICY"
+    if ! { chmod 0644 "$tmp" && mv -f "$tmp" "$_DISTRUST_POLICY"; }; then
+        rm -f "$tmp"
+        _log "policy: could not install $_DISTRUST_POLICY; the next converge retries"
+        return 1
+    fi
     _log "policy: wrote $_DISTRUST_POLICY"
 }
 

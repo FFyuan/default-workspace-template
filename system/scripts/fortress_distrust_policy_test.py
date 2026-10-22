@@ -11,6 +11,7 @@ import base64
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 
 from cryptography import x509
@@ -54,3 +55,44 @@ def test_the_policy_distrusts_exactly_the_compromised_keys() -> None:
         spki_hashes.add(hashlib.sha256(spki).hexdigest())
 
     assert spki_hashes == _COMPROMISED_SPKI_SHA256
+
+
+def _run_installer(policy_dir: Path) -> subprocess.CompletedProcess[str]:
+    """Run the unit's policy installer against ``policy_dir``, called the way its main() calls it."""
+    unit = _UNIT_PATH.read_text()
+    # Sliced up to the next function: the policy heredoc puts a "}" in column 0 too.
+    start = unit.index("_install_distrust_policy() {\n")
+    function = unit[start : unit.index("\n_install_fortress() {", start)]
+    script = (
+        "set -euo pipefail\n"
+        "_log() { printf '%s\\n' \"$*\"; }\n"
+        f"_CHROMIUM_POLICY_DIR={str(policy_dir)!r}\n"
+        '_DISTRUST_POLICY="${_CHROMIUM_POLICY_DIR}/distrust.json"\n'
+        + function
+        + 'rc=0\n_install_distrust_policy || rc=$?\necho "rc=$rc"\n'
+    )
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    return result
+
+
+def test_the_installer_writes_the_policy_once(tmp_path: Path) -> None:
+    policy_dir = tmp_path / "chromium" / "policies" / "managed"
+
+    first = _run_installer(policy_dir)
+    second = _run_installer(policy_dir)
+
+    assert "rc=0" in first.stdout
+    assert json.loads((policy_dir / "distrust.json").read_text()) == _policy()
+    assert "rc=0" in second.stdout and "already in place" in second.stdout
+    assert list(policy_dir.parent.iterdir()) == [policy_dir]
+
+
+def test_the_installer_reports_a_policy_it_could_not_write(tmp_path: Path) -> None:
+    blocker = tmp_path / "chromium"
+    blocker.write_text("a file where the policy directory's parent should be\n")
+
+    result = _run_installer(blocker / "policies" / "managed")
+
+    assert "rc=0" not in result.stdout
+    assert "wrote" not in result.stdout
