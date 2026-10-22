@@ -599,17 +599,16 @@ def test_an_ignored_vendored_subtree_selects_none_of_its_tests(workspace: Path) 
     assert not any("system/vendor/tool" in line for line in _command_lines(selection))
 
 
-def test_a_selection_that_runs_nothing_still_prints_its_notes(tmp_path: Path) -> None:
+def test_a_selection_that_runs_nothing_still_prints_its_notes(workspace: Path) -> None:
     """A note says what the selection could not settle, which matters most when nothing runs."""
-    repo_root = tmp_path / "workspace"
-    build_selection_workspace(repo_root)
+    write_repo_file(workspace, ".agents/skills/untested/SKILL.md", "# untested\n")
     reach = CreationReach(
         paths=(RepoRelativePath("uv.lock"),),
         lockfile_texts=("not [ toml", "not [ toml either"),
         creation_directories=(RepoRelativePath(".agents/skills/untested"),),
     )
 
-    selection = select_tests(load_repo_layout(repo_root), [], None, reach)
+    selection = select_tests(load_repo_layout(workspace), [], None, reach)
 
     assert selection.commands == ()
     assert "# note: " in render_selection(selection)
