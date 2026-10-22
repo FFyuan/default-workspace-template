@@ -106,8 +106,18 @@ under the skill's `context` and is counted as inside the footprint.
 A task body with a `## Carried work` section replaces an earlier pass that
 ended without being merged, and names the branches its lead kept that pass's
 commits on (`harden-contention.md`, "Superseding a pass whose worker is
-gone"). That work is part of your change. Merge each branch into yours before
-you start hardening:
+gone"). That work is part of your change. When the section also names a
+revert of a milestone the earlier pass had merged, revert that revert first: a
+merge cannot bring back commits the lead's `HEAD` already holds, and a carried
+branch's later edits to the milestone merge cleanly only onto the milestone
+itself, so merging them before the revert would set them against its removal.
+What returns is carried work like the rest:
+
+```bash
+git revert --no-edit <the revert commit>
+```
+
+Then merge each branch into yours before you start hardening:
 
 ```bash
 git merge --no-ff <the carried branch> -m "Carry over <the carried branch>"
@@ -118,11 +128,7 @@ base"), except that here your side is the newer one: the carried commits are
 older work to fit around what the user has done since. Then harden them under
 this whole contract like the rest of the change. Keep each one that still
 holds, fix one that does not, and `git revert` one the current base has made
-wrong, so every carried commit ends up merged either way. When the section
-also names a revert of a milestone the earlier pass had merged, revert that
-revert after the merges (`git revert --no-edit <the revert commit>`): a
-merge cannot bring back commits the lead's `HEAD` already holds, and what
-returns is carried work like the rest. From then on they
+wrong, so every carried commit ends up merged either way. From then on they
 are commits on your branch, so the scope file's diff and the test gate cover
 them with nothing extra. Your `done` report gets a `Carried:` section: each
 carried commit, and whether you kept, changed or reverted it, and why.
