@@ -12,14 +12,7 @@ import {
   startTour,
 } from "./tour";
 import { TOUR_CARDS } from "./tourCards";
-import type { TourCard } from "./tourCards";
-import { FakeTourApi } from "../testing/fakeTour";
-
-const CARDS: readonly TourCard[] = [
-  { id: "a", text: "A", target: "avatar", chromeAnchor: null, image: null, link: null, buttonLabel: null },
-  { id: "b", text: "B", target: null, chromeAnchor: "share", image: null, link: null, buttonLabel: null },
-  { id: "c", text: "C", target: "launcher", chromeAnchor: null, image: null, link: null, buttonLabel: "Done" },
-];
+import { FAKE_TOUR_CARDS as CARDS, FakeTourApi } from "../testing/fakeTour";
 
 describe("the tour's state machine", () => {
   it("walks the cards forward and back, ends on Done with no badge, and leaves a badge on an early exit", () => {

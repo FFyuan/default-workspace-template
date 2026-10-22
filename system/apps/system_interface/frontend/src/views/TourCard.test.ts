@@ -4,34 +4,11 @@ import { mountView, unmountViews } from "@imbue/workspace-ui/src/testing/mount";
 import m from "mithril";
 import { afterEach, describe, expect, it } from "vitest";
 import { TourController } from "../model/tour";
-import type { TourCard as TourCardRecord } from "../model/tourCards";
 import { TOUR_EXIT_BADGE_TEXT } from "../model/tourCards";
-import { FakeTourApi } from "../testing/fakeTour";
+import { FAKE_TOUR_CARDS as CARDS, FakeTourApi } from "../testing/fakeTour";
 import { TourCard, chromeSideOf, placeCard } from "./TourCard";
 
 afterEach(unmountViews);
-
-const CARDS: readonly TourCardRecord[] = [
-  { id: "a", text: "Hello there.", target: "avatar", chromeAnchor: null, image: null, link: null, buttonLabel: null },
-  {
-    id: "b",
-    text: "About sharing.",
-    target: null,
-    chromeAnchor: "share",
-    image: null,
-    link: { label: "Join us", url: "https://example.com/discord" },
-    buttonLabel: null,
-  },
-  {
-    id: "c",
-    text: "Devices.",
-    target: "launcher",
-    chromeAnchor: null,
-    image: { url: "https://cdn.example/devices.png", alt: "devices" },
-    link: null,
-    buttonLabel: "Done",
-  },
-];
 
 function controller(): { tour: TourController; highlights: (string | null)[] } {
   const highlights: (string | null)[] = [];
