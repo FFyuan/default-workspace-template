@@ -416,8 +416,6 @@ def set_tour() -> ResponseReturnValue:
 
 
 def register_shell_routes(application: Flask) -> None:
-    application.add_url_rule(TOUR_ROUTE, view_func=get_tour, methods=["GET"], endpoint="get_tour")
-    application.add_url_rule(TOUR_ROUTE, view_func=set_tour, methods=["POST"], endpoint="set_tour")
     """Register every shell route of desktop contracts.md sections 5, 6, and 8 on ``application``."""
     application.register_error_handler(ShellError, _answer_shell_error)
     application.register_error_handler(InvalidLayoutValueError, _answer_layout_value_error)
@@ -446,6 +444,8 @@ def register_shell_routes(application: Flask) -> None:
         methods=["POST"],
         endpoint="rollback_pending_update",
     )
+    application.add_url_rule(TOUR_ROUTE, view_func=get_tour, methods=["GET"], endpoint="get_tour")
+    application.add_url_rule(TOUR_ROUTE, view_func=set_tour, methods=["POST"], endpoint="set_tour")
     application.add_url_rule(
         "/api/apps/<name>/stop",
         view_func=stop_app,
