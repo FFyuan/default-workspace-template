@@ -219,22 +219,8 @@ chmod 0755 /usr/local/bin/frpc
 rm -rf /tmp/frp.tar.gz "/tmp/frp_${FRP_VERSION}_linux_${frp_goarch}"
 
 # uv (pinned). Installs to /root/.local/bin.
-previous_uv_version="$(/root/.local/bin/uv --version 2>/dev/null | awk '{print $2}')" || previous_uv_version=""
 curl -LsSf "${CURL_RETRY[@]}" "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
 export PATH="/root/.local/bin:$PATH"
-
-# A uv upgrade leaves the old uv's versioned cache buckets (wheels-v6 beside
-# wheels-v7, ...) and the archives only they reference in the cache for good;
-# `uv cache prune` removes them. It waits for every other uv process using the
-# cache to finish (a `uv run` holds it for as long as its command runs), so the
-# wait is bounded and a failed prune does not stop the provisioner. It is not
-# retried: the next run sees no version change.
-installed_uv_version="$(uv --version | awk '{print $2}')"
-if [ -n "${previous_uv_version}" ] && [ "${previous_uv_version}" != "${installed_uv_version}" ]; then
-    if ! UV_LOCK_TIMEOUT=60 uv cache prune; then
-        echo "Did not prune the uv ${previous_uv_version} cache (uv's reason is above); running 'uv cache prune' later reclaims it." >&2
-    fi
-fi
 
 # Ensure a uv-managed Python that satisfies the workspace lockfile (>=3.12).
 # The Docker base image ships 3.12, but other bases (e.g. a Debian VM whose
