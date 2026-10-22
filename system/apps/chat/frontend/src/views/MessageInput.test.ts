@@ -1532,6 +1532,42 @@ describe("MessageInput on a chat awaiting its first send with nothing signed in"
     expect(mocks.openProviderChooser).toHaveBeenCalledTimes(1);
   });
 
+  it("launches the awaiting chat with no message as the chooser's sign-in completes, from the button or on appearing", async () => {
+    mocks.launchChat.mockClear();
+    const tree = MessageInput().view!({ attrs: { chatId: "agent-first-7731" } } as never);
+    (findByClass(tree, "message-input-no-provider")!.attrs!.oncreate as () => void)();
+    (findButton(tree, "Choose a provider")!.attrs!.onclick as () => void)();
+
+    expect(mocks.openProviderChooser).toHaveBeenCalledTimes(2);
+    for (const call of mocks.openProviderChooser.mock.calls) {
+      const intent = call[0] as { onSignedIn: (accountId: string) => void };
+      intent.onSignedIn("acct-9");
+    }
+    await Promise.resolve();
+
+    // The agent is up before anything is typed; the first send then carries the seeded conversation.
+    expect(mocks.launchChat).toHaveBeenCalledTimes(2);
+    expect(mocks.launchChat).toHaveBeenCalledWith("agent-first-7731", "acct-9", undefined);
+  });
+
+  it("launches nothing on sign-in once the chat is no longer awaiting its first send or is already listed", () => {
+    mocks.launchChat.mockClear();
+    const tree = MessageInput().view!({ attrs: { chatId: "agent-first-7731" } } as never);
+    (findButton(tree, "Choose a provider")!.attrs!.onclick as () => void)();
+    const intent = mocks.openProviderChooser.mock.calls[0][0] as { onSignedIn: (accountId: string) => void };
+
+    // A send in the meantime launched it: the provisional chat is creating.
+    mocks.provisional = { ...(mocks.provisional as object), phase: "creating" };
+    intent.onSignedIn("acct-9");
+    expect(mocks.launchChat).not.toHaveBeenCalled();
+
+    // The create landed: the chat list names it.
+    mocks.provisional = { ...(mocks.provisional as object), phase: "awaiting_first_send" };
+    mocks.isChatRegistered = true;
+    intent.onSignedIn("acct-9");
+    expect(mocks.launchChat).not.toHaveBeenCalled();
+  });
+
   it("keeps the phone's leading settings button beside the notice", () => {
     const leading = m("button", { "aria-label": "Chat settings" });
     const tree = MessageInput().view!({ attrs: { chatId: "agent-first-7731", leading } } as never);
