@@ -560,12 +560,10 @@ fails the call at once with its stderr log). `--screenshot` renders the page
 headlessly; `--open` is Step 4 folded in (for an app already on the user's
 screen, use `--refresh` instead and drop `--screenshot`: a browser pass belongs
 before the window is open). Leave `--restart` out right after
-`scaffold_flask_lib.py --start`, which already started the app. Never
-`supervisorctl restart` by hand and never `sleep` before a check. If a changed
-API route needs exercising, append one `curl` to the same tool call. Writing
-test files or end-to-end scripts belongs to Step 5's background pass, not to
-the chat turn, and the test gate runs in the background (Step 5), never in the
-foreground.
+`scaffold_flask_lib.py --start`, which already started the app; do not
+`supervisorctl restart` by hand, which waits out the 30 s. If a changed API
+route needs exercising, append one `curl` to the same tool call. Test files
+and the test gate belong to Step 5's background pass, not to the chat turn.
 
 If verification surfaces something unexpected (connection refused,
 a window stuck on the loading page, broken WebSockets), see

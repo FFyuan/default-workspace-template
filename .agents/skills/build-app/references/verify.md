@@ -30,8 +30,7 @@ python3 system/scripts/smoketest_app.py <name> --marker "<expected-heading-or-te
 waiting (the `supervisorctl restart` command would block for the program's
 `startsecs=30`), then polls the port, which answers within a second; while it
 polls it watches the program's state, so a crash on start fails the call at
-once with the last lines of `/var/log/supervisor/<name>-stderr.log`. Do not
-`sleep` before or after it.
+once with the last lines of `/var/log/supervisor/<name>-stderr.log`.
 
 
 ## Alternative / Manual Checks
