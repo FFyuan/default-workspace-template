@@ -29,6 +29,8 @@ from imbue.imbue_common.mutable_model import MutableModel
 from imbue.imbue_common.pure import pure
 
 DEFAULT_CHAT_FILENAME: Final[str] = "default_chat.json"
+# What the seeded chat is called: a name the app chose, so the first message never renames it.
+DEFAULT_CHAT_NAME: Final[str] = "Default chat"
 _CHAT_ID_KEY: Final[str] = "chat_id"
 
 

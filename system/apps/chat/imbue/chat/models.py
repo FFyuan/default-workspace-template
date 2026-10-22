@@ -794,7 +794,8 @@ class ProvisionalChat(FrozenModel):
 class SeedChatRequest(FrozenModel):
     """Request body for POST /api/chats/seed: the conversation the Imbue Studio app had before the workspace existed."""
 
-    title: str = Field(default="", description='The chat\'s display name; empty mints the first free "Chat N"')
+    # CLEANUP: drop ``title`` once no Imbue Studio app in use sends it (released ones send "Welcome").
+    title: str = Field(default="", description="Ignored: the seeded chat is named ``DEFAULT_CHAT_NAME``")
     turns: tuple[SeedTurn, ...] = Field(min_length=1, description="The turns, in order")
 
 

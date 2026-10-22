@@ -55,6 +55,7 @@ from imbue.chat.chat_naming import ChatNamer
 from imbue.chat.chat_records import ChatRecord
 from imbue.chat.chat_transcript import agent_switch_event_id
 from imbue.chat.config import Config
+from imbue.chat.default_chat import DEFAULT_CHAT_NAME
 from imbue.chat.errors import ChatAppError
 from imbue.chat.event_queues import AgentEventQueues
 from imbue.chat.harnesses.claude.tap import ClaudeInterruptToComposer
@@ -3020,7 +3021,8 @@ def _seed_body() -> dict[str, Any]:
 
 def test_seeding_a_chat_lists_it_awaiting_its_first_send_with_the_turns_as_its_transcript(tmp_path: Path) -> None:
     """The Imbue Studio app's onboarding conversation arrives whole: the chat is created (201) as a
-    provisional chat awaiting the user, and its events route reads the seeded turns."""
+    provisional chat awaiting the user, named the default chat whatever title the app sent, and its events
+    route reads the seeded turns."""
     agent_manager = AgentManager.build(WebSocketBroadcaster(), chat_files_root=tmp_path)
     agent_manager.note_agent_list_known()
     client = create_application(build_test_state(agent_manager=agent_manager)).test_client()
@@ -3029,7 +3031,7 @@ def test_seeding_a_chat_lists_it_awaiting_its_first_send_with_the_turns_as_its_t
 
     assert response.status_code == 201
     created = response.get_json()
-    assert created["display_name"] == "Getting started"
+    assert created["display_name"] == DEFAULT_CHAT_NAME
     provisional = agent_manager.get_provisional_chat(created["chat_id"])
     assert provisional is not None
     assert provisional.phase is ProvisionalChatPhase.AWAITING_FIRST_SEND
@@ -3040,12 +3042,6 @@ def test_seeding_a_chat_lists_it_awaiting_its_first_send_with_the_turns_as_its_t
         ("assistant_message", "seed"),
     ]
     assert events["events"][0]["content"] == "Wait.. what is honest software?"
-
-
-def test_seeding_a_chat_refuses_a_title_with_no_usable_characters(client: FlaskClient) -> None:
-    response = client.post("/api/chats/seed", json={**_seed_body(), "title": "!!!"})
-    assert response.status_code == 400
-    assert "no usable characters" in response.get_json()["detail"]
 
 
 def test_seeding_a_chat_refuses_a_body_without_turns(client: FlaskClient) -> None:

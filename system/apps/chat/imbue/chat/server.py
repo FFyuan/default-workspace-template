@@ -92,6 +92,7 @@ from imbue.chat.compaction_status import compact_command_instructions
 from imbue.chat.compaction_status import is_compact_command
 from imbue.chat.compaction_status import is_context_compacted_event
 from imbue.chat.config import Config
+from imbue.chat.default_chat import DEFAULT_CHAT_NAME
 from imbue.chat.documents import document_response
 from imbue.chat.documents import inject_base_path_meta_tag
 from imbue.chat.documents import inject_chat_identity_meta_tags
@@ -1703,17 +1704,17 @@ def _seed_chat() -> Response:
 
     The body is a :class:`SeedChatRequest`. Answers 201 with the chat's id and name pair; the
     chat is listed at once as a provisional chat awaiting the user's first message, with the
-    turns as its transcript (``chat_seed.py``). Like every create, 503 until the agent list has
-    been read from mngr once, so the Imbue Studio app's seeding retries rather than being refused; a
-    title with no usable characters answers 400 and one already taken 409, as a launch's
-    requested name would.
+    turns as its transcript (``chat_seed.py``), named ``DEFAULT_CHAT_NAME``: it is the workspace's first
+    default chat (``default_chat.py``). Like every create, 503 until the agent list has been read from
+    mngr once, so the Imbue Studio app's seeding retries rather than being refused; 409 when a chat
+    already wears that name.
     """
     agent_manager: AgentManager = get_state().agent_manager
     if not agent_manager.is_agent_list_known():
         return _agent_list_not_known_response()
     seed_request = parse_request_body(SeedChatRequest)
     try:
-        created = agent_manager.seed_chat(seed_request.title, seed_request.turns)
+        created = agent_manager.seed_chat(DEFAULT_CHAT_NAME, seed_request.turns)
     except AgentNameConflictError as e:
         return error_response(str(e), 409)
     except AgentCreationError as e:

@@ -1,4 +1,4 @@
-The workspace now has a **default chat**, where a message with no chat of its own goes. The welcome chat (the one the Mind app seeds) is the default to begin with:
+The workspace now has a **default chat**, where a message with no chat of its own goes. The chat the Mind app seeds is the default to begin with, and is now named "Default chat" instead of "Welcome"; that name is kept rather than replaced by one drawn from the first message, until you rename it:
 
 - The chat list always leads with it (its helpers under it), in a medium weight and set off from the other chats by a thin rule, instead of sorting it by recency.
 

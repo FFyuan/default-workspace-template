@@ -416,8 +416,8 @@ the record does; discarding the chat before its first send drops both.
 The workspace has one **default chat**, where a text with no chat of its own goes
 (`default_chat.py`). It is a pointer, like a star on one chat, kept in
 `data/.apps/chat/default_chat.json`; no chat is special in itself, so a handoff, a
-crash, or a relaunch leaves it where it is. The seeded chat (the Mind app's "Welcome")
-takes it first, and a chat's "Make default chat" menu row (`POST
+crash, or a relaunch leaves it where it is. The seeded chat takes it first, named
+"Default chat" (`DEFAULT_CHAT_NAME`) whatever title the Mind app sent, and a chat's "Make default chat" menu row (`POST
 /api/chats/<chat-id>/default`, 409 for a helper another agent started) moves it there.
 When the chat it names is deleted, another takes it at once: the chat
 messaged most recently, never a helper another agent started; with no chat left, the
@@ -470,7 +470,7 @@ the chat's own name; a rename that does not land takes the shown name back. The
 name is set once and does not follow the chat as its topic drifts. An opening
 with no clear subject ("hi") leaves "Chat N" and the next message is tried, up to
 three messages. Only a chat still wearing a name nobody chose is renamed: exactly
-"Chat N", or a seeded chat's seed title (the Mind app's "Welcome"), named from
+"Chat N", or a seed title other than "Default chat" (an older Mind app's "Welcome"), named from
 the first message the user sends in it. A name the user or an agent chose is left
 alone. What has been tried is kept in `naming.json` in the chat's folder, so a
 restart neither renames a named chat nor retries past the limit. A harness with

@@ -5,9 +5,9 @@ chat runs on (the harness's ``OneShotCompletion``), outside the chat's transcrip
 answer replaces the minted name through the ordinary rename. The name is set once and never
 follows the chat as its topic drifts, so it stays where the user learned it. A chat whose
 opening message has no clear subject ("hi") keeps its minted name and is tried again on its
-next message, up to ``MAX_NAMING_ATTEMPTS`` messages. A seeded chat (the Mind app's
-"Welcome") is named the same way from the first message the user sends in it; a chat named any
-other way (by the user, by an agent) is never touched.
+next message, up to ``MAX_NAMING_ATTEMPTS`` messages. A seeded chat wearing an older Mind app's
+"Welcome" is named the same way from the first message the user sends in it; the default chat's
+"Default chat", and a chat named any other way (by the user, by an agent), is never touched.
 
 What has been tried is kept in the chat's own folder, so a restart of the app neither renames a
 named chat nor retries past the limit.

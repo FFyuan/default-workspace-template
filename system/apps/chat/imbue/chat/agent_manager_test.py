@@ -75,6 +75,7 @@ from imbue.chat.compaction_status import read_compaction_request
 from imbue.chat.compaction_status import write_compaction_request
 from imbue.chat.create_defaults import create_defaults_path
 from imbue.chat.default_chat import DEFAULT_CHAT_FILENAME
+from imbue.chat.default_chat import DEFAULT_CHAT_NAME
 from imbue.chat.default_chat import DefaultChatStore
 from imbue.chat.harnesses.codex.activity import CodexActivityTracker
 from imbue.chat.harnesses.codex.model import codex_models_to_options
@@ -2250,6 +2251,29 @@ def test_a_seeded_chat_still_wearing_its_seed_title_is_renamed_like_a_minted_one
         renamed = manager.get_agent_by_id(agent_id)
         assert renamed is not None
         assert renamed.labels["display_name"] == "Sales report: summarize last quarter"
+        assert not manager.has_placeholder_name(chat_id)
+    finally:
+        manager.stop()
+
+
+def test_a_seeded_chat_named_the_default_chat_keeps_its_name(
+    broadcaster: WebSocketBroadcaster, true_binary: str
+) -> None:
+    """The default chat's name is one the app chose, so its first message does not rename it."""
+    manager = AgentManager.build(broadcaster, mngr_binary=true_binary)
+    try:
+        chat_id = ChatId("agent-" + "7" * 32)
+        agent_id = "agent-" + "8" * 32
+        seed = make_chat_agent_entry(1, str(chat_id), is_archived=True, harness=HarnessType.SEED)
+        record = ChatRecord(
+            chat_id=chat_id,
+            agents=(seed, make_chat_agent_entry(2, agent_id, is_archived=False)),
+            seed_title=DEFAULT_CHAT_NAME,
+        )
+        with manager._lock:
+            manager._chat_record_by_id[chat_id] = record
+        _tracked_chat(manager, agent_id, "Default-chat", display_name=DEFAULT_CHAT_NAME)
+
         assert not manager.has_placeholder_name(chat_id)
     finally:
         manager.stop()

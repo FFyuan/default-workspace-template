@@ -101,6 +101,7 @@ from imbue.chat.compaction_status import read_compaction_request
 from imbue.chat.compaction_status import read_compaction_signal
 from imbue.chat.compaction_status import shown_compaction_cause
 from imbue.chat.compaction_status import write_compaction_request
+from imbue.chat.default_chat import DEFAULT_CHAT_NAME
 from imbue.chat.default_chat import DefaultChatCandidate
 from imbue.chat.default_chat import DefaultChatStore
 from imbue.chat.default_chat import resolved_default_chat_id
@@ -3042,8 +3043,9 @@ class AgentManager:
         self._broadcast_chats_updated()
 
     def has_placeholder_name(self, chat_id: ChatId) -> bool:
-        """Whether a chat still wears a name nobody chose for it: a minted "Chat N", or the title it was seeded with
-        (the Mind app's "Welcome"). A chat still being created counts by the name it was minted with."""
+        """Whether a chat still wears a name nobody chose for it: a minted "Chat N", or a title it was seeded with
+        other than ``DEFAULT_CHAT_NAME`` (an older Mind app's "Welcome"). A chat still being created counts by the
+        name it was minted with."""
         with self._lock:
             provisional = self._provisional_chats.get(chat_id)
             record = self._chat_record_by_id.get(chat_id)
@@ -3054,7 +3056,7 @@ class AgentManager:
             if snapshot is None:
                 return False
             title = snapshot.title
-        is_seed_title = record is not None and record.seed_title == title
+        is_seed_title = record is not None and record.seed_title == title and title != DEFAULT_CHAT_NAME
         return is_minted_chat_name(title) or is_seed_title
 
     def resolve_chat_account_binding(self, chat_id: ChatId) -> ChatAccountBinding | None:
