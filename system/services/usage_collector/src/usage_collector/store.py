@@ -23,6 +23,8 @@ from imbue.mngr_usage.model_call import ModelCallEvent
 from pydantic import Field
 
 RAW_RETENTION: Final[timedelta] = timedelta(days=90)
+# Totals are sums of per-call costs; a nanodollar is far below any price step.
+_COST_DECIMAL_PLACES: Final[int] = 9
 
 # Rollup key columns; '' stands for "not known", since NULLs never collide in a unique key.
 ROLLUP_DIMENSIONS: Final[tuple[str, ...]] = (
@@ -344,10 +346,15 @@ def _totals_row(
         bucket_start=bucket_start,
         calls=calls or 0,
         unknown_cost_calls=unknown_cost_calls or 0,
-        cost_usd=Decimal(str(cost)) if known_cost_calls and cost is not None else None,
+        cost_usd=_summed_cost(cost) if known_cost_calls and cost is not None else None,
         tokens=dict(zip(TOKEN_COLUMNS, (int(value or 0) for value in token_sums))),
     )
 
 
 def _optional_str(value: object | None) -> str | None:
     return None if value is None else str(value)
+
+
+def _summed_cost(cost: float) -> Decimal:
+    """A SQLite sum as dollars, without the float noise summing adds (0.0016, not 0.0015999999999999999)."""
+    return Decimal(repr(round(cost, _COST_DECIMAL_PLACES)))

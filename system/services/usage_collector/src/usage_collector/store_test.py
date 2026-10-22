@@ -107,3 +107,12 @@ def test_file_positions_persist(tmp_path: Path, store: UsageStore) -> None:
     store.set_file_position(path, 42, 1500)
 
     assert store.file_position(path) == (42, 1500)
+
+
+def test_summed_costs_carry_no_float_noise(store: UsageStore) -> None:
+    for _ in range(3):
+        store.insert(_event(cost_usd="0.1", cost_provenance="REPORTED"))
+
+    [row] = store.totals([], NOW - timedelta(hours=1))
+
+    assert row.cost_usd == Decimal("0.3")
