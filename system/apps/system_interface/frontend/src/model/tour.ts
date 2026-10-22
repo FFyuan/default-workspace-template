@@ -7,7 +7,7 @@
  */
 
 import { apiUrl } from "@imbue/workspace-ui/src/base-path";
-import { errorDetailFromResponse, postJson } from "@imbue/workspace-ui/src/models/http";
+import { postJson, requestJson } from "@imbue/workspace-ui/src/models/http";
 import type { ChromeAnchor, TourCard } from "./tourCards";
 import { TOUR_CARDS } from "./tourCards";
 
@@ -60,9 +60,7 @@ export interface TourApi {
 }
 
 export async function fetchTourIsSeen(): Promise<boolean> {
-  const response = await fetch(apiUrl("/api/tour"));
-  if (!response.ok) throw new Error(await errorDetailFromResponse(response));
-  const body = (await response.json()) as { is_seen?: unknown };
+  const body = await requestJson<{ is_seen?: unknown }>("GET", apiUrl("/api/tour"));
   return body.is_seen === true;
 }
 
