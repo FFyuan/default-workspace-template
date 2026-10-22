@@ -536,7 +536,10 @@ decision" below.
 - A worker that died without reporting is not yet a failure: recover it per
   `.agents/skills/launch-task/references/dead-worker-recovery.md`, then re-arm
   the poll. It is stuck only once that recovery has not brought it back.
-- **`stuck`**, or a dead worker its recovery did not bring back -> surface per
+- A **`stuck`** report that shows the merge cannot land without breaking the
+  running workspace is a migration-required update: follow "Migration-required
+  updates" below, which ends the pass `NEEDS_RECREATION`.
+- Any other **`stuck`**, or a dead worker its recovery did not bring back -> surface per
   `.agents/skills/launch-task/references/worker-failure.md` (if the user
   then overrides, see "Resuming after `stuck`" below). Nothing is merged
   or applied. Compose it as a plain-language lead ("I couldn't complete this
