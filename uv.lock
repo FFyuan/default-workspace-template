@@ -1028,9 +1028,13 @@ dev = [
     { name = "imbue-mngr-antigravity" },
     { name = "imbue-mngr-autocompact" },
     { name = "imbue-mngr-claude" },
+    { name = "imbue-mngr-claude-usage" },
     { name = "imbue-mngr-codex" },
+    { name = "imbue-mngr-codex-usage" },
     { name = "imbue-mngr-opencode" },
+    { name = "imbue-mngr-opencode-usage" },
     { name = "imbue-mngr-pi-coding" },
+    { name = "imbue-mngr-pi-coding-usage" },
     { name = "imbue-mngr-usage" },
     { name = "inline-snapshot" },
     { name = "mngr-cli-contract" },
@@ -1069,9 +1073,13 @@ dev = [
     { name = "imbue-mngr-antigravity", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_antigravity&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-autocompact", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_autocompact&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-claude", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_claude&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "imbue-mngr-claude-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_claude_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-codex", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_codex&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "imbue-mngr-codex-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_codex_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-opencode", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_opencode&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "imbue-mngr-opencode-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_opencode_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-pi-coding", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_pi_coding&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "imbue-mngr-pi-coding-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_pi_coding_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "inline-snapshot", specifier = ">=0.31" },
     { name = "mngr-cli-contract", editable = "system/libs/mngr_cli_contract" },
@@ -1873,12 +1881,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "imbue-mngr-claude-usage"
+version = "0.1.6"
+source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_claude_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
+dependencies = [
+    { name = "imbue-mngr" },
+    { name = "imbue-mngr-claude" },
+    { name = "imbue-mngr-usage" },
+]
+
+[[package]]
 name = "imbue-mngr-codex"
 version = "0.1.4"
 source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_codex&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
 dependencies = [
     { name = "imbue-mngr" },
     { name = "websockets" },
+]
+
+[[package]]
+name = "imbue-mngr-codex-usage"
+version = "0.1.2"
+source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_codex_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
+dependencies = [
+    { name = "imbue-mngr" },
+    { name = "imbue-mngr-codex" },
+    { name = "imbue-mngr-usage" },
 ]
 
 [[package]]
@@ -1890,11 +1918,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "imbue-mngr-opencode-usage"
+version = "0.1.1"
+source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_opencode_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
+dependencies = [
+    { name = "imbue-mngr" },
+    { name = "imbue-mngr-opencode" },
+    { name = "imbue-mngr-usage" },
+]
+
+[[package]]
 name = "imbue-mngr-pi-coding"
 version = "0.1.14"
 source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_pi_coding&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
 dependencies = [
     { name = "imbue-mngr" },
+]
+
+[[package]]
+name = "imbue-mngr-pi-coding-usage"
+version = "0.1.1"
+source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_pi_coding_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
+dependencies = [
+    { name = "imbue-mngr" },
+    { name = "imbue-mngr-pi-coding" },
+    { name = "imbue-mngr-usage" },
 ]
 
 [[package]]
