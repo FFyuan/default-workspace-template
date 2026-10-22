@@ -75,6 +75,7 @@ const mocks = vi.hoisted(() => {
     whenChatRegistered: vi.fn(async (_chatId: string) => {}),
     // Whether the chat list names the chat; false for a seeded chat awaiting its first send.
     isChatRegistered: true,
+    isLaunchInFlight: false,
     provisional: undefined as unknown,
     launchChat: vi.fn(async (_chatId: string, _accountId: string, _message?: string) => ({})),
     chooseFastMode: vi.fn(),
@@ -200,6 +201,7 @@ vi.mock("../models/Chats", async (importOriginal) => ({
   getChatById: () =>
     mocks.isChatRegistered ? { active_agent: mocks.agent, handoff: mocks.switching.handoff } : undefined,
   getProvisionalChat: () => mocks.provisional,
+  isLaunchInFlight: () => mocks.isLaunchInFlight,
   launchChat: (chatId: string, accountId: string, message?: string) => mocks.launchChat(chatId, accountId, message),
   whenChatRegistered: (chatId: string) => mocks.whenChatRegistered(chatId),
 }));
@@ -826,10 +828,21 @@ describe("MessageInput first send of a seeded chat", () => {
 
   afterEach(() => {
     mocks.isChatRegistered = true;
+    mocks.isLaunchInFlight = false;
     mocks.provisional = undefined;
     mocks.selectedAccount = null;
     mocks.accountsLoaded = true;
     mocks.whenChatRegistered.mockImplementation(async (_chatId: string) => {});
+  });
+
+  it("waits for the chat and sends to it when the sign-in's launch is already on its way, launching nothing itself", async () => {
+    // The sign-in launched the chat a moment ago and the page has not yet heard it is creating.
+    mocks.isLaunchInFlight = true;
+    await typeAndSend(MessageInput(), "agent-1", "Let's build something");
+
+    expect(mocks.launchChat).not.toHaveBeenCalled();
+    expect(mocks.whenChatRegistered).toHaveBeenCalledWith("agent-1");
+    expect(mocks.sendMessage).toHaveBeenCalledWith("agent-1", "Let's build something", expect.stringMatching(/^m-/));
   });
 
   it("launches the chat on the signed-in account with the message as its first, and sends nothing else", async () => {
@@ -1560,6 +1573,13 @@ describe("MessageInput on a chat awaiting its first send with nothing signed in"
     mocks.provisional = { ...(mocks.provisional as object), phase: "creating" };
     intent.onSignedIn("acct-9");
     expect(mocks.launchChat).not.toHaveBeenCalled();
+
+    // The page's own launch is on its way and the backend has not said so yet.
+    mocks.provisional = { ...(mocks.provisional as object), phase: "awaiting_first_send" };
+    mocks.isLaunchInFlight = true;
+    intent.onSignedIn("acct-9");
+    expect(mocks.launchChat).not.toHaveBeenCalled();
+    mocks.isLaunchInFlight = false;
 
     // The create landed: the chat list names it.
     mocks.provisional = { ...(mocks.provisional as object), phase: "awaiting_first_send" };

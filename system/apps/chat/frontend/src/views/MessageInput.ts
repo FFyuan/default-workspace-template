@@ -49,6 +49,7 @@ import {
   getChatById,
   getProvisionalChat,
   isHandoffCancellable,
+  isLaunchInFlight,
   launchChat,
   whenChatRegistered,
 } from "../models/Chats";
@@ -722,9 +723,14 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           // A chat awaiting its first send (a seeded one, one an intake minted, or the one an empty
           // chat list opens on) has no agent yet, and this send is what launches one: on the account
           // it was minted for, else the signed-in one, else the one the chooser produces. The
-          // message rides the launch as the agent's first, so nothing is sent after it lands.
+          // message rides the launch as the agent's first, so nothing is sent after it lands. A chat
+          // whose launch is already on its way (the sign-in's) is a creating chat to this send.
           const awaiting = getProvisionalChat(chatId);
-          if (awaiting?.phase === "awaiting_first_send" && getChatById(chatId) === undefined) {
+          if (
+            awaiting?.phase === "awaiting_first_send" &&
+            getChatById(chatId) === undefined &&
+            !isLaunchInFlight(chatId)
+          ) {
             const accountId = await chooseAccountForFirstSend(awaiting);
             if (accountId === null) {
               // The chooser closed with no sign-in: nothing was launched, and the message is
@@ -1370,6 +1376,7 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
           onSignedIn: (accountId) => {
             const awaiting = getProvisionalChat(awaitingChatId);
             if (awaiting?.phase !== "awaiting_first_send" || getChatById(awaitingChatId) !== undefined) return;
+            if (isLaunchInFlight(awaitingChatId)) return;
             launchChat(awaitingChatId, accountId).catch((error: unknown) => {
               console.error(
                 `The chat ${awaitingChatId} could not be started on sign-in: ${describeRequestError(error)}`,
