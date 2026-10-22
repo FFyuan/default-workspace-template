@@ -252,14 +252,16 @@ reports the workspace by it. Choose it by what happened:
   ("Migration-required updates"), including a worker's `stuck` report that
   shows the merge cannot land without breaking the running workspace.
 - `REFUSED`: the pass ran as it should and chose not to apply. Nothing is
-  broken: there was no target it may take, the user declined, or the apply
-  rolled back and your best effort at a retry is spent.
+  broken: there was no target it may take, the user declined or told you to
+  stop (SKILL.md, "Stopping when asked"), or the apply rolled back and your
+  best effort at a retry is spent.
 - `STUCK`: a fault stopped the pass and you could not recover from it. The
-  worker reported `stuck` for any other reason, a dead worker did not come back through
-  `.agents/skills/launch-task/references/dead-worker-recovery.md`, a step
-  the update depends on failed, the apply ended in an emergency (exit 3), or
-  Step 2 reported a fault. The watchdog
-  records it for a lead that is gone.
+  worker reported `stuck` for any other reason, a dead worker did not come
+  back through `.agents/skills/launch-task/references/dead-worker-recovery.md`,
+  a step the update depends on failed, the apply ended in an emergency
+  (exit 3), Step 2 reported a fault, or this chat keeps stopping for a reason
+  you cannot find or fix (SKILL.md, "Resuming after a restart"). The watchdog
+  records it for a lead whose chat was deleted.
 
 `STUCK` and `REFUSED` say different things to the user, but the app reports
 both, and `NEEDS_RECREATION`, as failures. `NEEDS_DECISION` is not a failure:
@@ -267,5 +269,5 @@ the pass did its job and the next move is the user's, so the app shows it as a
 decision pending, with a way into this chat and no fresh update on offer. A
 pass that is waiting on the user is therefore never `STUCK`, and one that broke
 is never `NEEDS_DECISION`. Things that are not faults do not make a pass
-`STUCK` either: an app that a pinned pass cannot reach, or a worker that died
-once and came back on restart.
+`STUCK` either: an app that a pinned pass cannot reach, or a lead or worker
+that stopped and came back on restart.

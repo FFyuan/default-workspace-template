@@ -927,6 +927,37 @@ Step 4 cycle, not a new pass.
    catches the worker up again if `HEAD` moved meanwhile, and a verdict at the
    end.
 
+## Resuming after a restart
+
+A note from the Imbue Studio app saying this chat stopped and was started again
+means the pass was interrupted, most often by a workspace restart, which stops
+every chat. Find where it got to before doing anything: re-read
+`data/.state/update-apply/run.json` and this pass's task file, and check whether
+the worker is still alive. A record showing an apply under way belongs to the
+apply's own recovery (`references/apply-outcomes.md`, "An interrupted apply").
+Otherwise carry on from the step you were in; a worker that stopped too is
+restarted per `.agents/skills/launch-task/references/dead-worker-recovery.md`.
+The note counts the restarts so far. If this chat keeps stopping for a reason
+you cannot find or fix, record `run-status verdict STUCK --detail "<why, one
+plain line>"` and tell the user, or the app will keep restarting it.
+
+## Stopping when asked
+
+If the user tells you to stop or cancel the update, end the pass. Record the
+verdict first, since until one is recorded the app restarts this chat whenever
+it stops:
+
+```bash
+python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py \
+    run-status verdict REFUSED --detail "Stopped at the user's request."
+```
+
+Then stop the worker keeping its branch (`mngr stop update-self`), run Step 6's
+opening commands, release the `updating workspace` lease (`tk close
+"$UPDATE_LEASE_ID" "Stopped at the user's request."`), and tell them nothing was
+applied. An apply already under way is never stopped halfway: it lands or rolls
+back on its own, and the pass ends by that outcome instead.
+
 ## Migration-required updates
 
 An update that cannot be applied in place (the release restructures something

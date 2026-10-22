@@ -45,6 +45,9 @@ _RUN_AUTOMATION_SUFFIX: Final[str] = "run_automation.sh"
 _ENV_WRAPPER_SUFFIX: Final[str] = "with_agent_env.sh"
 _CARETAKER_CHECK_SUFFIX: Final[str] = "caretaker_check.sh"
 _CRON_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]+$")
+# Entries that stay with cron untouched: the Imbue Studio app writes its update dispatcher's entry, and rewrites
+# it whenever it arms an update, so a routine of it would run beside the cron line rather than replace it.
+_ENTRIES_OWNED_BY_THE_APP: Final[frozenset[str]] = frozenset({"update-self-dispatch"})
 # Where every pre-routines cron line found the env wrapper, and where it lives now: an entry left in place
 # keeps running only if it names the wrapper where it is.
 LEGACY_ENV_WRAPPER_PATH: Final[str] = "/home/user/workspace/system/libs/automations/with_agent_env.sh"
@@ -332,6 +335,8 @@ def migrate_cron_entries(
     is_caretaker_enabled = False
     for entry_path in sorted(durable_dir.iterdir()):
         if not entry_path.is_file() or not _CRON_NAME_PATTERN.fullmatch(entry_path.name):
+            continue
+        if entry_path.name in _ENTRIES_OWNED_BY_THE_APP:
             continue
         try:
             text = entry_path.read_text(encoding="utf-8")
