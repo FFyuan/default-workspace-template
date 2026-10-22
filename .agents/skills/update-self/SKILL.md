@@ -760,7 +760,9 @@ Exit codes:
   best effort is spent, record `run-status verdict REFUSED --detail "<what
   failed, one plain line>"` at once.
 - **`3` -- emergency.** Even the rollback could not restore health; escalate,
-  with the kept pre-apply copies under `data/.state/update-apply/snapshots/`.
+  with the kept pre-apply copies under `data/.state/update-apply/snapshots/`,
+  and record `run-status verdict STUCK --detail "<what failed, one plain
+  line>"`.
 - **`1` -- precondition; nothing changed** (dirty tree, `HEAD` moved under the
   pass, another apply in flight, this merge already landed and rolled back, or
   a merge that does not first revert an earlier update's rollback commit).

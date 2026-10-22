@@ -257,7 +257,8 @@ reports the workspace by it. Choose it by what happened:
 - `STUCK`: a fault stopped the pass and you could not recover from it. The
   worker reported `stuck` for any other reason, a dead worker did not come back through
   `.agents/skills/launch-task/references/dead-worker-recovery.md`, a step
-  the update depends on failed, or Step 2 reported a fault. The watchdog
+  the update depends on failed, the apply ended in an emergency (exit 3), or
+  Step 2 reported a fault. The watchdog
   records it for a lead that is gone.
 
 `STUCK` and `REFUSED` say different things to the user, but the app reports
