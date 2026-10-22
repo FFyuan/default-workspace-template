@@ -355,7 +355,7 @@ As amended by the post-launch-paths plan, the chat's free-text launch paths are 
 ## 9. mngr-side changes
 
 In the mngr repository, on the branch of the same name: the Electron e2e runner (`apps/minds/imbue/minds/desktop_client/e2e_workspace_runner.py`) finds the new-chat and new-terminal tiles by `.launcher-tile[data-launch=...]` and waits for a new chat frame after pressing the chat tile.
-It changes to `[data-launch="chat:new"]` and `[data-launch="terminal:new"]` rows, expects the new chat inside the pinned window's root frame rather than in a new window, and waits for a Getting Started window on a fresh workspace's first visit beside the welcome chat.
+It changes to `[data-launch="chat:new"]` and `[data-launch="terminal:new"]` rows, expects the new chat inside the pinned window's root frame rather than in a new window, and waited for a Getting Started window on a fresh workspace's first visit beside the welcome chat (that wait went with the window in the new onboarding, section 3.4: a fresh workspace's first visit shows the welcome chat alone).
 `apps/minds/docs/design.md`'s "further chats start from the desktop's launcher" stays true; the workspace glossary gains Getting Started among the built-in apps.
 
 ## 10. Testing
