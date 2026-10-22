@@ -34,6 +34,9 @@ if url == "https://api.github.com/user":
         sys.exit(22)
     print(json.dumps({{"error": "request not permitted by the user"}}))
 elif url == "http://latchkey-self.invalid/permissions/self":
+    if state.get("permissions_error") and not is_granted:
+        print(json.dumps({{"error": state["permissions_error"]}}))
+        sys.exit(0)
     rules = state.get("rules", [])
     if is_granted:
         rules = rules + [{{"github-git:octo": ["github-git-write"]}}]

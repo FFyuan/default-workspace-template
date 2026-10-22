@@ -23,6 +23,13 @@ It lists every problem at once: fix them together, commit in `$WT`, re-run. A
 declared apt package that does not resolve means it is not in the pinned
 mirror -- ship it as an `env.d` unit instead, or drop it.
 
+## Checking GitHub access (`github_access.py`)
+
+- `UNKNOWN (...)`, exit 2: the gateway answered with an error instead of the
+  permission rules, typically `Desktop ... is unreachable` when the user's Imbue
+  Studio app is closed or asleep. A permission request needs that app too, so do
+  not file one: ask the user to open the app, then check again.
+
 ## Creating the repo (`github_repo.py create`)
 
 - `request not permitted by the user`: the `github-rest-api` grant is missing or

@@ -75,3 +75,39 @@ def test_wait_gives_up_at_its_timeout(fake_latchkey: FakeLatchkey) -> None:
 
     assert completed.returncode == 1
     assert "NOT permitted" in completed.stderr
+
+
+_DESKTOP_DOWN = (
+    "Desktop host-1 (laptop) is unreachable: connect ECONNREFUSED 127.0.0.1:42379"
+)
+
+
+def test_an_unreachable_desktop_is_unknown_not_a_missing_grant(
+    fake_latchkey: FakeLatchkey,
+) -> None:
+    """A permission request would go through the same unreachable app, so do not prompt one."""
+    fake_latchkey.set_state(api=True, permissions_error=_DESKTOP_DOWN)
+
+    completed = fake_latchkey.run(_SCRIPT, "check")
+
+    assert completed.returncode == 2
+    assert "NOT permitted" not in completed.stdout
+    assert f"git-write: UNKNOWN ({_DESKTOP_DOWN})" in completed.stdout
+
+
+def test_a_missing_grant_still_reads_as_missing_beside_an_unknown(
+    fake_latchkey: FakeLatchkey,
+) -> None:
+    fake_latchkey.set_state(api=False, permissions_error=_DESKTOP_DOWN)
+
+    assert fake_latchkey.run(_SCRIPT, "check").returncode == 1
+
+
+def test_wait_polls_through_an_unreachable_desktop(fake_latchkey: FakeLatchkey) -> None:
+    fake_latchkey.set_state(permissions_error=_DESKTOP_DOWN, grant_after=4)
+
+    completed = fake_latchkey.run(
+        _SCRIPT, "wait", "--timeout-seconds", "10", "--interval-seconds", "0.1"
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr

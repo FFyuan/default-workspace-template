@@ -22,7 +22,11 @@ Usage:
     python3 github_access.py wait [--need ...] [--timeout-seconds 300] [--interval-seconds 10]
 
 `--need` defaults to both. Each prints one line per kind and exits 0 only when
-all are permitted.
+all are permitted. A kind is UNKNOWN, not "NOT permitted", when the gateway
+answers with an error instead of its rules -- typically that it cannot reach the
+user's Imbue Studio app, which a permission request would need too. `check` exits
+2 when anything is unknown and nothing is plainly missing, so a caller does not
+file requests the user cannot see; `wait` keeps polling through it.
 """
 
 from __future__ import annotations
@@ -42,6 +46,10 @@ _KINDS = ("api", "git-write")
 
 class GitHubAccessError(Exception):
     """Raised when latchkey cannot be asked at all."""
+
+
+class AccessUnknownError(GitHubAccessError):
+    """Raised when the gateway answers, but with an error instead of an answer."""
 
 
 def _latchkey_curl(*args: str) -> subprocess.CompletedProcess[str]:
@@ -79,26 +87,36 @@ def grants_git_write(rules: object) -> bool:
 def is_git_write_permitted() -> bool:
     completed = _latchkey_curl("-s", _PERMISSIONS_URL)
     if completed.returncode != 0:
-        return False
+        raise AccessUnknownError(
+            f"latchkey exited {completed.returncode}: {completed.stderr.strip()[:300]}"
+        )
     try:
-        rules = json.loads(completed.stdout).get("rules")
-    except (json.JSONDecodeError, AttributeError):
-        return False
-    return grants_git_write(rules)
+        answer = json.loads(completed.stdout)
+    except json.JSONDecodeError as e:
+        raise AccessUnknownError(f"unreadable answer: {completed.stdout[:300]}") from e
+    if isinstance(answer, dict) and "rules" not in answer and "error" in answer:
+        raise AccessUnknownError(str(answer["error"])[:300])
+    return grants_git_write(answer.get("rules") if isinstance(answer, dict) else None)
 
 
 _PROBES = {"api": is_api_permitted, "git-write": is_git_write_permitted}
+_PERMITTED = "permitted"
+_NOT_PERMITTED = "NOT permitted"
 
 
-def access_report(kinds: list[str]) -> dict[str, bool]:
-    return {kind: _PROBES[kind]() for kind in kinds}
+def access_report(kinds: list[str]) -> dict[str, str]:
+    """Each kind's status: permitted, NOT permitted, or UNKNOWN with the gateway's reason."""
+    report: dict[str, str] = {}
+    for kind in kinds:
+        try:
+            report[kind] = _PERMITTED if _PROBES[kind]() else _NOT_PERMITTED
+        except AccessUnknownError as e:
+            report[kind] = f"UNKNOWN ({e})"
+    return report
 
 
-def _format(report: dict[str, bool]) -> str:
-    return "\n".join(
-        f"{kind}: {'permitted' if is_permitted else 'NOT permitted'}"
-        for kind, is_permitted in report.items()
-    )
+def _format(report: dict[str, str]) -> str:
+    return "\n".join(f"{kind}: {status}" for kind, status in report.items())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -119,19 +137,24 @@ def main(argv: list[str] | None = None) -> int:
         report = access_report(kinds)
         if args.command == "wait":
             deadline = time.monotonic() + args.timeout_seconds
-            while not all(report.values()) and time.monotonic() < deadline:
+            while (
+                any(status != _PERMITTED for status in report.values())
+                and time.monotonic() < deadline
+            ):
                 time.sleep(args.interval_seconds)
                 report = access_report(kinds)
     except GitHubAccessError as e:
         print(f"github_access: {e}", file=sys.stderr)
         return 1
 
-    if all(report.values()):
+    if all(status == _PERMITTED for status in report.values()):
         print(_format(report))
         return 0
-    # A wait that ran out is a failure the caller reports; a check is just an answer.
-    print(_format(report), file=sys.stderr if args.command == "wait" else sys.stdout)
-    return 1
+    if args.command == "wait":
+        print(_format(report), file=sys.stderr)
+        return 1
+    print(_format(report))
+    return 1 if _NOT_PERMITTED in report.values() else 2
 
 
 if __name__ == "__main__":

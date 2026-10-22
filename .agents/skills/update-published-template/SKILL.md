@@ -472,7 +472,9 @@ python3 "$PT/github_access.py" check --need git-write
 
 If it is NOT permitted, file the request yourself, as the only command in its
 tool call (the chat builds the approval card from it), then tell the user an
-approval is waiting in Imbue Studio and wait in the background:
+approval is waiting in Imbue Studio and wait in the background. If it is
+UNKNOWN, the gateway cannot reach their Imbue Studio app: ask them to open it
+and check again before filing anything.
 
 ```bash
 latchkey curl -XPOST http://latchkey-self.invalid/permission-requests \

@@ -298,9 +298,12 @@ push, which goes through the gateway's git proxy.
 python3 "$PT/github_access.py" check
 ```
 
-For each kind it reports NOT permitted, file the request yourself. Each request
-must be the ONLY command in its tool call -- the chat builds the user's approval
-card from it -- so two missing means two calls, back to back:
+For each kind it reports NOT permitted, file the request yourself. A kind
+reported UNKNOWN (exit 2) means the gateway could not answer, usually because it
+cannot reach the user's Imbue Studio app: a request would go nowhere, so ask
+them to open the app, and check again. Each request must be the ONLY command in
+its tool call -- the chat builds the user's approval card from it -- so two
+missing means two calls, back to back:
 
 ```bash
 latchkey curl -XPOST http://latchkey-self.invalid/permission-requests \
