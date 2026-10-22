@@ -62,7 +62,7 @@ describe("the tour's state machine", () => {
     expect(TOUR_CARDS.filter((card) => card.image !== null).map((card) => card.id)).toEqual(["devices", "providers"]);
     // The chat card comes before the apps card: its Next snaps the chat aside, which is what shows the shortcuts.
     const ids = TOUR_CARDS.map((card) => card.id);
-    expect(TOUR_CARDS.find((card) => card.action === "snap-chat-right")?.id).toBe("chat-window");
+    expect(TOUR_CARDS.find((card) => card.action === "snap-avatar-window-right")?.id).toBe("chat-window");
     expect(ids.indexOf("chat-window")).toBeLessThan(ids.indexOf("apps"));
     expect(TOUR_CARDS.find((card) => card.id === "connect")?.bullets).toHaveLength(2);
   });
@@ -257,10 +257,10 @@ describe("TourController", () => {
     expect(tour.shownCard()?.id).toBe("a");
     expect(highlights).toEqual([]);
     tour.next();
-    expect(actions).toEqual(["snap-chat-right"]);
+    expect(actions).toEqual(["snap-avatar-window-right"]);
     expect(highlights).toEqual(["share"]);
     tour.next();
-    expect(actions).toEqual(["snap-chat-right"]);
+    expect(actions).toEqual(["snap-avatar-window-right"]);
     expect(highlights).toEqual(["share", null]);
     tour.back();
     expect(highlights).toEqual(["share", null, "share"]);

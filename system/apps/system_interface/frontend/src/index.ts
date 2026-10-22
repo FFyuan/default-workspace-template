@@ -30,9 +30,8 @@ import type { OutsideLinkOpener, PopOutBridge } from "./store/DesktopStore";
 import { PointerGestureSource } from "./gestures/pointerGestures";
 import { getOwnIdentity, startPresenceHeartbeat } from "./model/Presence";
 import { TOUR_API, TourController, tourStartDelayFromSearch } from "./model/tour";
-import { CHAT_APP_NAME } from "./model/tourCards";
 import type { TourAction } from "./model/tourCards";
-import { pinnedWindowOf } from "./reducers/desktopState";
+import { avatarPinnedWindow } from "./reducers/desktopState";
 import { initEmbedderRelay, setEmbedderAppMessageHandler } from "./relay";
 import { reloadInterface } from "./reload";
 import { DesktopStore } from "./store/DesktopStore";
@@ -168,12 +167,13 @@ function bootstrap(): void {
   });
   // The show-around tour: by itself the first time the agent goes to work on a fresh workspace, for the owner
   // looking at the whole desktop, resumed the same way after the agent's reply interrupted it; from the launcher's
-  // row any time. A card about a chrome control asks the chrome to ring it; the chat card's Next snaps the chat.
+  // row any time. A card about a chrome control asks the chrome to ring it; the chat card's Next snaps the avatar's
+  // window aside.
   const runTourAction = (action: TourAction): void => {
     switch (action) {
-      case "snap-chat-right": {
-        const chat = pinnedWindowOf(desktopStore.getState(), CHAT_APP_NAME);
-        if (chat !== null) desktopStore.setWindowState(chat.id, "SNAPPED_RIGHT");
+      case "snap-avatar-window-right": {
+        const window = avatarPinnedWindow(desktopStore.getState());
+        if (window !== null) desktopStore.setWindowState(window.id, "SNAPPED_RIGHT");
         return;
       }
     }

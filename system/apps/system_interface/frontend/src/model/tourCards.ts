@@ -12,11 +12,10 @@ export type TourTarget = "avatar" | "shortcuts" | "launcher";
 /** A control of the Imbue Studio chrome a card talks about, as the embed contract names it (minds:highlight-chrome). */
 export type ChromeAnchor = "workspace-switcher" | "permissions" | "settings" | "share" | "help";
 
-/** What the shell does as a card's Next is pressed: snap the pinned chat window to the right half of the desktop. */
-export type TourAction = "snap-chat-right";
-
-/** The app whose pinned window the chat card's action snaps. */
-export const CHAT_APP_NAME = "chat";
+/** What the shell does as a card's Next is pressed: snap the window the avatar's pinned entry stands for to the
+ *  right half of the desktop. The shell names no app; the avatar's window is the pinned one whose pin declares
+ *  the avatar style (``reducers/desktopState.ts`` ``avatarPinnedWindow``). */
+export type TourAction = "snap-avatar-window-right";
 
 export interface TourImage {
   readonly url: string;
@@ -71,7 +70,7 @@ export const TOUR_CARDS: readonly TourCard[] = [
     id: "chat-window",
     text: "Our chat is a window like any other. Let’s make it smaller so you can see the rest of your desktop.",
     target: "avatar",
-    action: "snap-chat-right",
+    action: "snap-avatar-window-right",
   }),
   card({
     id: "apps",

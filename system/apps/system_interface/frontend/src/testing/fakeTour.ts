@@ -18,7 +18,7 @@ export const FAKE_TOUR_CARDS: readonly TourCard[] = [
     chromeAnchor: null,
     image: null,
     link: null,
-    action: "snap-chat-right",
+    action: "snap-avatar-window-right",
     buttonLabel: null,
   },
   {
