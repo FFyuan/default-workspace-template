@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { TourController } from "../model/tour";
 import type { TourCard as TourCardRecord } from "../model/tourCards";
 import { TOUR_EXIT_BADGE_TEXT } from "../model/tourCards";
+import { FakeTourApi } from "../testing/fakeTour";
 import { TourCard, chromeSideOf, placeCard } from "./TourCard";
 
 afterEach(unmountViews);
@@ -35,7 +36,7 @@ const CARDS: readonly TourCardRecord[] = [
 function controller(): { tour: TourController; highlights: (string | null)[] } {
   const highlights: (string | null)[] = [];
   const tour = new TourController({
-    api: { fetchIsSeen: async () => true, markSeen: async () => undefined },
+    api: new FakeTourApi({ isSeen: true }),
     highlightChrome: (anchor) => highlights.push(anchor),
     isAutoStartAllowed: () => true,
     redraw: () => m.redraw.sync(),

@@ -12,6 +12,7 @@ import type { Desktop, DesktopShortcut } from "../model/records";
 import { DesktopStore } from "../store/DesktopStore";
 import { TourController } from "../model/tour";
 import { FakeDesktopApi, FakeDesktopSocket, offerApps, settle } from "../testing/fakeShell";
+import { FakeTourApi } from "../testing/fakeTour";
 import {
   appRecord,
   desktopRecord,
@@ -73,7 +74,7 @@ async function mountApp(options: { isDetached?: boolean; soloWindowId?: string }
   await store.start(NO_LINK);
   socket.deliver().onAppsUpdated([appRecord("docs")]);
   tour = new TourController({
-    api: { fetchIsSeen: async () => true, markSeen: async () => undefined },
+    api: new FakeTourApi({ isSeen: true }),
     highlightChrome: () => undefined,
     isAutoStartAllowed: () => false,
     redraw: () => m.redraw(),

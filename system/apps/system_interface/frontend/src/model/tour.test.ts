@@ -11,9 +11,9 @@ import {
   previousCard,
   startTour,
 } from "./tour";
-import type { TourApi } from "./tour";
 import { TOUR_CARDS } from "./tourCards";
 import type { TourCard } from "./tourCards";
+import { FakeTourApi } from "../testing/fakeTour";
 
 const CARDS: readonly TourCard[] = [
   { id: "a", text: "A", target: "avatar", chromeAnchor: null, image: null, link: null, buttonLabel: null },
@@ -52,23 +52,6 @@ describe("the tour's state machine", () => {
     expect(TOUR_CARDS.filter((card) => card.image !== null).map((card) => card.id)).toEqual(["devices", "providers"]);
   });
 });
-
-/** A fake of the tour's two routes, remembering what was written. */
-class FakeTourApi implements TourApi {
-  isSeen = false;
-  isFetchFailing = false;
-  readonly writes: boolean[] = [];
-
-  async fetchIsSeen(): Promise<boolean> {
-    if (this.isFetchFailing) throw new Error("down");
-    return this.isSeen;
-  }
-
-  async markSeen(): Promise<void> {
-    this.writes.push(true);
-    this.isSeen = true;
-  }
-}
 
 function controller(api: FakeTourApi, isAllowed = true) {
   const highlights: (string | null)[] = [];
