@@ -417,15 +417,6 @@ export function App(): m.Component<AppAttrs> {
   const colors = new SeriesColors();
   return {
     view({ attrs: { model, now } }) {
-      if (model.isVisitor) {
-        return m("main", { class: "flex min-h-screen items-center justify-center p-6" }, [
-          m(
-            "p",
-            { class: "visitor-notice type-body text-secondary" },
-            "Usage is visible only to the workspace owner.",
-          ),
-        ]);
-      }
       const data = model.data;
       const current = now();
       const metric: ChartMetric = model.chartMetric ?? (data !== null && data.summary.spend > 0 ? "spend" : "tokens");

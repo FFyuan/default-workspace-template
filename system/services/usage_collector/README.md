@@ -48,5 +48,6 @@ indefinitely; older raw events stay in the files.
 - `GET /health`: `catching_up` is true until a pass has read every event file
   to its end, so totals during a first start or a rebuild are incomplete.
 
-Requests the share gateway marks as a visitor's (`X-Imbue-Identity` with
-`"owner": false`) are refused: usage is the owner's alone.
+The API listens on 127.0.0.1 only, so who may read usage is the share
+gateway's grants: a visitor reaches it only through the Usage app, which the
+gateway admits by a workspace-wide grant or a grant on the app.

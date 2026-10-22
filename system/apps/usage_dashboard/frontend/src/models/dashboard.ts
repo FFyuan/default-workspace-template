@@ -21,7 +21,6 @@ import {
   fetchLatency,
   fetchTotals,
   isUnreachable,
-  isVisitorRefusal,
 } from "./api";
 import {
   type BreakdownId,
@@ -85,7 +84,6 @@ export class DashboardModel {
   isLoading = false;
   isCollectorDown = false;
   isCatchingUp = false;
-  isVisitor = false;
   isLive = false;
   errorMessage: string | null = null;
   expandedCallId: string | null = null;
@@ -193,7 +191,6 @@ export class DashboardModel {
       };
       this.isCatchingUp = health.catching_up;
       this.isCollectorDown = false;
-      this.isVisitor = false;
       this.errorMessage = null;
       this.retryBackoff.reset();
     } catch (error) {
@@ -250,12 +247,8 @@ export class DashboardModel {
     this.deps.redraw();
   }
 
-  /** Record why a read failed: a visitor, a collector that is down (retried with backoff), or anything else. */
+  /** Record why a read failed: a collector that is down (retried with backoff), or anything else. */
   private noteFailure(error: unknown, retry: () => void): void {
-    if (isVisitorRefusal(error)) {
-      this.isVisitor = true;
-      return;
-    }
     if (isUnreachable(error)) {
       this.isCollectorDown = true;
       if (this.retry === null) {

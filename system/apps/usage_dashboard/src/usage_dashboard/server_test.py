@@ -6,7 +6,6 @@ from flask.testing import FlaskClient
 from usage_collector.ingest import Ingestor
 from usage_collector.testing import NOW
 from usage_collector.testing import model_call_payload
-from usage_dashboard.server import is_visitor_request
 
 _VISITOR = json.dumps({"owner": False, "user_id": "u-2"})
 
@@ -48,24 +47,12 @@ def test_a_collector_error_keeps_its_status_and_detail(client: FlaskClient) -> N
     assert "Cannot group by" in response.get_json()["detail"]
 
 
-def test_a_visitor_is_refused_every_usage_read_and_the_app_list(client: FlaskClient) -> None:
-    for path in ("/api/usage/totals", "/api/usage/calls", "/api/usage/stream", "/api/usage/health", "/api/apps"):
+def test_a_visitor_admitted_by_the_gateway_reads_usage_like_the_owner(client: FlaskClient, ingestor: Ingestor) -> None:
+    ingestor.ingest(model_call_payload())
+
+    for path in ("/api/usage/totals", "/api/usage/calls", "/api/usage/health", "/api/apps"):
         response = client.get(path, headers={"X-Imbue-Identity": _VISITOR})
-        assert response.status_code == 403, path
-        assert response.get_json()["detail"] == "Usage is visible only to the workspace owner.", path
-
-
-def test_a_visitor_still_gets_the_page_and_the_health_probe(client: FlaskClient) -> None:
-    for path in ("/", "/api/health", "/api/schema"):
-        assert client.get(path, headers={"X-Imbue-Identity": _VISITOR}).status_code == 200, path
-
-
-def test_only_an_explicit_visitor_identity_is_a_visitor() -> None:
-    assert not is_visitor_request(None)
-    assert not is_visitor_request("")
-    assert not is_visitor_request("not json")
-    assert not is_visitor_request(json.dumps({"owner": True}))
-    assert is_visitor_request(_VISITOR)
+        assert response.status_code == 200, path
 
 
 def test_an_unknown_read_is_not_found(client: FlaskClient) -> None:

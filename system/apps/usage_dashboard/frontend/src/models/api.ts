@@ -108,8 +108,3 @@ export async function fetchAppNames(): Promise<Record<string, string>> {
 export function isUnreachable(error: unknown): boolean {
   return error instanceof HttpError && error.status >= 502 && error.status <= 504;
 }
-
-/** Whether a refusal says the viewer is a visitor, to whom usage is never shown. */
-export function isVisitorRefusal(error: unknown): boolean {
-  return error instanceof HttpError && error.status === 403;
-}

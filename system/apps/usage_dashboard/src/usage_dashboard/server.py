@@ -3,11 +3,10 @@
 The collector (``system/services/usage_collector``) listens on 127.0.0.1 only, and the page lives on this app's
 own origin, so this server forwards the page's reads to it: ``/api/usage/totals``, ``/api/usage/latency`` and
 ``/api/usage/calls`` answer what the collector's ``/v1/...`` routes answer, ``/api/usage/stream`` relays its
-server-sent events, and ``/api/usage/health`` its health. The identity header the share gateway sets is passed
-on, so the collector refuses a visitor here exactly as it does directly; this server refuses one too, on every
-API route but its health and schema, so a visitor learns nothing of the workspace from it (the page itself still
-loads, to say usage is the owner's alone). A collector that cannot be reached is answered with 503, which the page
-shows as a banner over the last numbers it had.
+server-sent events, and ``/api/usage/health`` its health. Who may read them is the share gateway's grants on this
+app, as for any app: the collector listens on 127.0.0.1 only, so this server is the one way to it from outside
+the workspace. A collector that cannot be reached is answered with 503, which the page shows as a banner over the
+last numbers it had.
 
 The app stores nothing. Besides the collector it reads only the app registry, for the display names the page
 shows an app's usage under.
@@ -20,7 +19,6 @@ This is a synchronous Flask app served by the threaded Werkzeug server; each ope
 stream.
 """
 
-import json
 import os
 import re
 from collections.abc import Iterator
@@ -65,7 +63,6 @@ _HASHED_ASSET: Final[re.Pattern[str]] = re.compile(r"-[A-Za-z0-9_-]{8}\.(js|css)
 _A_YEAR_IN_SECONDS: Final[int] = 365 * 24 * 60 * 60
 PAGE_DOCUMENT_FILENAME: Final[str] = "index.html"
 HEALTH_PATH: Final[str] = "/api/health"
-IDENTITY_HEADER: Final[str] = "X-Imbue-Identity"
 # The collector routes the page reads, by the name it reads them under.
 FORWARDED_READS: Final[dict[str, str]] = {
     "totals": "/v1/totals",
@@ -77,7 +74,6 @@ _READ_TIMEOUT: Final[httpx.Timeout] = httpx.Timeout(10.0)
 # The collector sends a keepalive every 15 seconds, so a stream silent for a minute has gone.
 _STREAM_TIMEOUT: Final[httpx.Timeout] = httpx.Timeout(10.0, read=60.0)
 
-HTTP_FORBIDDEN: Final[int] = 403
 HTTP_SERVICE_UNAVAILABLE: Final[int] = 503
 HTTP_NOT_FOUND: Final[int] = 404
 HTTP_OK: Final[int] = 200
@@ -100,27 +96,6 @@ ROUTE_TABLE: RouteTable = {
 }
 
 
-def is_visitor_request(identity_header: str | None) -> bool:
-    """Whether the share gateway marked the request a visitor's: only an identity saying ``"owner": false`` is.
-
-    A request with no identity, or one that cannot be read, comes from inside the workspace or its local forward,
-    which are the owner's (the usage collector reads the header the same way).
-    """
-    if identity_header is None or not identity_header.strip():
-        return False
-    try:
-        identity = json.loads(identity_header)
-    except json.JSONDecodeError:
-        logger.warning("Ignored an unreadable {} header", IDENTITY_HEADER)
-        return False
-    return isinstance(identity, dict) and identity.get("owner") is False
-
-
-def _identity_headers() -> dict[str, str]:
-    identity = request.headers.get(IDENTITY_HEADER)
-    return {} if identity is None else {IDENTITY_HEADER: identity}
-
-
 def _collector_unreachable(e: httpx.HTTPError) -> ResponseReturnValue:
     logger.warning("Could not reach the usage collector: {}", e)
     return error_response("The usage collector isn't responding.", HTTP_SERVICE_UNAVAILABLE)
@@ -134,16 +109,6 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
     )
     attach_document_policy(app, None)
     static_directory = static_directory.resolve()
-    visitor_paths_allowed = {HEALTH_PATH, DEFAULT_API_SCHEMA_PATH}
-
-    @app.before_request
-    def _owner_only_api() -> ResponseReturnValue | None:
-        if not request.path.startswith("/api/") or request.path in visitor_paths_allowed:
-            return None
-        if not is_visitor_request(request.headers.get(IDENTITY_HEADER)):
-            return None
-        logger.info("Refused a visitor's request to {}", request.path)
-        return error_response("Usage is visible only to the workspace owner.", HTTP_FORBIDDEN)
 
     @app.get("/")
     def page() -> ResponseReturnValue:
@@ -187,9 +152,7 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
     @app.get("/api/usage/stream")
     def stream() -> ResponseReturnValue:
         """The collector's server-sent events, relayed as they arrive."""
-        upstream_request = collector.build_request(
-            "GET", "/v1/stream", headers=_identity_headers(), timeout=_STREAM_TIMEOUT
-        )
+        upstream_request = collector.build_request("GET", "/v1/stream", timeout=_STREAM_TIMEOUT)
         try:
             upstream = collector.send(upstream_request, stream=True)
         except httpx.HTTPError as e:
@@ -220,9 +183,7 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
         if path is None:
             return error_response(f"There is no usage read called {name!r}.", HTTP_NOT_FOUND)
         try:
-            upstream = collector.get(
-                path, params=list(request.args.items(multi=True)), headers=_identity_headers(), timeout=_READ_TIMEOUT
-            )
+            upstream = collector.get(path, params=list(request.args.items(multi=True)), timeout=_READ_TIMEOUT)
         except httpx.HTTPError as e:
             return _collector_unreachable(e)
         return Response(

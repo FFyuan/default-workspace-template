@@ -6,9 +6,9 @@
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
 - ``GET /health``: whether the collector is up, and whether it is still reading the event files.
 
-Usage is the owner's alone: a request the share gateway marks as a visitor's
-is refused. A request with no identity header comes from inside the
-workspace, which is the owner's.
+Who may read usage is the share gateway's grants, not this API's: it listens
+on 127.0.0.1 only, so a visitor reaches it only through an app the gateway
+admitted them to (the Usage app).
 """
 
 import json
@@ -19,7 +19,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Final
 
 from flask import Flask, Response, jsonify, request
-from loguru import logger
 
 from usage_collector.feed import UsageFeed
 from usage_collector.status import IngestStatus
@@ -31,7 +30,6 @@ from usage_collector.store import (
     UsageStoreError,
 )
 
-IDENTITY_HEADER: Final[str] = "X-Imbue-Identity"
 DEFAULT_SINCE: Final[timedelta] = timedelta(hours=24)
 _KEEPALIVE_SECONDS: Final[float] = 15.0
 _DURATION = re.compile(r"^(\d+)([smhd])$")
@@ -45,18 +43,6 @@ _DURATION_UNITS: Final[dict[str, str]] = {
 
 class QueryParameterError(ValueError):
     """Raised for a totals query parameter that cannot be read."""
-
-
-def is_owner_request(identity_header: str | None) -> bool:
-    """Whether a request is the owner's: only an identity that says ``"owner": false`` is a visitor's."""
-    if identity_header is None or not identity_header.strip():
-        return True
-    try:
-        identity = json.loads(identity_header)
-    except json.JSONDecodeError:
-        logger.warning("Ignored an unreadable {} header", IDENTITY_HEADER)
-        return True
-    return not (isinstance(identity, dict) and identity.get("owner") is False)
 
 
 def parse_time(
@@ -110,15 +96,6 @@ def parse_int(value: str | None, name: str) -> int | None:
 
 def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flask:
     app = Flask(__name__)
-
-    @app.before_request
-    def _owner_only() -> Response | None:
-        if is_owner_request(request.headers.get(IDENTITY_HEADER)):
-            return None
-        logger.warning("Refused a visitor's request to {}", request.path)
-        refusal = jsonify(detail="Usage is visible only to the workspace owner")
-        refusal.status_code = 403
-        return refusal
 
     @app.get("/health")
     def _health() -> Response:

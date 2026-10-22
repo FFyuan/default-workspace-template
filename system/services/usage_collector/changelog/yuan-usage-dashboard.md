@@ -7,3 +7,6 @@ The usage collector answers the questions the Usage dashboard asks:
 - Totals can be grouped by `cost_provenance`, so a reader can tell which costs were estimated from tokens.
 
 - `GET /health` reports `catching_up` until the collector has read every event file to its end.
+
+
+- Visitors are no longer refused: the API listens on 127.0.0.1 only, so who may read usage is decided by the share gateway's grants on the Usage app, like any other app.

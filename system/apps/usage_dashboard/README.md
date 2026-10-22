@@ -36,11 +36,11 @@ collector, which listens on 127.0.0.1:8795 only:
 | `GET /api/apps` | the display name of every registered app |
 | `GET /api/health` | whether the app is up and its page built |
 
-Usage is the owner's alone, whatever a visitor's grant. The share gateway's
-identity header is passed on, so the collector refuses a visitor here as it does
-directly, and this server refuses one on every API route but `/api/health` and
-`/api/schema` (the page still loads, to say so). The manifest declares
-`system = true`, so the Share tab lists the app under System with System Monitor.
+Who sees usage is the workspace's sharing grants, as for any app: the share
+gateway admits a visitor with a workspace-wide grant or a grant on this app, and
+the collector, listening on 127.0.0.1 only, is reached from outside the
+workspace only through this server. The manifest declares `system = true`, so
+the Share tab lists the app under System with System Monitor.
 An unreachable collector is answered with 503; the page then keeps its last
 numbers under a banner and retries.
 
