@@ -27,8 +27,9 @@ mirror -- ship it as an `env.d` unit instead, or drop it.
 
 - `UNKNOWN (...)`, exit 2: the gateway answered with an error instead of the
   permission rules, typically `Desktop ... is unreachable` when the user's Imbue
-  Studio app is closed or asleep. A permission request needs that app too, so do
-  not file one: ask the user to open the app, then check again.
+  Studio app is closed or asleep. Whether a grant is missing cannot be told until
+  the app answers, and approving one needs the app anyway, so file nothing: ask
+  the user to open the app, then check again.
 
 ## Creating the repo (`github_repo.py create`)
 

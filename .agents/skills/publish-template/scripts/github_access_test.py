@@ -85,7 +85,7 @@ _DESKTOP_DOWN = (
 def test_an_unreachable_desktop_is_unknown_not_a_missing_grant(
     fake_latchkey: FakeLatchkey,
 ) -> None:
-    """A permission request would go through the same unreachable app, so do not prompt one."""
+    """Whether the git grant is missing cannot be told, so nothing should prompt a request."""
     fake_latchkey.set_state(api=True, permissions_error=_DESKTOP_DOWN)
 
     completed = fake_latchkey.run(_SCRIPT, "check")
