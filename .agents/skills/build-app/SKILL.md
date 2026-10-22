@@ -557,8 +557,9 @@ python3 system/scripts/smoketest_app.py <name> --restart --marker "<expected-hea
 30 s `startsecs` window (supervisord starts it without waiting and the script
 polls the port, usually ready in under a second; a program that dies on start
 fails the call at once with its stderr log). `--screenshot` renders the page
-headlessly; `--open` is Step 4 folded in (use `--refresh` instead for an app
-already on the user's screen). Leave `--restart` out right after
+headlessly; `--open` is Step 4 folded in (for an app already on the user's
+screen, use `--refresh` instead and drop `--screenshot`: a browser pass belongs
+before the window is open). Leave `--restart` out right after
 `scaffold_flask_lib.py --start`, which already started the app. Never
 `supervisorctl restart` by hand and never `sleep` before a check. If a changed
 API route needs exercising, append one `curl` to the same tool call. Writing

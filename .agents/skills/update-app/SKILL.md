@@ -294,9 +294,10 @@ would (not just "the process is up"):
 
 - **App**: the `smoketest_app.py --restart --marker ... --refresh` call of
   step 2 is this check (HTTP against the registered backend URL
-  `http://127.0.0.1:<port>/`, the marker unique to your change, `--screenshot`
-  for a rendered page); add one `curl` of a changed route to the same call
-  when the change is an API. The recipe is in
+  `http://127.0.0.1:<port>/`, the marker unique to your change, and
+  `--screenshot` for a rendered page only with `--open`, before any window
+  exists); add one `curl` of a changed route to the same call when the change
+  is an API. The recipe is in
   `build-app`'s [verify reference](../build-app/references/verify.md);
   the symptom-indexed gotchas (connection refused, a window stuck on the
   loading page, broken WebSockets) are in that skill's
