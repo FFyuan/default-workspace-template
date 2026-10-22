@@ -138,6 +138,12 @@ def _scaffold(root: Path, name: str, *extra: str) -> subprocess.CompletedProcess
     )
 
 
+def _write_inbox_status_lib(repo_root: Path) -> Path:
+    return scaffold_flask_lib._write_lib(
+        repo_root, "inbox-status", "inbox status dashboard", "Inbox status", 8081, [], _ICON
+    )
+
+
 def test_a_scaffolded_app_gives_up_instead_of_crash_looping(tmp_path: Path) -> None:
     """A broken app must reach FATAL, not restart at full speed forever.
 
@@ -327,15 +333,7 @@ def test_name_held_by_an_event_listener_is_refused(tmp_path: Path) -> None:
 
 
 def test_write_lib_writes_a_manifest_the_library_accepts(tmp_path: Path) -> None:
-    lib_dir = scaffold_flask_lib._write_lib(
-        tmp_path,
-        "inbox-status",
-        "inbox status dashboard",
-        "Inbox status",
-        8081,
-        [],
-        _ICON,
-    )
+    lib_dir = _write_inbox_status_lib(tmp_path)
 
     manifest = load_manifest(lib_dir / "app.toml")
 
@@ -384,9 +382,7 @@ def test_a_scaffolded_apps_ratchets_define_the_tests_every_project_defines() -> 
 
 
 def test_a_scaffolded_app_passes_its_own_type_check(tmp_path: Path) -> None:
-    lib_dir = scaffold_flask_lib._write_lib(
-        tmp_path, "inbox-status", "inbox status dashboard", "Inbox status", 8081, [], _ICON
-    )
+    lib_dir = _write_inbox_status_lib(tmp_path)
 
     result = subprocess.run(
         [str(Path(sys.executable).parent / "ty"), "check", "--python", sys.prefix],
@@ -407,9 +403,7 @@ def test_a_scaffolded_app_passes_its_own_tests(tmp_path: Path) -> None:
     workspace would install the app's dependencies, and the test above runs ty on a scaffolded
     app directly.
     """
-    lib_dir = scaffold_flask_lib._write_lib(
-        tmp_path, "inbox-status", "inbox status dashboard", "Inbox status", 8081, [], _ICON
-    )
+    lib_dir = _write_inbox_status_lib(tmp_path)
     init_git_repository(tmp_path)
     commit_everything(tmp_path, "scaffold inbox-status")
     # Options the outer run was given are not the app's: a `-k` naming this test would deselect all of its tests.
