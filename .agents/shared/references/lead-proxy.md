@@ -103,10 +103,12 @@ does not bring it back, the agent is wedged on the same operation for an
 extended period, or output has been static.
 
 `await` makes the same call for you in the clearest case: exit code **76** means
-it watched the worker's agent end its turn on several consecutive polls with no
-report and no longer busy -- finished or wedged without reporting, worth
-surfacing immediately rather than waiting out the timeout. That check never
-fires while the worker is waiting on something that will wake it:
+it watched the worker's agent end its turn (or stop) on several consecutive
+polls with no report and no longer busy -- finished, dead or wedged without
+reporting, worth acting on immediately rather than waiting out the timeout, by
+the diagnosis above: a dead worker is recovered before anything is surfaced.
+That check never fires while the worker is waiting on something that will wake
+it:
 
 - **A live sub-worker of its own.** An agent labelled `lead_agent=<worker>` in
   state RUNNING or WAITING with no pending shed counts as the worker being
