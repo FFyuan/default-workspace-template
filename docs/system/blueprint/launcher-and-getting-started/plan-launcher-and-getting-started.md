@@ -159,8 +159,8 @@ When the machine has no free-text row the shell tells the user through its notif
 |---|---|
 | Which launch paths take typed text, and which param | The app's manifest, through the registry |
 | The order of the free-text rows | Derived: launcher app order, then manifest order |
-| Whether the first-visit window has been opened; opening and placing it | The Getting Started app, in its ledger and through the op route |
-| The first-visit window itself | Shell, shared, an ordinary window once opened |
+| Whether the first-visit window has been opened; opening and placing it (removed in the new onboarding, section 3.4) | Was the Getting Started app, in its ledger and through the op route |
+| The first-visit window itself (removed in the new onboarding, section 3.4) | Was the shell, shared, an ordinary window once opened |
 | The launcher's rows, highlight, and query | Derived in the browser, transient |
 | The intents, the template catalog, the detail page | The Getting Started app |
 | Which chat a sent text goes to | The chat app, in its picker |
@@ -171,7 +171,7 @@ When the machine has no free-text row the shell tells the user through its notif
 - Enter never starts a chat while a launch-path or window row is highlighted; it never does nothing while a free-text row is enabled.
 - A free-text row never opens a second window of an app that has a pinned window on the active desktop.
 - The shell package and its frontend name no app; the free-text rows and the pinned-first rule are read from manifests and windows.
-- Getting Started opens its first-visit window at most once per workspace, and only onto the first desktop.
+- Getting Started opened its first-visit window at most once per workspace, and only onto the first desktop (removed in the new onboarding, section 3.4: it opens no window of its own now).
 - The shell serves nothing about templates or intents.
 
 ## 4. Behaviour
@@ -274,7 +274,7 @@ Long press replaces nothing here, since the menu has no context menus.
 
 ### 5.2 State
 
-- Nothing changes in the shell's state files or its placement rules: the first-visit window is an ordinary window the Getting Started app opens through the op route (section 3.4).
+- Nothing changes in the shell's state files or its placement rules: the first-visit window was an ordinary window the Getting Started app opened through the op route (section 3.4; removed in the new onboarding).
 - `template_catalog.py`, its route, its config field, and its tests leave the shell.
 
 ### 5.3 Routes and messages
