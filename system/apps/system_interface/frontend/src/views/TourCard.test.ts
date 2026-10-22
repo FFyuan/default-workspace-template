@@ -22,6 +22,15 @@ function controller(): { tour: TourController; highlights: (string | null)[] } {
   return { tour, highlights };
 }
 
+/** Mount the card over the tour, which draws nothing once the tour is idle; `openLink` records where a link went. */
+function mountCard(tour: TourController, openLink: (url: string) => void = () => undefined): void {
+  mountView(() =>
+    tour.getState().phase === "idle"
+      ? null
+      : m(TourCard, { tour, avatarDesign: "jelly-cat", openLink, viewport: { width: 1200, height: 800 } }),
+  );
+}
+
 function card(): HTMLElement | null {
   return document.querySelector("[data-tour-card], [data-tour-badge], [data-tour-paused]");
 }
@@ -38,14 +47,7 @@ describe("TourCard", () => {
     const { tour } = controller();
     tour.start();
     const opened: string[] = [];
-    mountView(() =>
-      m(TourCard, {
-        tour,
-        avatarDesign: "jelly-cat",
-        openLink: (url) => opened.push(url),
-        viewport: { width: 1200, height: 800 },
-      }),
-    );
+    mountCard(tour, (url) => opened.push(url));
     expect(card()?.getAttribute("data-tour-card")).toBe("a");
     expect(card()?.textContent).toContain("Hello there.");
     expect(document.querySelector("[data-tour-back]")).toBeNull();
@@ -79,16 +81,7 @@ describe("TourCard", () => {
     const { tour, highlights } = controller();
     tour.start();
     tour.next();
-    mountView(() =>
-      tour.getState().phase === "idle"
-        ? null
-        : m(TourCard, {
-            tour,
-            avatarDesign: "jelly-cat",
-            openLink: () => undefined,
-            viewport: { width: 1200, height: 800 },
-          }),
-    );
+    mountCard(tour);
     press("data-tour-exit");
     expect(card()?.hasAttribute("data-tour-badge")).toBe(true);
     expect(card()?.textContent).toContain(TOUR_EXIT_BADGE_TEXT);
@@ -102,16 +95,7 @@ describe("TourCard", () => {
     tour.start();
     tour.noteAgentWorking(true);
     tour.noteAgentWorking(false);
-    mountView(() =>
-      tour.getState().phase === "idle"
-        ? null
-        : m(TourCard, {
-            tour,
-            avatarDesign: "jelly-cat",
-            openLink: () => undefined,
-            viewport: { width: 1200, height: 800 },
-          }),
-    );
+    mountCard(tour);
     expect(card()?.getAttribute("data-tour-card")).toBe("a");
     press("data-tour-next");
     expect(card()?.hasAttribute("data-tour-paused")).toBe(true);
