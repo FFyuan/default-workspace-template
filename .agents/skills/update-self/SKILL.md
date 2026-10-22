@@ -198,7 +198,7 @@ record the verdict it calls for -- never resolve a ref by hand:
 - **A fault**: the ceiling names a release the upstream does not carry, or no
   release at all, or, on a pass with no pin, the app could not be reached or is
   too old to report its version. A pinned pass never asks the app for its
-  version, so an app it cannot reach is never its fault. Say so plainly and
+  version, so an app it cannot reach is never a fault for it. Say so plainly and
   record `run-status verdict STUCK --detail "<the error line, in plain
   terms>"`. Do **not** pick another release; only a version the user names
   becomes an `--override`, as an operator testing a dev build would.
