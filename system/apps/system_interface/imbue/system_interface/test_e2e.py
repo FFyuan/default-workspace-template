@@ -1989,8 +1989,19 @@ def test_the_avatar_wears_the_mood_of_the_agents_file_and_the_chooser_changes_ev
         _write_agent_events(server.agent_events_path, "RUNNING")
         expect(entry).to_have_attribute("data-mood", "working", timeout=15000)
         expect(entry).to_have_attribute("data-stale", "false")
+        # The agent's first stretch of work starts the show-around tour, whose intro card pops out of the avatar.
+        tour_card = page.locator("[data-tour-card]")
+        expect(tour_card).to_have_attribute("data-tour-card", "intro", timeout=10000)
         _write_agent_events(server.agent_events_path, "STOPPED")
         expect(entry).to_have_attribute("data-mood", "idle", timeout=15000)
+        # The reply interrupts the tour rather than closing it: the card stays until it is left, which leaves the
+        # badge at the launcher, and Got it clears the desktop for the rest.
+        expect(tour_card).to_have_attribute("data-tour-card", "intro")
+        page.locator("[data-tour-exit]").click()
+        expect(page.locator("[data-tour-badge]")).to_be_visible(timeout=5000)
+        page.locator("[data-tour-next]").click()
+        expect(page.locator("[data-tour-badge]")).to_have_count(0)
+        assert _get_json(f"{server.base_url}/api/tour") == {"is_seen": True, "resume_index": None}
 
         # The plain style shows the app's icon in place of the avatar; the pin's style brings the image back.
         _open_entry_menu(page, entry).locator('[data-menu-row="style-plain"]').click()
