@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from imbue.mngr_usage.model_call import ModelCallEvent, price_model_call
 
+from usage_collector.limits import LimitReading
 from usage_collector.store import TimeBucket, UsageStore, UsageStoreError
 from usage_collector.testing import NOW, model_call_payload
 
@@ -219,3 +220,38 @@ def test_totals_group_by_cost_provenance(store: UsageStore) -> None:
     }
 
     assert rows == {"ESTIMATED": 1, "REPORTED": 1}
+
+
+def _reading(used: float, minutes_ago: int, window: str = "five_hour") -> LimitReading:
+    return LimitReading(
+        source="claude",
+        window=window,
+        used_percentage=used,
+        window_seconds=18000 if window == "five_hour" else 604800,
+        observed_at=NOW - timedelta(minutes=minutes_ago),
+    )
+
+
+def test_the_freshest_limit_reading_wins_whatever_order_it_arrives_in(
+    store: UsageStore,
+) -> None:
+    store.record_limits([_reading(40, minutes_ago=5)])
+    store.record_limits([_reading(10, minutes_ago=60)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert reading.used_percentage == 40
+
+
+def test_limits_come_shortest_window_first_and_old_ones_drop_out(
+    store: UsageStore,
+) -> None:
+    store.record_limits(
+        [_reading(8, minutes_ago=1, window="seven_day"), _reading(28, minutes_ago=1)]
+    )
+
+    assert [r.window for r in store.limits(NOW - timedelta(days=7))] == [
+        "five_hour",
+        "seven_day",
+    ]
+    assert store.limits(NOW) == []

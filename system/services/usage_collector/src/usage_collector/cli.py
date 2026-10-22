@@ -43,7 +43,13 @@ def run_pass(
 ) -> PassResult:
     """One round of reading what every event file gained."""
     paths = event_files(host_dir(environ), events_dir(environ))
-    return follow_event_files(paths, store, ingestor.ingest, read_workspace_id(environ))
+    return follow_event_files(
+        paths,
+        store,
+        ingestor.ingest,
+        read_workspace_id(environ),
+        ingestor.observe_limits,
+    )
 
 
 def run_maintenance(

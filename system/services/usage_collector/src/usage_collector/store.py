@@ -24,6 +24,8 @@ from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.mngr_usage.model_call import ModelCallEvent
 from pydantic import Field
 
+from usage_collector.limits import LimitReading
+
 RAW_RETENTION: Final[timedelta] = timedelta(days=90)
 # Totals are sums of per-call costs; a nanodollar is far below any price step.
 _COST_DECIMAL_PLACES: Final[int] = 9
@@ -106,6 +108,16 @@ CREATE TABLE IF NOT EXISTS rollup_minute (
     cache_read INTEGER NOT NULL,
     cache_write INTEGER NOT NULL,
     PRIMARY KEY (minute, origin_kind, origin_id, agent_id, model, billing_mode)
+);
+CREATE TABLE IF NOT EXISTS limit_window (
+    source TEXT NOT NULL,
+    window TEXT NOT NULL,
+    label TEXT,
+    used_percentage REAL,
+    resets_at REAL,
+    window_seconds INTEGER,
+    observed_at REAL NOT NULL,
+    PRIMARY KEY (source, window)
 );
 CREATE TABLE IF NOT EXISTS file_position (
     path TEXT PRIMARY KEY,
@@ -274,6 +286,58 @@ class UsageStore:
                 self._connection.execute("ROLLBACK")
                 raise
         return is_new
+
+    def record_limits(self, readings: Sequence[LimitReading]) -> None:
+        """Keep each reading unless the store already holds a fresher one for its source and window."""
+        if not readings:
+            return
+        with self._lock:
+            self._connection.executemany(
+                "INSERT INTO limit_window VALUES (?,?,?,?,?,?,?) "
+                "ON CONFLICT (source, window) DO UPDATE SET label = excluded.label, "
+                "used_percentage = excluded.used_percentage, resets_at = excluded.resets_at, "
+                "window_seconds = excluded.window_seconds, observed_at = excluded.observed_at "
+                "WHERE excluded.observed_at >= limit_window.observed_at",
+                [
+                    (
+                        reading.source,
+                        reading.window,
+                        reading.label,
+                        reading.used_percentage,
+                        reading.resets_at.timestamp()
+                        if reading.resets_at is not None
+                        else None,
+                        reading.window_seconds,
+                        reading.observed_at.timestamp(),
+                    )
+                    for reading in readings
+                ],
+            )
+
+    def limits(self, since: datetime) -> list[LimitReading]:
+        """The freshest reading of every window reported since ``since``, by source and then window length."""
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM limit_window WHERE observed_at >= ? "
+                "ORDER BY source, COALESCE(window_seconds, 0), window",
+                (since.timestamp(),),
+            ).fetchall()
+        return [
+            LimitReading(
+                source=row["source"],
+                window=row["window"],
+                label=row["label"],
+                used_percentage=row["used_percentage"],
+                resets_at=(
+                    datetime.fromtimestamp(row["resets_at"], tz=timezone.utc)
+                    if row["resets_at"] is not None
+                    else None
+                ),
+                window_seconds=row["window_seconds"],
+                observed_at=datetime.fromtimestamp(row["observed_at"], tz=timezone.utc),
+            )
+            for row in rows
+        ]
 
     def file_position(self, path: Path) -> tuple[int | None, int]:
         """The inode and byte offset the collector has read ``path`` up to; (None, 0) for a new file."""

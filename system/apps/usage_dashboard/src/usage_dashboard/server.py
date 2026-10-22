@@ -1,8 +1,8 @@
 """The Usage app: the dashboard page at ``/`` and the API it reads, which is the usage collector's.
 
 The collector (``system/services/usage_collector``) listens on 127.0.0.1 only, and the page lives on this app's
-own origin, so this server forwards the page's reads to it: ``/api/usage/totals``, ``/api/usage/latency`` and
-``/api/usage/calls`` answer what the collector's ``/v1/...`` routes answer, ``/api/usage/stream`` relays its
+own origin, so this server forwards the page's reads to it: ``/api/usage/totals``, ``/api/usage/latency``,
+``/api/usage/calls`` and ``/api/usage/limits`` answer what the collector's ``/v1/...`` routes answer, ``/api/usage/stream`` relays its
 server-sent events, and ``/api/usage/health`` its health. Who may read them is the share gateway's grants on this
 app, as for any app: the collector listens on 127.0.0.1 only, so this server is the one way to it from outside
 the workspace. A collector that cannot be reached is answered with 503, which the page shows as a banner over the
@@ -68,6 +68,7 @@ FORWARDED_READS: Final[dict[str, str]] = {
     "totals": "/v1/totals",
     "latency": "/v1/latency",
     "calls": "/v1/calls",
+    "limits": "/v1/limits",
     "health": "/health",
 }
 _READ_TIMEOUT: Final[httpx.Timeout] = httpx.Timeout(10.0)
@@ -91,7 +92,7 @@ ROUTE_TABLE: RouteTable = {
     ("GET", "/api/apps"): RouteModels(response_model=AppNamesResponse),
     ("GET", "/api/usage/stream"): SchemalessRoute(reason="the usage collector's stream of new calls, relayed"),
     ("GET", "/api/usage/{name}"): SchemalessRoute(
-        reason="the usage collector's answer for totals, latency, calls or health, passed through unchanged"
+        reason="the usage collector's answer for totals, latency, calls, limits or health, passed through unchanged"
     ),
 }
 

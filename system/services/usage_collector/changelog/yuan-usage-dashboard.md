@@ -10,3 +10,5 @@ The usage collector answers the questions the Usage dashboard asks:
 
 
 - Visitors are no longer refused: the API listens on 127.0.0.1 only, so who may read usage is decided by the share gateway's grants on the Usage app, like any other app.
+
+- `GET /v1/limits` answers the freshest subscription limit reading of every window per source (Claude's 5-hour and weekly limits, Codex's): the collector now reads the `rate_limits` on agents' snapshot events and on model_calls instead of skipping them.

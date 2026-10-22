@@ -3,6 +3,7 @@
 - ``GET /v1/totals?group_by=origin_id,model&since=24h[&until=...][&bucket=hour]``: cost and token totals.
 - ``GET /v1/latency?group_by=model&since=24h[&until=...]``: call duration percentiles.
 - ``GET /v1/calls?model=...&limit=50[&before=<event id>][&after=<sequence>]``: stored calls, newest first.
+- ``GET /v1/limits?since=7d``: the freshest subscription limit reading of every window.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
 - ``GET /health``: whether the collector is up, and whether it is still reading the event files.
 
@@ -31,6 +32,8 @@ from usage_collector.store import (
 )
 
 DEFAULT_SINCE: Final[timedelta] = timedelta(hours=24)
+# The longest window the harnesses report is a week, so an older reading says nothing current.
+DEFAULT_LIMITS_SINCE: Final[timedelta] = timedelta(days=7)
 _KEEPALIVE_SECONDS: Final[float] = 15.0
 _DURATION = re.compile(r"^(\d+)([smhd])$")
 _DURATION_UNITS: Final[dict[str, str]] = {
@@ -159,6 +162,21 @@ def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flas
         except (QueryParameterError, UsageStoreError) as e:
             return _error(str(e), 400)
         return jsonify(calls=[call.model_dump(mode="json") for call in calls])
+
+    @app.get("/v1/limits")
+    def _get_limits() -> Response | tuple[Response, int]:
+        now = datetime.now(timezone.utc)
+        try:
+            since = (
+                parse_time(request.args.get("since"), now, None)
+                or now - DEFAULT_LIMITS_SINCE
+            )
+        except QueryParameterError as e:
+            return _error(str(e), 400)
+        return jsonify(
+            since=since.isoformat(),
+            limits=[reading.model_dump(mode="json") for reading in store.limits(since)],
+        )
 
     @app.get("/v1/stream")
     def _stream() -> Response:

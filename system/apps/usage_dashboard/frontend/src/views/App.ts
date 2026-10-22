@@ -6,6 +6,7 @@ import m from "mithril";
 
 import { bannerClass } from "@imbue/workspace-ui/src/components/banner";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
+import { icon } from "@imbue/workspace-ui/src/components/icons";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 
 import type { LatencyRow, StoredCall } from "../models/api";
@@ -35,6 +36,7 @@ import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
 import { WINDOWS, type WindowId } from "../models/windows";
 import { UsageChart } from "./chart";
+import { providerSection } from "./providerCards";
 
 const CARD_CLASS = "rounded-lg border border-default bg-surface p-4";
 
@@ -340,41 +342,39 @@ function callsSection(model: DashboardModel, now: Date): m.Vnode {
   ]);
 }
 
-function header(model: DashboardModel, appNames: Record<string, string>): m.Vnode {
+function liveIndicator(model: DashboardModel): m.Vnode {
+  return m(
+    "span",
+    {
+      class: `live-indicator flex items-center gap-1.5 type-helper ${model.isLive ? "text-secondary" : "text-faint"}`,
+      "data-live": model.isLive ? "true" : "false",
+    },
+    [
+      m("span", {
+        class: `inline-block size-2 rounded-full ${model.isLive ? "bg-(--color-success)" : "bg-(--color-faint)"}`,
+      }),
+      model.isLive ? "Live" : "Reconnecting",
+    ],
+  );
+}
+
+/** What the details below answer for: their window, and the filter a breakdown row set. */
+function detailsControls(model: DashboardModel, appNames: Record<string, string>): m.Vnode {
   const filter = model.filter;
-  return m("header", { class: "flex flex-wrap items-center justify-between gap-3" }, [
-    m("div", { class: "flex items-center gap-3" }, [
-      m("h1", { class: "type-heading text-primary" }, "Usage"),
-      m(
-        "span",
-        {
-          class: `live-indicator flex items-center gap-1.5 type-helper ${model.isLive ? "text-secondary" : "text-faint"}`,
-          "data-live": model.isLive ? "true" : "false",
-        },
-        [
-          m("span", {
-            class: `inline-block size-2 rounded-full ${model.isLive ? "bg-(--color-success)" : "bg-(--color-faint)"}`,
-          }),
-          model.isLive ? "Live" : "Reconnecting",
-        ],
-      ),
-      filter === null
-        ? null
-        : m(
-            "button",
-            {
-              type: "button",
-              class:
-                "filter-chip flex items-center gap-1 rounded-full border border-default px-2.5 py-0.5 type-helper text-primary hover:bg-fill-hover",
-              title: "Show everything again",
-              onclick: () => model.toggleFilter(null),
-            },
-            [
-              `Only ${groupLabel(filter.breakdown, filter.values, appNames)}`,
-              m("span", { class: "text-faint" }, " ×"),
-            ],
-          ),
-    ]),
+  return m("div", { class: "flex flex-wrap items-center justify-between gap-3" }, [
+    filter === null
+      ? m("span")
+      : m(
+          "button",
+          {
+            type: "button",
+            class:
+              "filter-chip flex items-center gap-1 rounded-full border border-default px-2.5 py-0.5 type-helper text-primary hover:bg-fill-hover",
+            title: "Show everything again",
+            onclick: () => model.toggleFilter(null),
+          },
+          [`Only ${groupLabel(filter.breakdown, filter.values, appNames)}`, m("span", { class: "text-faint" }, " ×")],
+        ),
     m(SegmentedControl<WindowId>(), {
       label: "Time window",
       segments: WINDOWS.map((spec) => ({ value: spec.id, label: spec.label })),
@@ -424,54 +424,85 @@ export function App(): m.Component<AppAttrs> {
         "div",
         { class: "h-screen overflow-y-auto" },
         m("main", { class: "mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6" }, [
-          header(model, model.appNames),
+          m("header", { class: "flex items-center gap-3" }, [
+            m("h1", { class: "type-heading text-primary" }, "Usage"),
+            liveIndicator(model),
+          ]),
           banners(model),
-          data === null
-            ? m(
-                "div",
-                { class: "type-helper py-10 text-center text-faint" },
-                model.isCollectorDown ? "" : "Loading usage…",
-              )
-            : m("div", { class: `flex flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
-                data.summary.calls === 0 && model.filter === null
-                  ? m(
-                      "div",
-                      { class: `${CARD_CLASS} empty-window type-body text-secondary` },
-                      data.windowId === "month"
-                        ? "No model calls yet this month."
-                        : "No model calls yet in this window. Try 7 days or this month.",
-                    )
-                  : [
-                      m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3" }, [
-                        spendTile(data),
-                        subscriptionTile(data),
-                        tokensTile(data),
-                        callsTile(data),
-                        latencyTile(data),
-                      ]),
-                      m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
-                        m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-                          m(
-                            "h2",
-                            { class: "type-section text-primary" },
-                            metric === "spend" ? "Spend by model" : "Tokens by model",
-                          ),
-                          m(SegmentedControl<ChartMetric>(), {
-                            label: "Chart",
-                            segments: [
-                              { value: "spend", label: "Spend" },
-                              { value: "tokens", label: "Tokens" },
-                            ],
-                            value: metric,
-                            onSelect: (choice) => model.selectChartMetric(choice),
+          m("div", { class: model.isCollectorDown ? "opacity-60" : "" }, providerSection(model.providers, current)),
+          m(
+            "button",
+            {
+              type: "button",
+              class: "details-toggle flex items-center gap-1.5 self-start type-body text-secondary hover:text-primary",
+              "aria-expanded": model.isDetailsOpen ? "true" : "false",
+              onclick: () => model.toggleDetails(),
+            },
+            [
+              m.trust(
+                icon(model.isDetailsOpen ? "chevron-down" : "chevron-right", {
+                  size: 14,
+                  className: "shrink-0 text-faint",
+                }),
+              ),
+              "Details",
+            ],
+          ),
+          !model.isDetailsOpen
+            ? null
+            : data === null
+              ? m(
+                  "div",
+                  { class: "type-helper py-10 text-center text-faint" },
+                  model.isCollectorDown ? "" : "Loading usage…",
+                )
+              : m("div", { class: `details flex flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
+                  detailsControls(model, model.appNames),
+                  data.summary.calls === 0 && model.filter === null
+                    ? m(
+                        "div",
+                        { class: `${CARD_CLASS} empty-window type-body text-secondary` },
+                        data.windowId === "month"
+                          ? "No model calls yet this month."
+                          : "No model calls yet in this window. Try 7 days or this month.",
+                      )
+                    : [
+                        m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3" }, [
+                          spendTile(data),
+                          subscriptionTile(data),
+                          tokensTile(data),
+                          callsTile(data),
+                          latencyTile(data),
+                        ]),
+                        m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
+                          m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
+                            m(
+                              "h2",
+                              { class: "type-section text-primary" },
+                              metric === "spend" ? "Spend by model" : "Tokens by model",
+                            ),
+                            m(SegmentedControl<ChartMetric>(), {
+                              label: "Chart",
+                              segments: [
+                                { value: "spend", label: "Spend" },
+                                { value: "tokens", label: "Tokens" },
+                              ],
+                              value: metric,
+                              onSelect: (choice) => model.selectChartMetric(choice),
+                            }),
+                          ]),
+                          m(UsageChart, {
+                            windowId: data.windowId,
+                            now: current,
+                            rows: data.chartRows,
+                            metric,
+                            colors,
                           }),
                         ]),
-                        m(UsageChart, { windowId: data.windowId, now: current, rows: data.chartRows, metric, colors }),
-                      ]),
-                      breakdownSection(model, data),
-                    ],
-                callsSection(model, current),
-              ]),
+                        breakdownSection(model, data),
+                      ],
+                  callsSection(model, current),
+                ]),
         ]),
       );
     },

@@ -81,3 +81,17 @@ def test_the_page_and_its_assets_are_served(client: FlaskClient) -> None:
     assert page.status_code == 200 and b"<title>Usage</title>" in page.data
     assert asset.status_code == 200 and "max-age" in asset.headers["Cache-Control"]
     assert client.get("/api/health").get_json() == {"status": "ok", "is_frontend_built": True}
+
+
+def test_limits_pass_through(client: FlaskClient, ingestor: Ingestor) -> None:
+    ingestor.observe_limits(
+        {
+            "source": "codex/usage",
+            "timestamp": NOW.isoformat(),
+            "rate_limits": {"primary": {"used_percentage": 40, "window_seconds": 18000}},
+        }
+    )
+
+    answer = client.get("/api/usage/limits", query_string={"since": (NOW - timedelta(days=1)).isoformat()}).get_json()
+
+    assert [(row["source"], row["used_percentage"]) for row in answer["limits"]] == [("codex", 40)]

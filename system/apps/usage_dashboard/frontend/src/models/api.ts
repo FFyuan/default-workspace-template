@@ -52,6 +52,23 @@ export interface StoredCall {
   event: ModelCall;
 }
 
+/** The freshest reading of one subscription window (the collector's ``/v1/limits``). */
+export interface LimitReading {
+  source: string;
+  window: string;
+  label: string | null;
+  used_percentage: number | null;
+  resets_at: string | null;
+  window_seconds: number | null;
+  observed_at: string;
+}
+
+export async function fetchLimits(since: Date): Promise<LimitReading[]> {
+  const params = new URLSearchParams({ since: since.toISOString() });
+  const answer = await requestJson<{ limits: LimitReading[] }>("GET", `/api/usage/limits?${params}`);
+  return answer.limits;
+}
+
 export interface CollectorHealth {
   status: string;
   catching_up: boolean;

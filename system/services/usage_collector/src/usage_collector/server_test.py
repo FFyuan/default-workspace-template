@@ -101,3 +101,25 @@ def test_health_reports_catching_up_until_a_complete_pass(
     status.record_pass(is_complete=True)
 
     assert client.get("/health").get_json() == {"status": "ok", "catching_up": False}
+
+
+def test_limits_answer_the_freshest_reading_per_window(
+    client: FlaskClient, ingestor: Ingestor
+) -> None:
+    ingestor.observe_limits(
+        {
+            "source": "claude/usage",
+            "timestamp": NOW.isoformat(),
+            "rate_limits": {
+                "five_hour": {"used_percentage": 27, "window_seconds": 18000}
+            },
+        }
+    )
+
+    answer = client.get(
+        "/v1/limits", query_string={"since": (NOW - timedelta(days=1)).isoformat()}
+    ).get_json()
+
+    assert [
+        (r["source"], r["window"], r["used_percentage"]) for r in answer["limits"]
+    ] == [("claude", "five_hour", 27)]

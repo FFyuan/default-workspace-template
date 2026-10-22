@@ -4,8 +4,24 @@ The Usage app: one window over the workspace's model usage. It is the user's vie
 of the usage collector (`system/services/usage_collector`), which indexes every
 model call made in the workspace; the app stores nothing of its own.
 
-The page shows, for the last 30 minutes, 24 hours, 7 days or this month (the
-billing period, which starts at local midnight on the 1st):
+The page opens on one card per provider in use, answering "how much of my
+subscription am I using":
+
+- **A subscription card** for every harness that reports its subscription's
+  limits (Claude Pro/Max, a ChatGPT plan through Codex): each window's share
+  used, as a bar, and when it resets, from the freshest reading the collector
+  has. A reading is only as new as the last call that carried one, so the card
+  says when it was taken; a window whose reset time has passed since then shows
+  as reset. A provider is shown while it has a reading from the last 7 days, and
+  its card adds what this month's use would cost at API prices.
+- **A spend card** for every provider used without a subscription (an API key,
+  Imbue's proxy, a billing mode no writer could tell): this month's spend and
+  calls, with calls of unknown cost counted rather than added as $0.
+
+Nothing names a provider it must find; a card exists only for what the data
+shows. Below the cards, a closed **Details** section holds the rest, for the last
+30 minutes, 24 hours, 7 days or this month (the billing period, which starts at
+local midnight on the 1st):
 
 - **Spend**: what was billed, with Imbue key and API key spend apart. A
   subscription's usage is shown in its own tile at list price, since it is not
@@ -31,7 +47,7 @@ collector, which listens on 127.0.0.1:8795 only:
 
 | Route | Answers |
 |---|---|
-| `GET /api/usage/totals`, `/latency`, `/calls`, `/health` | the collector's `/v1/totals`, `/v1/latency`, `/v1/calls` and `/health`, with the same query |
+| `GET /api/usage/totals`, `/latency`, `/calls`, `/limits`, `/health` | the collector's `/v1/totals`, `/v1/latency`, `/v1/calls`, `/v1/limits` and `/health`, with the same query |
 | `GET /api/usage/stream` | the collector's server-sent events, relayed |
 | `GET /api/apps` | the display name of every registered app |
 | `GET /api/health` | whether the app is up and its page built |

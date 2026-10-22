@@ -15,7 +15,9 @@ once a second, each from where it left off (its place survives restarts):
 - **Agents.** Agent harnesses write `model_call` events to each agent's own
   mngr_usage event file (`$MNGR_HOST_DIR/agents/<agent>/events/<source>/usage/events.jsonl`),
   and mngr preserves a destroyed agent's files under `$MNGR_HOST_DIR/preserved/`.
-  Lines that are not `model_call` events are left to `mngr usage`.
+  Lines that are not `model_call` events are read only for the subscription
+  limit readings they carry (`rate_limits`); the rest of them is left to
+  `mngr usage`.
 - **Apps and one-shot calls.** The `workspace_usage` library appends their
   events to `data/.apps/usage/events/<origin>.jsonl`: LiteLLM calls, and
   `claude -p` one-shots read from their session logs.
@@ -43,6 +45,11 @@ indefinitely; older raw events stay in the files.
   stored calls, newest first, filtered by any of origin_kind, origin_id,
   agent_id, model and billing_mode. `before` pages back; `after` returns the
   calls stored since a `sequence` a client last saw.
+- `GET /v1/limits?since=7d`: the freshest subscription limit reading of every
+  window, per source (claude, codex, ...): the share used, when it resets, the
+  window's length and when the reading was taken. Readings come from any event
+  that carries `rate_limits`, an agent's snapshot or a model_call, and the
+  freshest wins, since a window is an account-level counter.
 - `GET /v1/stream`: server-sent events, one `model_call` message per newly
   stored event.
 - `GET /health`: `catching_up` is true until a pass has read every event file

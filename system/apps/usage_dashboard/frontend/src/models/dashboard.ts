@@ -19,6 +19,7 @@ import {
   fetchCalls,
   fetchCollectorHealth,
   fetchLatency,
+  fetchLimits,
   fetchTotals,
   isUnreachable,
 } from "./api";
@@ -31,6 +32,7 @@ import {
   matchesFilter,
   withFilterFields,
 } from "./breakdown";
+import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./providers";
 import { type Summary, failedShare, summarize } from "./summary";
 import { type WindowId, windowSpec, windowStart } from "./windows";
 
@@ -77,6 +79,9 @@ export class DashboardModel {
   breakdown: BreakdownId = "model";
   filter: Filter | null = null;
   chartMetric: ChartMetric | null = null;
+  /** The cards at the top, which answer for now and this month whatever the Details window or filter. */
+  providers: ProviderCard[] | null = null;
+  isDetailsOpen = false;
   data: DashboardData | null = null;
   calls: StoredCall[] = [];
   hasOlderCalls = false;
@@ -131,6 +136,11 @@ export class DashboardModel {
     void this.refresh();
   }
 
+  toggleDetails(): void {
+    this.isDetailsOpen = !this.isDetailsOpen;
+    this.deps.redraw();
+  }
+
   selectChartMetric(metric: ChartMetric): void {
     this.chartMetric = metric;
     this.deps.redraw();
@@ -162,22 +172,34 @@ export class DashboardModel {
     this.lastRefreshAt = now.getTime();
     this.deps.redraw();
     try {
-      const [summaryRows, statusRows, chartRows, breakdownRows, latencyRows, breakdownLatency, health] =
-        await Promise.all([
-          fetchTotals({ groupBy: withFilterFields(["billing_mode", "cost_provenance"], filter), since }),
-          fetchTotals({ groupBy: withFilterFields(["status"], filter), since }),
-          fetchTotals({ groupBy: withFilterFields(["model", "billing_mode"], filter), since, bucket }),
-          fetchTotals({
-            groupBy: withFilterFields([...breakdownSpec(breakdown).fields, "billing_mode"], filter),
-            since,
-          }),
-          fetchLatency(filterFields, since),
-          fetchLatency(breakdownFields, since),
-          fetchCollectorHealth(),
-        ]);
+      const [
+        limits,
+        monthRows,
+        summaryRows,
+        statusRows,
+        chartRows,
+        breakdownRows,
+        latencyRows,
+        breakdownLatency,
+        health,
+      ] = await Promise.all([
+        fetchLimits(new Date(now.getTime() - LIMITS_LOOKBACK_MS)),
+        fetchTotals({ groupBy: ["provider", "billing_mode", "cost_provenance"], since: windowStart("month", now) }),
+        fetchTotals({ groupBy: withFilterFields(["billing_mode", "cost_provenance"], filter), since }),
+        fetchTotals({ groupBy: withFilterFields(["status"], filter), since }),
+        fetchTotals({ groupBy: withFilterFields(["model", "billing_mode"], filter), since, bucket }),
+        fetchTotals({
+          groupBy: withFilterFields([...breakdownSpec(breakdown).fields, "billing_mode"], filter),
+          since,
+        }),
+        fetchLatency(filterFields, since),
+        fetchLatency(breakdownFields, since),
+        fetchCollectorHealth(),
+      ]);
       if (generation !== this.generation) return;
       const keep = <T extends { group: Record<string, string | null> }>(rows: T[]): T[] =>
         rows.filter((row) => matchesFilter(row.group, filter));
+      this.providers = providerCards(limits, monthRows, now);
       this.data = {
         summary: summarize(keep(summaryRows)),
         failed: failedShare(keep(statusRows)),

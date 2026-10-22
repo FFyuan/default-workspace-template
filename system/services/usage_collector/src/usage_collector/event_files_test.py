@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from usage_collector.event_files import event_files, follow_event_files
@@ -192,3 +192,34 @@ def test_a_lost_store_is_rebuilt_from_the_files(
 
     assert _calls(rebuilt_store) == 1
     rebuilt_store.close()
+
+
+def test_an_agents_snapshot_events_give_its_subscription_limits(
+    tmp_path: Path, store: UsageStore, ingestor: Ingestor
+) -> None:
+    _event_file(tmp_path).write_text(
+        json.dumps(
+            {
+                "source": "claude/usage",
+                "timestamp": "2026-10-22T12:00:00Z",
+                "session_id": "s-1",
+                "rate_limits": {"seven_day": {"used_percentage": 7}},
+            }
+        )
+        + "\n"
+    )
+
+    follow_event_files(
+        event_files(tmp_path, tmp_path / "workspace-events"),
+        store,
+        ingestor.ingest,
+        "ws-host",
+        ingestor.observe_limits,
+    )
+
+    [reading] = store.limits(datetime(2026, 10, 1, tzinfo=timezone.utc))
+    assert (reading.source, reading.window, reading.used_percentage) == (
+        "claude",
+        "seven_day",
+        7,
+    )

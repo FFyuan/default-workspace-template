@@ -13,7 +13,8 @@ the store, so a restart picks up there):
 The store is an index of these files: deleting it rebuilds it from them, and
 deduplicating by event id makes the re-read safe. Only lines that are
 model_call events (they carry a ``schema_version`` and an ``attribution``) are
-ingested; the older snapshot events in agents' files are left to ``mngr usage``.
+ingested as calls; the older snapshot events in agents' files are read only for
+the subscription limit readings they carry (see ``limits``).
 Each is attributed to this workspace, since an agent cannot tell which
 workspace it runs in and every file here is this workspace's. A file that
 shrank or was replaced is read again from the start.
@@ -77,8 +78,12 @@ def follow_event_files(
     store: UsageStore,
     ingest: Callable[[object], object],
     workspace_id: str,
+    observe_limits: Callable[[object], object] | None = None,
 ) -> PassResult:
-    """Ingest the model_call lines added to each file since the last pass."""
+    """Ingest the model_call lines added to each file since the last pass, and hand every line to ``observe_limits``.
+
+    The agents' older snapshot events are not model_calls, but they are where a subscription's limit readings are.
+    """
     read = 0
     is_complete = True
     for path in paths:
@@ -110,6 +115,8 @@ def follow_event_files(
             except json.JSONDecodeError as e:
                 logger.warning("Skipped an unreadable line in {}: {}", path, e)
                 continue
+            if observe_limits is not None:
+                observe_limits(record)
             if is_model_call_line(record):
                 ingest(with_workspace_id(record, workspace_id))
                 read += 1

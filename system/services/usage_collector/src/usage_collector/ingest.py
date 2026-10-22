@@ -9,6 +9,7 @@ from loguru import logger
 from pydantic import ValidationError
 
 from usage_collector.feed import UsageFeed
+from usage_collector.limits import limit_readings
 from usage_collector.store import UsageStore
 
 
@@ -39,6 +40,10 @@ class Ingestor:
             )
             return IngestOutcome.REJECTED
         return self.ingest_event(event)
+
+    def observe_limits(self, record: object) -> None:
+        """Keep the subscription limit readings an event carries, model_call or not."""
+        self._store.record_limits(limit_readings(record))
 
     def ingest_event(self, event: ModelCallEvent) -> IngestOutcome:
         priced = price_model_call(event)
