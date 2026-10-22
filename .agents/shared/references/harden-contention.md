@@ -213,7 +213,16 @@ uv run .agents/skills/launch-task/scripts/create_worker.py reply \
 
 Leave out the `Add to the pass:` sentence when no note names one. When one
 does, add those creations to your own `$CREATIONS` too, so the freshness check
-and go-live cover them from then on.
+and go-live cover them from then on, and record them where other chats read
+the pass: your task file's `creations` line, which a chat taking the pass over
+leads it with, and the ticket's title, which the single-flight check above
+matches. A ticket's title is the first `# ` line of its file:
+
+```bash
+ADDED="<each added creation, as type:name>"
+sed -i "s|^creations: .*|& $ADDED|" <TASK_FILE>
+sed -i "0,/^# /s|^# .*|& $ADDED|" "$TICKETS_DIR/<ticket-id>.md"
+```
 
 The worker's side is `.agents/shared/worker/references/harden-creation.md`
 ("Catching up to a moved base"), or its own flow's catch-up section where one
