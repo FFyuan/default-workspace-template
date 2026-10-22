@@ -86,6 +86,7 @@ from imbue.chat.chat_records import DEFAULT_CHAT_RECORDS_ROOT
 from imbue.chat.chat_records import InMemoryChatRecordStore
 from imbue.chat.chat_records import is_seed_entry
 from imbue.chat.chat_seed import SeedTurn
+from imbue.chat.chat_seed import is_slash_command
 from imbue.chat.chat_seed import seed_agent_info
 from imbue.chat.chat_seed import seed_context_message
 from imbue.chat.chat_seed import seed_events
@@ -2515,7 +2516,7 @@ class AgentManager:
         prose."""
         with self._lock:
             record = self._chat_record_by_id.get(chat_id)
-            is_seed_carried = record is not None and record.is_seed_pending and not message.lstrip().startswith("/")
+            is_seed_carried = record is not None and record.is_seed_pending and not is_slash_command(message)
         text = seed_context_message(self._chat_files_root / chat_id, message) if is_seed_carried else message
         outcome = deliver(text)
         if is_seed_carried and outcome is SendOutcome.OK:
