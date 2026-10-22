@@ -292,7 +292,9 @@ where it was committed. The root project's own `pyproject.toml` or
 `conftest.py` runs the suite of each creation in the pass that the root project
 collects rather than the full root suite. A skill also runs on the root
 project's dependencies, so a package the root project depends on, or a
-`uv.lock` upgrade of one, runs the suite of each skill in the pass. An incoming
+`uv.lock` upgrade of one, runs the suite of each skill in the pass. A shared
+script in the pass belongs to no package or skill, so each of those runs the
+full root suite for it, as a change to the script itself does. An incoming
 `uv.lock` is compared from `incoming_base` to the fork point; when that cannot
 be read, every creation's own suite runs. A `--diff-base` selection that runs to
 the checked-out commit refuses to run while the working tree holds uncommitted

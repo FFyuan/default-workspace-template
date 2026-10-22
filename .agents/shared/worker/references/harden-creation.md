@@ -494,7 +494,8 @@ starting over.
    creation in the pass through something that creation depends on (a
    package, a `uv.lock` upgrade, a shared frontend package, or the root
    project's own `pyproject.toml` or `conftest.py` for a creation the root
-   project collects): that runs the creation's own suite and nothing else.
+   project collects): that runs the creation's own suite and nothing else,
+   or for a shared script, which has none, the full root suite.
    What you committed after the merge is yours, selected like any change. A
    selection with nothing to run means no part of the pass moved. Do not
    re-run the gate over `$DIFF_BASE`: what it already passed still stands,

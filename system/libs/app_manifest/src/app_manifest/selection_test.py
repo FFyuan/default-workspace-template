@@ -4,8 +4,10 @@ from pathlib import Path
 import pytest
 
 from app_manifest.errors import SuiteSelectionError
+from app_manifest.primitives import RepoRelativePath
 from app_manifest.selection import ALWAYS_RUN_GUARDS
 from app_manifest.selection import ChangedPathClass
+from app_manifest.selection import CreationReach
 from app_manifest.selection import SuiteSelection
 from app_manifest.selection import load_repo_layout
 from app_manifest.selection import render_command_line
@@ -595,3 +597,19 @@ def test_an_ignored_vendored_subtree_selects_none_of_its_tests(workspace: Path) 
     selection = _select(workspace, ["system/vendor/tool/tool_test.py"])
 
     assert not any("system/vendor/tool" in line for line in _command_lines(selection))
+
+
+def test_a_selection_that_runs_nothing_still_prints_its_notes(tmp_path: Path) -> None:
+    """A note says what the selection could not settle, which matters most when nothing runs."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    reach = CreationReach(
+        paths=(RepoRelativePath("uv.lock"),),
+        lockfile_texts=("not [ toml", "not [ toml either"),
+        creation_directories=(RepoRelativePath(".agents/skills/untested"),),
+    )
+
+    selection = select_tests(load_repo_layout(repo_root), [], None, reach)
+
+    assert selection.commands == ()
+    assert "# note: " in render_selection(selection)

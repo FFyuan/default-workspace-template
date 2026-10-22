@@ -745,6 +745,52 @@ def test_a_catch_up_gate_runs_a_creations_own_suite_when_what_came_in_reaches_it
     assert whole_pass["diff"]["incoming_base"] == diff_base
 
 
+@pytest.mark.parametrize(
+    ("lead_change", "runs_full_root"),
+    [
+        ({"conftest.py": "import os\n"}, True),
+        ({"system/libs/midlib/src/midlib/core.py": "VALUE = 2\n"}, True),
+        ({"uv.lock": selection_lock("2.1")}, True),
+        ({"uv.lock": "not [ toml"}, True),
+        ({"system/apps/notes/src/notes/core.py": "VALUE = 2\n"}, False),
+    ],
+)
+def test_a_catch_up_gate_runs_the_full_root_suite_for_a_shared_script_what_came_in_reaches(
+    tmp_path: Path, lead_change: dict[str, str], runs_full_root: bool
+) -> None:
+    """A shared script belongs to no package or skill: the scripts that import it are collected
+    anywhere in the root project, so a change to it runs the full root suite. When the lead's
+    work a catch-up brings in reaches it through the root project's configuration or something
+    the root project depends on, the catch-up gate runs that suite for it too; work that reaches
+    nothing it runs on adds nothing."""
+    repo_root = tmp_path / "workspace"
+    build_selection_workspace(repo_root)
+    declare_root_dependency(repo_root, "midlib")
+    commit_changes(
+        repo_root,
+        {
+            "uv.lock": selection_lock("2.0"),
+            ".agents/shared/scripts/tool.py": "VALUE = 1\n",
+            ".agents/shared/scripts/tool_test.py": "def test_tool() -> None:\n    pass\n",
+        },
+        "lock and shared script",
+    )
+    run_git(repo_root, ("checkout", "-q", "-b", "worker"))
+    commit_changes(repo_root, {".agents/shared/scripts/tool.py": "VALUE = 2\n"}, "harden")
+    run_git(repo_root, ("checkout", "-q", "main"))
+    commit_changes(repo_root, lead_change, "other chats")
+    run_git(repo_root, ("checkout", "-q", "worker"))
+    pre = run_git(repo_root, ("rev-parse", "HEAD")).strip()
+    run_git(repo_root, ("merge", "-q", "--no-ff", "main", "-m", "Catch up"))
+    scope_path = tmp_path / "catch-up-scope.json"
+
+    _write_pass_scope(repo_root, scope_path, ["shared:scripts/tool.py"], pre, "main")
+    commands = _selected_commands(repo_root, scope_path)
+
+    assert ("uv run pytest" in commands) == runs_full_root
+    assert not any("system/apps/notes" in command for command in commands)
+
+
 def test_a_catch_up_gate_runs_every_creations_own_suite_when_an_incoming_lock_cannot_be_read(
     tmp_path: Path,
 ) -> None:
