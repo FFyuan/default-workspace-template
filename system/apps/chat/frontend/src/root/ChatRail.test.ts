@@ -66,13 +66,13 @@ describe("ChatRail status marks", () => {
 });
 
 describe("ChatRail main chat", () => {
-  it("sets the main chat and its helpers apart from the rest, and marks the main chat row", () => {
+  it("sets the main chat alone above the rest, its helpers right under the rule, and marks its row", () => {
     const helper = chatRowFixture("agent-helper", { labels: { agent_created: "true", lead_agent: "agent-welcome" } });
     const rail = mount([chatRowFixture("agent-welcome", { isMain: true }), helper, chatRowFixture("agent-other")]);
 
     const group = rail.querySelector(".chat-rail-main-group");
     expect(group).not.toBeNull();
-    expect(chatIdsIn(group!)).toEqual(["agent-welcome", "agent-helper"]);
+    expect(chatIdsIn(group!)).toEqual(["agent-welcome"]);
     expect(chatIdsIn(rail)).toEqual(["agent-welcome", "agent-helper", "agent-other"]);
     expect(rail.querySelector('[data-chat-id="agent-welcome"]')?.getAttribute("data-main")).toBe("true");
     expect(rail.querySelector('[data-chat-id="agent-other"]')?.hasAttribute("data-main")).toBe(false);
@@ -102,5 +102,20 @@ describe("ChatRail main chat", () => {
     makeMain.onSelect();
 
     expect(verbs.makeMainChat).toHaveBeenCalledWith("agent-other");
+  });
+
+  it("offers no stop or restart on the main chat, which is kept running", () => {
+    const main = chatRowFixture("agent-main", { isMain: true });
+    const stoppedMain = chatRowFixture("agent-main", { isMain: true, status: "stopped" });
+    const other = chatRowFixture("agent-other");
+    const context = chatRailAttrsFixture({ rows: [main, other] });
+    const keysOf = (row: ChatRow): string[] =>
+      rowMenuRows(context, row).flatMap((menuRow) =>
+        menuRow.kind === "action" && menuRow.key !== undefined ? [menuRow.key] : [],
+      );
+
+    expect(keysOf(main)).not.toContain("stop");
+    expect(keysOf(stoppedMain)).not.toContain("start");
+    expect(keysOf(other)).toContain("stop");
   });
 });

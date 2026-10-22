@@ -1103,6 +1103,75 @@ def test_making_a_chat_the_main_chat_moves_the_star_to_it_and_keeps_it_there(
         manager.stop()
 
 
+def test_a_stopped_main_chat_is_started_again_once_and_another_stopped_chat_is_left_alone(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    """The main chat never sleeps: the chat-list push that shows it stopped starts it, without a resume prompt, and
+    reflects it as alive; a stopped chat that is not the main chat stays stopped."""
+    mngr_binary, argv_log = write_recording_mngr_binary(tmp_path)
+    manager = AgentManager.build(broadcaster, mngr_binary=mngr_binary, keeps_main_chat_awake=True)
+    try:
+        seed_agent_state(manager, "agent-main", name="Main-chat", state="STOPPED")
+        seed_agent_state(manager, "agent-other", name="Chat-2", state="STOPPED")
+        manager.note_agent_list_known()
+        assert manager.make_main_chat(ChatId("agent-main")) is True
+
+        wait_until_true(
+            lambda: _agent_state(manager, "agent-main") != "STOPPED",
+            10,
+            "the main chat's agent to be reflected as started",
+        )
+    finally:
+        manager.stop()
+
+    assert argv_log.read_text().splitlines() == ["start Main-chat --no-resume"]
+    assert _agent_state(manager, "agent-other") == "STOPPED"
+
+
+def test_a_main_chat_that_does_not_start_is_not_tried_again_on_every_push(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    argv_log = tmp_path / "mngr-argv.log"
+    failing_mngr = tmp_path / "failing-mngr"
+    failing_mngr.write_text(f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> "{argv_log}"\nexit 1\n')
+    failing_mngr.chmod(0o755)
+    manager = AgentManager.build(broadcaster, mngr_binary=str(failing_mngr), keeps_main_chat_awake=True)
+    try:
+        seed_agent_state(manager, "agent-main", name="Main-chat", state="STOPPED")
+        manager.note_agent_list_known()
+        manager.make_main_chat(ChatId("agent-main"))
+        wait_until_true(lambda: argv_log.exists(), 10, "the first start of the main chat's agent")
+
+        manager.make_main_chat(ChatId("agent-main"))
+        manager.make_main_chat(ChatId("agent-main"))
+    finally:
+        manager.stop()
+
+    assert argv_log.read_text().splitlines() == ["start Main-chat --no-resume"]
+    assert _agent_state(manager, "agent-main") == "STOPPED"
+
+
+def _agent_state(manager: AgentManager, agent_id: str) -> str:
+    agent = manager.get_agent_by_id(agent_id)
+    assert agent is not None
+    return agent.state
+
+
+def test_a_manager_not_asked_to_keep_the_main_chat_awake_starts_nothing(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    mngr_binary, argv_log = write_recording_mngr_binary(tmp_path)
+    manager = AgentManager.build(broadcaster, mngr_binary=mngr_binary)
+    try:
+        seed_agent_state(manager, "agent-main", name="Main-chat", state="STOPPED")
+        manager.note_agent_list_known()
+        assert manager.make_main_chat(ChatId("agent-main")) is True
+    finally:
+        manager.stop()
+
+    assert not argv_log.exists()
+
+
 def test_with_no_chat_left_the_chat_the_list_opens_becomes_the_main_chat(broadcaster: WebSocketBroadcaster) -> None:
     manager = AgentManager.build(broadcaster)
     manager.note_agent_list_known()

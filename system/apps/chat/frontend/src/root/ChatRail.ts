@@ -29,7 +29,7 @@ import { anchorForPoint } from "@imbue/workspace-ui/src/menu-position";
 import { kebabGlyph, plusGlyph } from "../glyphs";
 import { isUnread } from "./chatUnread";
 import { destroyChat, makeMainChat, renameChat, startChat, stopChat } from "./verbs";
-import { mainGroupSize, isAgentStarted } from "./rows";
+import { isAgentStarted, startsWithMainChat } from "./rows";
 import {
   DEFAULT_RAIL_WIDTH_PX,
   MAX_RAIL_WIDTH_PX,
@@ -209,12 +209,17 @@ export function rowMenuRows(attrs: RowMenuContext, row: ChatRow, referenceRows: 
             onSelect: () => makeMainFromMenu(row),
           } as MenuRow,
         ]),
-    {
-      kind: "action",
-      key: isStopped ? "start" : "stop",
-      label: isStopped ? "Restart chat" : "Stop chat",
-      onSelect: () => setRunningFromMenu(row, isStopped),
-    },
+    // The main chat is kept running (the chat app wakes it whenever it is found stopped), so it offers neither.
+    ...(row.isMain
+      ? []
+      : [
+          {
+            kind: "action",
+            key: isStopped ? "start" : "stop",
+            label: isStopped ? "Restart chat" : "Stop chat",
+            onSelect: () => setRunningFromMenu(row, isStopped),
+          } as MenuRow,
+        ]),
     { kind: "divider" },
     {
       kind: "action",
@@ -320,9 +325,9 @@ export const ChatRail: m.Component<ChatRailAttrs> = {
   },
 };
 
-/** The rows, the main chat's group in a container of its own so its rule sits under the group's last row. */
+/** The rows, the main chat alone in a container of its own above a rule; its helpers lead the rest, under it. */
 function railGroups(attrs: ChatRailAttrs): m.Vnode[] {
-  const split = mainGroupSize(attrs.rows);
+  const split = startsWithMainChat(attrs.rows) ? 1 : 0;
   const rest = attrs.rows.slice(split).map((row) => railRow(attrs, row));
   if (split === 0) return [m("div", { key: "rest" }, rest)];
   return [

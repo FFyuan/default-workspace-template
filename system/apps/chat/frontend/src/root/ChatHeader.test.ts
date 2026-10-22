@@ -57,7 +57,6 @@ describe("the chat header", () => {
     const menuRows = [...document.querySelectorAll<HTMLElement>(".chat-header-menu [data-menu-row]")];
     expect(menuRows.map((menuRow) => menuRow.getAttribute("data-menu-row"))).toEqual([
       "rename",
-      "stop",
       "delete",
       "copy-reference",
       "explain-element",

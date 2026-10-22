@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chatSnapshotFixture } from "../models/chatSnapshotFixture";
 import type { ProvisionalChat } from "../models/Chats";
-import { mainGroupSize, groupedRows, parentOf, rowsFromSnapshots } from "./rows";
+import { groupedRows, parentOf, rowsFromSnapshots, startsWithMainChat } from "./rows";
 
 const NONE: ReadonlySet<string> = new Set();
 
@@ -103,7 +103,7 @@ describe("groupedRows", () => {
     const grouped = groupedRows(rows, new Set(["agent-mine"]));
 
     expect(grouped.map((row) => row.chatId)).toEqual(["agent-welcome", "agent-helper", "agent-mine", "agent-recent"]);
-    expect(mainGroupSize(grouped)).toBe(2);
+    expect(startsWithMainChat(grouped)).toBe(true);
   });
 
   it("leads with a main chat still awaiting its first send", () => {
@@ -119,12 +119,12 @@ describe("groupedRows", () => {
       ["agent-welcome", true],
       ["agent-recent", false],
     ]);
-    expect(mainGroupSize(grouped)).toBe(1);
+    expect(startsWithMainChat(grouped)).toBe(true);
   });
 
   it("has no main group when no chat is the main chat", () => {
     const rows = rowsFromSnapshots([chatSnapshotFixture("agent-a"), chatSnapshotFixture("agent-b")], [], null);
 
-    expect(mainGroupSize(groupedRows(rows, NONE))).toBe(0);
+    expect(startsWithMainChat(groupedRows(rows, NONE))).toBe(false);
   });
 });

@@ -237,6 +237,12 @@ _DEFAULT_MESSENGER: Final[MngrMessenger] = MngrMessenger()
 # rate, which costs ~3x under gVisor.
 _SESSION_SWEEP_INTERVAL_SECONDS: Final[float] = 10.0
 
+# How long after starting the main chat's stopped agent another start is not tried, so one that fails (or that
+# the observe stream has not caught up with yet) is not retried on every chat-list push.
+MAIN_CHAT_WAKE_RETRY_SECONDS: Final[float] = 60.0
+# How long one ``mngr start`` of the main chat's agent may take.
+_MAIN_CHAT_WAKE_TIMEOUT_SECONDS: Final[float] = 60.0
+
 # How long one ``mngr rename`` / ``mngr label`` may take. Both edit the
 # provider's persisted agent data (rename also moves the tmux session on a live
 # host), so they are short local operations -- but they run inside a request the
@@ -1112,6 +1118,10 @@ class AgentManager:
     _message_stamps: MessageStampStore
     # Which chat is the workspace's main chat (``main_chat.py``), kept on disk so a restart keeps it.
     _main_chat: MainChatStore
+    # Whether the main chat's agent is started again whenever it is found stopped (the live chat app's).
+    _keeps_main_chat_awake: bool
+    # When this manager last started each main-chat agent it found stopped, monotonic seconds.
+    _main_chat_wake_started_at: dict[str, float]
     # Re-tags chat agents' OOM ``oom_score_adj`` from live activity: page presence and
     # messages (via ``record_presence`` and ``record_message_sent``, from the chat app's
     # presence and send routes),
@@ -1177,6 +1187,7 @@ class AgentManager:
         mngr_binary: str = _DEFAULT_MNGR_BINARY,
         message_stamps: MessageStampStore | None = None,
         main_chat: MainChatStore | None = None,
+        keeps_main_chat_awake: bool = False,
         auto_open: AutoOpenReactor | None = None,
         chat_record_store: ChatRecordStore | None = None,
         chat_files_root: Path = DEFAULT_CHAT_RECORDS_ROOT,
@@ -1196,7 +1207,9 @@ class AgentManager:
         commands. ``message_stamps`` remembers when each chat was
         last messaged; the default keeps that in memory only, so a real server
         passes one backed by the chat app's data directory, as it does ``main_chat``, which
-        holds the workspace's main chat (``main_chat.py``). ``auto_open``
+        holds the workspace's main chat (``main_chat.py``). ``keeps_main_chat_awake`` starts the main chat's agent
+        again whenever it is found stopped; the live chat app sets it, and a test that does not ask for it never
+        runs ``mngr start``. ``auto_open``
         surfaces labeled chats' windows; the default remembers nothing and reaches
         no shell, so a real server passes one backed by the ledger and the shell.
         ``chat_record_store`` holds the records of the chats that have run on several
@@ -1285,6 +1298,8 @@ class AgentManager:
         manager._compaction_finished_at_by_agent = {}
         manager._message_stamps = message_stamps if message_stamps is not None else MessageStampStore(path=None)
         manager._main_chat = main_chat if main_chat is not None else MainChatStore(path=None)
+        manager._keeps_main_chat_awake = keeps_main_chat_awake
+        manager._main_chat_wake_started_at = {}
         manager._transcript_broadcaster = None
         manager._watcher_eviction_callback = None
         manager._unviewed_transcript_release = None
@@ -1444,8 +1459,54 @@ class AgentManager:
             self._is_agent_list_known = True
 
     def _broadcast_chats_updated(self) -> None:
-        """Push every chat's snapshot, and which is the main chat, to every WebSocket client."""
+        """Push every chat's snapshot, and which is the main chat, to every WebSocket client; and wake the main
+        chat if the list now shows it stopped."""
         self._broadcaster.broadcast_chats_updated(self.get_chat_snapshots(), self.get_main_chat_id())
+        self._wake_main_chat_if_stopped()
+
+    def _wake_main_chat_if_stopped(self) -> None:
+        """Start the main chat's agent, on a thread of its own, when it is stopped: the main chat never sleeps.
+
+        Whatever stopped it (a stop from a menu, a routine, the memory guard shedding it), the next chat-list push
+        finds it dead and starts it again. A chat switching agents is left to its switch, and a start is not tried
+        again for ``MAIN_CHAT_WAKE_RETRY_SECONDS``. Only a manager built with ``keeps_main_chat_awake`` does this.
+        """
+        if not self._keeps_main_chat_awake:
+            return
+        main_chat_id = self.get_main_chat_id()
+        if main_chat_id is None:
+            return
+        with self._lock:
+            chat = self._resolve_chat_locked(main_chat_id)
+            agent = self._agents.get(chat.active_agent_id) if chat is not None and chat.active_agent_id else None
+            if chat is None or agent is None or chat.transition is not None or not is_lifecycle_dead(agent.state):
+                return
+            now = time.monotonic()
+            last_started_at = self._main_chat_wake_started_at.get(agent.id)
+            if last_started_at is not None and now - last_started_at < MAIN_CHAT_WAKE_RETRY_SECONDS:
+                return
+            self._main_chat_wake_started_at[agent.id] = now
+        self._creation_cg.start_new_thread(
+            target=self._wake_agent,
+            args=(agent.id, agent.name),
+            name=f"wake-main-chat-{agent.id[-8:]}",
+            is_checked=False,
+        )
+
+    def _wake_agent(self, agent_id: str, agent_name: str) -> None:
+        """``mngr start`` a stopped agent, without a resume prompt, and reflect it as alive at once."""
+        result = run_local_command_modern_version(
+            command=[self._mngr_binary, "start", agent_name, "--no-resume"],
+            cwd=None,
+            is_checked=False,
+            timeout=_MAIN_CHAT_WAKE_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0:
+            _loguru_logger.warning(
+                "Could not wake the main chat's agent {}: {}", agent_name, result.stderr.strip()[:300]
+            )
+            return
+        self.note_agent_alive(agent_id)
 
     def _broadcast_provisional(self, provisional: ProvisionalChat) -> None:
         """Push a provisional chat to every client, under the name it is shown by."""

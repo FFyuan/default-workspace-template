@@ -123,11 +123,7 @@ export function groupedRows(rows: readonly ChatRow[], startedHere: ReadonlySet<s
   return groups.flatMap((group) => [group.root, ...group.helpers]);
 }
 
-/** How many of ``rows`` (in display order) belong to the main chat's group at their head: the main chat and
- *  the helpers filed under it; 0 when the list does not start with the main chat. */
-export function mainGroupSize(rows: readonly ChatRow[]): number {
-  const head = rows[0];
-  if (head === undefined || !head.isMain) return 0;
-  const end = rows.findIndex((row, index) => index > 0 && parentOf(row, rows)?.chatId !== head.chatId);
-  return end === -1 ? rows.length : end;
+/** Whether the list (in display order) starts with the main chat, which then sits alone above the rest. */
+export function startsWithMainChat(rows: readonly ChatRow[]): boolean {
+  return rows[0]?.isMain === true;
 }

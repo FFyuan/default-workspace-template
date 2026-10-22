@@ -422,12 +422,15 @@ crash, or a relaunch leaves it where it is. The seeded chat takes it first, name
 When the chat it names is deleted, another takes it at once: the chat
 messaged most recently, never a helper another agent started; with no chat left, the
 chat the list opens (one awaiting its first send) takes it. Every `chats_updated` push
-and `GET /api/chats` carry its id as `main_chat_id`. The chat list leads with it (its
-helpers under it), in a medium weight and set off from the rest by a rule; the root
+and `GET /api/chats` carry its id as `main_chat_id`. The chat list leads with it, alone
+above a rule and in a medium weight, its helpers right under the rule; the root
 shows it when nothing is selected, including after the chat on screen is deleted; a text
 sent from the desktop launcher with Enter (the `main` launch path, a `main_chat` intake) lands in it;
 and a `current_chat` intake from a window showing no chat lands in it. It can be renamed and
-deleted like any chat.
+deleted like any chat, but never sleeps: whenever a chat-list push finds its agent stopped (a stop
+from elsewhere, a routine, the memory guard shedding it), the app starts it again with
+`mngr start --no-resume`, trying again no sooner than a minute after a start that did not
+take, and its menu offers no stop or restart.
 
 A chat that starts with no message sends nothing and waits for the user's
 first one. Fast mode is a per-chat setting with three modes

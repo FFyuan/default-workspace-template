@@ -1,6 +1,8 @@
 The workspace now has a **main chat**, where a message with no chat of its own goes. The chat the Mind app seeds is the main chat to begin with, and is now named "Main chat" instead of "Welcome"; that name is kept rather than replaced by one drawn from the first message, until you rename it:
 
-- The chat list always leads with it (its helpers under it), in a medium weight and set off from the other chats by a thin rule, instead of sorting it by recency.
+- The chat list always leads with it, alone above a thin rule and in a medium weight, instead of sorting it by recency. Helper chats it started sit right under the rule.
+
+- The main chat never sleeps: whenever it is found stopped (stopped from elsewhere, by a routine, or shed by the memory guard), the chat app starts it again. Its menu offers no stop or restart.
 
 - With no chat selected, the chat list opens on it rather than on the most recently messaged chat; deleting the chat on screen also returns you to it.
 
