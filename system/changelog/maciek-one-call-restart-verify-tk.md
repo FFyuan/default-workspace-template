@@ -1,0 +1,3 @@
+- `smoketest_app.py <name> --restart` bounces an app's supervisord program without waiting out its `startsecs` window: it starts the program through supervisord's RPC socket without waiting, reads readiness from the port, and fails at once with the last lines of the stderr log when the program dies on start. `--open` and `--refresh` surface the verified page through `workspace-layout` in the same call.
+
+- `AGENTS.md` makes app verification in a chat turn one `smoketest_app.py --restart ... --open|--refresh` call and leaves test files to the background harden pass and suite runs to the background test gate.

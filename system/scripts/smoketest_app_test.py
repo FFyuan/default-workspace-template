@@ -5,6 +5,7 @@ import json
 import socketserver
 import threading
 import time
+import xmlrpc.client
 from pathlib import Path
 
 import pytest
@@ -101,3 +102,140 @@ def test_poll_http_missing_marker_raises() -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+# --restart bounces a program through supervisord's RPC without waiting out its
+# startsecs window and reads readiness from the port; these pin the state
+# decisions that make that safe.
+def test_stop_precedes_start_only_while_supervisord_counts_the_program_as_running() -> None:
+    for state in ("RUNNING", "STARTING", "BACKOFF"):
+        assert smoketest_app.needs_stop(state), state
+    for state in ("STOPPED", "EXITED", "FATAL", "UNKNOWN"):
+        assert not smoketest_app.needs_stop(state), state
+
+
+def test_a_fresh_start_is_dead_in_every_state_but_starting_and_running() -> None:
+    for state in ("BACKOFF", "FATAL", "EXITED", "STOPPED", "UNKNOWN"):
+        assert smoketest_app.is_dead_after_start(state), state
+    for state in ("STARTING", "RUNNING"):
+        assert not smoketest_app.is_dead_after_start(state), state
+
+
+def test_restart_raises_a_short_timeout_and_keeps_a_long_one() -> None:
+    assert smoketest_app.effective_timeout(5.0, restart=False) == 5.0
+    assert smoketest_app.effective_timeout(5.0, restart=True) == smoketest_app.RESTART_MIN_TIMEOUT
+    assert smoketest_app.effective_timeout(60.0, restart=True) == 60.0
+
+
+class _FakeSupervisor:
+    """Records the RPC calls a restart makes and raises the faults it is given."""
+
+    def __init__(self, state: str, stop_fault: int | None = None, start_fault: int | None = None) -> None:
+        self.state = state
+        self.stop_fault = stop_fault
+        self.start_fault = start_fault
+        self.info_error: Exception | None = None
+        self.stop_error: Exception | None = None
+        self.calls: list[str] = []
+
+    def getProcessInfo(self, name: str) -> dict[str, str]:  # noqa: N802 -- supervisord's RPC name
+        if self.info_error is not None:
+            raise self.info_error
+        return {"statename": self.state}
+
+    def stopProcess(self, name: str, wait: bool) -> bool:  # noqa: N802
+        self.calls.append("stop")
+        if self.stop_error is not None:
+            raise self.stop_error
+        if self.stop_fault is not None:
+            raise xmlrpc.client.Fault(self.stop_fault, "fault")
+        return True
+
+    def startProcess(self, name: str, wait: bool) -> bool:  # noqa: N802
+        self.calls.append("start")
+        if self.start_fault is not None:
+            raise xmlrpc.client.Fault(self.start_fault, "fault")
+        self.state = "STARTING"
+        return True
+
+
+def test_restart_tolerates_a_program_that_exited_before_the_stop() -> None:
+    sup = _FakeSupervisor("RUNNING", stop_fault=smoketest_app._FAULT_NOT_RUNNING)
+    early_death = smoketest_app._restart_program(sup, "app")
+    assert sup.calls == ["stop", "start"]
+    assert early_death() is None
+
+
+def test_restart_tolerates_autorestart_winning_the_start() -> None:
+    sup = _FakeSupervisor("EXITED", start_fault=smoketest_app._FAULT_ALREADY_STARTED)
+    smoketest_app._restart_program(sup, "app")
+    assert sup.calls == ["start"]
+
+
+def test_restart_fails_at_once_when_the_start_rpc_reports_a_crash() -> None:
+    spawn_error = 50
+    sup = _FakeSupervisor("STOPPED", start_fault=spawn_error)
+    with pytest.raises(SystemExit, match="could not start app"):
+        smoketest_app._restart_program(sup, "app")
+
+
+def test_restart_fails_when_the_stop_rpc_reports_anything_but_not_running() -> None:
+    sup = _FakeSupervisor("RUNNING", stop_fault=smoketest_app._FAULT_ALREADY_STARTED)
+    with pytest.raises(SystemExit, match="could not stop app"):
+        smoketest_app._restart_program(sup, "app")
+    assert sup.calls == ["stop"]
+
+
+def test_restart_fails_before_any_change_when_supervisord_is_unreachable() -> None:
+    sup = _FakeSupervisor("RUNNING")
+    sup.info_error = ConnectionRefusedError("refused")
+    with pytest.raises(SystemExit, match="cannot reach supervisord"):
+        smoketest_app._restart_program(sup, "app")
+    assert sup.calls == []
+
+
+def test_restart_fails_before_any_change_for_a_program_supervisord_does_not_know() -> None:
+    bad_name = 10
+    sup = _FakeSupervisor("RUNNING")
+    sup.info_error = xmlrpc.client.Fault(bad_name, "BAD_NAME: app")
+    with pytest.raises(SystemExit, match="supervisord knows no program 'app'.*supervisorctl update"):
+        smoketest_app._restart_program(sup, "app")
+    assert sup.calls == []
+
+
+def test_restart_reports_supervisord_going_away_during_the_stop() -> None:
+    sup = _FakeSupervisor("RUNNING")
+    sup.stop_error = ConnectionRefusedError("refused")
+    with pytest.raises(SystemExit, match="lost supervisord .* while stopping app"):
+        smoketest_app._restart_program(sup, "app")
+    assert sup.calls == ["stop"]
+
+
+def test_early_death_reports_a_program_that_crashed_after_the_start() -> None:
+    sup = _FakeSupervisor("RUNNING")
+    early_death = smoketest_app._restart_program(sup, "app")
+    sup.state = "BACKOFF"
+    failure = early_death()
+    assert failure is not None
+    assert "app is BACKOFF after the restart" in failure
+    assert "app-stderr.log" in failure
+
+
+def test_early_death_reports_supervisord_going_away() -> None:
+    sup = _FakeSupervisor("RUNNING")
+    early_death = smoketest_app._restart_program(sup, "app")
+    sup.info_error = ConnectionRefusedError("refused")
+    failure = early_death()
+    assert failure is not None
+    assert "lost track of app" in failure
+
+
+def test_poll_http_ends_at_once_when_the_abort_check_reports_a_failure() -> None:
+    with socketserver.TCPServer(("127.0.0.1", 0), _MockHandler) as server:
+        port = server.server_address[1]
+    started = time.monotonic()
+    with pytest.raises(SystemExit, match="error: app died"):
+        smoketest_app._poll_http(
+            f"http://127.0.0.1:{port}/", marker=None, timeout=10.0, interval=0.05, abort_check=lambda: "app died"
+        )
+    assert time.monotonic() - started < 5.0
