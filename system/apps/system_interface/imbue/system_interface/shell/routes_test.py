@@ -2696,3 +2696,11 @@ def test_an_open_op_at_a_post_launch_path_posts_for_its_page_with_and_without_a_
     assert unplaced.status_code == 200, unplaced.get_json()
     assert unplaced.get_json()["client_id"] is None
     assert poster.posts[1].body == {"target": "new_chat", "message": "later"}
+
+
+def test_the_tour_record_is_unseen_until_posted_and_round_trips(client: FlaskClient) -> None:
+    assert client.get("/api/tour").get_json() == {"is_seen": False}
+    assert client.post("/api/tour", json={"is_seen": True}).get_json() == {"is_seen": True}
+    assert client.get("/api/tour").get_json() == {"is_seen": True}
+    assert client.post("/api/tour", json={"is_seen": False}).get_json() == {"is_seen": False}
+    assert client.post("/api/tour", json={"is_seen": "not a flag"}).status_code == 400

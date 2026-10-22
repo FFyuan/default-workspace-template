@@ -4,6 +4,7 @@ import { CLOSE_ACTIVE_TAB } from "@minds/embed-contract";
 import {
   DETACHED_WINDOWS,
   EMBEDDER_CAPABILITIES,
+  HIGHLIGHT_CHROME,
   OPEN_EXTERNAL,
   OPEN_LINK,
   POP_OUT_WINDOW,
@@ -27,7 +28,8 @@ import type { Frame } from "./model/records";
 import { frameFromViewportFractions } from "./geometry/frames";
 import type { OutsideLinkOpener, PopOutBridge } from "./store/DesktopStore";
 import { PointerGestureSource } from "./gestures/pointerGestures";
-import { startPresenceHeartbeat } from "./model/Presence";
+import { getOwnIdentity, startPresenceHeartbeat } from "./model/Presence";
+import { TOUR_API, TourController } from "./model/tour";
 import { initEmbedderRelay, setEmbedderAppMessageHandler } from "./relay";
 import { reloadInterface } from "./reload";
 import { DesktopStore } from "./store/DesktopStore";
@@ -161,6 +163,18 @@ function bootstrap(): void {
     if (phase !== "out" && phase !== "in" && phase !== "released") return;
     desktopStore.setTearOut(windowId, phase);
   });
+  // The show-around tour: by itself on a fresh workspace, for the owner looking at the whole desktop; from the
+  // launcher's row any time. A card about a chrome control asks the chrome to ring it.
+  const tour = new TourController({
+    api: TOUR_API,
+    highlightChrome: (anchor) => sendToEmbedder(HIGHLIGHT_CHROME, { anchor }),
+    isAutoStartAllowed: () =>
+      !desktopStore.isPhoneLayout() &&
+      desktopStore.getSoloWindowId() === null &&
+      !isPreviewShell() &&
+      (getOwnIdentity()?.owner ?? true),
+    redraw: () => m.redraw(),
+  });
   const rootElement = document.getElementById("app");
   if (rootElement) {
     m.mount(rootElement, {
@@ -168,12 +182,14 @@ function bootstrap(): void {
         m(App, {
           store: desktopStore,
           gestures,
+          tour,
           host: window.location.host,
           protocol: window.location.protocol,
         }),
     });
   }
   const started = desktopStore.start(takeDeepLinkFromLocation());
+  void Promise.all([started, desktopStore.whenAppsLoaded()]).then(() => tour.maybeAutoStart());
   // Announced once the page can act on what the embedder held, not merely once a handler is
   // registered: relaying a message needs the apps (which of them take it), and the embedder sends
   // what it held the moment this lands.

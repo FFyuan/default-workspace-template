@@ -81,13 +81,19 @@ supervisord from the repo root) listens on `http://127.0.0.1:8000` and serves:
   the page.
 - Presence (`/api/presence`, `/api/presence/heartbeat`): who is connected
   right now, with their identity and profile (see "Who is here").
+- The show-around tour's flag (`GET` and `POST /api/tour`, `{"is_seen"}`): whether
+  the tour of the desktop (`frontend/src/model/tourCards.ts`) has run in this
+  workspace. A fresh workspace runs it by itself a few seconds after the owner
+  first sees the desktop; the launcher's "Show me around" row runs it again any
+  time. A card about a control of the Imbue Studio chrome asks the chrome to
+  ring it (`minds:highlight-chrome`).
 - The WebSocket (`/api/ws`): `apps_updated`, `desktops_updated`,
   `presence_updated`, `placements_updated`, `active_desktop_changed`,
   `client_entries_changed`, `avatar_status`, `avatar_selection_changed`, and
   `layout_op` (contracts section 6); it accepts each client's `client_state`
   report.
 
-Its state lives under `data/.state/system_interface/`: `desktops.json`,
+Its state lives under `data/.state/system_interface/`: `desktops.json`, `tour.json` (whether the tour has run),
 `default_shortcuts_offered.json` (the apps whose default shortcut the shell
 has offered), `placements/<desktop>/<client>.json`,
 `window_paths/<client>.json` (a client's own paths for independent windows),

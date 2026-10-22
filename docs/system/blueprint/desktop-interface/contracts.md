@@ -500,6 +500,8 @@ Data attributes, never classes, so restyling cannot break a test:
 | `data-phone-app="<app>"`, `data-phone-home-grid` | the home grid's tiles, and the grid |
 | `data-phone-page-host="<window-id>"` | the area the shown window's page is laid over |
 | `data-toast` | each toast, on both layouts |
+| `data-tour-card="<id>"`, `data-tour-badge`, `data-tour-exit`, `data-tour-back`, `data-tour-next`, `data-tour-link` | the show-around tour's card (naming the card shown) or its exit badge, and the card's Exit walkthrough, Go back, Next or Done (Got it on the badge), and link button |
+| `data-tour-row` | the launcher's "Show me around" row |
 
 ## 13. Where data lives
 

@@ -39,6 +39,8 @@ from imbue.system_interface.avatar.api_models import AvatarSelected
 from imbue.system_interface.avatar.api_models import AvatarsListing
 from imbue.system_interface.avatar.catalog import DesignRegistration
 from imbue.system_interface.avatar.selection import AvatarSelection
+from imbue.system_interface.shell.tour import TOUR_ROUTE
+from imbue.system_interface.shell.tour import TourRecord
 from imbue.system_interface.documents import MANIFEST_PATH
 from imbue.system_interface.documents import TOUCH_ICON_PATH
 from imbue.system_interface.shell.api_models import AppRunningState
@@ -183,4 +185,7 @@ SHELL_ROUTE_TABLE: RouteTable = {
     ("GET", "/api/avatars/{design_id}/icon.png"): _IMAGE,
     ("GET", "/api/avatars/{design_id}/source.svg"): SchemalessRoute(reason="the design's SVG, as a download"),
     ("POST", "/api/avatar-selection"): RouteModels(request_model=AvatarSelection, response_model=AvatarSelected),
+    # The show-around tour
+    ("GET", TOUR_ROUTE): RouteModels(response_model=TourRecord),
+    ("POST", TOUR_ROUTE): RouteModels(request_model=TourRecord, response_model=TourRecord),
 }

@@ -63,6 +63,8 @@ from imbue.system_interface.shell.errors import NoTargetClientError
 from imbue.system_interface.shell.errors import PinnedWindowError
 from imbue.system_interface.shell.errors import ShellError
 from imbue.system_interface.shell.errors import StalePlacementsSaveError
+from imbue.system_interface.shell.tour import TOUR_ROUTE
+from imbue.system_interface.shell.tour import TourRecord
 from imbue.system_interface.shell.errors import SupervisorProgramActionError
 from imbue.system_interface.shell.errors import UnknownAppError
 from imbue.system_interface.shell.errors import UpdateNoticeCommandError
@@ -401,7 +403,21 @@ def layout_broadcast() -> ResponseReturnValue:
     return dispatch_desktop_op(_shell(), parse_op_body(body))
 
 
+def get_tour() -> ResponseReturnValue:
+    """Whether the show-around tour has run in this workspace."""
+    return model_response(TourRecord(is_seen=get_state().shell.tour.read()))
+
+
+def set_tour() -> ResponseReturnValue:
+    """Record that the tour has run (or clear that, so a fresh visit offers it again)."""
+    record = parse_request_body(TourRecord)
+    get_state().shell.tour.write(record.is_seen)
+    return model_response(TourRecord(is_seen=get_state().shell.tour.read()))
+
+
 def register_shell_routes(application: Flask) -> None:
+    application.add_url_rule(TOUR_ROUTE, view_func=get_tour, methods=["GET"], endpoint="get_tour")
+    application.add_url_rule(TOUR_ROUTE, view_func=set_tour, methods=["POST"], endpoint="set_tour")
     """Register every shell route of desktop contracts.md sections 5, 6, and 8 on ``application``."""
     application.register_error_handler(ShellError, _answer_shell_error)
     application.register_error_handler(InvalidLayoutValueError, _answer_layout_value_error)
