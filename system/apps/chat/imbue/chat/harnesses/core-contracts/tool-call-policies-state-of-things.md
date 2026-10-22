@@ -192,8 +192,9 @@ should not be relied on there: claude runs a matcher's hooks in PARALLEL
 logging hook second, and the logger saw the original). On pi, keep the rewrite inside
 `policy_guards.ts`'s handler: pi calls every extension's `tool_call` handler on one shared,
 mutable event, so a rewrite in another extension could land before the guards read the
-command, and the prefix (its own `;`-joined commands) would make the tk and permission-request
-checkers refuse every `tk start`/`tk close` and every filing as chained.
+command, and the prefix (its own `;`-joined commands) would make the tk checker refuse every
+`tk start`/`tk close` as preceded by another command, and the permission-request checker every
+filing as chained.
 
 The SDK is documented in the package's `dist/core/extensions/types.d.ts`; we do NOT modify it.
 
