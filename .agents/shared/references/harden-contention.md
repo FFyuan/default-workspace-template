@@ -213,7 +213,16 @@ uv run .agents/skills/launch-task/scripts/create_worker.py reply \
 
 Leave out the `Add to the pass:` sentence when no note names one. When one
 does, add those creations to your own `$CREATIONS` too, so the freshness check
-and go-live cover them from then on.
+and go-live cover them from then on, and record them where other chats read
+the pass: your task file's `creations` line, which a chat taking the pass over
+leads it with, and the ticket's title, which the single-flight check above
+matches. A ticket's title is the first `# ` line of its file:
+
+```bash
+ADDED="<each added creation, as type:name>"
+sed -i "s|^creations: .*|& $ADDED|" <TASK_FILE>
+sed -i "0,/^# /s|^# .*|& $ADDED|" "$TICKETS_DIR/<ticket-id>.md"
+```
 
 The worker's side is `.agents/shared/worker/references/harden-creation.md`
 ("Catching up to a moved base"), or its own flow's catch-up section where one
@@ -231,9 +240,9 @@ catch it up again: each round covers only the commits since the last, so the
 rounds shrink. A worker that cannot reconcile the new base reports `stuck` or
 asks a `question`, handled as on any run.
 
-A reverted provisional milestone (below) must be reinstated before you ask:
-the catch-up merges your `HEAD`, revert included, into the worker's branch,
-which takes the milestone's commits back out of it.
+A provisional milestone you reverted needs nothing more here: its worker
+already brought the milestone's work back on its own branch when you handed it
+the revert (`lead-proxy.md`, "Rolling back a provisional merge").
 
 ## Taking over a pass whose holder is gone
 
@@ -269,14 +278,34 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    ```
 3. Find what the worker last said. A report waiting at the task file's
    `finish_report_path` is unread, and the poll in step 4 hands it to you.
-   Otherwise its last report is the newest file in `consumed/` beside it: a
-   `gate` or `question` there, with the worker WAITING, was never answered.
-   Handle it as `lead-proxy.md` says ("Deciding: answer gate yourself vs.
-   escalate"). A `final-creation` gate goes to the user, with a sentence
-   saying it comes from an earlier check of this creation that has been
-   waiting on them. A worker that crashed restarts with that reply, or with
-   `continue` when there is nothing to answer.
-4. Arm the poll (`lead-proxy.md`) and drive the pass to its end as its lead.
+   Otherwise its last report is the newest file in `consumed/` beside it that
+   arrived after this worker was created (an earlier pass under the same name
+   leaves its reports there too):
+
+   ```bash
+   CREATED=$(jq -r 'select(.name == "<worker-name>") | .create_time' /tmp/harden-agents.jsonl)
+   LAST=$(find "$(dirname <finish_report_path>)/consumed" -maxdepth 1 -type f -newermt "$CREATED" \
+       -printf '%T@ %p\n' | sort -n | sed -n '$s/^[^ ]* //p')
+   ```
+
+   An empty `$LAST` means the worker has reported nothing yet. Otherwise the
+   holder read that report but may have stopped before acting on it, so act
+   on it now, by what it is:
+   - A `gate` or `question`, with the worker WAITING, was never answered.
+     Handle it as `lead-proxy.md` says ("Deciding: answer gate yourself vs.
+     escalate"). A `final-creation` gate goes to the user, with a sentence
+     saying it comes from an earlier check of this creation that has been
+     waiting on them.
+   - A `done` was never merged: run the calling skill's merge for it now,
+     its checks before merge first ("Before merge" above). They catch the
+     pass up when your commits moved its base.
+   - A `no-update-needed` or `stuck` is handled as `lead-proxy.md`'s
+     "Terminal status" says.
+
+   A worker that crashed restarts with your reply, or with `continue` when
+   there is nothing to answer.
+4. Unless step 3 ended the pass, arm the poll (`lead-proxy.md`) and drive the
+   pass to its end as its lead.
    Your own commits need nothing extra: the freshness check at merge time
    finds them, and the pass is caught up, adding any of your creations it
    does not cover (the note in step 2 names them).
@@ -350,11 +379,18 @@ merge:
   own branch, so deleting the worker branch does not take it back out. The
   hardening done after that milestone is unmerged work like any other, and the
   new pass carries it.
-- **A reverted milestone must be reinstated or rebuilt.** If you rolled a
+- **A reverted milestone is carried by its revert.** If you rolled a
   provisional merge back with `git revert -m 1 <merge-commit>`, the reverted
-  commits are still ancestors of HEAD, so any later merge from that branch --
-  a catch-up into it, or a new pass carrying it -- silently omits them, and
-  `git log HEAD..<branch>` does not list them. Reinstate them with `git
-  revert <revert-commit>` before merging from that branch, catching it up, or
-  carrying it. Otherwise say in the new pass's task that the milestone was
-  reverted and its work must be rebuilt from the current base.
+  commits are still ancestors of your `HEAD`, so carrying the branch cannot
+  bring them back, and `git log HEAD..<branch>` does not list them. The old
+  worker may already have brought them back on its branch, as a revert of
+  your revert; then carrying the branch carries them too. When it had not,
+  name the revert commit under `## Carried work` as well, and the new worker
+  reverts it on its own branch (`harden-creation.md`, "Carried work from a
+  superseded pass"). Never reinstate it on your branch yourself.
+
+  ```bash
+  git log --oneline HEAD..superseded/<name> --grep "This reverts commit <revert-commit>"
+  ```
+
+  Empty output means the old worker had not brought it back.

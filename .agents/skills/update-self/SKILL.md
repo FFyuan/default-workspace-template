@@ -632,9 +632,11 @@ redoing the pass. Consume the `done` you are answering first (an older
 launcher's `await` leaves it in place, and a re-armed poll would return it at
 once), then message the worker (it is still waiting, and holds the branch and
 any bundles it built), re-arm the poll as in Step 3b, and audit the `done` it
-sends back (5a) before you come back here. Plain `mngr message`, as Step 3b's
-cleanup uses plain `mngr`: the workspace's own launcher may predate a reply
-subcommand.
+sends back (5a) before you come back here. The workspace's own launcher may
+predate a reply subcommand, so send through the chat app's `message_chat.py`
+where the workspace has it, addressed by the agent id the launcher stamped into
+the task file, and otherwise through `mngr message`. Either one starts a worker
+that stopped.
 
 ```bash
 mkdir -p data/.tasks/update-self/reports/consumed
@@ -643,12 +645,18 @@ mkdir -p data/.tasks/update-self/reports/consumed
 ```
 
 ```bash
-mngr message update-self \
-    -m "Catch up to $(git rev-parse HEAD) per §7 of your worker guide, then report done again."
+CATCH_UP="Catch up to $(git rev-parse HEAD) per §7 of your worker guide, then report done again."
+WORKER_ID=$(sed -n 's/^worker_agent_id: *//p' data/.tasks/update-self/task.md)
+if [ -f system/scripts/message_chat.py ] && [ -n "$WORKER_ID" ]; then
+    python3 system/scripts/message_chat.py "$WORKER_ID" -m "$CATCH_UP"
+else
+    mngr message "${WORKER_ID:-update-self}" --start -m "$CATCH_UP"
+fi
 ```
 
 A non-zero exit other than 7, or a `No agents found` line, means the message
-did not reach the worker: do not re-arm the poll on it. Check whether the
+did not reach the worker: do not re-arm the poll on it. Exit 8 means the
+worker is gone, and takes the fresh pass below. Otherwise check whether the
 worker is alive ("Diagnose worker liveness" in
 `.agents/shared/references/lead-proxy.md`) and send again; a worker that is
 gone takes the fresh pass below. Exit 7 means it arrived but the worker sits
