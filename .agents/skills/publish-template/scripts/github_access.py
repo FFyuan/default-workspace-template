@@ -48,7 +48,7 @@ class GitHubAccessError(Exception):
     """Raised when latchkey cannot be asked at all."""
 
 
-class AccessUnknownError(GitHubAccessError):
+class AccessUnknownError(Exception):
     """Raised when the gateway answers, but with an error instead of an answer."""
 
 
