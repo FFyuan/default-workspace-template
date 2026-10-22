@@ -25,8 +25,8 @@ Usage:
 all are permitted. A kind is UNKNOWN, not "NOT permitted", when the gateway
 answers with an error instead of its rules -- typically that it cannot reach the
 user's Imbue Studio app, which a permission request would need too. `check` exits
-2 when anything is unknown and nothing is plainly missing, so a caller does not
-file requests the user cannot see; `wait` keeps polling through it.
+2 when anything is unknown, so a caller files no request until it can see the
+whole picture; `wait` keeps polling through it.
 """
 
 from __future__ import annotations
@@ -154,7 +154,10 @@ def main(argv: list[str] | None = None) -> int:
         print(_format(report), file=sys.stderr)
         return 1
     print(_format(report))
-    return 1 if _NOT_PERMITTED in report.values() else 2
+    is_unknown = any(
+        status not in (_PERMITTED, _NOT_PERMITTED) for status in report.values()
+    )
+    return 2 if is_unknown else 1
 
 
 if __name__ == "__main__":

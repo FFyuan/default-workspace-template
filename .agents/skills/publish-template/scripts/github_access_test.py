@@ -95,12 +95,16 @@ def test_an_unreachable_desktop_is_unknown_not_a_missing_grant(
     assert f"git-write: UNKNOWN ({_DESKTOP_DOWN})" in completed.stdout
 
 
-def test_a_missing_grant_still_reads_as_missing_beside_an_unknown(
+def test_an_unknown_holds_back_the_requests_for_what_is_missing(
     fake_latchkey: FakeLatchkey,
 ) -> None:
+    """Filing only the api request would leave `wait` waiting on a git grant nobody asked for."""
     fake_latchkey.set_state(api=False, permissions_error=_DESKTOP_DOWN)
 
-    assert fake_latchkey.run(_SCRIPT, "check").returncode == 1
+    completed = fake_latchkey.run(_SCRIPT, "check")
+
+    assert completed.returncode == 2
+    assert "api: NOT permitted" in completed.stdout
 
 
 def test_wait_polls_through_an_unreachable_desktop(fake_latchkey: FakeLatchkey) -> None:
