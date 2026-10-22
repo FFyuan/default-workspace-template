@@ -289,6 +289,11 @@ esac
 curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_goarch}.tar.gz" -o /tmp/node.tar.gz
 echo "${node_sha256}  /tmp/node.tar.gz" | sha256sum -c -
 # --strip-components=1 lands bin/node, bin/npm, bin/npx, lib/node_modules under /usr/local.
+# Extracting over an older Node leaves the old npm's files beside the new
+# one's, and npm then loads a stale nested dependency and fails every install,
+# so the bundled npm and corepack trees are removed first. Global packages
+# installed beside them are kept.
+rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack
 tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1
 rm /tmp/node.tar.gz
 command -v node npm >/dev/null
