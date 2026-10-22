@@ -24,9 +24,10 @@ announces its own updates, on the user's release channel.
 
 ## At the ceiling vs behind it
 
-A workspace already *at* the app's release is refused rather than passed: there
+A workspace already *at* the app's release is stopped rather than passed: there
 is nothing to merge, so `resolve-target` says so instead of spending a worker
-and a validation run on a no-op. One *behind* it updates to it. The two are
+and a validation run on a no-op, and the pass ends `ALREADY_CURRENT`, not
+`REFUSED`. One *behind* it updates to it. The two are
 told apart by whether the resolved ref is already an ancestor of `HEAD`.
 
 ## Overrides past the ceiling
