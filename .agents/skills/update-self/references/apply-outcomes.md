@@ -249,12 +249,13 @@ reports the workspace by it. Choose it by what happened:
   resumes the pass, which then ends with the verdict that answer leads to
   (SKILL.md, "Resuming after a decision").
 - `NEEDS_RECREATION`: the update cannot be applied in place
-  ("Migration-required updates").
+  ("Migration-required updates"), including a worker's `stuck` report that
+  shows the merge cannot land without breaking the running workspace.
 - `REFUSED`: the pass ran as it should and chose not to apply. Nothing is
   broken: there was no target it may take, the user declined, or the apply
   rolled back and your best effort at a retry is spent.
 - `STUCK`: a fault stopped the pass and you could not recover from it. The
-  worker reported `stuck`, a dead worker did not come back through
+  worker reported `stuck` for any other reason, a dead worker did not come back through
   `.agents/skills/launch-task/references/dead-worker-recovery.md`, a step
   the update depends on failed, or Step 2 reported a fault. The watchdog
   records it for a lead that is gone.
