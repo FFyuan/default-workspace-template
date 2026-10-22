@@ -170,7 +170,7 @@ When the machine has no free-text row the shell tells the user through its notif
 - While the menu is open and has an enabled row, exactly one row is highlighted.
 - Enter never starts a chat while a launch-path or window row is highlighted; it never does nothing while a free-text row is enabled.
 - A free-text row never opens a second window of an app that has a pinned window on the active desktop.
-- The shell package and its frontend name no app; the free-text rows and the pinned-first rule are read from manifests and windows.
+- The shell package names no app, and its frontend names one only for the show-around tour's chat card, whose Next snaps the pinned `chat` window aside (`model/tourCards.ts`); the free-text rows and the pinned-first rule are read from manifests and windows.
 - Getting Started opened its first-visit window at most once per workspace, and only onto the first desktop (removed in the new onboarding, section 3.4: it opens no window of its own now).
 - The shell serves nothing about templates or intents.
 
