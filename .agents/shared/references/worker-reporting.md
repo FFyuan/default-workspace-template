@@ -182,15 +182,19 @@ When the user rejects a milestone the lead merged, the lead reverts it and
 its reply names the revert commit and says why. The milestone's commits are
 still ancestors of the lead's `HEAD`, so a later merge of your branch would
 leave them out: bring them back on your branch, as a revert of that revert,
-and fix them there. Commit anything outstanding, merge the revert commit,
-resolving any conflict on your branch, then revert it:
+and fix them there. Make that revert on top of the lead's, then merge it, so
+the merge sees the milestone unchanged and keeps what you built on it since
+(merging the lead's revert first conflicts with each later edit of yours to
+the milestone, and taking its side loses that edit). Commit anything
+outstanding, then run the block below, resolving any conflict the merge
+raises on your branch:
 
 ```bash
-git merge --no-ff <the revert commit> -m "Catch up to <its short sha>"
-```
-
-```bash
-git revert --no-edit <the revert commit>
+git checkout --detach <the revert commit>
+git revert --no-edit HEAD
+RESTORED=$(git rev-parse HEAD)
+git checkout -
+git merge --no-ff "$RESTORED" -m "Catch up to <the revert commit's short sha>"
 ```
 
 The work reaches the lead again only with the next report of yours it
