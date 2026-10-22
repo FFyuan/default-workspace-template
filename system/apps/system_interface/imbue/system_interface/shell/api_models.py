@@ -99,3 +99,11 @@ class UpdateRollbackStarted(FrozenModel):
     """What starting a rollback answers (202): the rollback is under way."""
 
     detail: str = Field(description="That the rollback has started")
+
+
+class TourRecord(FrozenModel):
+    """The body of ``POST /api/tour`` and the answer of both tour routes."""
+
+    is_seen: bool = Field(
+        description="Whether the show-around tour has started in this workspace, by itself or from the launcher"
+    )

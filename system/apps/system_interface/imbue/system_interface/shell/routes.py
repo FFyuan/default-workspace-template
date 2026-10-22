@@ -31,6 +31,7 @@ from imbue.system_interface.app_context import get_state
 from imbue.system_interface.shell.api_models import AppRunningState
 from imbue.system_interface.shell.api_models import EmbedderMessageRelayResponse
 from imbue.system_interface.shell.api_models import PendingUpdateResponse
+from imbue.system_interface.shell.api_models import TourRecord
 from imbue.system_interface.shell.api_models import UpdateRollbackStarted
 from imbue.system_interface.shell.clients import client_view
 from imbue.system_interface.shell.data_types import AppInventoryEntry
@@ -86,7 +87,6 @@ from imbue.system_interface.shell.route_helpers import detail_response
 from imbue.system_interface.shell.route_helpers import require_loopback
 from imbue.system_interface.shell.state import ShellState
 from imbue.system_interface.shell.tour import TOUR_ROUTE
-from imbue.system_interface.shell.tour import TourRecord
 
 
 def _answer_shell_error(error: ShellError) -> ResponseReturnValue:

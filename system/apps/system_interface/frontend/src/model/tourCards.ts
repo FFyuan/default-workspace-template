@@ -121,7 +121,7 @@ export const TOUR_EXIT_BADGE_BUTTON_LABEL = "Got it";
 
 /** The launcher row that runs the tour, and the words it matches. */
 export const TOUR_LAUNCHER_LABEL = "Show me around";
-export const TOUR_LAUNCHER_SEARCH_WORDS: readonly string[] = ["tour", "walkthrough", "help"];
+export const TOUR_LAUNCHER_SEARCH_WORDS: readonly string[] = ["tour", "walkthrough"];
 
 /** The selectors, in order of preference, of the shell's own markers a target is found at (contracts.md section 12). */
 export function tourTargetSelectors(target: TourTarget): readonly string[] {

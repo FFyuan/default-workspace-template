@@ -20,6 +20,9 @@ import { placeBeside, placeByAvatar, placeUnderChrome } from "../model/tourPlace
 
 const CARD_WIDTH_PX = 360;
 const IMAGE_CARD_WIDTH_PX = 440;
+/** The arrow is a rotated square of this size, sunk into the card's edge by half of it plus the border. */
+const ARROW_SIZE_PX = 12;
+const ARROW_INSET = `-${ARROW_SIZE_PX / 2 + 1}px`;
 /** How often the card re-measures what it points at while shown. */
 const FOLLOW_INTERVAL_MS = 400;
 
@@ -76,16 +79,16 @@ export function placeCard(
 function arrowStyle(placement: TourPlacement): Record<string, string> | null {
   const arrow = placement.arrow;
   if (arrow === null) return null;
-  const offset = `${arrow.offset - 6}px`;
+  const offset = `${arrow.offset - ARROW_SIZE_PX / 2}px`;
   switch (arrow.side) {
     case "top":
-      return { left: offset, top: "-7px", borderBottom: "0", borderRight: "0" };
+      return { left: offset, top: ARROW_INSET, borderBottom: "0", borderRight: "0" };
     case "bottom":
-      return { left: offset, bottom: "-7px", borderTop: "0", borderLeft: "0" };
+      return { left: offset, bottom: ARROW_INSET, borderTop: "0", borderLeft: "0" };
     case "left":
-      return { top: offset, left: "-7px", borderTop: "0", borderRight: "0" };
+      return { top: offset, left: ARROW_INSET, borderTop: "0", borderRight: "0" };
     case "right":
-      return { top: offset, right: "-7px", borderBottom: "0", borderLeft: "0" };
+      return { top: offset, right: ARROW_INSET, borderBottom: "0", borderLeft: "0" };
   }
 }
 
@@ -149,8 +152,8 @@ export function TourCard(): m.Component<TourCardAttrs> {
             ? null
             : m("span", {
                 "aria-hidden": "true",
-                class: "tour-arrow absolute size-3 rotate-45 border border-default bg-surface",
-                style: arrow,
+                class: "tour-arrow absolute rotate-45 border border-default bg-surface",
+                style: { ...arrow, width: `${ARROW_SIZE_PX}px`, height: `${ARROW_SIZE_PX}px` },
               }),
           m("div", { class: "flex items-start gap-3" }, [
             m("img", {
