@@ -17,11 +17,10 @@ export DEBIAN_FRONTEND=noninteractive
 # the installers "succeed" into the wrong home and the version checks fail.
 export HOME=/root
 
-# Pin the Python every uv command below resolves to (the modal tool install, the
-# managed-Python fallback). uv's default for an open-ended request moves with the
-# uv release, so without this a uv bump would quietly move the tools to a new
-# Python; changing it is a deliberate edit here, in build_workspace.sh and in
-# install_dependencies.sh.
+# Pin the Python every uv command below resolves to. uv's default for an
+# open-ended request moves with the uv release, so without this a uv bump would
+# quietly move the tools to a new Python; changing it is a deliberate edit here,
+# in build_workspace.sh and in install_dependencies.sh.
 export UV_PYTHON=3.12
 
 # Skip if this exact repo tree was already provisioned (e.g. baked into the image).
