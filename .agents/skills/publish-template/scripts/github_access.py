@@ -23,8 +23,9 @@ Usage:
 
 `--need` defaults to both. Each prints one line per kind and exits 0 only when
 all are permitted. A kind is UNKNOWN, not "NOT permitted", when the gateway
-answers with an error instead of its rules -- typically that it cannot reach the
-user's Imbue Studio app, which a permission request would need too. `check` exits
+brings back no readable answer -- an error instead of its rules (typically that
+it cannot reach the user's Imbue Studio app, which a permission request would
+need too), a failed latchkey run, or output that is not JSON. `check` exits
 2 when anything is unknown, so a caller files no request until it can see the
 whole picture; `wait` keeps polling through it.
 """
