@@ -116,3 +116,106 @@ def test_summed_costs_carry_no_float_noise(store: UsageStore) -> None:
     [row] = store.totals([], NOW - timedelta(hours=1))
 
     assert row.cost_usd == Decimal("0.3")
+
+
+def _timed(seconds: float, **overrides: object) -> ModelCallEvent:
+    return _event(
+        started_at=(NOW - timedelta(seconds=seconds)).isoformat(),
+        ended_at=NOW.isoformat(),
+        **overrides,
+    )
+
+
+def test_latency_percentiles_leave_out_untimed_calls_and_count_them(
+    store: UsageStore,
+) -> None:
+    for seconds in (1, 2, 3, 4, 10):
+        store.insert(_timed(seconds))
+    store.insert(_timed(0))
+
+    [row] = store.latency([], NOW - timedelta(hours=1))
+
+    assert (row.timed_calls, row.untimed_calls) == (5, 1)
+    assert (row.p50_ms, row.p95_ms) == (3000, 10000)
+
+
+def test_latency_counts_log_timed_calls_as_approximate_per_group(
+    store: UsageStore,
+) -> None:
+    store.insert(_timed(2, attribution={"harness": "claude"}))
+    store.insert(_timed(1, model="anthropic/claude-haiku-4-5"))
+
+    rows = {
+        row.group["model"]: row
+        for row in store.latency(["model"], NOW - timedelta(hours=1))
+    }
+
+    assert rows["anthropic/claude-opus-5-5"].approximate_calls == 1
+    assert rows["anthropic/claude-haiku-4-5"].approximate_calls == 0
+    assert rows["anthropic/claude-haiku-4-5"].p50_ms == 1000
+
+
+def test_a_group_of_only_untimed_calls_has_no_percentiles(store: UsageStore) -> None:
+    store.insert(_timed(0))
+
+    [row] = store.latency([], NOW - timedelta(hours=1))
+
+    assert (row.timed_calls, row.untimed_calls, row.p50_ms) == (0, 1, None)
+
+
+def test_calls_are_newest_first_and_page_back_with_before(store: UsageStore) -> None:
+    events = [
+        _event(
+            ended_at=(NOW - timedelta(minutes=minutes)).isoformat(),
+            started_at=(NOW - timedelta(minutes=minutes, seconds=1)).isoformat(),
+        )
+        for minutes in (3, 1, 2)
+    ]
+    for event in events:
+        store.insert(event)
+
+    first_page = store.calls({}, limit=2)
+    second_page = store.calls({}, limit=2, before=str(first_page[-1].event["event_id"]))
+
+    assert [call.event["event_id"] for call in first_page + second_page] == [
+        events[1].event_id,
+        events[2].event_id,
+        events[0].event_id,
+    ]
+
+
+def test_calls_after_a_sequence_are_the_ones_stored_since(store: UsageStore) -> None:
+    store.insert(_event())
+    [seen] = store.calls({})
+    later = _event(
+        ended_at=(NOW - timedelta(hours=1)).isoformat(),
+        started_at=(NOW - timedelta(hours=1, seconds=1)).isoformat(),
+    )
+    store.insert(later)
+
+    assert [
+        call.event["event_id"] for call in store.calls({}, after=seen.sequence)
+    ] == [later.event_id]
+
+
+def test_calls_filter_by_rollup_dimensions(store: UsageStore) -> None:
+    store.insert(_event(attribution={"origin_id": "files"}))
+    store.insert(_event(attribution={"origin_id": "routines"}))
+
+    [call] = store.calls({"origin_id": "routines"})
+
+    assert ModelCallEvent.model_validate(call.event).attribution.origin_id == "routines"
+    with pytest.raises(UsageStoreError):
+        store.calls({"harness": "litellm"})
+
+
+def test_totals_group_by_cost_provenance(store: UsageStore) -> None:
+    store.insert(_event())
+    store.insert(_event(cost_usd="0.5", cost_provenance="REPORTED"))
+
+    rows = {
+        row.group["cost_provenance"]: row.calls
+        for row in store.totals(["cost_provenance"], NOW - timedelta(hours=1))
+    }
+
+    assert rows == {"ESTIMATED": 1, "REPORTED": 1}

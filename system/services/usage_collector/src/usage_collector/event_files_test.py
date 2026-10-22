@@ -40,7 +40,7 @@ def test_model_call_lines_are_ingested_and_other_lines_skipped(
             store,
             ingestor.ingest,
             "ws-host",
-        )
+        ).events_read
         == 1
     )
     assert _calls(store) == 1
@@ -68,7 +68,7 @@ def test_reading_resumes_where_it_left_off_including_a_finished_partial_line(
             store,
             ingestor.ingest,
             "ws-host",
-        )
+        ).events_read
         == 1
     )
     assert (
@@ -77,7 +77,7 @@ def test_reading_resumes_where_it_left_off_including_a_finished_partial_line(
             store,
             ingestor.ingest,
             "ws-host",
-        )
+        ).events_read
         == 0
     )
     assert _calls(store) == 2
@@ -120,7 +120,7 @@ def test_preserved_agents_files_are_read_too(
             store,
             ingestor.ingest,
             "ws-host",
-        )
+        ).events_read
         == 1
     )
 
@@ -169,7 +169,7 @@ def test_workspace_usage_files_are_followed_beside_the_agents(
     paths = list(event_files(tmp_path, workspace_events))
 
     assert [path.name for path in paths] == ["events.jsonl", "app-files.jsonl"]
-    assert follow_event_files(paths, store, ingestor.ingest, "ws-host") == 2
+    assert follow_event_files(paths, store, ingestor.ingest, "ws-host").events_read == 2
 
 
 def test_a_lost_store_is_rebuilt_from_the_files(

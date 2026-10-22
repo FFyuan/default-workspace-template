@@ -8,9 +8,11 @@ per minute per key instead of scanning raw events. Raw events are kept
 ``RAW_RETENTION`` and rollups indefinitely.
 """
 
+import json
+import math
 import sqlite3
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import auto
@@ -48,7 +50,14 @@ GROUPABLE_DIMENSIONS: Final[tuple[str, ...]] = (
     "purpose",
     "credential_ref",
     "workspace_id",
+    "cost_provenance",
 )
+# The equality filters a calls query takes: the rollup dimensions, which a dashboard groups by.
+CALL_FILTER_DIMENSIONS: Final[tuple[str, ...]] = ROLLUP_DIMENSIONS
+DEFAULT_CALLS_LIMIT: Final[int] = 50
+MAX_CALLS_LIMIT: Final[int] = 500
+# Harnesses whose start time is read off a log line, not measured, so their durations are approximate.
+APPROXIMATE_TIMING_HARNESSES: Final[frozenset[str]] = frozenset({"claude"})
 TOKEN_COLUMNS: Final[tuple[str, ...]] = ("input", "output", "cache_read", "cache_write")
 
 _SCHEMA: Final[str] = """
@@ -138,6 +147,36 @@ class TotalsRow(FrozenModel):
     )
     cost_usd: Decimal | None
     tokens: dict[str, int]
+
+
+class LatencyRow(FrozenModel):
+    """Call durations (ended_at minus started_at) for one group; percentiles cover only the timed calls."""
+
+    group: dict[str, str | None] = Field(
+        description="The grouped dimensions' values; None for 'not known'"
+    )
+    timed_calls: int = Field(description="Calls with a duration above zero")
+    untimed_calls: int = Field(
+        description="Calls whose writer reported no duration (started_at equal to ended_at)"
+    )
+    approximate_calls: int = Field(
+        description="Timed calls whose start time was read off a log line rather than measured"
+    )
+    p50_ms: float | None = Field(
+        description="Median duration; None with no timed calls"
+    )
+    p95_ms: float | None = Field(
+        description="95th percentile duration; None with no timed calls"
+    )
+
+
+class StoredCall(FrozenModel):
+    """One stored model_call event, with its place in the store's insertion order."""
+
+    sequence: int = Field(
+        description="Increases with each stored event; the cursor for calls stored after it"
+    )
+    event: dict[str, object] = Field(description="The model_call event as stored")
 
 
 def _rollup_key(event: ModelCallEvent) -> tuple[str, ...]:
@@ -269,14 +308,7 @@ class UsageStore:
         bucket: TimeBucket | None = None,
     ) -> list[TotalsRow]:
         """Cost and token totals for calls that ended in [since, until), grouped by ``group_by`` (and ``bucket``)."""
-        unknown = [
-            dimension for dimension in group_by if dimension not in GROUPABLE_DIMENSIONS
-        ]
-        if unknown:
-            raise UsageStoreError(
-                f"Cannot group by {unknown}; choose from {list(GROUPABLE_DIMENSIONS)}"
-            )
-        dimensions = list(dict.fromkeys(group_by))
+        dimensions = _checked_dimensions(group_by)
         is_rollup = all(dimension in ROLLUP_DIMENSIONS for dimension in dimensions)
         if is_rollup:
             table, time_expression = "rollup_minute", "minute * 60"
@@ -315,15 +347,104 @@ class UsageStore:
                 else ""
             )
         )
-        until_value = (
-            until or datetime.now(timezone.utc) + timedelta(days=1)
-        ).timestamp()
         with self._lock:
             rows = self._connection.execute(
-                query, (since.timestamp(), until_value)
+                query, (since.timestamp(), _until_timestamp(until))
             ).fetchall()
         return [
             _totals_row(row, dimensions, bucket is not None, is_rollup) for row in rows
+        ]
+
+    def latency(
+        self,
+        group_by: Sequence[str],
+        since: datetime,
+        until: datetime | None = None,
+    ) -> list[LatencyRow]:
+        """Duration percentiles for calls that ended in [since, until), grouped by ``group_by``, from raw events."""
+        dimensions = _checked_dimensions(group_by)
+        selected = ", ".join(
+            [*dimensions, "(ended_at - started_at) * 1000 AS duration_ms", "harness"]
+        )
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT {selected} FROM model_call WHERE ended_at >= ? AND ended_at < ?",
+                (since.timestamp(), _until_timestamp(until)),
+            ).fetchall()
+        durations: dict[tuple[str | None, ...], list[float]] = {}
+        untimed: dict[tuple[str | None, ...], int] = {}
+        approximate: dict[tuple[str | None, ...], int] = {}
+        for row in rows:
+            key = tuple(row[dimension] for dimension in dimensions)
+            durations.setdefault(key, [])
+            if row["duration_ms"] <= 0:
+                untimed[key] = untimed.get(key, 0) + 1
+                continue
+            durations[key].append(row["duration_ms"])
+            if row["harness"] in APPROXIMATE_TIMING_HARNESSES:
+                approximate[key] = approximate.get(key, 0) + 1
+        return [
+            LatencyRow(
+                group=dict(zip(dimensions, key)),
+                timed_calls=len(values),
+                untimed_calls=untimed.get(key, 0),
+                approximate_calls=approximate.get(key, 0),
+                p50_ms=_percentile(values, 50),
+                p95_ms=_percentile(values, 95),
+            )
+            for key, values in sorted(
+                durations.items(), key=lambda item: [str(part) for part in item[0]]
+            )
+        ]
+
+    def calls(
+        self,
+        filters: Mapping[str, str],
+        limit: int = DEFAULT_CALLS_LIMIT,
+        before: str | None = None,
+        after: int | None = None,
+    ) -> list[StoredCall]:
+        """Stored calls matching ``filters``, newest first.
+
+        ``before`` (an event id) pages back to calls that ended before that one;
+        ``after`` (a sequence) returns only calls stored after it, which is how a
+        stream client fills the gap a reconnect left.
+        """
+        unknown = [
+            dimension
+            for dimension in filters
+            if dimension not in CALL_FILTER_DIMENSIONS
+        ]
+        if unknown:
+            raise UsageStoreError(
+                f"Cannot filter by {unknown}; choose from {list(CALL_FILTER_DIMENSIONS)}"
+            )
+        if not 1 <= limit <= MAX_CALLS_LIMIT:
+            raise UsageStoreError(f"limit must be between 1 and {MAX_CALLS_LIMIT}")
+        clauses = [f"{dimension} IS ?" for dimension in filters]
+        parameters: list[object] = [value or None for value in filters.values()]
+        with self._lock:
+            if before is not None:
+                anchor = self._connection.execute(
+                    "SELECT ended_at, rowid FROM model_call WHERE event_id = ?",
+                    (before,),
+                ).fetchone()
+                if anchor is None:
+                    raise UsageStoreError(f"No stored call has event id {before!r}")
+                clauses.append("(ended_at, rowid) < (?, ?)")
+                parameters.extend([anchor["ended_at"], anchor["rowid"]])
+            if after is not None:
+                clauses.append("rowid > ?")
+                parameters.append(after)
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            rows = self._connection.execute(
+                f"SELECT rowid, event_json FROM model_call{where} "
+                "ORDER BY ended_at DESC, rowid DESC LIMIT ?",
+                (*parameters, limit),
+            ).fetchall()
+        return [
+            StoredCall(sequence=row["rowid"], event=json.loads(row["event_json"]))
+            for row in rows
         ]
 
 
@@ -349,6 +470,32 @@ def _totals_row(
         cost_usd=_summed_cost(cost) if known_cost_calls and cost is not None else None,
         tokens=dict(zip(TOKEN_COLUMNS, (int(value or 0) for value in token_sums))),
     )
+
+
+def _checked_dimensions(group_by: Sequence[str]) -> list[str]:
+    """``group_by`` without repeats; raises UsageStoreError for a field a query cannot group by."""
+    unknown = [
+        dimension for dimension in group_by if dimension not in GROUPABLE_DIMENSIONS
+    ]
+    if unknown:
+        raise UsageStoreError(
+            f"Cannot group by {unknown}; choose from {list(GROUPABLE_DIMENSIONS)}"
+        )
+    return list(dict.fromkeys(group_by))
+
+
+def _until_timestamp(until: datetime | None) -> float:
+    """The window's end; an open window also takes calls whose clock ran a little ahead."""
+    return (until or datetime.now(timezone.utc) + timedelta(days=1)).timestamp()
+
+
+def _percentile(values: list[float], percent: int) -> float | None:
+    """The nearest-rank percentile of ``values``; None when there are none."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(1, math.ceil(percent / 100 * len(ordered)))
+    return ordered[rank - 1]
 
 
 def _optional_str(value: object | None) -> str | None:

@@ -1,7 +1,10 @@
 """The collector's HTTP API, on 127.0.0.1 only.
 
 - ``GET /v1/totals?group_by=origin_id,model&since=24h[&until=...][&bucket=hour]``: cost and token totals.
+- ``GET /v1/latency?group_by=model&since=24h[&until=...]``: call duration percentiles.
+- ``GET /v1/calls?model=...&limit=50[&before=<event id>][&after=<sequence>]``: stored calls, newest first.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
+- ``GET /health``: whether the collector is up, and whether it is still reading the event files.
 
 Usage is the owner's alone: a request the share gateway marks as a visitor's
 is refused. A request with no identity header comes from inside the
@@ -19,7 +22,14 @@ from flask import Flask, Response, jsonify, request
 from loguru import logger
 
 from usage_collector.feed import UsageFeed
-from usage_collector.store import TimeBucket, UsageStore, UsageStoreError
+from usage_collector.status import IngestStatus
+from usage_collector.store import (
+    CALL_FILTER_DIMENSIONS,
+    DEFAULT_CALLS_LIMIT,
+    TimeBucket,
+    UsageStore,
+    UsageStoreError,
+)
 
 IDENTITY_HEADER: Final[str] = "X-Imbue-Identity"
 DEFAULT_SINCE: Final[timedelta] = timedelta(hours=24)
@@ -78,7 +88,27 @@ def parse_bucket(value: str | None) -> TimeBucket | None:
     )
 
 
-def create_app(store: UsageStore, feed: UsageFeed) -> Flask:
+def parse_group_by(value: str | None) -> list[str]:
+    return [field.strip() for field in (value or "").split(",") if field.strip()]
+
+
+def parse_window(
+    since_value: str | None, until_value: str | None, now: datetime
+) -> tuple[datetime, datetime | None]:
+    since = parse_time(since_value, now, None) or now - DEFAULT_SINCE
+    return since, parse_time(until_value, now, None)
+
+
+def parse_int(value: str | None, name: str) -> int | None:
+    if value is None or not value.strip():
+        return None
+    try:
+        return int(value)
+    except ValueError as e:
+        raise QueryParameterError(f"{name} must be a whole number") from e
+
+
+def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flask:
     app = Flask(__name__)
 
     @app.before_request
@@ -92,21 +122,16 @@ def create_app(store: UsageStore, feed: UsageFeed) -> Flask:
 
     @app.get("/health")
     def _health() -> Response:
-        return jsonify(status="ok")
+        return jsonify(status="ok", catching_up=status.is_catching_up)
 
     @app.get("/v1/totals")
     def _get_totals() -> Response | tuple[Response, int]:
         now = datetime.now(timezone.utc)
-        group_by = [
-            field.strip()
-            for field in request.args.get("group_by", "").split(",")
-            if field.strip()
-        ]
+        group_by = parse_group_by(request.args.get("group_by"))
         try:
-            since = (
-                parse_time(request.args.get("since"), now, None) or now - DEFAULT_SINCE
+            since, until = parse_window(
+                request.args.get("since"), request.args.get("until"), now
             )
-            until = parse_time(request.args.get("until"), now, None)
             bucket = parse_bucket(request.args.get("bucket"))
             rows = store.totals(group_by, since, until, bucket)
         except (QueryParameterError, UsageStoreError) as e:
@@ -118,6 +143,45 @@ def create_app(store: UsageStore, feed: UsageFeed) -> Flask:
             bucket=str(bucket).lower() if bucket is not None else None,
             rows=[json.loads(row.model_dump_json()) for row in rows],
         )
+
+    @app.get("/v1/latency")
+    def _get_latency() -> Response | tuple[Response, int]:
+        now = datetime.now(timezone.utc)
+        group_by = parse_group_by(request.args.get("group_by"))
+        try:
+            since, until = parse_window(
+                request.args.get("since"), request.args.get("until"), now
+            )
+            rows = store.latency(group_by, since, until)
+        except (QueryParameterError, UsageStoreError) as e:
+            return _error(str(e), 400)
+        return jsonify(
+            since=since.isoformat(),
+            until=until.isoformat() if until is not None else None,
+            group_by=group_by,
+            rows=[row.model_dump(mode="json") for row in rows],
+        )
+
+    @app.get("/v1/calls")
+    def _get_calls() -> Response | tuple[Response, int]:
+        filters = {
+            dimension: request.args[dimension]
+            for dimension in CALL_FILTER_DIMENSIONS
+            if dimension in request.args
+        }
+        before = request.args.get("before") or None
+        try:
+            limit = parse_int(request.args.get("limit"), "limit")
+            after = parse_int(request.args.get("after"), "after")
+            calls = store.calls(
+                filters,
+                DEFAULT_CALLS_LIMIT if limit is None else limit,
+                before=before,
+                after=after,
+            )
+        except (QueryParameterError, UsageStoreError) as e:
+            return _error(str(e), 400)
+        return jsonify(calls=[call.model_dump(mode="json") for call in calls])
 
     @app.get("/v1/stream")
     def _stream() -> Response:

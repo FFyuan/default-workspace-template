@@ -35,9 +35,18 @@ indefinitely; older raw events stay in the files.
   (`90s`, `30m`, `24h`, `7d`) or an ISO timestamp. Grouping only by origin,
   agent, model and billing mode reads per-minute rollups; any other field reads
   raw events.
+- `GET /v1/latency?group_by=model&since=24h[&until=...]`: p50 and p95 call
+  duration (`ended_at` minus `started_at`) per group, from raw events. Calls
+  with no duration are left out of the percentiles and counted, and calls
+  timed from Claude session logs are counted as approximate.
+- `GET /v1/calls?limit=50[&model=...][&before=<event id>][&after=<sequence>]`:
+  stored calls, newest first, filtered by any of origin_kind, origin_id,
+  agent_id, model and billing_mode. `before` pages back; `after` returns the
+  calls stored since a `sequence` a client last saw.
 - `GET /v1/stream`: server-sent events, one `model_call` message per newly
   stored event.
-- `GET /health`.
+- `GET /health`: `catching_up` is true until a pass has read every event file
+  to its end, so totals during a first start or a rebuild are incomplete.
 
 Requests the share gateway marks as a visitor's (`X-Imbue-Identity` with
 `"owner": false`) are refused: usage is the owner's alone.

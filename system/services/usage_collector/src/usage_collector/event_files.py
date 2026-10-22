@@ -24,7 +24,9 @@ from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any, Final
 
+from imbue.imbue_common.frozen_model import FrozenModel
 from loguru import logger
+from pydantic import Field
 
 from usage_collector.store import UsageStore
 
@@ -61,14 +63,24 @@ def with_workspace_id(record: dict[str, Any], workspace_id: str) -> dict[str, An
     return {**record, "attribution": {**attribution, "workspace_id": workspace_id}}
 
 
+class PassResult(FrozenModel):
+    """What one pass over the event files read."""
+
+    events_read: int = Field(description="model_call lines read and handed to ingest")
+    is_complete: bool = Field(
+        description="Whether every file was read to its end, rather than stopped at the per-pass cap"
+    )
+
+
 def follow_event_files(
     paths: Iterable[Path],
     store: UsageStore,
     ingest: Callable[[object], object],
     workspace_id: str,
-) -> int:
-    """Ingest the model_call lines added to each file since the last pass. Returns how many were read."""
+) -> PassResult:
+    """Ingest the model_call lines added to each file since the last pass."""
     read = 0
+    is_complete = True
     for path in paths:
         try:
             stat = path.stat()
@@ -83,6 +95,8 @@ def follow_event_files(
             with path.open("rb") as handle:
                 handle.seek(offset)
                 chunk = handle.read(_MAX_BYTES_PER_PASS)
+            if offset + len(chunk) < stat.st_size:
+                is_complete = False
         except OSError as e:
             logger.warning("Could not read agent usage file {}: {}", path, e)
             continue
@@ -100,4 +114,4 @@ def follow_event_files(
                 ingest(with_workspace_id(record, workspace_id))
                 read += 1
         store.set_file_position(path, stat.st_ino, offset + len(complete))
-    return read
+    return PassResult(events_read=read, is_complete=is_complete)

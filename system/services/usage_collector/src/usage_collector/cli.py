@@ -19,10 +19,11 @@ from werkzeug.serving import make_server
 from workspace_usage.context import read_workspace_id
 from workspace_usage.emit import events_dir, usage_data_dir
 
-from usage_collector.event_files import event_files, follow_event_files
+from usage_collector.event_files import PassResult, event_files, follow_event_files
 from usage_collector.feed import UsageFeed
 from usage_collector.ingest import Ingestor
 from usage_collector.server import create_app
+from usage_collector.status import IngestStatus
 from usage_collector.store import UsageStore
 
 COLLECTOR_PORT: Final[int] = 8795
@@ -37,8 +38,10 @@ def host_dir(environ: Mapping[str, str]) -> Path | None:
     return Path(configured) if configured else None
 
 
-def run_pass(ingestor: Ingestor, store: UsageStore, environ: Mapping[str, str]) -> int:
-    """One round of reading what every event file gained; returns how many events were read."""
+def run_pass(
+    ingestor: Ingestor, store: UsageStore, environ: Mapping[str, str]
+) -> PassResult:
+    """One round of reading what every event file gained."""
     paths = event_files(host_dir(environ), events_dir(environ))
     return follow_event_files(paths, store, ingestor.ingest, read_workspace_id(environ))
 
@@ -47,11 +50,12 @@ def run_maintenance(
     ingestor: Ingestor,
     store: UsageStore,
     environ: Mapping[str, str],
+    status: IngestStatus,
     stop: threading.Event,
 ) -> None:
     """Run a pass about once a second, and prune hourly, until ``stop`` is set."""
     for passes in itertools.count():
-        run_pass(ingestor, store, environ)
+        status.record_pass(run_pass(ingestor, store, environ).is_complete)
         if passes % _PRUNE_EVERY_PASSES == 0:
             pruned = store.prune(datetime.now(timezone.utc))
             if pruned:
@@ -67,11 +71,12 @@ def main() -> None:
     store = UsageStore(usage_data_dir(environ) / DATABASE_FILENAME)
     feed = UsageFeed()
     ingestor = Ingestor(store, feed)
-    app = create_app(store, feed)
+    status = IngestStatus()
+    app = create_app(store, feed, status)
     stop = threading.Event()
     maintenance = threading.Thread(
         target=run_maintenance,
-        args=(ingestor, store, environ, stop),
+        args=(ingestor, store, environ, status, stop),
         name="usage-maintenance",
         daemon=True,
     )
