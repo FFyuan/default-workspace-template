@@ -13,6 +13,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from cryptography import x509
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -34,7 +35,7 @@ _COMPROMISED_SPKI_SHA256 = {
 }
 
 
-def _policy() -> dict:
+def _policy() -> dict[str, Any]:
     match = _POLICY_HEREDOC.search(_UNIT_PATH.read_text())
     assert match is not None, f"no <<'POLICY' heredoc in {_UNIT_PATH}"
     return json.loads(match.group(1))
