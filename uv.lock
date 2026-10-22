@@ -1378,7 +1378,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "werkzeug" },
-    { name = "workspace-layout" },
 ]
 
 [package.dev-dependencies]
