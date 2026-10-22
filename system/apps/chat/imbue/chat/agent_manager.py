@@ -2532,18 +2532,23 @@ class AgentManager:
             if is_seed_carried:
                 self._seed_carries_in_flight.add(chat_id)
         text = seed_context_message(self._chat_files_root / chat_id, message) if is_seed_carried else message
+        is_delivered = False
         try:
             outcome = deliver(text)
+            is_delivered = outcome is SendOutcome.OK
         finally:
             if is_seed_carried:
-                with self._lock:
-                    self._seed_carries_in_flight.discard(chat_id)
-        if is_seed_carried and outcome is SendOutcome.OK:
-            self._mark_pending_seed_delivered(chat_id)
+                self._end_seed_carry(chat_id, is_delivered=is_delivered)
         return outcome
 
-    def _mark_pending_seed_delivered(self, chat_id: ChatId) -> None:
+    def _end_seed_carry(self, chat_id: ChatId, is_delivered: bool) -> None:
+        """Free ``chat_id`` for the next send's carry, marking the seed delivered in the same locked step when
+        this carry went through: a send arriving between the two would otherwise find the seed still pending
+        with no carry in flight, and carry it again."""
         with self._lock:
+            self._seed_carries_in_flight.discard(chat_id)
+            if not is_delivered:
+                return
             record = self._chat_record_by_id.get(chat_id)
             if record is None or not record.is_seed_pending:
                 return
