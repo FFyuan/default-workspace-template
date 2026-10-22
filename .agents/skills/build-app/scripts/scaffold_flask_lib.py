@@ -468,7 +468,6 @@ def index() -> Response:
 @app.route("/_csp-report", methods=["POST"])
 def content_security_policy_report() -> Response:
     """Where the browser reports what the page's security policy blocked."""
-    # A block caused by a browser extension is the policy doing its job and is not logged.
     body = request.get_json(force=True, silent=True)
     report = body.get("csp-report") if isinstance(body, dict) else None
     if not isinstance(report, dict):
@@ -477,6 +476,7 @@ def content_security_policy_report() -> Response:
         str(report.get(key, ""))[:500]
         for key in ("blocked-uri", "document-uri", "source-file", "effective-directive", "line-number", "script-sample")
     )
+    # A block caused by a browser extension is the policy doing its job and is not logged.
     if blocked.startswith(BROWSER_EXTENSION_SCHEMES) or source.startswith(BROWSER_EXTENSION_SCHEMES):
         return Response(status=204)
     # An inline script or style is reported as "inline": say where it is and how it starts instead.
