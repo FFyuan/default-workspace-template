@@ -13,6 +13,11 @@ export function formatCount(count: number): string {
   return count.toLocaleString(undefined, { notation: "compact", maximumFractionDigits: 1 });
 }
 
+/** "1 call", "12.3K calls". */
+export function formatCalls(count: number): string {
+  return `${formatCount(count)} ${count === 1 ? "call" : "calls"}`;
+}
+
 /** "850 ms", "2.4 s", "1.5 min". */
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`;

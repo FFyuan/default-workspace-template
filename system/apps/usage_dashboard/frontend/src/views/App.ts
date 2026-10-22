@@ -23,6 +23,7 @@ import {
 } from "../models/breakdown";
 import type { ChartMetric, DashboardData, DashboardModel } from "../models/dashboard";
 import {
+  formatCalls,
   formatCallTime,
   formatClock,
   formatCount,
@@ -61,7 +62,7 @@ function spendTile(data: DashboardData): m.Vnode {
         ? m(
             "div",
             { class: "text-warning", "data-unknown-cost": summary.unknownCostCalls },
-            `+${formatCount(summary.unknownCostCalls)} ${summary.unknownCostCalls === 1 ? "call" : "calls"} with unknown cost`,
+            `+${formatCalls(summary.unknownCostCalls)} with unknown cost`,
           )
         : null,
     ],
@@ -76,7 +77,7 @@ function subscriptionTile(data: DashboardData): m.Vnode | null {
     "Subscription",
     summary.subscriptionListPrice === null ? "Unpriced" : `≈ ${formatDollars(summary.subscriptionListPrice)}`,
     [
-      m("div", `${formatCount(summary.subscriptionCalls)} calls at list price`),
+      m("div", `${formatCalls(summary.subscriptionCalls)} at list price`),
       m("div", { class: "text-faint" }, "Covered by the subscription, not billed per call"),
     ],
     { "data-tile": "subscription" },
@@ -121,7 +122,7 @@ function latencyTile(data: DashboardData): m.Vnode {
     [
       m("div", `p95 ${latencyText(row, "p95_ms")}`),
       row !== null && row.untimed_calls > 0
-        ? m("div", { class: "text-faint" }, `${formatCount(row.untimed_calls)} calls without timing`)
+        ? m("div", { class: "text-faint" }, `${formatCalls(row.untimed_calls)} without timing`)
         : null,
       row !== null && row.approximate_calls > 0
         ? m(
