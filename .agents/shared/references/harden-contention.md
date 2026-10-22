@@ -292,15 +292,15 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
 
    It prints that report's path. Exit 1 means no agent has the worker's
    name, so the worker is gone: supersede the pass instead (below). No
-   output means the worker has reported nothing yet. A worker that
-   is RUNNING was answered (a `done` it is catching up on, say), and its next
+   output means the worker has reported nothing yet. A worker that is
+   RUNNING was answered (a `done` it is catching up on, say), and its next
    report reaches you through the poll in step 4. Otherwise the holder read
    that report but stopped before acting on it, so act on it now, by what it
    is:
    - A `gate` or `question` was never answered. Handle it as `lead-proxy.md`
-     says ("Deciding: answer gate yourself vs. escalate"). A `final-creation` gate goes to the user, with a sentence
-     saying it comes from an earlier check of this creation that has been
-     waiting on them.
+     says ("Deciding: answer gate yourself vs. escalate"). A
+     `final-creation` gate goes to the user, with a sentence saying it comes
+     from an earlier check of this creation that has been waiting on them.
    - A `done` was never merged: run the calling skill's merge for it now,
      its checks before merge first ("Before merge" above). They catch the
      pass up when your commits moved its base.
