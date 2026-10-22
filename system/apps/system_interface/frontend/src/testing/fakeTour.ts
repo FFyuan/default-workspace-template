@@ -48,7 +48,10 @@ export const FAKE_TOUR_CARDS: readonly TourCard[] = [
 export class FakeTourApi implements TourApi {
   record: TourRecord;
   isFetchFailing = false;
+  /** When set, a read answers only once ``resolveFetch`` is called, with the record as it was when the read began. */
+  isFetchDeferred = false;
   readonly writes: TourRecord[] = [];
+  private deferredFetch: (() => void) | null = null;
 
   constructor(options: { isSeen?: boolean; resumeIndex?: number | null } = {}) {
     this.record = { isSeen: options.isSeen ?? false, resumeIndex: options.resumeIndex ?? null };
@@ -56,7 +59,16 @@ export class FakeTourApi implements TourApi {
 
   async fetch(): Promise<TourRecord> {
     if (this.isFetchFailing) throw new Error("down");
-    return this.record;
+    const snapshot = this.record;
+    if (!this.isFetchDeferred) return snapshot;
+    return new Promise((resolve) => {
+      this.deferredFetch = () => resolve(snapshot);
+    });
+  }
+
+  resolveFetch(): void {
+    this.deferredFetch?.();
+    this.deferredFetch = null;
   }
 
   async write(record: TourRecord): Promise<void> {

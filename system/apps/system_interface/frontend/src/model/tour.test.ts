@@ -220,6 +220,24 @@ describe("TourController", () => {
     expect(api.writes).toEqual([{ isSeen: true, resumeIndex: null }]);
   });
 
+  it("keeps what the launcher's start recorded when the read answers with an older record after it", async () => {
+    const api = new FakeTourApi();
+    api.isFetchDeferred = true;
+    const { tour, scheduled } = controller(api);
+    const loading = tour.load();
+    tour.start();
+    tour.next();
+    tour.next();
+    tour.next();
+    expect(tour.getState()).toEqual(IDLE_TOUR);
+    api.resolveFetch();
+    await loading;
+    // The read's unseen record is stale: the tour has run, so the agent's work starts nothing.
+    tour.noteAgentWorking(true);
+    expect(scheduled).toEqual([]);
+    expect(api.writes).toEqual([{ isSeen: true, resumeIndex: null }]);
+  });
+
   it("resumes nothing from a record whose card is past the list, while the launcher still starts the tour", async () => {
     const api = new FakeTourApi({ isSeen: true, resumeIndex: CARDS.length });
     const { tour, scheduled } = controller(api);

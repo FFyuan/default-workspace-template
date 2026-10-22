@@ -167,12 +167,15 @@ export class TourController {
   /** Read what the workspace remembers, so the tour can begin or resume once the agent works. A read that fails
    *  leaves nothing to start by itself; the launcher row still works. */
   async load(): Promise<void> {
+    let fetched: TourRecord;
     try {
-      this.record = await this.deps.api.fetch();
+      fetched = await this.deps.api.fetch();
     } catch (error) {
       console.warn("[si-tour] could not read the tour record", error);
       return;
     }
+    // A record written while the read was out (the launcher's start) is newer than what the read answers.
+    if (this.record === null) this.record = fetched;
     if (this.isAgentWorking) this.considerStart();
   }
 
