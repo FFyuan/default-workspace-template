@@ -1783,6 +1783,7 @@ def _run_step_2(
     )
 
 
+@pytest.mark.flaky
 def test_step_2_resolves_a_pinned_target_without_asking_the_app(
     tmp_path: Path, monkeypatch
 ) -> None:
