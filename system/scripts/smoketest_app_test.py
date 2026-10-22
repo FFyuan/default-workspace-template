@@ -266,3 +266,12 @@ def test_poll_http_ends_at_once_when_the_abort_check_reports_a_failure() -> None
             abort_check=lambda: "app died",
         )
     assert time.monotonic() - started < 5.0
+
+
+def test_supervisor_socket_path_honours_the_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(smoketest_app.SUPERVISOR_SOCKET_ENV, raising=False)
+    assert smoketest_app.supervisor_socket_path() == smoketest_app.SUPERVISOR_SOCKET
+    monkeypatch.setenv(smoketest_app.SUPERVISOR_SOCKET_ENV, "/tmp/other.sock")
+    assert smoketest_app.supervisor_socket_path() == "/tmp/other.sock"

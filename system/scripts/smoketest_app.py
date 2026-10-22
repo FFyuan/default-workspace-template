@@ -39,7 +39,10 @@ LOCALHOST_PORT_RE = re.compile(r"http://(?:localhost|127\.0\.0\.1):(\d+)")
 SUPERVISOR_URL_RE = re.compile(r"--url\s+http://(?:localhost|127\.0\.0\.1):(\d+)")
 PORT_ASSIGN_RE = re.compile(r"PORT\s*=\s*(?:int\(.*,\s*)?(\d+)")
 DEFAULT_FORTRESS_PATH = Path("/opt/fortress/tilion-fortress/tilion")
+# The socket supervisord's [unix_http_server] binds (system/supervisord.conf);
+# the env var names another one, as it does for the shell app's liveness probes.
 SUPERVISOR_SOCKET = "/var/run/supervisor.sock"
+SUPERVISOR_SOCKET_ENV = "MINDS_SUPERVISOR_SOCKET"
 SUPERVISOR_LOG_DIR = Path("/var/log/supervisor")
 # A program in one of these states is (still) running as far as supervisord's
 # stopProcess is concerned; a start on it is refused as ALREADY_STARTED.
@@ -158,7 +161,12 @@ class _UnixSocketTransport(xmlrpc.client.Transport):
         return _Connection("localhost")
 
 
-def _supervisor(socket_path: str = SUPERVISOR_SOCKET):
+def supervisor_socket_path() -> str:
+    """The socket to reach supervisord on: the env override when set, else the default."""
+    return os.environ.get(SUPERVISOR_SOCKET_ENV) or SUPERVISOR_SOCKET
+
+
+def _supervisor(socket_path: str):
     """The ``supervisor`` namespace of supervisord's RPC interface."""
     proxy = xmlrpc.client.ServerProxy(
         "http://localhost/RPC2", transport=_UnixSocketTransport(socket_path)
@@ -202,7 +210,7 @@ def _restart_program(sup, name: str) -> Callable[[], Optional[str]]:
         state = sup.getProcessInfo(name)["statename"]
     except OSError as error:
         sys.exit(
-            f"error: cannot reach supervisord at {SUPERVISOR_SOCKET} ({error}); is it running?"
+            f"error: cannot reach supervisord at {supervisor_socket_path()} ({error}); is it running?"
         )
     except xmlrpc.client.Fault as fault:
         sys.exit(
@@ -219,7 +227,7 @@ def _restart_program(sup, name: str) -> Callable[[], Optional[str]]:
                 )
         except OSError as error:
             sys.exit(
-                f"error: lost supervisord at {SUPERVISOR_SOCKET} while stopping {name} ({error})"
+                f"error: lost supervisord at {supervisor_socket_path()} while stopping {name} ({error})"
             )
     try:
         sup.startProcess(name, False)
@@ -233,7 +241,7 @@ def _restart_program(sup, name: str) -> Callable[[], Optional[str]]:
             )
     except OSError as error:
         sys.exit(
-            f"error: lost supervisord at {SUPERVISOR_SOCKET} while starting {name} ({error})"
+            f"error: lost supervisord at {supervisor_socket_path()} while starting {name} ({error})"
         )
 
     def early_death() -> Optional[str]:
@@ -485,7 +493,7 @@ def main() -> None:
     # 0. Restart without the startsecs wait; the port poll below is the readiness check.
     abort_check = None
     if args.restart:
-        abort_check = _restart_program(_supervisor(), app_name)
+        abort_check = _restart_program(_supervisor(supervisor_socket_path()), app_name)
 
     # 1. Reload verification if applicable (a fresh restart needs none)
     if (args.wait_reload or runner_path) and not args.restart:
