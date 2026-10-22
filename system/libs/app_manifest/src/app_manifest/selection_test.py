@@ -611,7 +611,9 @@ def test_a_selection_that_runs_nothing_still_prints_its_notes(workspace: Path) -
     selection = select_tests(load_repo_layout(workspace), [], None, reach)
 
     assert selection.commands == ()
-    assert "# note: " in render_selection(selection)
+    assert len(selection.notes) == 1
+    assert selection.notes[0].endswith("; every creation's own suite runs")
+    assert f"# note: {selection.notes[0]}\n" in render_selection(selection)
 
 
 def test_a_catch_up_runs_nothing_for_a_documentation_creation(workspace: Path) -> None:
