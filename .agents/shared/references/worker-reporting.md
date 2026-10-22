@@ -182,8 +182,8 @@ When the user rejects a milestone the lead merged, the lead reverts it and
 its reply names the revert commit and says why. The milestone's commits are
 still ancestors of the lead's `HEAD`, so a later merge of your branch would
 leave them out: bring them back on your branch, as a revert of that revert,
-and fix them there. Merge the revert commit, resolving any conflict on your
-branch, then revert it:
+and fix them there. Commit anything outstanding, merge the revert commit,
+resolving any conflict on your branch, then revert it:
 
 ```bash
 git merge --no-ff <the revert commit> -m "Catch up to <its short sha>"

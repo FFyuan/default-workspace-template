@@ -521,7 +521,8 @@ starting over.
 When the lead reverts a milestone it merged, its reply names the revert
 commit and says why. The milestone's commits are still ancestors of the
 lead's `HEAD`, so your branch has to bring them back, as a revert of that
-revert: it is the only place they get fixed. Catch up to the revert commit:
+revert: it is the only place they get fixed. Commit anything outstanding,
+then catch up to the revert commit:
 
 ```bash
 git merge --no-ff <the revert commit> -m "Catch up to <its short sha>"
