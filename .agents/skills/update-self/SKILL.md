@@ -195,12 +195,13 @@ record the verdict it calls for -- never resolve a ref by hand:
 
 - **Already on the release it may take.** Nothing is wrong with the workspace:
   `run-status verdict ALREADY_CURRENT`.
-- **A fault**: the ceiling names a release the upstream does not carry, or, on
-  a pass with no pin, the app could not be reached, is too old to report its
-  version, or named no release. A pinned pass never asks the app, so an app it
-  cannot reach is never its fault. Say so plainly and record `run-status
-  verdict STUCK --detail "<the error line, in plain terms>"`. Do **not** pick another release; only a version the user
-  names becomes an `--override`, as an operator testing a dev build would.
+- **A fault**: the ceiling names a release the upstream does not carry, or no
+  release at all, or, on a pass with no pin, the app could not be reached or is
+  too old to report its version. A pinned pass never asks the app for its
+  version, so an app it cannot reach is never its fault. Say so plainly and
+  record `run-status verdict STUCK --detail "<the error line, in plain
+  terms>"`. Do **not** pick another release; only a version the user names
+  becomes an `--override`, as an operator testing a dev build would.
 - **Anything else**: `run-status verdict REFUSED --detail "<the error line, in
   plain terms>"`.
 
