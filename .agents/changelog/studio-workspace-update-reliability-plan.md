@@ -7,3 +7,5 @@ A customization the update cannot keep now ends the pass with a new `NEEDS_DECIS
 Chats are no longer waited on before the apply. Right before it, `run-status stop-chats` pauses the busy chats and background workers and records them, their uncommitted work is saved, and after the apply `run-status resume-chats` starts each again and sends it a note, shown in the chat as a "Workspace updated" notice. A rolled-back apply is retried only by the lead's judgment of its cause, and the pass opens its chat's window once the results are ready.
 
 The run record gains `started_by` (taken from the app's last dispatch when it made this chat) and `stopped_agents`.
+
+A pass ends `STUCK` only for a fault it could not recover from. An app that a pinned pass cannot reach is not a fault, and a worker that died without reporting is restarted per `dead-worker-recovery.md` before it counts as stuck; `lead-proxy.md` and `worker-failure.md` now say the same for every lead. `references/apply-outcomes.md` gains "Which verdict ends the pass", which says when each verdict is recorded and how `STUCK`, `REFUSED` and `NEEDS_DECISION` differ.

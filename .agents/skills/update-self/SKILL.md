@@ -195,10 +195,11 @@ record the verdict it calls for -- never resolve a ref by hand:
 
 - **Already on the release it may take.** Nothing is wrong with the workspace:
   `run-status verdict ALREADY_CURRENT`.
-- **A fault**: the app could not be reached, is too old to report its version,
-  named a release the upstream does not carry, or named none at all. Say so
-  plainly and record `run-status verdict STUCK --detail "<the error line, in
-  plain terms>"`. Do **not** pick another release; only a version the user
+- **A fault**: the ceiling names a release the upstream does not carry, or, on
+  a pass with no pin, the app could not be reached, is too old to report its
+  version, or named no release. A pinned pass never asks the app, so an app it
+  cannot reach is never its fault. Say so plainly and record `run-status
+  verdict STUCK --detail "<the error line, in plain terms>"`. Do **not** pick another release; only a version the user
   names becomes an `--override`, as an operator testing a dev build would.
 - **Anything else**: `run-status verdict REFUSED --detail "<the error line, in
   plain terms>"`.
@@ -531,7 +532,10 @@ decision" below.
 
 ## 5. Terminal status
 
-- **`stuck`** or a dead-worker timeout -> surface per
+- A worker that died without reporting is not yet a failure: restart it per
+  `.agents/skills/launch-task/references/dead-worker-recovery.md`, then re-arm
+  the poll. It is stuck only once that restart has not brought it back.
+- **`stuck`**, or a dead worker the restart did not bring back -> surface per
   `.agents/skills/launch-task/references/worker-failure.md` (if the user
   then overrides, see "Resuming after `stuck`" below). Nothing is merged
   or applied. Compose it as a plain-language lead ("I couldn't complete this

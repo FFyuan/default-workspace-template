@@ -94,9 +94,12 @@ tmux capture-pane -t minds-<WORKER_NAME>:claude -p -S -100 | tail -40
 
 If the output shows ongoing tool use, an active spinner / "Running…" line,
 or recent timestamps within the last few minutes, the worker is alive --
-re-arm the poll with a longer timeout (e.g. `60m`) and continue. Only
-invoke the failure flow (`.agents/skills/launch-task/references/worker-failure.md`)
-if the session is dead, the agent is wedged on the same operation for an
+re-arm the poll with a longer timeout (e.g. `60m`) and continue. A session
+that is dead is a crash: restart the worker
+(`.agents/skills/launch-task/references/dead-worker-recovery.md`) and re-arm
+the poll. Only invoke the failure flow
+(`.agents/skills/launch-task/references/worker-failure.md`) if that restart
+does not bring it back, the agent is wedged on the same operation for an
 extended period, or output has been static.
 
 `await` makes the same call for you in the clearest case: exit code **76** means
@@ -298,7 +301,8 @@ On `type: status`:
   uv run .agents/skills/launch-task/scripts/create_worker.py stop --name <WORKER_NAME>
   ```
   Its branch, worktree, and transcript stay for inspection. A timeout is
-  the same once the liveness diagnosis says the worker is dead or wedged.
+  the same once the liveness diagnosis says the worker is wedged, or dead
+  with a restart that did not bring it back.
 
 - `name: no-update-needed` (or other skill-specific benign no-op terminals) --
   the worker decided there was nothing to do. Close any tracking ticket and

@@ -234,3 +234,33 @@ at some later version), offer both in the same breath: "I can apply <X> now;
 NEEDS_RECREATION --detail "<why, one plain line>"`, with
 `--in-place-compatible-ref <X>` when that release exists -- the app's modal
 offers the migration handoff off exactly this verdict.
+
+## Which verdict ends the pass
+
+Every pass ends with exactly one `run-status verdict`, and the Imbue Studio app
+reports the workspace by it. Choose it by what happened:
+
+- `UPDATED`: the apply landed and the workspace is healthy on the target.
+- `UPDATED_WITH_REBUILD_ITEMS`: it landed, and the report left something only
+  the user can finish.
+- `ALREADY_CURRENT`: there was nothing to apply.
+- `NEEDS_DECISION`: the update cannot keep something the user built, and the
+  validated merge is kept for their answer ("Needs a decision").
+- `NEEDS_RECREATION`: the update cannot be applied in place
+  ("Migration-required updates").
+- `REFUSED`: the pass ran as it should and chose not to apply. Nothing is
+  broken: there was no target it may take, the user declined, or the apply
+  rolled back and your best effort at a retry is spent.
+- `STUCK`: a fault stopped the pass and you could not recover from it. The
+  worker reported `stuck`, a dead worker did not come back on restart, a step
+  the update depends on failed, or Step 2 reported a fault. The watchdog
+  records it for a lead that is gone.
+
+`STUCK` and `REFUSED` say different things to the user, but the app reports
+both, and `NEEDS_RECREATION`, as failures. `NEEDS_DECISION` is not a failure:
+the pass did its job and the next move is the user's, so the app shows it as a
+decision pending, with a way into this chat and no fresh update on offer. A
+pass that is waiting on the user is therefore never `STUCK`, and one that broke
+is never `NEEDS_DECISION`. Things that are not faults do not make a pass
+`STUCK` either: an app that a pinned pass cannot reach, or a worker that died
+once and came back on restart.

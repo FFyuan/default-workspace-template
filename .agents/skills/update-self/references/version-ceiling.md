@@ -11,7 +11,8 @@ Three things leave that release out of reach, and all three are **faults**, not
 refusals: `resolve-target` fails, and what to do next is your call with the
 user, never a version the script picks.
 
-- The app cannot be reached, or is too old to report a version.
+- The app cannot be reached, or is too old to report a version. Only a pass
+  with no pin asks it; a pinned pass takes the ceiling from its message.
 - It names a release the upstream does not carry -- so that release was never
   published as the app claims.
 - It names no release at all; a dev build reports its branch. The operator
