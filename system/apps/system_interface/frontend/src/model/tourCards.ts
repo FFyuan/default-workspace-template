@@ -1,5 +1,5 @@
 /**
- * The show-around tour's cards (the new-onboarding spec, section 2.5): what each says, what it points at, and the
+ * The show-around tour's cards (the new-onboarding spec, section 2.6): what each says, what it points at, and the
  * picture, link, or action it carries. A card points at something the shell draws itself (``target``), names a
  * control of the Imbue Studio chrome for the chrome to ring (``chromeAnchor``), or neither, in which case it pops
  * out of the agent's avatar. A card with an action does it as Next is pressed. The pictures are hosted under

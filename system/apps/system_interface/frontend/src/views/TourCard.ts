@@ -1,6 +1,6 @@
 /**
  * The show-around tour's card, the badge the tour leaves when exited early, and the pause notice it shows when the
- * agent's reply interrupted it (the new-onboarding spec, section 2.5). One fixed box over the desktop: the avatar
+ * agent's reply interrupted it (the new-onboarding spec, section 2.6). One fixed box over the desktop: the avatar
  * and the card's words, its bullets, a picture or a link when the card has one, and a footer with Exit walkthrough,
  * Go back, and Next (Done on the last card). Where it sits comes from ``model/tourPlacement``: beside the shell's
  * own target when the card has one, popped out of the avatar otherwise, and under the Imbue Studio chrome for a

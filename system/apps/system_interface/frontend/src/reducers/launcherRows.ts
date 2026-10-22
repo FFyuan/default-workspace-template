@@ -47,7 +47,7 @@ export interface WindowRow {
   readonly isOnActiveDesktop: boolean;
 }
 
-/** The row that runs the show-around tour from its first card (the new-onboarding spec, section 2.5): the last of
+/** The row that runs the show-around tour from its first card (the new-onboarding spec, section 2.6): the last of
  *  the launch-path rows, offered with no query and for a query matching its words. */
 export interface TourRow {
   readonly kind: "tour";

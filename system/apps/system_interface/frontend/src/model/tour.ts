@@ -1,5 +1,5 @@
 /**
- * The show-around tour (the new-onboarding spec, sections 2.5 and 3.4): a pure state machine over the cards, and
+ * The show-around tour (the new-onboarding spec, sections 2.6 and 3.4): a pure state machine over the cards, and
  * the controller that runs it in the shell. The tour begins the first time the workspace's agent goes to work, so
  * the user learns the product while they wait for a reply (after ``startAfterWorkingMs`` of work, for a start on
  * the first message or only on a task that is taking a while); the agent answering interrupts it, so that Next

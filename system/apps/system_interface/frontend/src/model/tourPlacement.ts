@@ -1,5 +1,5 @@
 /**
- * Where a tour card sits, as a pure function of what it points at (the new-onboarding spec, section 2.5): popped
+ * Where a tour card sits, as a pure function of what it points at (the new-onboarding spec, section 2.6): popped
  * out of the avatar with its bottom-left corner at the avatar's top-right; beside a target the shell draws (below,
  * above, right, or left, whichever has room) with an arrow; or at the top edge under the Imbue Studio chrome's
  * control, arrow up, when the card is about the chrome. Everything is clamped into the viewport.
