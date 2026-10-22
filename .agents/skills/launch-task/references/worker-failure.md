@@ -22,9 +22,11 @@ failure below only once that recovery has not brought it back.
 - The worker's delivered report -- at its `finish_report_path`, e.g.
   `data/.tasks/harden/<slug>/reports/report.md` for a harden worker -- has
   frontmatter `type: status, name: stuck`, or the 30m poll timeout tripped
-  without any report arriving. The first case is the worker explicitly giving
-  up (the report body names a reason); the second means the worker
-  died without following its contract.
+  without any report arriving and the liveness diagnosis
+  (`.agents/shared/references/lead-proxy.md`) finds the worker wedged, or
+  dead with a recovery that did not bring it back. The first case is the
+  worker explicitly giving up (the report body names a reason); the second
+  means it stopped without following its contract.
 
 ## What to do
 
