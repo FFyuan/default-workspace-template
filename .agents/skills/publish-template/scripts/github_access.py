@@ -128,7 +128,7 @@ def access_report(kinds: list[str]) -> dict[str, KindAccess]:
         try:
             is_permitted = _PROBES[kind]()
         except AccessUnknownError as e:
-            report[kind] = KindAccess(Access.UNKNOWN, str(e))
+            report[kind] = KindAccess(Access.UNKNOWN, " ".join(str(e).split()))
             continue
         report[kind] = KindAccess(
             Access.PERMITTED if is_permitted else Access.NOT_PERMITTED

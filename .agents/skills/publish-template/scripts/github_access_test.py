@@ -94,8 +94,8 @@ _GATEWAY_DOWN = "curl: (7) Failed to connect to latchkey-self.invalid port 80"
             "git-write: UNKNOWN (unreadable answer: <html>502 Bad Gateway</html>)",
         ),
         (
-            {"stderr": _GATEWAY_DOWN + "\n", "exit": 7},
-            f"git-write: UNKNOWN (latchkey exited 7: {_GATEWAY_DOWN})",
+            {"stderr": f"{_GATEWAY_DOWN}\nIs the gateway running?\n", "exit": 7},
+            f"git-write: UNKNOWN (latchkey exited 7: {_GATEWAY_DOWN} Is the gateway running?)",
         ),
     ],
 )
