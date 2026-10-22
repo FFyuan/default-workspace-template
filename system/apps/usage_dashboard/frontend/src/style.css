@@ -1,0 +1,18 @@
+@import "tailwindcss" source(none);
+/* The design system shared with every other frontend of the workspace (see system/libs/workspace_ui). */
+@import "@imbue/workspace-ui/src/base.css";
+
+@source "./**/*.ts";
+
+/* The chart's series colours: the data-viz reference palette's categorical slots, in its fixed order, and a
+   neutral for the series folded into "Other". The workspace has one (light) theme. */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-other: #a3a29c;
+}

@@ -49,6 +49,7 @@ members = [
     "terminal-app",
     "tk-command-parsing",
     "usage-collector",
+    "usage-dashboard",
     "workspace-layout",
     "workspace-usage",
 ]
@@ -4314,6 +4315,55 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "ty", specifier = "==0.0.85" }]
+
+[[package]]
+name = "usage-dashboard"
+version = "0.1.0"
+source = { editable = "system/apps/usage_dashboard" }
+dependencies = [
+    { name = "app-manifest" },
+    { name = "app-schema" },
+    { name = "flask" },
+    { name = "httpx" },
+    { name = "imbue-common" },
+    { name = "loguru" },
+    { name = "pydantic" },
+    { name = "werkzeug" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "app-schema", extra = ["testing"] },
+    { name = "inline-snapshot" },
+    { name = "pytest" },
+    { name = "pytest-timeout" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "usage-collector" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "app-manifest", editable = "system/libs/app_manifest" },
+    { name = "app-schema", editable = "system/libs/app_schema" },
+    { name = "flask", specifier = ">=3.0" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "imbue-common", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fimbue_common&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "werkzeug", specifier = ">=3.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "app-schema", extras = ["testing"], editable = "system/libs/app_schema" },
+    { name = "inline-snapshot", specifier = ">=0.13" },
+    { name = "pytest", specifier = ">=9.0" },
+    { name = "pytest-timeout", specifier = ">=2.3.0" },
+    { name = "ruff", specifier = "~=0.12.8" },
+    { name = "ty", specifier = "==0.0.85" },
+    { name = "usage-collector", editable = "system/services/usage_collector" },
+]
 
 [[package]]
 name = "watchdog"
