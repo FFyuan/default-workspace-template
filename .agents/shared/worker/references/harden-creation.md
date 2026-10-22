@@ -521,18 +521,24 @@ starting over.
 When the lead reverts a milestone it merged, its reply names the revert
 commit and says why. The milestone's commits are still ancestors of the
 lead's `HEAD`, so your branch has to bring them back, as a revert of that
-revert: it is the only place they get fixed. Catch up to the revert commit,
-then revert it:
+revert: it is the only place they get fixed. Catch up to the revert commit:
 
 ```bash
 git merge --no-ff <the revert commit> -m "Catch up to <its short sha>"
+```
+
+Resolve any conflict as step 2 of "Catching up to a moved base" says, then
+revert the revert and fix the milestone's work per the lead's reply:
+
+```bash
 git revert --no-edit <the revert commit>
 ```
 
-The merge is a catch-up: finish it as "Catching up to a moved base" says from
-step 2. The revert of the revert is yours, selected like any change, so the
-gate covers the milestone's work again once you have fixed it per the lead's
-reply. It reaches the lead only with the next report of yours it merges.
+The revert of the revert is yours, selected like any change, so your test
+gate covers the milestone's work again. A pass still under way goes on as
+before; one that had already reported `done` finishes with steps 3 to 5 of
+that section. Either way the work reaches the lead only with the next report
+of yours it merges.
 
 ## If you need to give up
 
