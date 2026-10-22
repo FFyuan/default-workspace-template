@@ -48,6 +48,10 @@ _ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2
 
 _DESCRIPTION = "a test app"
 
+# A whole second pytest session in a subprocess, which a cold or loaded box (gVisor especially)
+# can run past the suite's 10s per-test budget.
+_APP_TEST_RUN_TIMEOUT_SECONDS = 60
+
 # The shipped shape: the main config declares no programs at all, only the
 # daemon's own sections and the [include] that pulls in the drop-ins.
 _MAIN_CONF = """\
@@ -394,6 +398,7 @@ def test_a_scaffolded_app_passes_its_own_type_check(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.timeout(_APP_TEST_RUN_TIMEOUT_SECONDS)
 def test_a_scaffolded_app_passes_its_own_tests(tmp_path: Path) -> None:
     """The tests the scaffold writes pass on the code it writes beside them, before the agent adds anything.
 
