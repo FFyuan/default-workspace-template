@@ -220,6 +220,17 @@ describe("TourController", () => {
     expect(api.writes).toEqual([{ isSeen: true, resumeIndex: null }]);
   });
 
+  it("resumes nothing from a record whose card is past the list, while the launcher still starts the tour", async () => {
+    const api = new FakeTourApi({ isSeen: true, resumeIndex: CARDS.length });
+    const { tour, scheduled } = controller(api);
+    await tour.load();
+    tour.noteAgentWorking(true);
+    expect(scheduled).toEqual([]);
+    expect(tour.getState()).toEqual(IDLE_TOUR);
+    tour.start();
+    expect(tour.shownCard()?.id).toBe("a");
+  });
+
   it("does a card's action as its Next is pressed, and runs again from the launcher whatever the record says", async () => {
     const api = new FakeTourApi({ isSeen: true, resumeIndex: 1 });
     const { tour, highlights, actions, redraws } = controller(api);

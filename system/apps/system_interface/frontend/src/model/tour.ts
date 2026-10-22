@@ -190,11 +190,12 @@ export class TourController {
   }
 
   /** Begin after the configured stretch of work, from the card that waits to resume, or the first on a workspace
-   *  where the tour has never run; nothing when the record is unknown or says there is nothing to start. */
+   *  where the tour has never run; nothing when the record is unknown or says there is nothing to start, or when
+   *  the card to resume at is past the list (a record from a build with more cards). */
   private considerStart(): void {
     if (this.record === null || this.state.phase !== "idle") return;
     const index = this.record.resumeIndex ?? (this.record.isSeen ? null : 0);
-    if (index === null) return;
+    if (index === null || index >= this.cards.length) return;
     const generation = (this.startGeneration += 1);
     this.schedule(() => {
       if (generation !== this.startGeneration || !this.isAgentWorking || this.state.phase !== "idle") return;
