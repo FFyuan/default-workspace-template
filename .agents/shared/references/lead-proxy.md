@@ -221,29 +221,27 @@ are still coming.
 
 ```bash
 git revert -m 1 <provisional-merge-commit>
+REVERT=$(git rev-parse HEAD)
 ```
 
 A revert is a **rejection of that milestone**: message the worker with why, as a
 de facto "no with notes" (the merge commit's subject names the worker and
-milestone, so the target is easy to find).
+milestone, so the target is easy to find), and hand it the revert:
 
 ```bash
 uv run .agents/skills/launch-task/scripts/create_worker.py reply \
-    --task-file <TASK_FILE> -m "<why the milestone was reverted, in the user's voice>"
+    --task-file <TASK_FILE> -m "<why the milestone was reverted, in the user's voice> I reverted it as $REVERT: bring it back on your branch per 'A reverted milestone' in harden-creation.md, then fix it."
 ```
 
-The reverted commits remain ancestors of HEAD, so any later merge from that
-branch -- `done` included -- would **silently omit** them. First reinstate:
+The reverted commits remain ancestors of your `HEAD`, so a later merge from
+that branch would **silently omit** them. The worker brings them back on its
+own branch, as a revert of your revert, so they reach yours again only with
+its next merged report, fixed. Never reinstate them on your branch yourself:
+that puts the work the user rejected back in front of them.
 
-```bash
-git revert <revert-commit>
-```
-
-A pass is superseded instead only once its worker is gone, and then its new
-task says the milestone was reverted and its work must be rebuilt
-(`.agents/shared/references/harden-contention.md`, "Superseding a pass whose
-worker is gone"). Reinstate it before asking the worker to catch up, too: the
-catch-up merges your `HEAD`, revert included, into its branch.
+A pass is superseded instead only once its worker is gone, and its new task
+then names the revert (`.agents/shared/references/harden-contention.md`,
+"Superseding a pass whose worker is gone").
 
 ## Terminal status: act and stop polling
 

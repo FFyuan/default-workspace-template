@@ -240,9 +240,9 @@ catch it up again: each round covers only the commits since the last, so the
 rounds shrink. A worker that cannot reconcile the new base reports `stuck` or
 asks a `question`, handled as on any run.
 
-A reverted provisional milestone (below) must be reinstated before you ask:
-the catch-up merges your `HEAD`, revert included, into the worker's branch,
-which takes the milestone's commits back out of it.
+A provisional milestone you reverted needs nothing more here: its worker
+already brought the milestone's work back on its own branch when you handed it
+the revert (`lead-proxy.md`, "Rolling back a provisional merge").
 
 ## Taking over a pass whose holder is gone
 
@@ -359,11 +359,18 @@ merge:
   own branch, so deleting the worker branch does not take it back out. The
   hardening done after that milestone is unmerged work like any other, and the
   new pass carries it.
-- **A reverted milestone must be reinstated or rebuilt.** If you rolled a
+- **A reverted milestone is carried by its revert.** If you rolled a
   provisional merge back with `git revert -m 1 <merge-commit>`, the reverted
-  commits are still ancestors of HEAD, so any later merge from that branch --
-  a catch-up into it, or a new pass carrying it -- silently omits them, and
-  `git log HEAD..<branch>` does not list them. Reinstate them with `git
-  revert <revert-commit>` before merging from that branch, catching it up, or
-  carrying it. Otherwise say in the new pass's task that the milestone was
-  reverted and its work must be rebuilt from the current base.
+  commits are still ancestors of your `HEAD`, so carrying the branch cannot
+  bring them back, and `git log HEAD..<branch>` does not list them. The old
+  worker may already have brought them back on its branch, as a revert of
+  your revert; then carrying the branch carries them too. When it had not,
+  name the revert commit under `## Carried work` as well, and the new worker
+  reverts it on its own branch (`harden-creation.md`, "Carried work from a
+  superseded pass"). Never reinstate it on your branch yourself.
+
+  ```bash
+  git log --oneline HEAD..superseded/<name> --grep "This reverts commit <revert-commit>"
+  ```
+
+  Empty output means the old worker had not brought it back.

@@ -118,7 +118,11 @@ base"), except that here your side is the newer one: the carried commits are
 older work to fit around what the user has done since. Then harden them under
 this whole contract like the rest of the change. Keep each one that still
 holds, fix one that does not, and `git revert` one the current base has made
-wrong, so every carried commit ends up merged either way. From then on they
+wrong, so every carried commit ends up merged either way. When the section
+also names a revert of a milestone the earlier pass had merged, revert that
+revert after the merges (`git revert --no-edit <the revert commit>`): a
+merge cannot bring back commits the lead's `HEAD` already holds, and what
+returns is carried work like the rest. From then on they
 are commits on your branch, so the scope file's diff and the test gate cover
 them with nothing extra. Your `done` report gets a `Carried:` section: each
 carried commit, and whether you kept, changed or reverted it, and why.
@@ -511,6 +515,24 @@ starting over.
    it, any creation you added, and what the re-run gate ran. The lead's work
    that came in is in the scope file's `others`, not your
    `outside_footprint`.
+
+## A reverted milestone
+
+When the lead reverts a milestone it merged, its reply names the revert
+commit and says why. The milestone's commits are still ancestors of the
+lead's `HEAD`, so your branch has to bring them back, as a revert of that
+revert: it is the only place they get fixed. Catch up to the revert commit,
+then revert it:
+
+```bash
+git merge --no-ff <the revert commit> -m "Catch up to <its short sha>"
+git revert --no-edit <the revert commit>
+```
+
+The merge is a catch-up: finish it as "Catching up to a moved base" says from
+step 2. The revert of the revert is yours, selected like any change, so the
+gate covers the milestone's work again once you have fixed it per the lead's
+reply. It reaches the lead only with the next report of yours it merges.
 
 ## If you need to give up
 
