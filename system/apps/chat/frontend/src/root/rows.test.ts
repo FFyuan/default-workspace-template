@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chatSnapshotFixture } from "../models/chatSnapshotFixture";
 import type { ProvisionalChat } from "../models/Chats";
-import { defaultGroupSize, groupedRows, parentOf, rowsFromSnapshots } from "./rows";
+import { mainGroupSize, groupedRows, parentOf, rowsFromSnapshots } from "./rows";
 
 const NONE: ReadonlySet<string> = new Set();
 
@@ -85,7 +85,7 @@ describe("groupedRows", () => {
     expect(groupedRows(rows, NONE).map((row) => row.chatId)).toEqual(["agent-orphan"]);
   });
 
-  it("leads with the default chat and its helpers whatever was messaged since, a chat started here included", () => {
+  it("leads with the main chat and its helpers whatever was messaged since, a chat started here included", () => {
     const rows = rowsFromSnapshots(
       [
         chatSnapshotFixture("agent-recent", { last_messaged_at: 300 }),
@@ -103,10 +103,10 @@ describe("groupedRows", () => {
     const grouped = groupedRows(rows, new Set(["agent-mine"]));
 
     expect(grouped.map((row) => row.chatId)).toEqual(["agent-welcome", "agent-helper", "agent-mine", "agent-recent"]);
-    expect(defaultGroupSize(grouped)).toBe(2);
+    expect(mainGroupSize(grouped)).toBe(2);
   });
 
-  it("leads with a default chat still awaiting its first send", () => {
+  it("leads with a main chat still awaiting its first send", () => {
     const rows = rowsFromSnapshots(
       [chatSnapshotFixture("agent-recent", { last_messaged_at: 300 })],
       [provisional("agent-welcome", "awaiting_first_send")],
@@ -115,16 +115,16 @@ describe("groupedRows", () => {
 
     const grouped = groupedRows(rows, NONE);
 
-    expect(grouped.map((row) => [row.chatId, row.isDefault])).toEqual([
+    expect(grouped.map((row) => [row.chatId, row.isMain])).toEqual([
       ["agent-welcome", true],
       ["agent-recent", false],
     ]);
-    expect(defaultGroupSize(grouped)).toBe(1);
+    expect(mainGroupSize(grouped)).toBe(1);
   });
 
-  it("has no default group when no chat is the default", () => {
+  it("has no main group when no chat is the main chat", () => {
     const rows = rowsFromSnapshots([chatSnapshotFixture("agent-a"), chatSnapshotFixture("agent-b")], [], null);
 
-    expect(defaultGroupSize(groupedRows(rows, NONE))).toBe(0);
+    expect(mainGroupSize(groupedRows(rows, NONE))).toBe(0);
   });
 });

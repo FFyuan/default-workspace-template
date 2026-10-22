@@ -2,7 +2,7 @@
 /**
  * The rail's status marks: a chat waiting on a background task wears the dashed ring, a working one the breathing
  * dot (pending tasks or not, since the backend reports it working), and an idle one the hollow ring. And the
- * default chat: it leads in its own group, set off from the rest, and its row is marked.
+ * main chat: it leads in its own group, set off from the rest, and its row is marked.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +10,7 @@ const verbs = vi.hoisted(() => ({
   stopChat: vi.fn(async (_chatId: string) => undefined),
   startChat: vi.fn(async (_chatId: string) => undefined),
   renameChat: vi.fn(async (_chatId: string, _title: string) => undefined),
-  makeDefaultChat: vi.fn(async (_chatId: string) => undefined),
+  makeMainChat: vi.fn(async (_chatId: string) => undefined),
   destroyChat: vi.fn(async (_chatId: string) => undefined),
 }));
 vi.mock("./verbs", () => verbs);
@@ -65,42 +65,42 @@ describe("ChatRail status marks", () => {
   });
 });
 
-describe("ChatRail default chat", () => {
-  it("sets the default chat and its helpers apart from the rest, and marks the default row", () => {
+describe("ChatRail main chat", () => {
+  it("sets the main chat and its helpers apart from the rest, and marks the main chat row", () => {
     const helper = chatRowFixture("agent-helper", { labels: { agent_created: "true", lead_agent: "agent-welcome" } });
-    const rail = mount([chatRowFixture("agent-welcome", { isDefault: true }), helper, chatRowFixture("agent-other")]);
+    const rail = mount([chatRowFixture("agent-welcome", { isMain: true }), helper, chatRowFixture("agent-other")]);
 
-    const group = rail.querySelector(".chat-rail-default-group");
+    const group = rail.querySelector(".chat-rail-main-group");
     expect(group).not.toBeNull();
     expect(chatIdsIn(group!)).toEqual(["agent-welcome", "agent-helper"]);
     expect(chatIdsIn(rail)).toEqual(["agent-welcome", "agent-helper", "agent-other"]);
-    expect(rail.querySelector('[data-chat-id="agent-welcome"]')?.getAttribute("data-default")).toBe("true");
-    expect(rail.querySelector('[data-chat-id="agent-other"]')?.hasAttribute("data-default")).toBe(false);
+    expect(rail.querySelector('[data-chat-id="agent-welcome"]')?.getAttribute("data-main")).toBe("true");
+    expect(rail.querySelector('[data-chat-id="agent-other"]')?.hasAttribute("data-main")).toBe(false);
   });
 
-  it("draws no default group when no chat is the default", () => {
+  it("draws no main group when no chat is the main chat", () => {
     const rail = mount([chatRowFixture("agent-a"), chatRowFixture("agent-b")]);
 
-    expect(rail.querySelector(".chat-rail-default-group")).toBeNull();
+    expect(rail.querySelector(".chat-rail-main-group")).toBeNull();
     expect(chatIdsIn(rail)).toEqual(["agent-a", "agent-b"]);
   });
 
-  it("offers to make a chat the default, except the default itself and a helper another agent started", () => {
-    const welcome = chatRowFixture("agent-welcome", { isDefault: true });
+  it("offers to make a chat the main chat, except the main chat itself and a helper another agent started", () => {
+    const welcome = chatRowFixture("agent-welcome", { isMain: true });
     const other = chatRowFixture("agent-other");
     const helper = chatRowFixture("agent-helper", { labels: { agent_created: "true", lead_agent: "agent-welcome" } });
     const context = chatRailAttrsFixture({ rows: [welcome, helper, other] });
     const labelsOf = (row: ChatRow): string[] =>
       rowMenuRows(context, row).flatMap((menuRow) => (menuRow.kind === "action" ? [menuRow.label] : []));
 
-    expect(labelsOf(welcome)).not.toContain("Make default chat");
-    expect(labelsOf(helper)).not.toContain("Make default chat");
-    const makeDefault = rowMenuRows(context, other).find(
-      (menuRow) => menuRow.kind === "action" && menuRow.key === "make-default",
+    expect(labelsOf(welcome)).not.toContain("Make main chat");
+    expect(labelsOf(helper)).not.toContain("Make main chat");
+    const makeMain = rowMenuRows(context, other).find(
+      (menuRow) => menuRow.kind === "action" && menuRow.key === "make-main",
     );
-    if (makeDefault?.kind !== "action") throw new Error("no Make default chat row");
-    makeDefault.onSelect();
+    if (makeMain?.kind !== "action") throw new Error("no Make main chat row");
+    makeMain.onSelect();
 
-    expect(verbs.makeDefaultChat).toHaveBeenCalledWith("agent-other");
+    expect(verbs.makeMainChat).toHaveBeenCalledWith("agent-other");
   });
 });

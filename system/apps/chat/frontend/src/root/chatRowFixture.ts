@@ -1,4 +1,4 @@
-/** A whole chat-list row for tests: an idle, listed chat that is not the default, with every field overridable. */
+/** A whole chat-list row for tests: an idle, listed chat that is not the main chat, with every field overridable. */
 
 import type { ChatRow } from "./rows";
 
@@ -11,7 +11,7 @@ export function chatRowFixture(chatId: string, overrides: Partial<ChatRow> = {})
     agentIds: [chatId],
     lastActiveMs: null,
     isProvisional: false,
-    isDefault: false,
+    isMain: false,
     ...overrides,
   };
 }

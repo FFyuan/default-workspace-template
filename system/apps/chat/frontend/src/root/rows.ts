@@ -2,7 +2,7 @@
  * The rows of the chat root's list, and their order: pure functions over the chat snapshots
  * and provisional chats the chat app streams, so the list is testable without a DOM.
  *
- * The workspace's default chat (the welcome chat) always leads. The rest is ordered by recency: the
+ * The workspace's main chat (the welcome chat) always leads. The rest is ordered by recency: the
  * chat most recently messaged leads, one never messaged trails, except one started from this root,
  * which leads until its first message. A chat
  * another agent started (a worker, labelled ``agent_created`` and ``lead_agent`` by
@@ -23,8 +23,8 @@ export interface ChatRow {
   lastActiveMs: number | null;
   /** True for a chat the app has minted but that is not an agent yet. */
   isProvisional: boolean;
-  /** True for the workspace's default chat, where a text with no chat of its own goes. */
-  isDefault: boolean;
+  /** True for the workspace's main chat, where a text with no chat of its own goes. */
+  isMain: boolean;
 }
 
 // What a chat that is not an agent yet is doing, as a chat status.
@@ -39,7 +39,7 @@ const PROVISIONAL_TITLE = "New chat";
 export function rowsFromSnapshots(
   chats: readonly ChatSnapshot[],
   provisional: readonly ProvisionalChat[],
-  defaultChatId: string | null,
+  mainChatId: string | null,
 ): ChatRow[] {
   const known = new Set(chats.map((chat) => chat.chat_id));
   const rows: ChatRow[] = chats.map((chat) => ({
@@ -50,7 +50,7 @@ export function rowsFromSnapshots(
     agentIds: chat.agent_ids,
     lastActiveMs: chat.last_messaged_at === null ? null : chat.last_messaged_at * 1000,
     isProvisional: false,
-    isDefault: chat.chat_id === defaultChatId,
+    isMain: chat.chat_id === mainChatId,
   }));
   for (const chat of provisional) {
     if (known.has(chat.chat_id)) continue;
@@ -62,7 +62,7 @@ export function rowsFromSnapshots(
       agentIds: [],
       lastActiveMs: null,
       isProvisional: true,
-      isDefault: chat.chat_id === defaultChatId,
+      isMain: chat.chat_id === mainChatId,
     });
   }
   return rows;
@@ -101,7 +101,7 @@ export function parentOf(row: ChatRow, rows: readonly ChatRow[]): ChatRow | null
   return parent;
 }
 
-/** The list in display order: the default chat's group first, then each root chat by recency, its helpers right
+/** The list in display order: the main chat's group first, then each root chat by recency, its helpers right
  *  under it. */
 export function groupedRows(rows: readonly ChatRow[], startedHere: ReadonlySet<string>): ChatRow[] {
   const helpersByParent = new Map<string, ChatRow[]>();
@@ -118,17 +118,16 @@ export function groupedRows(rows: readonly ChatRow[], startedHere: ReadonlySet<s
   const latestOf = (group: { root: ChatRow; helpers: ChatRow[] }): number =>
     Math.max(recencyKey(group.root, startedHere), ...group.helpers.map((helper) => recencyKey(helper, startedHere)));
   groups.sort(
-    (first, second) =>
-      Number(second.root.isDefault) - Number(first.root.isDefault) || latestOf(second) - latestOf(first),
+    (first, second) => Number(second.root.isMain) - Number(first.root.isMain) || latestOf(second) - latestOf(first),
   );
   return groups.flatMap((group) => [group.root, ...group.helpers]);
 }
 
-/** How many of ``rows`` (in display order) belong to the default chat's group at their head: the default chat and
- *  the helpers filed under it; 0 when the list does not start with the default chat. */
-export function defaultGroupSize(rows: readonly ChatRow[]): number {
+/** How many of ``rows`` (in display order) belong to the main chat's group at their head: the main chat and
+ *  the helpers filed under it; 0 when the list does not start with the main chat. */
+export function mainGroupSize(rows: readonly ChatRow[]): number {
   const head = rows[0];
-  if (head === undefined || !head.isDefault) return 0;
+  if (head === undefined || !head.isMain) return 0;
   const end = rows.findIndex((row, index) => index > 0 && parentOf(row, rows)?.chatId !== head.chatId);
   return end === -1 ? rows.length : end;
 }

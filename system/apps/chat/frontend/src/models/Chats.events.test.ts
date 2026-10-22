@@ -120,13 +120,13 @@ describe("the provisional chats over the socket", () => {
     expect(changes).toHaveLength(1);
   });
 
-  it("takes the default chat from the list, even when only the default changed", () => {
-    push({ type: "chats_updated", chats: [chat("agent-1"), chat("agent-2")], default_chat_id: "agent-1" });
-    expect(manager.getDefaultChatId()).toBe("agent-1");
+  it("takes the main chat from the list, even when only the main chat changed", () => {
+    push({ type: "chats_updated", chats: [chat("agent-1"), chat("agent-2")], main_chat_id: "agent-1" });
+    expect(manager.getMainChatId()).toBe("agent-1");
 
-    push({ type: "chats_updated", chats: [chat("agent-1"), chat("agent-2")], default_chat_id: "agent-2" });
+    push({ type: "chats_updated", chats: [chat("agent-1"), chat("agent-2")], main_chat_id: "agent-2" });
 
-    expect(manager.getDefaultChatId()).toBe("agent-2");
+    expect(manager.getMainChatId()).toBe("agent-2");
   });
 
   it("resolves at once for a chat the app already lists", async () => {

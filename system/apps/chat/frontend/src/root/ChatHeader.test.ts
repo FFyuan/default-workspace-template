@@ -10,7 +10,7 @@ const verbs = vi.hoisted(() => ({
   stopChat: vi.fn(async (_chatId: string) => undefined),
   startChat: vi.fn(async (_chatId: string) => undefined),
   renameChat: vi.fn(async (_chatId: string, _title: string) => undefined),
-  makeDefaultChat: vi.fn(async (_chatId: string) => undefined),
+  makeMainChat: vi.fn(async (_chatId: string) => undefined),
   // A delete still under way: it never settles within the test.
   destroyChat: vi.fn((_chatId: string) => new Promise<undefined>(() => undefined)),
 }));
@@ -23,8 +23,8 @@ import { chatRailAttrsFixture } from "./chatRailAttrsFixture";
 import { chatRowFixture } from "./chatRowFixture";
 import type { ChatRow } from "./rows";
 
-// The workspace's only chat, so its default chat too.
-const ONLY_CHAT: ChatRow = chatRowFixture("agent-1", { title: "Plan the launch", isDefault: true });
+// The workspace's only chat, so its main chat too.
+const ONLY_CHAT: ChatRow = chatRowFixture("agent-1", { title: "Plan the launch", isMain: true });
 
 // The rename case's chat: the delete case leaves its chat marked as being deleted for the rest of the file.
 const RENAMED_CHAT: ChatRow = { ...ONLY_CHAT, chatId: "agent-2", agentIds: ["agent-2"] };

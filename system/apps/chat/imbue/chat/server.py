@@ -92,7 +92,6 @@ from imbue.chat.compaction_status import compact_command_instructions
 from imbue.chat.compaction_status import is_compact_command
 from imbue.chat.compaction_status import is_context_compacted_event
 from imbue.chat.config import Config
-from imbue.chat.default_chat import DEFAULT_CHAT_NAME
 from imbue.chat.documents import document_response
 from imbue.chat.documents import inject_base_path_meta_tag
 from imbue.chat.documents import inject_chat_identity_meta_tags
@@ -122,6 +121,7 @@ from imbue.chat.harnesses.session import AgentHarnessSession
 from imbue.chat.harnesses.session import SendOutcome
 from imbue.chat.harnesses.session_watcher import AgentSessionWatcher
 from imbue.chat.harnesses.session_watcher import TranscriptReader
+from imbue.chat.main_chat import MAIN_CHAT_NAME
 from imbue.chat.models import AgentCreationError
 from imbue.chat.models import AgentDestroyError
 from imbue.chat.models import AgentListItem
@@ -1704,8 +1704,8 @@ def _seed_chat() -> Response:
 
     The body is a :class:`SeedChatRequest`. Answers 201 with the chat's id and name pair; the
     chat is listed at once as a provisional chat awaiting the user's first message, with the
-    turns as its transcript (``chat_seed.py``), named ``DEFAULT_CHAT_NAME``: it is the workspace's first
-    default chat (``default_chat.py``). Like every create, 503 until the agent list has been read from
+    turns as its transcript (``chat_seed.py``), named ``MAIN_CHAT_NAME``: it is the workspace's first
+    main chat (``main_chat.py``). Like every create, 503 until the agent list has been read from
     mngr once, so the Imbue Studio app's seeding retries rather than being refused; 409 when a chat
     already wears that name.
     """
@@ -1714,7 +1714,7 @@ def _seed_chat() -> Response:
         return _agent_list_not_known_response()
     seed_request = parse_request_body(SeedChatRequest)
     try:
-        created = agent_manager.seed_chat(DEFAULT_CHAT_NAME, seed_request.turns)
+        created = agent_manager.seed_chat(MAIN_CHAT_NAME, seed_request.turns)
     except AgentNameConflictError as e:
         return error_response(str(e), 409)
     except AgentCreationError as e:
@@ -1737,12 +1737,12 @@ def _agent_chat_snapshot(agent_manager: AgentManager, chat_id: ChatId) -> ChatSn
     return agent_manager.get_chat_snapshot(str(chat_id))
 
 
-def _default_or_most_recent_intake_chat(
+def _main_or_most_recent_intake_chat(
     agent_manager: AgentManager, snapshots: Sequence[ChatSnapshot]
 ) -> _ResolvedIntakeChat:
-    default_id = agent_manager.get_default_chat_id()
-    if default_id is not None:
-        return _ResolvedIntakeChat(chat_id=default_id)
+    main_id = agent_manager.get_main_chat_id()
+    if main_id is not None:
+        return _ResolvedIntakeChat(chat_id=main_id)
     return _ResolvedIntakeChat(chat_id=most_recently_messaged_chat_id(snapshots))
 
 
@@ -1750,7 +1750,7 @@ def _resolve_intake_chat(agent_manager: AgentManager, intake: IntakeRequest) -> 
     """The chat an intake's target names (spec 3.5), or the 404 for an explicit chat the app does not list.
 
     ``new_chat`` answers no chat: the caller creates or mints one. ``current_chat``,
-    ``default_chat`` and ``chat_selector`` fall back to that when nothing qualifies.
+    ``main_chat`` and ``chat_selector`` fall back to that when nothing qualifies.
     """
     snapshots = agent_manager.get_chat_snapshots()
     match intake.target:
@@ -1763,9 +1763,9 @@ def _resolve_intake_chat(agent_manager: AgentManager, intake: IntakeRequest) -> 
             selected = chat_id_selected_by_window_path(intake.window_path)
             if selected is not None and agent_manager.knows_chat(selected):
                 return _ResolvedIntakeChat(chat_id=selected)
-            return _default_or_most_recent_intake_chat(agent_manager, snapshots)
-        case IntakeTarget.DEFAULT_CHAT:
-            return _default_or_most_recent_intake_chat(agent_manager, snapshots)
+            return _main_or_most_recent_intake_chat(agent_manager, snapshots)
+        case IntakeTarget.MAIN_CHAT:
+            return _main_or_most_recent_intake_chat(agent_manager, snapshots)
         case IntakeTarget.CHAT_SELECTOR:
             if len(snapshots) > 1:
                 return _ResolvedIntakeChat(chat_id=None, needs_pick=True)
@@ -2018,7 +2018,7 @@ def _list_chats_endpoint() -> Response:
         return _agent_list_not_known_response()
     return model_response(
         ChatListResponse(
-            chats=tuple(agent_manager.get_chat_snapshots()), default_chat_id=agent_manager.get_default_chat_id()
+            chats=tuple(agent_manager.get_chat_snapshots()), main_chat_id=agent_manager.get_main_chat_id()
         )
     )
 
@@ -2076,14 +2076,14 @@ def _rename_chat(chat_id: str) -> Response:
     return model_response(RenameChatResponse(status="ok"))
 
 
-def _make_default_chat(chat_id: str) -> Response:
-    """Star a chat as the workspace's default chat (``default_chat.py``); 409 for one that cannot be the default."""
+def _make_main_chat(chat_id: str) -> Response:
+    """Star a chat as the workspace's main chat (``main_chat.py``); 409 for one that cannot be the main chat."""
     agent_manager: AgentManager = get_state().agent_manager
     parsed = parse_chat_ref(chat_id)
     if parsed is None or not agent_manager.knows_chat(parsed):
         return _chat_not_found_response(chat_id)
-    if not agent_manager.make_default_chat(parsed):
-        return error_response("Only a chat you started can be the default chat", 409)
+    if not agent_manager.make_main_chat(parsed):
+        return error_response("Only a chat you started can be the main chat", 409)
     return model_response(OkResponse())
 
 
@@ -2314,7 +2314,7 @@ def _run_ws_broadcast_loop(websocket: Any, agent_manager: AgentManager) -> None:
         for provisional in agent_manager.get_provisional_chats_as_shown():
             websocket.send(json.dumps(provisional_chat_created_message(provisional)))
         websocket.send(
-            json.dumps(chats_updated_message(agent_manager.get_chat_snapshots(), agent_manager.get_default_chat_id()))
+            json.dumps(chats_updated_message(agent_manager.get_chat_snapshots(), agent_manager.get_main_chat_id()))
         )
         shutdown = False
         while not shutdown:
@@ -2341,7 +2341,7 @@ def _run_ws_broadcast_loop(websocket: Any, agent_manager: AgentManager) -> None:
 _PER_CHAT_ROUTES: Final[tuple[tuple[str, Callable[..., Response], tuple[str, ...]], ...]] = (
     ("destroy", _destroy_chat, ("POST",)),
     ("rename", _rename_chat, ("POST",)),
-    ("default", _make_default_chat, ("POST",)),
+    ("make-main", _make_main_chat, ("POST",)),
     ("start", _start_chat, ("POST",)),
     ("stop", _stop_chat, ("POST",)),
     ("events", _get_events, ("GET",)),
@@ -2430,7 +2430,7 @@ _ROUTE_TABLE: Final[RouteTable] = {
     ("POST", "/api/chats/{chat_id}/rename"): RouteModels(
         request_model=RenameChatRequest, response_model=RenameChatResponse
     ),
-    ("POST", "/api/chats/{chat_id}/default"): RouteModels(response_model=OkResponse),
+    ("POST", "/api/chats/{chat_id}/make-main"): RouteModels(response_model=OkResponse),
     ("POST", "/api/chats/{chat_id}/start"): RouteModels(
         response_model=StartAgentResponse, alternate_responses=(_CONVERGING,)
     ),

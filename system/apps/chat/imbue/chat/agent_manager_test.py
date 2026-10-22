@@ -74,9 +74,6 @@ from imbue.chat.compaction_status import COMPACTION_REQUEST_FILENAME
 from imbue.chat.compaction_status import read_compaction_request
 from imbue.chat.compaction_status import write_compaction_request
 from imbue.chat.create_defaults import create_defaults_path
-from imbue.chat.default_chat import DEFAULT_CHAT_FILENAME
-from imbue.chat.default_chat import DEFAULT_CHAT_NAME
-from imbue.chat.default_chat import DefaultChatStore
 from imbue.chat.harnesses.codex.activity import CodexActivityTracker
 from imbue.chat.harnesses.codex.model import codex_models_to_options
 from imbue.chat.harnesses.codex.model import get_codex_model_options_path
@@ -91,6 +88,9 @@ from imbue.chat.harnesses.mock_transcript_reader_test import ListTranscriptReade
 from imbue.chat.harnesses.registry import get_model_state_path
 from imbue.chat.harnesses.session import FileHarnessSession
 from imbue.chat.harnesses.session import SendOutcome
+from imbue.chat.main_chat import MAIN_CHAT_FILENAME
+from imbue.chat.main_chat import MAIN_CHAT_NAME
+from imbue.chat.main_chat import MainChatStore
 from imbue.chat.message_stamps import MessageStampStore
 from imbue.chat.models import AgentCreationError
 from imbue.chat.models import AgentDestroyError
@@ -666,8 +666,8 @@ def test_seed_chat_opens_a_provisional_chat_awaiting_its_first_send_on_the_seede
         broadcast = json.loads(raw)
         assert broadcast["type"] == "provisional_chat_created"
         assert broadcast["chat_id"] == created.chat_id
-        # The welcome chat is the workspace's default chat before its first send, and the list says so.
-        assert _next_chat_listing(q)["default_chat_id"] == created.chat_id
+        # The welcome chat is the workspace's main chat before its first send, and the list says so.
+        assert _next_chat_listing(q)["main_chat_id"] == created.chat_id
     finally:
         manager.stop()
 
@@ -695,7 +695,7 @@ def test_a_seeded_chat_is_launched_by_its_first_send_as_the_seeds_successor(
     assert launched.chat_id == seeded.chat_id
     assert launched.display_name == "Getting started"
     assert manager.get_provisional_chat(seeded.chat_id) is None
-    assert manager.get_default_chat_id() == ChatId(seeded.chat_id)
+    assert manager.get_main_chat_id() == ChatId(seeded.chat_id)
     record = store.read(ChatId(seeded.chat_id))
     assert record is not None
     seed, agent = record.agents
@@ -1006,7 +1006,7 @@ def test_discarding_a_seeded_chat_drops_its_record_with_it(broadcaster: WebSocke
         assert manager.get_provisional_chat(seeded.chat_id) is None
         assert store.read(ChatId(seeded.chat_id)) is None
         assert manager.get_chat_segments(ChatId(seeded.chat_id)) is None
-        assert manager.get_default_chat_id() is None
+        assert manager.get_main_chat_id() is None
     finally:
         manager.stop()
 
@@ -1022,14 +1022,14 @@ def _next_chat_listing(q: queue.Queue[str | None]) -> dict[str, Any]:
     pytest.fail("no chats_updated message was broadcast")
 
 
-def test_deleting_the_default_chat_moves_the_default_to_the_chat_messaged_most_recently(
+def test_deleting_the_main_chat_moves_it_to_the_chat_messaged_most_recently(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
-    """The default is a pointer that another chat takes at once when its chat is deleted: the one
+    """The main chat is a pointer that another chat takes at once when its chat is deleted: the one
     messaged most recently, never a helper another agent started; the move is kept on disk and
     reaches the pages with the chat list."""
     mngr_binary, _argv_log = write_recording_mngr_binary(tmp_path)
-    default_chat_path = tmp_path / DEFAULT_CHAT_FILENAME
+    main_chat_path = tmp_path / MAIN_CHAT_FILENAME
     stamps = MessageStampStore(path=None)
     stamps.record(ChatId("agent-older"), at=100.0)
     stamps.record(ChatId("agent-newer"), at=200.0)
@@ -1038,7 +1038,7 @@ def test_deleting_the_default_chat_moves_the_default_to_the_chat_messaged_most_r
         broadcaster,
         mngr_binary=mngr_binary,
         message_stamps=stamps,
-        default_chat=DefaultChatStore(path=default_chat_path),
+        main_chat=MainChatStore(path=main_chat_path),
         chat_files_root=tmp_path / "chats",
     )
     try:
@@ -1046,76 +1046,74 @@ def test_deleting_the_default_chat_moves_the_default_to_the_chat_messaged_most_r
         seed_agent_state(manager, "agent-newer", name="Chat-2")
         seed_agent_state(manager, "agent-helper", name="Chat-3", labels={"agent_created": "true"})
         manager.note_agent_list_known()
-        assert manager.get_default_chat_id() == ChatId("agent-newer")
+        assert manager.get_main_chat_id() == ChatId("agent-newer")
 
         q = broadcaster.register()
         manager.destroy_chat(ChatId("agent-newer"))
 
-        assert _next_chat_listing(q)["default_chat_id"] == "agent-older"
-        assert DefaultChatStore(path=default_chat_path).read() == ChatId("agent-older")
+        assert _next_chat_listing(q)["main_chat_id"] == "agent-older"
+        assert MainChatStore(path=main_chat_path).read() == ChatId("agent-older")
     finally:
         manager.stop()
 
 
-def test_the_default_chat_is_kept_across_a_restart_and_left_alone_until_the_agent_list_is_read(
+def test_the_main_chat_is_kept_across_a_restart_and_left_alone_until_the_agent_list_is_read(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
-    default_chat_path = tmp_path / DEFAULT_CHAT_FILENAME
-    DefaultChatStore(path=default_chat_path).write(ChatId("agent-starred"))
-    manager = AgentManager.build(broadcaster, default_chat=DefaultChatStore(path=default_chat_path))
+    main_chat_path = tmp_path / MAIN_CHAT_FILENAME
+    MainChatStore(path=main_chat_path).write(ChatId("agent-starred"))
+    manager = AgentManager.build(broadcaster, main_chat=MainChatStore(path=main_chat_path))
     try:
         # Nothing is listed yet, which says nothing about whether the starred chat still exists.
-        assert manager.get_default_chat_id() == ChatId("agent-starred")
+        assert manager.get_main_chat_id() == ChatId("agent-starred")
         seed_agent_state(manager, "agent-starred", name="Chat-1")
         seed_agent_state(manager, "agent-other", name="Chat-2")
         manager.note_agent_list_known()
         manager.record_message_sent(ChatId("agent-other"))
 
-        assert manager.get_default_chat_id() == ChatId("agent-starred")
+        assert manager.get_main_chat_id() == ChatId("agent-starred")
     finally:
         manager.stop()
 
 
-def test_making_a_chat_the_default_moves_the_star_to_it_and_keeps_it_there(
+def test_making_a_chat_the_main_chat_moves_the_star_to_it_and_keeps_it_there(
     broadcaster: WebSocketBroadcaster, tmp_path: Path
 ) -> None:
-    """The user stars a chat by hand: it stays the default however recently another was messaged; a helper another
+    """The user stars a chat by hand: it stays the main chat however recently another was messaged; a helper another
     agent started cannot take the star."""
     stamps = MessageStampStore(path=None)
     stamps.record(ChatId("agent-busy"), at=900.0)
-    default_chat_path = tmp_path / DEFAULT_CHAT_FILENAME
-    manager = AgentManager.build(
-        broadcaster, message_stamps=stamps, default_chat=DefaultChatStore(path=default_chat_path)
-    )
+    main_chat_path = tmp_path / MAIN_CHAT_FILENAME
+    manager = AgentManager.build(broadcaster, message_stamps=stamps, main_chat=MainChatStore(path=main_chat_path))
     try:
         seed_agent_state(manager, "agent-busy", name="Chat-1")
         seed_agent_state(manager, "agent-quiet", name="Chat-2")
         seed_agent_state(manager, "agent-helper", name="Chat-3", labels={"agent_created": "true"})
         manager.note_agent_list_known()
-        assert manager.get_default_chat_id() == ChatId("agent-busy")
+        assert manager.get_main_chat_id() == ChatId("agent-busy")
         q = broadcaster.register()
 
-        assert manager.make_default_chat(ChatId("agent-quiet")) is True
-        assert manager.make_default_chat(ChatId("agent-helper")) is False
+        assert manager.make_main_chat(ChatId("agent-quiet")) is True
+        assert manager.make_main_chat(ChatId("agent-helper")) is False
 
-        assert _next_chat_listing(q)["default_chat_id"] == "agent-quiet"
-        assert manager.get_default_chat_id() == ChatId("agent-quiet")
-        assert DefaultChatStore(path=default_chat_path).read() == ChatId("agent-quiet")
+        assert _next_chat_listing(q)["main_chat_id"] == "agent-quiet"
+        assert manager.get_main_chat_id() == ChatId("agent-quiet")
+        assert MainChatStore(path=main_chat_path).read() == ChatId("agent-quiet")
     finally:
         manager.stop()
 
 
-def test_with_no_chat_left_the_chat_the_list_opens_takes_the_default(broadcaster: WebSocketBroadcaster) -> None:
+def test_with_no_chat_left_the_chat_the_list_opens_becomes_the_main_chat(broadcaster: WebSocketBroadcaster) -> None:
     manager = AgentManager.build(broadcaster)
     manager.note_agent_list_known()
     try:
-        assert manager.get_default_chat_id() is None
+        assert manager.get_main_chat_id() is None
         q = broadcaster.register()
 
         opened = manager.awaiting_chat_for_empty_list()
 
-        assert _next_chat_listing(q)["default_chat_id"] == opened.chat_id
-        assert manager.get_default_chat_id() == opened.chat_id
+        assert _next_chat_listing(q)["main_chat_id"] == opened.chat_id
+        assert manager.get_main_chat_id() == opened.chat_id
     finally:
         manager.stop()
 
@@ -2256,10 +2254,8 @@ def test_a_seeded_chat_still_wearing_its_seed_title_is_renamed_like_a_minted_one
         manager.stop()
 
 
-def test_a_seeded_chat_named_the_default_chat_keeps_its_name(
-    broadcaster: WebSocketBroadcaster, true_binary: str
-) -> None:
-    """The default chat's name is one the app chose, so its first message does not rename it."""
+def test_a_seeded_chat_named_the_main_chat_keeps_its_name(broadcaster: WebSocketBroadcaster, true_binary: str) -> None:
+    """The main chat's name is one the app chose, so its first message does not rename it."""
     manager = AgentManager.build(broadcaster, mngr_binary=true_binary)
     try:
         chat_id = ChatId("agent-" + "7" * 32)
@@ -2268,11 +2264,11 @@ def test_a_seeded_chat_named_the_default_chat_keeps_its_name(
         record = ChatRecord(
             chat_id=chat_id,
             agents=(seed, make_chat_agent_entry(2, agent_id, is_archived=False)),
-            seed_title=DEFAULT_CHAT_NAME,
+            seed_title=MAIN_CHAT_NAME,
         )
         with manager._lock:
             manager._chat_record_by_id[chat_id] = record
-        _tracked_chat(manager, agent_id, "Default-chat", display_name=DEFAULT_CHAT_NAME)
+        _tracked_chat(manager, agent_id, "Main-chat", display_name=MAIN_CHAT_NAME)
 
         assert not manager.has_placeholder_name(chat_id)
     finally:
@@ -6176,7 +6172,7 @@ def test_the_empty_list_chat_is_minted_once_and_handed_back_while_it_waits(
     assert first.account_id == ""
     assert second == first
     assert json.loads(q.get_nowait() or "")["chat_id"] == first.chat_id
-    # The list follows, since the minted chat may have taken the default; handing it back again sends nothing.
+    # The list follows, since the minted chat may have become the main chat; handing it back again sends nothing.
     assert json.loads(q.get_nowait() or "")["type"] == "chats_updated"
     assert q.empty()
 

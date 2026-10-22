@@ -34,7 +34,7 @@ import {
   fetchPendingIntake,
   getChatById,
   getChats,
-  getDefaultChatId,
+  getMainChatId,
   getProvisionalChats,
   hasReceivedChatList,
   initChats,
@@ -115,9 +115,9 @@ let isOpeningChatForEmptyList = false;
 // empty after that brings no push to ask again on (an unchanged list is not passed on).
 const emptyListChatBackoff = new ReconnectBackoff();
 
-/** The rail's rows in display order: the default chat first, then the most recent. */
+/** The rail's rows in display order: the main chat first, then the most recent. */
 function railRows(): ChatRow[] {
-  return groupedRows(rowsFromSnapshots(getChats(), getProvisionalChats(), getDefaultChatId()), startedHere);
+  return groupedRows(rowsFromSnapshots(getChats(), getProvisionalChats(), getMainChatId()), startedHere);
 }
 
 function slotFillFor(chatId: string | null): SlotFill {
@@ -132,7 +132,7 @@ function slotFillFor(chatId: string | null): SlotFill {
 }
 
 /** Show ``chatId``: the URL, the frame, the shell's location, and the unread mark follow. Asked to show nothing, the
- *  root shows the default chat instead (else the most recent), or with no chats one awaiting its first send (``slotFill``). */
+ *  root shows the main chat instead (else the most recent), or with no chats one awaiting its first send (``slotFill``). */
 function select(chatId: string | null): void {
   const fill = slotFillFor(chatId);
   const shown = fill.kind === "select" ? fill.chatId : chatId;
@@ -298,7 +298,7 @@ function dismissPick(): void {
 }
 
 function onChatsUpdated(): void {
-  const rows = rowsFromSnapshots(getChats(), getProvisionalChats(), getDefaultChatId());
+  const rows = rowsFromSnapshots(getChats(), getProvisionalChats(), getMainChatId());
   noteStatuses(new Map(rows.map((row) => [row.chatId, row.status])), isRootShown ? selectedChatId : null);
   // A chat that has messaged is no longer new; a deleted chat's frame goes with it.
   for (const chatId of startedHere) {

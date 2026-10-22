@@ -12,7 +12,7 @@ const verbs = vi.hoisted(() => ({
   stopChat: vi.fn(async (_chatId: string) => undefined),
   startChat: vi.fn(async (_chatId: string) => undefined),
   renameChat: vi.fn(async (_chatId: string, _title: string) => undefined),
-  makeDefaultChat: vi.fn(async (_chatId: string) => undefined),
+  makeMainChat: vi.fn(async (_chatId: string) => undefined),
   destroyChat: vi.fn(async (_chatId: string) => undefined),
 }));
 vi.mock("./verbs", () => verbs);
@@ -119,7 +119,7 @@ describe("ChatDrawer", () => {
     // The stopped chat offers to restart rather than stop.
     expect(menuRows.map((menuRow) => menuRow.textContent)).toEqual([
       "Rename",
-      "Make default chat",
+      "Make main chat",
       "Restart chat",
       "Delete chat",
     ]);

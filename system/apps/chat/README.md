@@ -19,11 +19,11 @@ observe`, its own supervised service) writes, and serves:
 
 - `GET /`: the chat root, the built `root.html`: the chat list down the left
   (`frontend/src/root/`, grouped by the chat that started each helper and
-  ordered by recency under the default chat, with rename, make default, stop and restart, and delete) beside an inner
+  ordered by recency under the main chat, with rename, make main, stop and restart, and delete) beside an inner
   frame of the selected chat's page. The selection is the `chat` query parameter,
   so the root's path is `/?chat=<chat-id>`, which it reports to the shell with the
   chat's title. Loading the page sends and writes nothing. With nothing selected
-  (opened bare, or after the chat on screen is deleted) it shows the default chat
+  (opened bare, or after the chat on screen is deleted) it shows the main chat
   (below), else the most recent chat, and with no chats one awaiting its first send
   (`POST /api/chats/awaiting`, held in memory until that send launches it).
   With nothing signed in, a chat awaiting its first send shows "Connect an AI
@@ -74,7 +74,7 @@ observe`, its own supervised service) writes, and serves:
   no pty is registered) in meta tags. Every chat page reports its path and the
   chat's title to the shell.
 - Every `/api/chats/<chat-id>/...` route (events, streams, sends, model choice,
-  the queue actions, presence and watchers, destroy, rename, default, start, stop; the subagent reads under
+  the queue actions, presence and watchers, destroy, rename, make-main, start, stop; the subagent reads under
   `/api/chats/<chat-id>/agents/<agent-id>/subagents/<session-id>/`),
   `/api/chats/create`, `/api/chats/awaiting` (the chat an empty chat list opens on), `/api/chats`,
   `/api/harnesses`, `/api/uploads`,
@@ -333,9 +333,9 @@ seconds is retried rather than mistaken for an unknown chat. See `docs/system/bl
 
 The intake route is how a text enters a chat from outside a chat page
 (`docs/system/blueprint/post-launch-paths/`): `POST /api/chats/intake` takes the
-text, how the receiving chat is chosen (`target`: `new_chat`, `default_chat` (the
-default chat, else the most recently messaged chat, else a new one; the desktop launcher's Enter), `current_chat` from
-the `window_path` the text was typed into, else the default chat, else the most recently messaged chat;
+text, how the receiving chat is chosen (`target`: `new_chat`, `main_chat` (the
+main chat, else the most recently messaged chat, else a new one; the desktop launcher's Enter), `current_chat` from
+the `window_path` the text was typed into, else the main chat, else the most recently messaged chat;
 `chat_selector`, the one chat there is or the user's pick; or `chat` with a
 `chat_id`), and whether the text is sent or drafted (`is_draft`), plus the
 sender's `client_id` and `desktop_id` for the shell's activity log. The chat's
@@ -413,19 +413,19 @@ out as typed, since a harness runs a command only when the slash leads the
 message. The seed survives a restart of this app because
 the record does; discarding the chat before its first send drops both.
 
-The workspace has one **default chat**, where a text with no chat of its own goes
-(`default_chat.py`). It is a pointer, like a star on one chat, kept in
-`data/.apps/chat/default_chat.json`; no chat is special in itself, so a handoff, a
+The workspace has one **main chat**, where a text with no chat of its own goes
+(`main_chat.py`). It is a pointer, like a star on one chat, kept in
+`data/.apps/chat/main_chat.json`; no chat is special in itself, so a handoff, a
 crash, or a relaunch leaves it where it is. The seeded chat takes it first, named
-"Default chat" (`DEFAULT_CHAT_NAME`) whatever title the Mind app sent, and a chat's "Make default chat" menu row (`POST
-/api/chats/<chat-id>/default`, 409 for a helper another agent started) moves it there.
+"Main chat" (`MAIN_CHAT_NAME`) whatever title the Mind app sent, and a chat's "Make main chat" menu row (`POST
+/api/chats/<chat-id>/make-main`, 409 for a helper another agent started) moves it there.
 When the chat it names is deleted, another takes it at once: the chat
 messaged most recently, never a helper another agent started; with no chat left, the
 chat the list opens (one awaiting its first send) takes it. Every `chats_updated` push
-and `GET /api/chats` carry its id as `default_chat_id`. The chat list leads with it (its
+and `GET /api/chats` carry its id as `main_chat_id`. The chat list leads with it (its
 helpers under it), in a medium weight and set off from the rest by a rule; the root
 shows it when nothing is selected, including after the chat on screen is deleted; a text
-sent from the desktop launcher with Enter (the `default` launch path, a `default_chat` intake) lands in it;
+sent from the desktop launcher with Enter (the `main` launch path, a `main_chat` intake) lands in it;
 and a `current_chat` intake from a window showing no chat lands in it. It can be renamed and
 deleted like any chat.
 
@@ -487,7 +487,7 @@ opening with no clear subject ("hi") leaves "Chat N" and the next message is
 tried, up to three messages. A title another chat already has gets the first
 free number after it ("Simple map app 2"), up to 9. Only a chat still wearing a
 name nobody chose is renamed: exactly "Chat N", or a seed title other than
-"Default chat" (an older Mind app's "Welcome"), named from the first message the
+"Main chat" (an older Mind app's "Welcome"), named from the first message the
 user sends in it. A
 name the user or an agent chose is left alone. What has been tried is kept in
 `naming.json` in the chat's folder, so a restart neither renames a named chat

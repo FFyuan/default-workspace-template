@@ -3,7 +3,7 @@
  * the one the root shows marked, and starting a new one at the head. Picking a row shows
  * that chat in the root's inner frame.
  *
- * The rows are ordered and grouped by ``rows.ts``. The default chat leads in a medium weight, its group set
+ * The rows are ordered and grouped by ``rows.ts``. The main chat leads in a medium weight, its group set
  * off from the rest by a rule, since it is where a text with no chat of its own goes. A row is renameable in place (double-click,
  * or the pencil under the pointer), and a right-click opens a menu: rename, stop or restart,
  * delete (which asks first). A stopped chat stays in the list faded with a pause mark; one
@@ -28,8 +28,8 @@ import { describeElement, type ReferenceClick, type ReferenceScope } from "@imbu
 import { anchorForPoint } from "@imbue/workspace-ui/src/menu-position";
 import { kebabGlyph, plusGlyph } from "../glyphs";
 import { isUnread } from "./chatUnread";
-import { destroyChat, makeDefaultChat, renameChat, startChat, stopChat } from "./verbs";
-import { defaultGroupSize, isAgentStarted } from "./rows";
+import { destroyChat, makeMainChat, renameChat, startChat, stopChat } from "./verbs";
+import { mainGroupSize, isAgentStarted } from "./rows";
 import {
   DEFAULT_RAIL_WIDTH_PX,
   MAX_RAIL_WIDTH_PX,
@@ -151,11 +151,9 @@ function setRunningFromMenu(row: ChatRow, isRunning: boolean): void {
   });
 }
 
-function makeDefaultFromMenu(row: ChatRow): void {
-  makeDefaultChat(row.chatId).catch((error: unknown) => {
-    alert(
-      `Could not make "${row.title}" the default chat.\n\n${error instanceof Error ? error.message : String(error)}`,
-    );
+function makeMainFromMenu(row: ChatRow): void {
+  makeMainChat(row.chatId).catch((error: unknown) => {
+    alert(`Could not make "${row.title}" the main chat.\n\n${error instanceof Error ? error.message : String(error)}`);
   });
 }
 
@@ -200,15 +198,15 @@ export function rowMenuRows(attrs: RowMenuContext, row: ChatRow, referenceRows: 
   const isStopped = row.status === "stopped";
   return [
     { kind: "action", key: "rename", label: "Rename", onSelect: () => beginRename(row) },
-    // A helper another agent started cannot be the default, and the default needs no offer to become it.
-    ...(row.isDefault || isAgentStarted(row)
+    // A helper another agent started cannot be the main chat, and the main chat needs no offer to become it.
+    ...(row.isMain || isAgentStarted(row)
       ? []
       : [
           {
             kind: "action",
-            key: "make-default",
-            label: "Make default chat",
-            onSelect: () => makeDefaultFromMenu(row),
+            key: "make-main",
+            label: "Make main chat",
+            onSelect: () => makeMainFromMenu(row),
           } as MenuRow,
         ]),
     {
@@ -322,15 +320,15 @@ export const ChatRail: m.Component<ChatRailAttrs> = {
   },
 };
 
-/** The rows, the default chat's group in a container of its own so its rule sits under the group's last row. */
+/** The rows, the main chat's group in a container of its own so its rule sits under the group's last row. */
 function railGroups(attrs: ChatRailAttrs): m.Vnode[] {
-  const split = defaultGroupSize(attrs.rows);
+  const split = mainGroupSize(attrs.rows);
   const rest = attrs.rows.slice(split).map((row) => railRow(attrs, row));
   if (split === 0) return [m("div", { key: "rest" }, rest)];
   return [
     m(
       "div",
-      { key: "default", class: "chat-rail-default-group mb-1 border-b border-default pb-1" },
+      { key: "main", class: "chat-rail-main-group mb-1 border-b border-default pb-1" },
       attrs.rows.slice(0, split).map((row) => railRow(attrs, row)),
     ),
     m("div", { key: "rest" }, rest),
@@ -469,11 +467,11 @@ function railRow(attrs: ChatRailAttrs, row: ChatRow): m.Vnode {
               ? "chat-rail-row--selected bg-fill-active text-primary"
               : "text-primary hover:bg-fill-hover",
         row.status === "stopped" ? "chat-rail-row--stopped opacity-50" : "",
-        row.isDefault ? "chat-rail-row--default font-medium" : "",
+        row.isMain ? "chat-rail-row--main font-medium" : "",
       ].join(" "),
       "data-chat-id": row.chatId,
       "data-status": status,
-      "data-default": row.isDefault ? "true" : undefined,
+      "data-main": row.isMain ? "true" : undefined,
       "aria-current": isSelected ? "true" : undefined,
       "aria-disabled": isDeleting ? "true" : undefined,
       // In the drawer the chat on screen is picked again to close it.

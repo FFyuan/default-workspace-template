@@ -81,7 +81,7 @@ def test_broadcast_chats_updated() -> None:
     msg = json.loads(_get_message(q))
     assert msg["type"] == "chats_updated"
     assert msg["chats"] == [snapshot.model_dump(mode="json")]
-    assert msg["default_chat_id"] == "a1"
+    assert msg["main_chat_id"] == "a1"
     assert msg["chats"][0]["chat_id"] == "a1"
     assert msg["chats"][0]["active_agent"]["agent_id"] == "a1"
 

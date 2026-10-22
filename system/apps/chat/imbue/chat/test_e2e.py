@@ -1168,12 +1168,12 @@ def test_the_chat_list_opened_with_nothing_selected_shows_the_most_recent_chat(t
 
 
 @pytest.mark.timeout(120, func_only=False)
-def test_the_chat_list_leads_with_the_default_chat_and_lands_on_the_next_default_when_it_goes(
+def test_the_chat_list_leads_with_the_main_chat_and_lands_on_the_next_main_chat_when_it_goes(
     tmp_path: Path, page: Page
 ) -> None:
-    """The seeded welcome chat is the default chat: it heads the list, set apart from the rest and marked, ahead of
+    """The seeded welcome chat is the main chat: it heads the list, set apart from the rest and marked, ahead of
     a chat messaged since, and it is the chat the list shows with nothing selected. When it goes, the chat messaged
-    most recently becomes the default at once, takes its place at the head, and is the chat the list lands on.
+    most recently becomes the main chat at once, takes its place at the head, and is the chat the list lands on.
 
     The root is opened at the chat app's own URL, with no shell client connected: seeding also owes the welcome chat
     an auto-opened window, which would move a shell's chat window onto it whatever the root itself selected."""
@@ -1189,21 +1189,23 @@ def test_the_chat_list_leads_with_the_default_chat_and_lands_on_the_next_default
         rows = page.locator(".chat-rail-row")
         expect(rows).to_have_count(2, timeout=15000)
         expect(rows.nth(0)).to_have_attribute("data-chat-id", welcome.chat_id)
-        expect(rows.nth(0)).to_have_attribute("data-default", "true")
+        expect(rows.nth(0)).to_have_attribute("data-main", "true")
         expect(rows.nth(1)).to_have_attribute("data-chat-id", FIXTURE_AGENT_ID)
-        default_group = page.locator(".chat-rail-default-group .chat-rail-row")
-        expect(default_group).to_have_count(1)
+        main_group = page.locator(".chat-rail-main-group .chat-rail-row")
+        expect(main_group).to_have_count(1)
 
         assert agent_manager.discard_provisional_chat(welcome.chat_id)
 
         expect(page).to_have_url(f"{server.chat_url}{_FIXTURE_ROOT_PATH}", timeout=15000)
         expect(rows).to_have_count(1)
         expect(rows.nth(0)).to_have_attribute("data-chat-id", FIXTURE_AGENT_ID)
-        expect(rows.nth(0)).to_have_attribute("data-default", "true")
+        expect(rows.nth(0)).to_have_attribute("data-main", "true")
 
 
-def test_making_a_chat_the_default_from_its_menu_moves_it_to_the_head_of_the_list(tmp_path: Path, page: Page) -> None:
-    """A chat's right-click menu stars it as the default: it takes the welcome chat's place at the head of the list,
+def test_making_a_chat_the_main_chat_from_its_menu_moves_it_to_the_head_of_the_list(
+    tmp_path: Path, page: Page
+) -> None:
+    """A chat's right-click menu stars it as the main chat: it takes the welcome chat's place at the head of the list,
     marked, and the welcome chat drops back among the rest."""
     with _running_e2e_server(tmp_path) as server:
         agent_manager = server.chat_state.agent_manager
@@ -1217,12 +1219,12 @@ def test_making_a_chat_the_default_from_its_menu_moves_it_to_the_head_of_the_lis
         expect(rows.nth(0)).to_have_attribute("data-chat-id", welcome.chat_id)
 
         page.locator(f'.chat-rail-row[data-chat-id="{FIXTURE_AGENT_ID}"]').click(button="right")
-        page.locator('.chat-rail-menu [data-menu-row="make-default"]').click()
+        page.locator('.chat-rail-menu [data-menu-row="make-main"]').click()
 
         expect(rows.nth(0)).to_have_attribute("data-chat-id", FIXTURE_AGENT_ID)
-        expect(rows.nth(0)).to_have_attribute("data-default", "true")
-        expect(page.locator(".chat-rail-row[data-default]")).to_have_count(1)
-        assert agent_manager.get_default_chat_id() == ChatId(FIXTURE_AGENT_ID)
+        expect(rows.nth(0)).to_have_attribute("data-main", "true")
+        expect(page.locator(".chat-rail-row[data-main]")).to_have_count(1)
+        assert agent_manager.get_main_chat_id() == ChatId(FIXTURE_AGENT_ID)
 
 
 @pytest.mark.timeout(120, func_only=False)
@@ -2313,7 +2315,7 @@ def test_a_drawer_row_kebab_stops_that_chat(tmp_path: Path, page: Page) -> None:
         page.locator("[data-chat-header-list]").click()
         page.locator(f'[data-chat-row-menu="{_SECOND_AGENT_ID}"]').click()
         menu = page.locator(".chat-rail-menu")
-        expect(menu.locator("[data-menu-row]")).to_have_text(["Rename", "Make default chat", "Stop chat", "Delete chat"])
+        expect(menu.locator("[data-menu-row]")).to_have_text(["Rename", "Make main chat", "Stop chat", "Delete chat"])
 
         with page.expect_response(
             lambda response: response.request.method == "POST" and "/stop" in response.url

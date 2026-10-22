@@ -101,10 +101,6 @@ from imbue.chat.compaction_status import read_compaction_request
 from imbue.chat.compaction_status import read_compaction_signal
 from imbue.chat.compaction_status import shown_compaction_cause
 from imbue.chat.compaction_status import write_compaction_request
-from imbue.chat.default_chat import DEFAULT_CHAT_NAME
-from imbue.chat.default_chat import DefaultChatCandidate
-from imbue.chat.default_chat import DefaultChatStore
-from imbue.chat.default_chat import resolved_default_chat_id
 from imbue.chat.harnesses.account_binding import BindingError
 from imbue.chat.harnesses.activity import HarnessActivityTracker
 from imbue.chat.harnesses.agent_file_poll import AgentFilePoller
@@ -143,6 +139,10 @@ from imbue.chat.harnesses.session_watcher import TranscriptReader
 from imbue.chat.harnesses.startup_readiness import is_harness_starting_up
 from imbue.chat.imbue_studio_notifications import ImbueStudioNotificationsClient
 from imbue.chat.latchkey_gateway import GatewayAccess
+from imbue.chat.main_chat import MAIN_CHAT_NAME
+from imbue.chat.main_chat import MainChatCandidate
+from imbue.chat.main_chat import MainChatStore
+from imbue.chat.main_chat import resolved_main_chat_id
 from imbue.chat.message_stamps import MessageStampStore
 from imbue.chat.models import ActiveAgentSnapshot
 from imbue.chat.models import AgentCreationError
@@ -1110,8 +1110,8 @@ class AgentManager:
     # When each chat was last messaged from the UI, kept on disk so a restart seeds the OOM
     # prioritizer's recency ranking from real history.
     _message_stamps: MessageStampStore
-    # Which chat is the workspace's default (``default_chat.py``), kept on disk so a restart keeps it.
-    _default_chat: DefaultChatStore
+    # Which chat is the workspace's main chat (``main_chat.py``), kept on disk so a restart keeps it.
+    _main_chat: MainChatStore
     # Re-tags chat agents' OOM ``oom_score_adj`` from live activity: page presence and
     # messages (via ``record_presence`` and ``record_message_sent``, from the chat app's
     # presence and send routes),
@@ -1176,7 +1176,7 @@ class AgentManager:
         messenger: MngrMessenger = _DEFAULT_MESSENGER,
         mngr_binary: str = _DEFAULT_MNGR_BINARY,
         message_stamps: MessageStampStore | None = None,
-        default_chat: DefaultChatStore | None = None,
+        main_chat: MainChatStore | None = None,
         auto_open: AutoOpenReactor | None = None,
         chat_record_store: ChatRecordStore | None = None,
         chat_files_root: Path = DEFAULT_CHAT_RECORDS_ROOT,
@@ -1195,8 +1195,8 @@ class AgentManager:
         mngr executable used for the agent-creation, rename, stop, and destroy
         commands. ``message_stamps`` remembers when each chat was
         last messaged; the default keeps that in memory only, so a real server
-        passes one backed by the chat app's data directory, as it does ``default_chat``, which
-        holds the workspace's default chat (``default_chat.py``). ``auto_open``
+        passes one backed by the chat app's data directory, as it does ``main_chat``, which
+        holds the workspace's main chat (``main_chat.py``). ``auto_open``
         surfaces labeled chats' windows; the default remembers nothing and reaches
         no shell, so a real server passes one backed by the ledger and the shell.
         ``chat_record_store`` holds the records of the chats that have run on several
@@ -1284,7 +1284,7 @@ class AgentManager:
         manager._sweep_started_at_by_agent = {}
         manager._compaction_finished_at_by_agent = {}
         manager._message_stamps = message_stamps if message_stamps is not None else MessageStampStore(path=None)
-        manager._default_chat = default_chat if default_chat is not None else DefaultChatStore(path=None)
+        manager._main_chat = main_chat if main_chat is not None else MainChatStore(path=None)
         manager._transcript_broadcaster = None
         manager._watcher_eviction_callback = None
         manager._unviewed_transcript_release = None
@@ -1444,8 +1444,8 @@ class AgentManager:
             self._is_agent_list_known = True
 
     def _broadcast_chats_updated(self) -> None:
-        """Push every chat's snapshot, and which is the default, to every WebSocket client."""
-        self._broadcaster.broadcast_chats_updated(self.get_chat_snapshots(), self.get_default_chat_id())
+        """Push every chat's snapshot, and which is the main chat, to every WebSocket client."""
+        self._broadcaster.broadcast_chats_updated(self.get_chat_snapshots(), self.get_main_chat_id())
 
     def _broadcast_provisional(self, provisional: ProvisionalChat) -> None:
         """Push a provisional chat to every client, under the name it is shown by."""
@@ -1458,33 +1458,33 @@ class AgentManager:
             return provisional
         return provisional.model_copy_update(to_update(provisional.field_ref().name, title))
 
-    def get_default_chat_id(self) -> ChatId | None:
-        """The workspace's default chat (``default_chat.py``), or None while it has no chat to take it.
+    def get_main_chat_id(self) -> ChatId | None:
+        """The workspace's main chat (``main_chat.py``), or None while it has no chat to take it.
 
         The chat it names is kept while it is listed; when it is gone another takes it at once and
         is kept from then on. Until the agent list is read nothing is chosen, so a restart never
-        moves the default off a chat that simply has not been listed yet.
+        moves the main chat off a chat that simply has not been listed yet.
         """
         with self._lock:
-            stored = self._default_chat.read()
+            stored = self._main_chat.read()
             if not self._is_agent_list_known:
                 return stored
-            resolved = resolved_default_chat_id(stored, self._default_chat_candidates_locked())
-            self._default_chat.write(resolved)
+            resolved = resolved_main_chat_id(stored, self._main_chat_candidates_locked())
+            self._main_chat.write(resolved)
         return resolved
 
-    def make_default_chat(self, chat_id: ChatId) -> bool:
-        """Star ``chat_id`` as the workspace's default chat, and push the list that shows it; False when the chat
-        cannot be the default (a helper another agent started, or no chat this app lists)."""
+    def make_main_chat(self, chat_id: ChatId) -> bool:
+        """Star ``chat_id`` as the workspace's main chat, and push the list that shows it; False when the chat
+        cannot be the main chat (a helper another agent started, or no chat this app lists)."""
         with self._lock:
-            if not any(candidate.chat_id == chat_id for candidate in self._default_chat_candidates_locked()):
+            if not any(candidate.chat_id == chat_id for candidate in self._main_chat_candidates_locked()):
                 return False
-            self._default_chat.write(chat_id)
+            self._main_chat.write(chat_id)
         self._broadcast_chats_updated()
         return True
 
-    def _default_chat_candidates_locked(self) -> list[DefaultChatCandidate]:
-        """The chats that can be the default: every listed chat a user started, and every chat still provisional.
+    def _main_chat_candidates_locked(self) -> list[MainChatCandidate]:
+        """The chats that can be the main chat: every listed chat a user started, and every chat still provisional.
         Lock held."""
         last_messaged = self._message_stamps.read()
         candidate_ids = [
@@ -1492,7 +1492,7 @@ class AgentManager:
         ]
         candidate_ids.extend(chat_id for chat_id in self._provisional_chats if chat_id not in candidate_ids)
         return [
-            DefaultChatCandidate(
+            MainChatCandidate(
                 chat_id=chat_id,
                 seeded_at=self._seeded_at_locked(chat_id),
                 last_messaged_at=last_messaged.get(chat_id),
@@ -3050,7 +3050,7 @@ class AgentManager:
 
     def has_placeholder_name(self, chat_id: ChatId) -> bool:
         """Whether a chat still wears a name nobody chose for it: a minted "Chat N", or a title it was seeded with
-        other than ``DEFAULT_CHAT_NAME`` (an older Mind app's "Welcome"). A chat still being created counts by the
+        other than ``MAIN_CHAT_NAME`` (an older Mind app's "Welcome"). A chat still being created counts by the
         name it was minted with."""
         with self._lock:
             provisional = self._provisional_chats.get(chat_id)
@@ -3062,7 +3062,7 @@ class AgentManager:
             if snapshot is None:
                 return False
             title = snapshot.title
-        is_seed_title = record is not None and record.seed_title == title and title != DEFAULT_CHAT_NAME
+        is_seed_title = record is not None and record.seed_title == title and title != MAIN_CHAT_NAME
         return is_minted_chat_name(title) or is_seed_title
 
     def resolve_chat_account_binding(self, chat_id: ChatId) -> ChatAccountBinding | None:
