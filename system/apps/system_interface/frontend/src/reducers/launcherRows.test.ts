@@ -162,4 +162,11 @@ describe("the tour row", () => {
     expect(launcherRowsOf(state(), "tour\n").tourRows).toEqual([]);
     expect(isRowEnabled(withNoQuery.tourRows[0])).toBe(true);
   });
+
+  it("is left out where the tour is not offered, and its words then match nothing", () => {
+    const withoutTour = launcherRowsOf(state(), "", { isTourOffered: false });
+    expect(withoutTour.tourRows).toEqual([]);
+    expect(keys(withoutTour.rows)).toEqual(["launch:chatty:root", "launch:terminal:new", "text:chatty:new"]);
+    expect(launcherRowsOf(state(), "tour", { isTourOffered: false }).isNoMatch).toBe(true);
+  });
 });

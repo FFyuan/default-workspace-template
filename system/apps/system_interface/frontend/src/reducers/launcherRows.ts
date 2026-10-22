@@ -176,15 +176,25 @@ export function isMessageText(text: string): boolean {
   return text.includes("\n");
 }
 
+export interface LauncherRowsOptions {
+  /** Whether the tour's row is offered (true unless said otherwise); the phone layout, where the tour never draws,
+   *  leaves it out. */
+  readonly isTourOffered?: boolean;
+}
+
 /** The menu for the field's ``query`` (plan section 3.5): window rows appear only while typing; the free-text rows
  *  stand alone for a text with a line break. The line break is read off the field's text as typed, as the field
  *  reads it for the arrows, so a break just typed already makes a message; the rows send the trimmed text. */
-export function launcherRowsOf(state: DesktopState, query: string): LauncherMenuRows {
+export function launcherRowsOf(
+  state: DesktopState,
+  query: string,
+  options: LauncherRowsOptions = {},
+): LauncherMenuRows {
   const text = query.trim();
   const apps = openableApps(state);
   const isMessage = isMessageText(query);
   const launchRows = isMessage ? [] : launchRowsOf(apps, text);
-  const tourRows = isMessage ? [] : tourRowsOf(apps, text);
+  const tourRows = isMessage || options.isTourOffered === false ? [] : tourRowsOf(apps, text);
   const windowRows = text === "" || isMessage ? [] : windowRowsOf(state, text);
   const textRows = textRowsOf(apps, text);
   return {
