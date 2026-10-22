@@ -58,4 +58,6 @@ class TourStore(MutableModel):
 
     def write(self, is_seen: bool) -> None:
         with STATE_FILES_LOCK:
-            write_json_atomic(self._path(), _TourDocument(version=TOUR_FILE_VERSION, is_seen=is_seen).model_dump(mode="json"))
+            write_json_atomic(
+                self._path(), _TourDocument(version=TOUR_FILE_VERSION, is_seen=is_seen).model_dump(mode="json")
+            )

@@ -63,8 +63,6 @@ from imbue.system_interface.shell.errors import NoTargetClientError
 from imbue.system_interface.shell.errors import PinnedWindowError
 from imbue.system_interface.shell.errors import ShellError
 from imbue.system_interface.shell.errors import StalePlacementsSaveError
-from imbue.system_interface.shell.tour import TOUR_ROUTE
-from imbue.system_interface.shell.tour import TourRecord
 from imbue.system_interface.shell.errors import SupervisorProgramActionError
 from imbue.system_interface.shell.errors import UnknownAppError
 from imbue.system_interface.shell.errors import UpdateNoticeCommandError
@@ -87,6 +85,8 @@ from imbue.system_interface.shell.route_helpers import HTTP_PRECONDITION_FAILED
 from imbue.system_interface.shell.route_helpers import detail_response
 from imbue.system_interface.shell.route_helpers import require_loopback
 from imbue.system_interface.shell.state import ShellState
+from imbue.system_interface.shell.tour import TOUR_ROUTE
+from imbue.system_interface.shell.tour import TourRecord
 
 
 def _answer_shell_error(error: ShellError) -> ResponseReturnValue:

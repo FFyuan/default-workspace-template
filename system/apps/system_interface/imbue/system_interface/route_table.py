@@ -39,8 +39,6 @@ from imbue.system_interface.avatar.api_models import AvatarSelected
 from imbue.system_interface.avatar.api_models import AvatarsListing
 from imbue.system_interface.avatar.catalog import DesignRegistration
 from imbue.system_interface.avatar.selection import AvatarSelection
-from imbue.system_interface.shell.tour import TOUR_ROUTE
-from imbue.system_interface.shell.tour import TourRecord
 from imbue.system_interface.documents import MANIFEST_PATH
 from imbue.system_interface.documents import TOUCH_ICON_PATH
 from imbue.system_interface.shell.api_models import AppRunningState
@@ -69,6 +67,8 @@ from imbue.system_interface.shell.route_helpers import HTTP_ACCEPTED
 from imbue.system_interface.shell.route_helpers import HTTP_BAD_GATEWAY
 from imbue.system_interface.shell.route_helpers import HTTP_CREATED
 from imbue.system_interface.shell.route_helpers import HTTP_NO_CONTENT
+from imbue.system_interface.shell.tour import TOUR_ROUTE
+from imbue.system_interface.shell.tour import TourRecord
 from imbue.system_interface.shell.wallpapers import WALLPAPER_ROUTE_PREFIX
 from imbue.system_interface.shell.wallpapers import WallpapersListing
 
