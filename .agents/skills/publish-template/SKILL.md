@@ -298,10 +298,11 @@ push, which goes through the gateway's git proxy.
 python3 "$PT/github_access.py" check
 ```
 
-A kind reported UNKNOWN (exit 2) means the gateway could not answer, usually
-because it cannot reach the user's Imbue Studio app, where they would approve a
-request: file nothing yet, ask them to open the app, and check again. Once it
-answers, file the request for each kind it reports NOT permitted yourself. Each
+A kind reported UNKNOWN (exit 2) means the gateway could not answer. File
+nothing yet. Usually it cannot reach the user's Imbue Studio app, where they
+would approve a request: ask them to open the app, and check again. For any
+other reason in the parentheses, `references/failures.md` says what to do. Once
+it answers, file the request for each kind it reports NOT permitted yourself. Each
 request must be the ONLY command in its tool call -- the chat builds the user's
 approval card from it -- so two missing means two calls, back to back:
 
