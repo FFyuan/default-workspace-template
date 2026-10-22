@@ -254,7 +254,12 @@ in the pass, by its type:
   --app <app-name>`).
 - **service**: it has no window -- restart its programs (`supervisorctl restart
   <program>`): the one named after the package (`host_backup` runs as
-  `host-backup`) and any `<program>-<role>` ones.
+  `host-backup`) and any `<program>-<role>` ones. `oom_priority`'s programs
+  are named otherwise (`earlyoom`, `publish_cgroup_meminfo`,
+  `resource_sampler`, and the `oom-tag-backstop` event listener): restart the
+  ones the change reaches. A service with no
+  program of its own (the Caretaker's check, which a routine runs) has nothing
+  to restart: its next run reads the merged code.
 - **a critical app**: do **not** merge or go live here -- the careful flow
   (`update-app/references/critical-app.md`) drives the live preview loop and
   the go-live through the atomic update apply. (It uses this flow for Steps 1-3
