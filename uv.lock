@@ -3453,6 +3453,7 @@ dependencies = [
     { name = "loguru" },
     { name = "pydantic" },
     { name = "tomlkit" },
+    { name = "workspace-usage" },
 ]
 
 [package.dev-dependencies]
@@ -3472,6 +3473,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "tomlkit", specifier = ">=0.12" },
+    { name = "workspace-usage", editable = "system/libs/workspace_usage" },
 ]
 
 [package.metadata.requires-dev]

@@ -147,3 +147,27 @@ def test_draining_the_claude_sessions_spool_reads_each_session(
     assert counts[IngestOutcome.STORED] == 1
     assert list(spool.glob("*.json")) == []
     assert store.totals([], NOW - timedelta(days=1))[0].calls == 1
+
+
+def test_a_one_shot_of_unknown_billing_is_billed_as_its_account_records(
+    tmp_path: Path, ingestor: Ingestor, feed: UsageFeed
+) -> None:
+    session_id = "0c9e7a51-3b24-4d68-9f1a-8e5d2c7b4a60"
+    account = tmp_path / "account"
+    write_claude_session(account, session_id, ["req_sub"])
+    (account / ".claude.json").write_text(
+        json.dumps({"oauthAccount": {"billingType": "stripe_subscription"}})
+    )
+    subscription = feed.subscribe()
+
+    ingestor.ingest_claude_session(
+        {
+            "config_dir": str(account),
+            "session_id": session_id,
+            "attribution": {"workspace_id": "ws-1", "origin_kind": "APP"},
+        }
+    )
+
+    assert (
+        json.loads(subscription.events.get_nowait())["billing_mode"] == "SUBSCRIPTION"
+    )

@@ -44,6 +44,7 @@ GROUPABLE_DIMENSIONS: Final[tuple[str, ...]] = (
     "subagent_type",
     "purpose",
     "credential_ref",
+    "workspace_id",
 )
 TOKEN_COLUMNS: Final[tuple[str, ...]] = ("input", "output", "cache_read", "cache_write")
 

@@ -1,0 +1,1 @@
+Usage read from agents' event files is now attributed to this workspace (an agent cannot tell which workspace it runs in), and `workspace_id` can be grouped on in `GET /v1/totals`. A `claude -p` one-shot reported without a billing mode is billed as its account records: an API key, a subscription, or unknown.

@@ -16,6 +16,7 @@ from typing import Final
 
 from loguru import logger
 from werkzeug.serving import make_server
+from workspace_usage.context import read_workspace_id
 from workspace_usage.emit import (
     CLAUDE_SESSIONS_SPOOL_NAME,
     COLLECTOR_PORT,
@@ -50,7 +51,9 @@ def run_pass(ingestor: Ingestor, store: UsageStore, environ: Mapping[str, str]) 
     """One round of reading agent event files and draining both spools."""
     agents_host_dir = host_dir(environ)
     if agents_host_dir is not None:
-        follow_agent_event_files(agents_host_dir, store, ingestor.ingest)
+        follow_agent_event_files(
+            agents_host_dir, store, ingestor.ingest, read_workspace_id(environ)
+        )
     _log_drained(
         "events", ingestor.drain_events_spool(spool_dir(environ, EVENTS_SPOOL_NAME))
     )

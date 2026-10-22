@@ -24,6 +24,9 @@ from app_manifest.registry_location import registry_path
 from loguru import logger
 
 USAGE_CONTEXT_ENV_VAR: Final[str] = "IMBUE_USAGE_CONTEXT"
+# A file in an mngr agent's state dir that its usage writers read ahead of the agent's
+# environment, so a long-lived agent's attribution can change, e.g. per routine run.
+USAGE_CONTEXT_FILENAME: Final[str] = "usage_context"
 SUPERVISOR_PROCESS_NAME_ENV_VAR: Final[str] = "SUPERVISOR_PROCESS_NAME"
 # The workspace is the services agent: every supervised program inherits its id.
 WORKSPACE_ID_ENV_VAR: Final[str] = "MNGR_AGENT_ID"

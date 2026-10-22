@@ -8,7 +8,9 @@ reads each file from where it left off, about once a second, and remembers
 its place in the store across restarts.
 
 Only lines that are model_call events (they carry a ``schema_version`` and an
-``attribution``) are ingested; the older snapshot events the same files hold
+``attribution``) are ingested, each attributed to this workspace: an agent
+cannot tell which workspace it runs in, and every agent on the host is this
+workspace's; the older snapshot events the same files hold
 are left to ``mngr usage``. A file that shrank or was replaced is read again
 from the start, which re-sends events the store already holds and dedupes.
 """
@@ -16,7 +18,7 @@ from the start, which re-sends events the store already holds and dedupes.
 import json
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from loguru import logger
 
@@ -43,8 +45,19 @@ def event_files(host_dir: Path) -> Iterator[Path]:
         yield from sorted(host_dir.glob(pattern))
 
 
+def with_workspace_id(record: dict[str, Any], workspace_id: str) -> dict[str, Any]:
+    """``record`` attributed to ``workspace_id``."""
+    attribution = record.get("attribution")
+    if not isinstance(attribution, dict):
+        return record
+    return {**record, "attribution": {**attribution, "workspace_id": workspace_id}}
+
+
 def follow_agent_event_files(
-    host_dir: Path, store: UsageStore, ingest: Callable[[object], object]
+    host_dir: Path,
+    store: UsageStore,
+    ingest: Callable[[object], object],
+    workspace_id: str,
 ) -> int:
     """Ingest the model_call lines added to every agent event file since the last pass. Returns how many were read."""
     read = 0
@@ -76,7 +89,7 @@ def follow_agent_event_files(
                 logger.warning("Skipped an unreadable line in {}: {}", path, e)
                 continue
             if is_model_call_line(record):
-                ingest(record)
+                ingest(with_workspace_id(record, workspace_id))
                 read += 1
         store.set_file_position(path, stat.st_ino, offset + len(complete))
     return read

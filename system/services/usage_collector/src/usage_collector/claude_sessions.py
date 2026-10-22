@@ -13,6 +13,7 @@ from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.primitives import NonEmptyStr
 from imbue.mngr_usage.claude_session_log import (
     ClaudeSessionLogError,
+    claude_account_billing_mode,
     find_claude_session_log,
     read_claude_session_calls,
 )
@@ -68,9 +69,15 @@ def read_reported_session(report: ClaudeSessionReport) -> list[ModelCallEvent]:
         raise ClaudeSessionNotFoundError(
             f"No session log for {report.session_id} under {report.config_dir}"
         )
+    # A one-shot's caller rarely knows who pays; the account it ran under records it.
+    billing_mode = (
+        claude_account_billing_mode(report.config_dir)
+        if report.billing_mode == BillingMode.UNKNOWN
+        else report.billing_mode
+    )
     try:
         events = read_claude_session_calls(
-            session_log, report.attribution, report.billing_mode, report.credential_ref
+            session_log, report.attribution, billing_mode, report.credential_ref
         )
     except ClaudeSessionLogError as e:
         raise ClaudeSessionNotFoundError(str(e)) from e
