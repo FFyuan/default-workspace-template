@@ -288,12 +288,13 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
        -printf '%T@ %p\n' | sort -n | sed -n '$s/^[^ ]* //p')
    ```
 
-   An empty `$LAST` means the worker has reported nothing yet. Otherwise the
-   holder read that report but may have stopped before acting on it, so act
-   on it now, by what it is:
-   - A `gate` or `question`, with the worker WAITING, was never answered.
-     Handle it as `lead-proxy.md` says ("Deciding: answer gate yourself vs.
-     escalate"). A `final-creation` gate goes to the user, with a sentence
+   An empty `$LAST` means the worker has reported nothing yet. A worker that
+   is RUNNING was answered (a `done` it is catching up on, say), and its next
+   report reaches you through the poll in step 4. Otherwise the holder read
+   that report but stopped before acting on it, so act on it now, by what it
+   is:
+   - A `gate` or `question` was never answered. Handle it as `lead-proxy.md`
+     says ("Deciding: answer gate yourself vs. escalate"). A `final-creation` gate goes to the user, with a sentence
      saying it comes from an earlier check of this creation that has been
      waiting on them.
    - A `done` was never merged: run the calling skill's merge for it now,
