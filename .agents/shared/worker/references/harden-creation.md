@@ -547,7 +547,8 @@ fix the milestone's work per the lead's reply.
 The revert of the revert is yours, selected like any change, so your test
 gate covers the milestone's work again. A pass still under way goes on as
 before; one that had already reported `done` finishes with steps 3 to 5 of
-that section. Either way the work reaches the lead only with the next report
+that section, where the tree before your change is the lead's revert commit,
+not the merge's second parent, which holds the milestone again. Either way the work reaches the lead only with the next report
 of yours it merges.
 
 ## If you need to give up
