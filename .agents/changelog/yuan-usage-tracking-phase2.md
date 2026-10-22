@@ -1,0 +1,1 @@
+`claude_p.py` now records each call through `workspace_usage` (an app using it depends on `workspace-usage`), which reads the call's usage from its session log into the workspace's usage files. The use-ai-integration and build-app skills tell new apps to make every model call through `workspace_usage`, and the litellm sketch installs its usage callback.

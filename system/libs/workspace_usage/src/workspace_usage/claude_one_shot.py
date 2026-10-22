@@ -2,16 +2,24 @@
 
 Claude Code writes every call it makes, sub-agents' included, to its session
 log. A one-shot runs with a session id chosen up front (``--session-id``,
-with session persistence on), and once it exits the caller reports that
-session; the usage collector reads the calls out of the log with the same
-reader the Claude agents' usage writer uses, then deletes the log, so a
-one-shot leaves nothing behind in the account's ``projects/`` directory.
+with session persistence on); once it exits, its calls are read out of that
+log with mngr_usage's session-log reader -- the one the Claude agents' usage
+poller runs -- and appended to the origin's event file. The log is then
+deleted, so a one-shot leaves nothing behind in the account's ``projects/``
+directory.
+
+The reader is mngr_usage's standard-library core, so recording imports
+nothing of mngr beyond those two modules.
 """
 
 import os
+import shutil
 from collections.abc import Mapping
 from pathlib import Path
 from uuid import uuid4
+
+from imbue.mngr_usage.resources import claude_session_calls
+from loguru import logger
 
 from workspace_usage.context import (
     ORIGIN_KIND,
@@ -19,8 +27,9 @@ from workspace_usage.context import (
     read_usage_context,
     read_workspace_id,
 )
-from workspace_usage.emit import emit_claude_session
-from workspace_usage.events import BILLING_MODE_UNKNOWN
+from workspace_usage.emit import record_model_call
+
+CLAUDE_HARNESS = "claude"
 
 
 def new_claude_session_id() -> str:
@@ -32,53 +41,60 @@ def claude_session_args(session_id: str) -> list[str]:
     return ["--session-id", session_id]
 
 
-def build_claude_session_report(
-    *,
-    config_dir: Path,
-    session_id: str,
-    context: Mapping[str, str],
-    workspace_id: str,
-    purpose: str | None = None,
-    billing_mode: str = BILLING_MODE_UNKNOWN,
-    credential_ref: str | None = None,
-    delete_log: bool = True,
-) -> dict[str, object]:
-    attribution: dict[str, object] = {
-        "workspace_id": workspace_id,
-        ORIGIN_KIND: context.get(ORIGIN_KIND, ORIGIN_KIND_UNKNOWN),
-        **{
-            key: value for key, value in context.items() if key != ORIGIN_KIND and value
-        },
-        **({"purpose": purpose} if purpose else {}),
-    }
-    report: dict[str, object] = {
-        "config_dir": str(config_dir),
-        "session_id": session_id,
-        "attribution": attribution,
-        "billing_mode": billing_mode,
-        "delete_log": delete_log,
-    }
-    if credential_ref:
-        report["credential_ref"] = credential_ref
-    return report
-
-
-def report_claude_one_shot(
+def record_claude_one_shot(
     config_dir: Path,
     session_id: str,
     purpose: str | None = None,
     context: Mapping[str, str] | None = None,
-    billing_mode: str = BILLING_MODE_UNKNOWN,
+    billing_mode: str | None = None,
     environ: Mapping[str, str] | None = None,
-) -> bool:
-    """Report a finished one-shot's session. ``context`` defaults to this process's usage context."""
+    delete_log: bool = True,
+) -> int:
+    """Record a finished one-shot's calls; returns how many. Never raises.
+
+    ``context`` defaults to this process's usage context, and ``billing_mode``
+    to what the account under ``config_dir`` records (API key, subscription,
+    or unknown). ``delete_log=False`` keeps a session the user may resume.
+    """
     env = os.environ if environ is None else environ
-    report = build_claude_session_report(
-        config_dir=config_dir,
-        session_id=session_id,
-        context=read_usage_context(env) if context is None else context,
-        workspace_id=read_workspace_id(env),
-        purpose=purpose,
-        billing_mode=billing_mode,
+    main_log = claude_session_calls.find_session_log(str(config_dir), session_id)
+    if main_log is None:
+        logger.debug(
+            "No session log for the one-shot {} under {}; nothing to record",
+            session_id,
+            config_dir,
+        )
+        return 0
+    inherited = read_usage_context(env) if context is None else context
+    attribution: dict[str, str] = {
+        "workspace_id": read_workspace_id(env),
+        ORIGIN_KIND: inherited.get(ORIGIN_KIND, ORIGIN_KIND_UNKNOWN),
+        **{
+            key: value
+            for key, value in inherited.items()
+            if key != ORIGIN_KIND and value
+        },
+        "harness": CLAUDE_HARNESS,
+        **({"purpose": purpose} if purpose else {}),
+    }
+    mode = billing_mode or claude_session_calls.claude_billing_mode(
+        {"CLAUDE_CONFIG_DIR": str(config_dir)}, str(config_dir)
     )
-    return emit_claude_session(report, env)
+    try:
+        events = claude_session_calls.session_log_events(main_log, attribution, mode)
+    except OSError as e:
+        logger.warning("Could not read the one-shot's session log {}: {}", main_log, e)
+        return 0
+    for event in events:
+        record_model_call(event, env)
+    if delete_log:
+        _delete_session_logs(Path(main_log))
+    return len(events)
+
+
+def _delete_session_logs(main_log: Path) -> None:
+    try:
+        main_log.unlink(missing_ok=True)
+    except OSError as e:
+        logger.warning("Could not delete the one-shot session log {}: {}", main_log, e)
+    shutil.rmtree(main_log.with_suffix(""), ignore_errors=True)

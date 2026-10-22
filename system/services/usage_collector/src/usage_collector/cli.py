@@ -1,9 +1,9 @@
 """``usage-collector``: the supervised process that owns the workspace's usage store.
 
-About once a second it reads what the workspace's agents appended to their
-usage event files and drains the emitters' spool (reports written while it
-was down or restarting); hourly it prunes raw events past retention. It
-serves the HTTP API on 127.0.0.1.
+About once a second it reads what was appended to every usage event file in
+the workspace (see ``event_files``); hourly it prunes raw events past
+retention from the store (they stay in the files). It serves the query API on
+127.0.0.1.
 """
 
 import itertools
@@ -17,25 +17,15 @@ from typing import Final
 from loguru import logger
 from werkzeug.serving import make_server
 from workspace_usage.context import read_workspace_id
-from workspace_usage.emit import (
-    CLAUDE_SESSIONS_SPOOL_NAME,
-    COLLECTOR_PORT,
-    EVENTS_SPOOL_NAME,
-    spool_dir,
-    usage_data_dir,
-)
+from workspace_usage.emit import events_dir, usage_data_dir
 
-from usage_collector.agent_files import follow_agent_event_files
+from usage_collector.event_files import event_files, follow_event_files
 from usage_collector.feed import UsageFeed
-from usage_collector.ingest import (
-    IngestCounts,
-    Ingestor,
-    IngestOutcome,
-    describe_counts,
-)
+from usage_collector.ingest import Ingestor
 from usage_collector.server import create_app
 from usage_collector.store import UsageStore
 
+COLLECTOR_PORT: Final[int] = 8795
 DATABASE_FILENAME: Final[str] = "usage.db"
 HOST_DIR_ENV_VAR: Final[str] = "MNGR_HOST_DIR"
 _PASS_SECONDS: Final[float] = 1.0
@@ -47,22 +37,10 @@ def host_dir(environ: Mapping[str, str]) -> Path | None:
     return Path(configured) if configured else None
 
 
-def run_pass(ingestor: Ingestor, store: UsageStore, environ: Mapping[str, str]) -> None:
-    """One round of reading agent event files and draining both spools."""
-    agents_host_dir = host_dir(environ)
-    if agents_host_dir is not None:
-        follow_agent_event_files(
-            agents_host_dir, store, ingestor.ingest, read_workspace_id(environ)
-        )
-    _log_drained(
-        "events", ingestor.drain_events_spool(spool_dir(environ, EVENTS_SPOOL_NAME))
-    )
-    _log_drained(
-        "claude sessions",
-        ingestor.drain_claude_sessions_spool(
-            spool_dir(environ, CLAUDE_SESSIONS_SPOOL_NAME)
-        ),
-    )
+def run_pass(ingestor: Ingestor, store: UsageStore, environ: Mapping[str, str]) -> int:
+    """One round of reading what every event file gained; returns how many events were read."""
+    paths = event_files(host_dir(environ), events_dir(environ))
+    return follow_event_files(paths, store, ingestor.ingest, read_workspace_id(environ))
 
 
 def run_maintenance(
@@ -77,14 +55,11 @@ def run_maintenance(
         if passes % _PRUNE_EVERY_PASSES == 0:
             pruned = store.prune(datetime.now(timezone.utc))
             if pruned:
-                logger.info("Pruned {} raw events past retention", pruned)
+                logger.info(
+                    "Pruned {} raw events past retention from the store", pruned
+                )
         if stop.wait(_PASS_SECONDS):
             return
-
-
-def _log_drained(kind: str, counts: IngestCounts) -> None:
-    if counts[IngestOutcome.STORED] or counts[IngestOutcome.REJECTED]:
-        logger.info("Drained spooled {}: {}", kind, describe_counts(counts))
 
 
 def main() -> None:
@@ -92,7 +67,7 @@ def main() -> None:
     store = UsageStore(usage_data_dir(environ) / DATABASE_FILENAME)
     feed = UsageFeed()
     ingestor = Ingestor(store, feed)
-    app = create_app(store, feed, ingestor)
+    app = create_app(store, feed)
     stop = threading.Event()
     maintenance = threading.Thread(
         target=run_maintenance,

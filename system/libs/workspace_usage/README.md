@@ -1,8 +1,14 @@
 # workspace_usage
 
-Reports the model calls a workspace app makes to the workspace's usage
-collector (`system/services/usage_collector`), so every call is counted and
-attributed even when it is made outside an agent.
+Records the model calls a workspace app makes in the workspace's usage, so
+every call is counted and attributed even when it is made outside an agent.
+
+Every call is appended as one `model_call` event (mngr_usage's schema) to an
+event file under `data/.apps/usage/events/`, one file per origin
+(`<origin_kind>-<origin_id>.jsonl`). The usage collector
+(`system/services/usage_collector`) follows those files beside the agents' own
+usage event files; recording depends on nothing else running and never fails
+the call.
 
 - **Attribution** (`context`): `read_usage_context()` reads the
   `IMBUE_USAGE_CONTEXT` a starter handed down (`origin_kind=CHAT,origin_id=...`).
@@ -11,16 +17,14 @@ attributed even when it is made outside an agent.
   to the workspace (`SYSTEM`); anything else is `UNKNOWN`.
 - **Direct LiteLLM calls** (`litellm_usage`, the `litellm` extra): call
   `install_litellm_usage_callback()` once at start; every `completion` after
-  that is reported, successes and failures.
+  that is recorded, successes and failures.
 - **`claude -p` one-shots** (`claude_one_shot`): run `claude -p` with
   `claude_session_args(session_id)` instead of `--no-session-persistence`, then
-  call `report_claude_one_shot(config_dir, session_id, purpose=...)`. The
-  collector reads the calls from the session log and deletes it.
+  call `record_claude_one_shot(config_dir, session_id, purpose=...)`. It reads
+  the calls from the session log with mngr_usage's session-log reader (the one
+  the Claude agents' poller runs), records them, and deletes the log.
 - **Anything else** (`events`, `emit`): build a `model_call` with
-  `build_model_call(...)` and send it with `emit_model_call(...)`.
+  `build_model_call(...)` and record it with `record_model_call(...)`.
 
-Delivery never raises and never fails the call: a report the collector cannot
-take right away is spooled to `data/.apps/usage/spool/` and drained later.
-
-The library does not import mngr, so an app's tool environment stays small;
-the collector's tests hold its output to mngr_usage's `model_call` schema.
+It depends on `imbue-mngr-usage` for the contract and the standard-library
+reader, but loads none of mngr itself when recording.

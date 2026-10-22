@@ -1,7 +1,5 @@
 """The collector's HTTP API, on 127.0.0.1 only.
 
-- ``POST /v1/events``: one model_call event, or a list of them, as JSON.
-- ``POST /v1/claude-sessions``: a finished ``claude -p`` session whose calls the collector reads from its log.
 - ``GET /v1/totals?group_by=origin_id,model&since=24h[&until=...][&bucket=hour]``: cost and token totals.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
 
@@ -21,7 +19,6 @@ from flask import Flask, Response, jsonify, request
 from loguru import logger
 
 from usage_collector.feed import UsageFeed
-from usage_collector.ingest import Ingestor, describe_counts
 from usage_collector.store import TimeBucket, UsageStore, UsageStoreError
 
 IDENTITY_HEADER: Final[str] = "X-Imbue-Identity"
@@ -81,7 +78,7 @@ def parse_bucket(value: str | None) -> TimeBucket | None:
     )
 
 
-def create_app(store: UsageStore, feed: UsageFeed, ingestor: Ingestor) -> Flask:
+def create_app(store: UsageStore, feed: UsageFeed) -> Flask:
     app = Flask(__name__)
 
     @app.before_request
@@ -96,25 +93,6 @@ def create_app(store: UsageStore, feed: UsageFeed, ingestor: Ingestor) -> Flask:
     @app.get("/health")
     def _health() -> Response:
         return jsonify(status="ok")
-
-    @app.post("/v1/events")
-    def _post_events() -> Response | tuple[Response, int]:
-        body = request.get_json(silent=True)
-        if body is None:
-            return _error("Expected a JSON model_call event or a list of them", 400)
-        if isinstance(body, list):
-            return jsonify(describe_counts(ingestor.ingest_many(body)))
-        outcome, reason = ingestor.ingest(body)
-        if reason is not None:
-            return _error(reason, 400)
-        return jsonify(outcome=str(outcome).lower())
-
-    @app.post("/v1/claude-sessions")
-    def _post_claude_session() -> Response | tuple[Response, int]:
-        counts, reason = ingestor.ingest_claude_session(request.get_json(silent=True))
-        if reason is not None:
-            return _error(reason, 400)
-        return jsonify(describe_counts(counts))
 
     @app.get("/v1/totals")
     def _get_totals() -> Response | tuple[Response, int]:

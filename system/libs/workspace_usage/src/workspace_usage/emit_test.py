@@ -1,84 +1,69 @@
 import json
 import threading
-from collections.abc import Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import pytest
-
-from workspace_usage.emit import emit_claude_session, emit_model_call
+from workspace_usage.emit import event_file_name, record_model_call
 
 
-class _Recorder(BaseHTTPRequestHandler):
-    received: list[tuple[str, dict[str, object]]] = []
-    status = 200
-
-    def do_POST(self) -> None:
-        body = self.rfile.read(int(self.headers["Content-Length"]))
-        type(self).received.append((self.path, json.loads(body)))
-        self.send_response(type(self).status)
-        self.end_headers()
-
-    def log_message(self, format: str, *args: object) -> None:
-        return
+def _event(origin_kind: str, origin_id: str | None, event_id: str) -> dict[str, object]:
+    attribution = {"workspace_id": "ws-1", "origin_kind": origin_kind}
+    if origin_id is not None:
+        attribution["origin_id"] = origin_id
+    return {"event_id": event_id, "attribution": attribution}
 
 
-@pytest.fixture
-def collector() -> Iterator[tuple[str, type[_Recorder]]]:
-    handler = type("Recorder", (_Recorder,), {"received": [], "status": 200})
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{server.server_address[1]}", handler
-    server.shutdown()
-    server.server_close()
+def test_an_event_is_appended_to_its_origins_file(tmp_path: Path) -> None:
+    environ = {"IMBUE_USAGE_DATA_DIR": str(tmp_path)}
 
+    first = record_model_call(_event("APP", "files", "e-1"), environ)
+    second = record_model_call(_event("APP", "files", "e-2"), environ)
 
-def test_an_event_goes_straight_to_a_running_collector(
-    tmp_path: Path, collector: tuple[str, type[_Recorder]]
-) -> None:
-    url, handler = collector
-    environ = {"IMBUE_USAGE_COLLECTOR_URL": url, "IMBUE_USAGE_DATA_DIR": str(tmp_path)}
-
-    assert emit_model_call({"event_id": "e-1"}, environ)
-    assert emit_claude_session({"session_id": "s-1"}, environ)
-
-    assert handler.received == [
-        ("/v1/events", {"event_id": "e-1"}),
-        ("/v1/claude-sessions", {"session_id": "s-1"}),
-    ]
-    assert not (tmp_path / "spool").exists()
-
-
-def test_an_unreachable_collector_gets_the_report_spooled_by_kind(
-    tmp_path: Path,
-) -> None:
-    environ = {
-        "IMBUE_USAGE_COLLECTOR_URL": "http://127.0.0.1:1",
-        "IMBUE_USAGE_DATA_DIR": str(tmp_path),
-    }
-
-    assert not emit_model_call({"event_id": "e-2"}, environ)
-    assert not emit_claude_session({"session_id": "s-2"}, environ)
-
-    [event_file] = (tmp_path / "spool" / "events").glob("*.json")
-    [session_file] = (tmp_path / "spool" / "claude-sessions").glob("*.json")
-    assert json.loads(event_file.read_text()) == {"event_id": "e-2"}
-    assert json.loads(session_file.read_text()) == {"session_id": "s-2"}
-
-
-def test_a_collector_error_spools_but_a_rejection_does_not(
-    tmp_path: Path, collector: tuple[str, type[_Recorder]]
-) -> None:
-    url, handler = collector
-    environ = {"IMBUE_USAGE_COLLECTOR_URL": url, "IMBUE_USAGE_DATA_DIR": str(tmp_path)}
-
-    handler.status = 500
-    emit_model_call({"event_id": "e-3"}, environ)
-    handler.status = 400
-    emit_model_call({"event_id": "e-4"}, environ)
-
+    assert first is not None
+    assert first == second == tmp_path / "events" / "app-files.jsonl"
     assert [
-        json.loads(p.read_text())["event_id"]
-        for p in (tmp_path / "spool" / "events").glob("*.json")
-    ] == ["e-3"]
+        json.loads(line)["event_id"] for line in first.read_text().splitlines()
+    ] == ["e-1", "e-2"]
+
+
+def test_file_names_are_safe_and_unattributed_events_share_one_file() -> None:
+    assert (
+        event_file_name(_event("CHAT", "../../etc/passwd", "e"))
+        == "chat-.._.._etc_passwd.jsonl"
+    )
+    assert event_file_name(_event("UNKNOWN", None, "e")) == "unknown.jsonl"
+    assert event_file_name({"event_id": "e"}) == "unknown.jsonl"
+
+
+def test_concurrent_writers_never_interleave_within_a_line(tmp_path: Path) -> None:
+    environ = {"IMBUE_USAGE_DATA_DIR": str(tmp_path)}
+    padding = "x" * 2000
+
+    def write_many(writer: int) -> None:
+        for index in range(50):
+            record_model_call(
+                {**_event("APP", "files", f"{writer}-{index}"), "padding": padding},
+                environ,
+            )
+
+    threads = [
+        threading.Thread(target=write_many, args=(writer,)) for writer in range(8)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    lines = (tmp_path / "events" / "app-files.jsonl").read_text().splitlines()
+    assert len({json.loads(line)["event_id"] for line in lines}) == 400
+
+
+def test_an_unwritable_data_dir_is_logged_not_raised(tmp_path: Path) -> None:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a file where the directory should be")
+
+    assert (
+        record_model_call(
+            _event("APP", "files", "e-3"), {"IMBUE_USAGE_DATA_DIR": str(blocker)}
+        )
+        is None
+    )

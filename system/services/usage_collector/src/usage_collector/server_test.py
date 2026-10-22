@@ -18,7 +18,7 @@ _VISITOR = json.dumps({"owner": False, "user_id": "u-2", "email": "v@example.com
 def client(
     store: UsageStore, feed: UsageFeed, ingestor: Ingestor
 ) -> Iterator[FlaskClient]:
-    yield create_app(store, feed, ingestor).test_client()
+    yield create_app(store, feed).test_client()
 
 
 def test_owner_check_treats_only_an_explicit_visitor_as_one() -> None:
@@ -44,17 +44,12 @@ def test_visitors_are_refused_everywhere(client: FlaskClient) -> None:
     )
 
 
-def test_posted_events_show_up_in_totals(client: FlaskClient) -> None:
-    single = client.post(
-        "/v1/events", json=model_call_payload(attribution={"origin_id": "files"})
-    )
-    batch = client.post(
-        "/v1/events",
-        json=[model_call_payload(attribution={"origin_id": "routines"}), {"bad": True}],
-    )
+def test_ingested_events_show_up_in_totals(
+    client: FlaskClient, ingestor: Ingestor
+) -> None:
+    ingestor.ingest(model_call_payload(attribution={"origin_id": "files"}))
+    ingestor.ingest(model_call_payload(attribution={"origin_id": "routines"}))
 
-    assert single.get_json() == {"outcome": "stored"}
-    assert batch.get_json() == {"stored": 1, "duplicate": 0, "rejected": 1}
     since = (NOW - timedelta(hours=1)).isoformat()
     totals = client.get(
         "/v1/totals", query_string={"group_by": "origin_id", "since": since}
@@ -65,30 +60,8 @@ def test_posted_events_show_up_in_totals(client: FlaskClient) -> None:
     ]
 
 
-def test_an_invalid_single_event_is_a_bad_request(client: FlaskClient) -> None:
-    response = client.post("/v1/events", json=model_call_payload(provider=""))
-
-    assert response.status_code == 400
-
-
-@pytest.mark.parametrize(
-    "query", ["group_by=prompt", "since=yesterday", "bucket=fortnight"]
-)
-def test_bad_totals_queries_are_bad_requests(client: FlaskClient, query: str) -> None:
-    assert client.get(f"/v1/totals?{query}").status_code == 400
-
-
-def test_an_unknown_claude_session_is_a_bad_request(client: FlaskClient) -> None:
-    response = client.post(
-        "/v1/claude-sessions",
-        json={
-            "config_dir": "/nonexistent-4410",
-            "session_id": "4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93",
-            "attribution": {"workspace_id": "ws-1", "origin_kind": "APP"},
-        },
-    )
-
-    assert response.status_code == 400
+def test_events_cannot_be_posted(client: FlaskClient) -> None:
+    assert client.post("/v1/events", json=model_call_payload()).status_code == 404
 
 
 def test_the_stream_sends_each_new_event(

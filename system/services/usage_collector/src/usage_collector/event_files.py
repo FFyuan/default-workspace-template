@@ -1,22 +1,26 @@
-"""Following the mngr_usage event files of every agent on the workspace's host.
+"""Following every usage event file in the workspace: the source of truth the store is built from.
 
-Agent harnesses write their usage events to the agent's own file
-(``<host dir>/agents/<agent>/events/<source>/usage/events.jsonl``), and mngr
-preserves a destroyed agent's files under ``<host dir>/preserved/``. Those
-files are the durable record, so agent events need no spool: the collector
-reads each file from where it left off, about once a second, and remembers
-its place in the store across restarts.
+Every emitter appends model_call events to a file, and the collector only reads
+files, about once a second, each from where it left off (its place is kept in
+the store, so a restart picks up there):
 
-Only lines that are model_call events (they carry a ``schema_version`` and an
-``attribution``) are ingested, each attributed to this workspace: an agent
-cannot tell which workspace it runs in, and every agent on the host is this
-workspace's; the older snapshot events the same files hold
-are left to ``mngr usage``. A file that shrank or was replaced is read again
-from the start, which re-sends events the store already holds and dedupes.
+- each agent's mngr_usage event file
+  (``<host dir>/agents/<agent>/events/<source>/usage/events.jsonl``), and the
+  copies mngr preserves for destroyed agents under ``<host dir>/preserved/``;
+- the files workspace_usage writes for apps and one-shot calls
+  (``data/.apps/usage/events/*.jsonl``).
+
+The store is an index of these files: deleting it rebuilds it from them, and
+deduplicating by event id makes the re-read safe. Only lines that are
+model_call events (they carry a ``schema_version`` and an ``attribution``) are
+ingested; the older snapshot events in agents' files are left to ``mngr usage``.
+Each is attributed to this workspace, since an agent cannot tell which
+workspace it runs in and every file here is this workspace's. A file that
+shrank or was replaced is read again from the start.
 """
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any, Final
 
@@ -24,10 +28,11 @@ from loguru import logger
 
 from usage_collector.store import UsageStore
 
-EVENT_FILE_GLOBS: Final[tuple[str, ...]] = (
+AGENT_EVENT_FILE_GLOBS: Final[tuple[str, ...]] = (
     "agents/*/events/*/usage/events.jsonl",
     "preserved/*/events/*/usage/events.jsonl",
 )
+WORKSPACE_EVENT_FILE_GLOB: Final[str] = "*.jsonl"
 # Bounds one pass over a file that grew a lot while the collector was down.
 _MAX_BYTES_PER_PASS: Final[int] = 8 * 1024 * 1024
 
@@ -40,9 +45,12 @@ def is_model_call_line(record: object) -> bool:
     )
 
 
-def event_files(host_dir: Path) -> Iterator[Path]:
-    for pattern in EVENT_FILE_GLOBS:
-        yield from sorted(host_dir.glob(pattern))
+def event_files(host_dir: Path | None, workspace_events_dir: Path) -> Iterator[Path]:
+    """Every file to follow: the agents' on ``host_dir`` (when there is one), then workspace_usage's."""
+    if host_dir is not None:
+        for pattern in AGENT_EVENT_FILE_GLOBS:
+            yield from sorted(host_dir.glob(pattern))
+    yield from sorted(workspace_events_dir.glob(WORKSPACE_EVENT_FILE_GLOB))
 
 
 def with_workspace_id(record: dict[str, Any], workspace_id: str) -> dict[str, Any]:
@@ -53,15 +61,15 @@ def with_workspace_id(record: dict[str, Any], workspace_id: str) -> dict[str, An
     return {**record, "attribution": {**attribution, "workspace_id": workspace_id}}
 
 
-def follow_agent_event_files(
-    host_dir: Path,
+def follow_event_files(
+    paths: Iterable[Path],
     store: UsageStore,
     ingest: Callable[[object], object],
     workspace_id: str,
 ) -> int:
-    """Ingest the model_call lines added to every agent event file since the last pass. Returns how many were read."""
+    """Ingest the model_call lines added to each file since the last pass. Returns how many were read."""
     read = 0
-    for path in event_files(host_dir):
+    for path in paths:
         try:
             stat = path.stat()
         except OSError:

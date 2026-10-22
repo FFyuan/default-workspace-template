@@ -19,7 +19,7 @@ from workspace_usage.context import ORIGIN_ID
 from workspace_usage.context import ORIGIN_KIND
 from workspace_usage.context import ORIGIN_KIND_CHAT
 from workspace_usage.context import read_workspace_id
-from workspace_usage.emit import emit_model_call
+from workspace_usage.emit import record_model_call
 from workspace_usage.events import build_model_call
 
 from imbue.chat.harnesses.harness_type import HarnessType
@@ -34,7 +34,7 @@ class UnreportedTurnRecorder:
 
     def __init__(
         self,
-        emit: Callable[[Mapping[str, object]], object] = emit_model_call,
+        emit: Callable[[Mapping[str, object]], object] = record_model_call,
         workspace_id: str | None = None,
     ) -> None:
         self._emit = emit

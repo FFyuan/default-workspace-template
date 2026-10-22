@@ -1,10 +1,11 @@
 """The workspace's model_call events in SQLite: an append-only event table and per-minute rollups.
 
-Every insert is idempotent by ``event_id``, so a replayed spool file or a
-re-sent OTLP batch never double-counts. The rollup row a new event lands in
-is updated in the same transaction, so a totals query over the rollup
-dimensions reads at most one row per minute per key instead of scanning raw
-events. Raw events are kept ``RAW_RETENTION`` and rollups indefinitely.
+An index of the event files (``event_files``), which stay the source of truth.
+Every insert is idempotent by ``event_id``, so re-reading a file never
+double-counts. The rollup row a new event lands in is updated in the same
+transaction, so a totals query over the rollup dimensions reads at most one row
+per minute per key instead of scanning raw events. Raw events are kept
+``RAW_RETENTION`` and rollups indefinitely.
 """
 
 import sqlite3

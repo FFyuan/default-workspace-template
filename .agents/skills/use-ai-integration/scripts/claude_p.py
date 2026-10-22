@@ -6,7 +6,8 @@
 """Copyable helper for calling headless ``claude -p`` from a service.
 
 COPY THIS FILE into your service and adapt it -- it is a reference snippet, not an
-importable package. It is the **keyless** path for an AI-driven service: when an
+importable package. Your app depends on ``workspace-usage`` (add it to the app's
+pyproject ``dependencies``): every call is recorded in the workspace's usage through it. It is the **keyless** path for an AI-driven service: when an
 ``ANTHROPIC_API_KEY`` is configured for the workspace, call ``litellm`` directly
 instead (cheaper for non-agentic work; see the use-ai-integration skill). With no
 key, ``claude -p`` runs on the local Claude subscription's programmatic pool.
@@ -64,15 +65,13 @@ import json
 import os
 import subprocess
 import tempfile
-import urllib.error
-import urllib.parse
-import urllib.request
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from workspace_usage.claude_one_shot import record_claude_one_shot
 
 _MAIN_CLAUDE_SESSION_ID = "MAIN_CLAUDE_SESSION_ID"
 # mngr identity vars its own subagent proxy strips; dropping them is defense in
@@ -81,16 +80,9 @@ _MNGR_AGENT_VARS = ("MNGR_AGENT_STATE_DIR", "MNGR_AGENT_NAME", "MNGR_HOST_DIR")
 
 _DEFAULT_MODEL = "claude-haiku-4-5"
 
-# Usage reporting. Every call is recorded by the workspace's usage collector, which reads
-# the call's tokens from claude's session log. This is the same report workspace_usage's
-# report_claude_one_shot sends (system/libs/workspace_usage), inlined because this file is
-# copied into apps that may not depend on that library.
-_USAGE_COLLECTOR_URL = "IMBUE_USAGE_COLLECTOR_URL"
-_USAGE_DATA_DIR = "IMBUE_USAGE_DATA_DIR"
-_USAGE_CONTEXT = "IMBUE_USAGE_CONTEXT"
-_USAGE_CONTEXT_KEYS = ("origin_kind", "origin_id", "run_id", "parent_agent_id")
-_DEFAULT_USAGE_COLLECTOR_URL = "http://127.0.0.1:8795"
-_USAGE_POST_TIMEOUT_SECONDS = 0.5
+# Every call is recorded in the workspace's usage: once claude -p exits, workspace_usage reads
+# the call's tokens from its session log (system/libs/workspace_usage, claude_one_shot).
+_APP_CALL_PURPOSE = "APP_CALL"
 
 
 class ClaudeCLIError(RuntimeError):
@@ -488,7 +480,7 @@ def claude_p_completion(
         try:
             return _run_blocking(argv, env=env, cwd=cwd)
         finally:
-            _report_usage(env, session_id, delete_log=True)
+            _record_usage(env, session_id, delete_log=True)
 
 
 def claude_p_task(
@@ -520,62 +512,16 @@ def claude_p_task(
         return _run_blocking(argv, env=env, cwd=None)
     finally:
         # A task's session is a real one the user may resume, so its log stays.
-        _report_usage(env, session_id, delete_log=False)
+        _record_usage(env, session_id, delete_log=False)
 
 
-def _usage_context(env: Mapping[str, str]) -> dict[str, str]:
-    """The attribution of this process's calls: IMBUE_USAGE_CONTEXT, else its supervisord program."""
-    context: dict[str, str] = {}
-    for pair in env.get(_USAGE_CONTEXT, "").split(","):
-        key, _, value = pair.partition("=")
-        if key.strip() in _USAGE_CONTEXT_KEYS and value.strip():
-            context[key.strip()] = urllib.parse.unquote(value.strip())
-    if "origin_kind" in context:
-        return context
-    program = env.get("SUPERVISOR_PROCESS_NAME", "").strip()
-    if program:
-        return {"origin_kind": "APP", "origin_id": program}
-    return {"origin_kind": "UNKNOWN"}
-
-
-def _report_usage(env: Mapping[str, str], session_id: str, *, delete_log: bool) -> None:
-    """Ask the usage collector to record a finished call's usage; spool the request if it is down. Never raises."""
+def _record_usage(env: Mapping[str, str], session_id: str, *, delete_log: bool) -> None:
+    """Record a finished call's usage, attributed to this process's app (or its IMBUE_USAGE_CONTEXT). Never raises."""
     config_dir = env.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
-    report = {
-        "config_dir": config_dir,
-        "session_id": session_id,
-        "attribution": {
-            "workspace_id": env.get("MNGR_AGENT_ID") or os.uname().nodename,
-            "purpose": "APP_CALL",
-            **_usage_context(env),
-        },
-        "delete_log": delete_log,
-    }
-    body = json.dumps(report).encode("utf-8")
-    url = (env.get(_USAGE_COLLECTOR_URL) or _DEFAULT_USAGE_COLLECTOR_URL).rstrip("/")
-    request = urllib.request.Request(
-        f"{url}/v1/claude-sessions",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+    record_claude_one_shot(
+        Path(config_dir),
+        session_id,
+        purpose=_APP_CALL_PURPOSE,
+        environ=env,
+        delete_log=delete_log,
     )
-    try:
-        with urllib.request.urlopen(request, timeout=_USAGE_POST_TIMEOUT_SECONDS):
-            return
-    except urllib.error.HTTPError:
-        # The collector read the report and refused it (no session log); a retry would too.
-        return
-    except OSError:
-        pass
-    data_dir = Path(
-        env.get(_USAGE_DATA_DIR) or Path.home() / "workspace/data/.apps/usage"
-    )
-    spool = data_dir / "spool" / "claude-sessions"
-    try:
-        spool.mkdir(parents=True, exist_ok=True)
-        name = uuid.uuid4().hex
-        partial = spool / f".{name}.partial"
-        partial.write_bytes(body)
-        partial.rename(spool / f"{name}.json")
-    except OSError:
-        pass

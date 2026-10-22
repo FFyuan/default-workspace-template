@@ -1,11 +1,13 @@
 [project]
 name = "workspace-usage"
 version = "0.1.0"
-description = "Reports every model call a workspace app makes to the workspace's usage collector: the IMBUE_USAGE_CONTEXT attribution, model_call event building, emit-or-spool delivery, Claude Code telemetry settings for claude -p, and a LiteLLM callback."
+description = "Records every model call a workspace app makes in the workspace's usage: the IMBUE_USAGE_CONTEXT attribution, model_call events appended to the event files the usage collector follows, claude -p one-shots read from their session logs, and a LiteLLM callback."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "app-manifest",
+    # The model_call contract, and the standard-library session-log reader one-shots record with.
+    "imbue-mngr-usage",
     "loguru>=0.7.0",
 ]
 

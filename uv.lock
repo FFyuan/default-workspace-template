@@ -4431,6 +4431,7 @@ version = "0.1.0"
 source = { editable = "system/libs/workspace_usage" }
 dependencies = [
     { name = "app-manifest" },
+    { name = "imbue-mngr-usage" },
     { name = "loguru" },
 ]
 
@@ -4447,6 +4448,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "app-manifest", editable = "system/libs/app_manifest" },
+    { name = "imbue-mngr-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.88.1" },
     { name = "loguru", specifier = ">=0.7.0" },
 ]

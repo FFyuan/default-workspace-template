@@ -64,9 +64,7 @@ def _isolate_chat_tests(
     # otherwise; a port nothing listens on refuses them at once. The pipeline and e2e tests
     # serve a shell of their own and point at it.
     monkeypatch.setenv("MINDS_WORKSPACE_SERVER_URL", "http://127.0.0.1:1")
-    # Chat-title one-shots report their usage to the workspace's usage collector, and spool
-    # the report when it is unreachable; both go to throwaway places in a test.
-    monkeypatch.setenv("IMBUE_USAGE_COLLECTOR_URL", "http://127.0.0.1:1")
+    # Chat titles and antigravity turns record their usage in the workspace's event files.
     monkeypatch.setenv("IMBUE_USAGE_DATA_DIR", str(tmp_path_factory.mktemp("usage-data")))
     if "agent_manager_test.py" in request.node.nodeid:
         return None

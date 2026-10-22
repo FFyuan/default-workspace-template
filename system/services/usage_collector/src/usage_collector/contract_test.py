@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from pathlib import Path
 
 from imbue.imbue_common.primitives import NonEmptyStr
 from imbue.mngr_usage.model_call import ModelCallEvent, OriginKind, UsageContext
@@ -11,15 +10,12 @@ from imbue.mngr_usage.model_call import (
 )
 from imbue.mngr_usage.model_call import parse_usage_context as mngr_parse_usage_context
 from imbue.mngr_usage.resources import model_call_lib
-from workspace_usage.claude_one_shot import build_claude_session_report
 from workspace_usage.context import (
     USAGE_CONTEXT_FILENAME,
     format_usage_context,
     parse_usage_context,
 )
 from workspace_usage.events import MODEL_CALL_SCHEMA_VERSION, build_model_call
-
-from usage_collector.claude_sessions import ClaudeSessionReport
 
 
 def test_workspace_usage_events_validate_against_the_schema() -> None:
@@ -73,18 +69,6 @@ def test_usage_context_wire_formats_match() -> None:
         )
         == context
     )
-
-
-def test_claude_session_reports_validate() -> None:
-    report = build_claude_session_report(
-        config_dir=Path("/accounts/a1"),
-        session_id="4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93",
-        context={"origin_kind": "CHAT", "origin_id": "c-1"},
-        workspace_id="ws-1",
-        purpose="CHAT_TITLE",
-    )
-
-    assert ClaudeSessionReport.model_validate(report).attribution.origin_id == "c-1"
 
 
 def test_the_usage_context_file_name_matches_what_agent_writers_read() -> None:

@@ -1,8 +1,8 @@
 """Claude's one-shot completion: ``claude -p`` on the cheapest model the account answers on, under its config dir.
 
-Each run logs under a session id chosen up front, which is then reported to the workspace's
-usage collector: it reads the call's usage from the session log and deletes the log, so a
-one-shot is counted without leaving a session behind under the account.
+Each run logs under a session id chosen up front; once it exits, its calls are read from that
+session log into the workspace's usage and the log is deleted, so a one-shot is counted
+without leaving a session behind under the account.
 """
 
 import json
@@ -19,7 +19,7 @@ from pydantic import ConfigDict
 from pydantic import ValidationError
 from workspace_usage.claude_one_shot import claude_session_args
 from workspace_usage.claude_one_shot import new_claude_session_id
-from workspace_usage.claude_one_shot import report_claude_one_shot
+from workspace_usage.claude_one_shot import record_claude_one_shot
 
 from imbue.chat.harnesses.claude.account_binding import ClaudeAccountBinding
 from imbue.chat.harnesses.claude.auth import MANAGED_AUTH_ENV_KEYS
@@ -141,8 +141,8 @@ class ClaudeOneShotCompletion(OneShotCompletion):
             except ProcessError as e:
                 raise OneShotCompletionError(f"claude -p could not run: {e}") from e
             finally:
-                # A call that failed or timed out may still have used tokens, so it is reported too.
-                report_claude_one_shot(
+                # A call that failed or timed out may still have used tokens, so it is recorded too.
+                record_claude_one_shot(
                     account_dir,
                     session_id,
                     purpose=usage.purpose if usage is not None else None,

@@ -1,120 +1,70 @@
-"""Delivering usage reports to the workspace's usage collector without ever failing the model call.
+"""Recording model_call events: appending them to an event file the usage collector follows.
 
-A report is POSTed to the collector on loopback. When the collector cannot
-take it (not running, restarting, erroring), it is written to the spool
-instead, one file per report, which the collector drains when it next runs.
-Neither path raises: a usage record is never worth a failed call.
+Every event is appended to a local file first, so recording depends on nothing
+else running and never fails the model call. The files live under
+``data/.apps/usage/events/``, one per origin (``<origin_kind>-<origin_id>.jsonl``);
+the usage collector reads them as they grow, beside the agents' own usage event
+files, and the files stay the source of truth its database is built from.
 
-Two kinds of report share this path: a model_call event (``/v1/events``,
-spooled under ``events/``) and a finished ``claude -p`` session for the
-collector to read from its session log (``/v1/claude-sessions``, spooled
-under ``claude-sessions/``).
+Each event is one line, written with a single append, so processes recording
+for the same origin at once never interleave within a line.
 """
 
 import json
 import os
-import urllib.error
-import urllib.request
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
-from uuid import uuid4
 
 from loguru import logger
 
-COLLECTOR_URL_ENV_VAR: Final[str] = "IMBUE_USAGE_COLLECTOR_URL"
 DATA_DIR_ENV_VAR: Final[str] = "IMBUE_USAGE_DATA_DIR"
-COLLECTOR_PORT: Final[int] = 8795
-DEFAULT_COLLECTOR_URL: Final[str] = f"http://127.0.0.1:{COLLECTOR_PORT}"
 # Absolute rather than relative to the repo root: apps and their claude -p children
 # do not all run from it.
 DEFAULT_DATA_DIR: Final[Path] = Path.home() / "workspace" / "data" / ".apps" / "usage"
-SPOOL_DIR_NAME: Final[str] = "spool"
-EVENTS_SPOOL_NAME: Final[str] = "events"
-CLAUDE_SESSIONS_SPOOL_NAME: Final[str] = "claude-sessions"
-SPOOL_SUFFIX: Final[str] = ".json"
-EVENTS_PATH: Final[str] = "/v1/events"
-CLAUDE_SESSIONS_PATH: Final[str] = "/v1/claude-sessions"
-# Loopback answers in milliseconds; this only bounds a collector that accepted the
-# connection and then hung.
-_POST_TIMEOUT_SECONDS: Final[float] = 0.5
-
-
-def collector_url(environ: Mapping[str, str]) -> str:
-    return (
-        environ.get(COLLECTOR_URL_ENV_VAR, "").strip().rstrip("/")
-        or DEFAULT_COLLECTOR_URL
-    )
+EVENTS_DIR_NAME: Final[str] = "events"
+EVENT_FILE_SUFFIX: Final[str] = ".jsonl"
+_UNSAFE_NAME_CHARACTERS = re.compile(r"[^a-z0-9_.-]+")
 
 
 def usage_data_dir(environ: Mapping[str, str]) -> Path:
-    """The collector's directory: its store and the spool it drains."""
+    """The usage collector's directory: its database and the event files workspace_usage writes."""
     configured = environ.get(DATA_DIR_ENV_VAR, "").strip()
     return Path(configured) if configured else DEFAULT_DATA_DIR
 
 
-def spool_dir(environ: Mapping[str, str], kind: str) -> Path:
-    return usage_data_dir(environ) / SPOOL_DIR_NAME / kind
+def events_dir(environ: Mapping[str, str]) -> Path:
+    return usage_data_dir(environ) / EVENTS_DIR_NAME
 
 
-def emit_model_call(
+def event_file_name(event: Mapping[str, object]) -> str:
+    """``<origin_kind>-<origin_id>.jsonl`` from the event's attribution, made safe as a file name."""
+    attribution = event.get("attribution")
+    parts = [
+        str(attribution.get(key))
+        for key in ("origin_kind", "origin_id")
+        if isinstance(attribution, Mapping) and attribution.get(key)
+    ]
+    name = _UNSAFE_NAME_CHARACTERS.sub("_", "-".join(parts).lower()).strip("._-")
+    return (name or "unknown") + EVENT_FILE_SUFFIX
+
+
+def record_model_call(
     event: Mapping[str, object], environ: Mapping[str, str] | None = None
-) -> bool:
-    """Send one model_call event to the collector, or spool it. Returns whether the collector took it directly."""
-    return _post_or_spool(EVENTS_PATH, EVENTS_SPOOL_NAME, event, environ)
-
-
-def emit_claude_session(
-    report: Mapping[str, object], environ: Mapping[str, str] | None = None
-) -> bool:
-    """Ask the collector to read a finished claude -p session's calls, or spool the request."""
-    return _post_or_spool(
-        CLAUDE_SESSIONS_PATH, CLAUDE_SESSIONS_SPOOL_NAME, report, environ
-    )
-
-
-def _post_or_spool(
-    path: str,
-    spool_kind: str,
-    report: Mapping[str, object],
-    environ: Mapping[str, str] | None,
-) -> bool:
+) -> Path | None:
+    """Append ``event`` to its origin's event file. Returns the file, or None if the write failed (logged)."""
     env = os.environ if environ is None else environ
-    body = json.dumps(report, separators=(",", ":")).encode("utf-8")
-    request = urllib.request.Request(
-        f"{collector_url(env)}{path}",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
+    path = events_dir(env) / event_file_name(event)
+    line = json.dumps(event, separators=(",", ":")) + "\n"
     try:
-        with urllib.request.urlopen(request, timeout=_POST_TIMEOUT_SECONDS) as response:
-            if 200 <= response.status < 300:
-                return True
-    except urllib.error.HTTPError as e:
-        if e.code == 400:
-            # A rejected report would be rejected again on drain; spooling it would only retry it forever.
-            logger.warning(
-                "The usage collector rejected a usage report: {}", e.read()[:300]
-            )
-            return False
-    except (urllib.error.URLError, OSError) as e:
-        logger.debug("Usage collector unreachable ({}); spooling the report", e)
-    spool_report(body, spool_dir(env, spool_kind))
-    return False
-
-
-def spool_report(body: bytes, directory: Path) -> Path | None:
-    """Write one serialized report where the collector drains it. Returns the file, or None if the write failed."""
-    try:
-        directory.mkdir(parents=True, exist_ok=True)
-        name = uuid4().hex
-        partial = directory / f".{name}.partial"
-        partial.write_bytes(body)
-        # The rename is what makes the report visible, so the collector never reads half a file.
-        final = directory / f"{name}{SPOOL_SUFFIX}"
-        partial.rename(final)
-        return final
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            os.write(descriptor, line.encode("utf-8"))
+        finally:
+            os.close(descriptor)
     except OSError as e:
-        logger.warning("Could not spool a usage report to {}: {}", directory, e)
+        logger.warning("Could not record a model_call event in {}: {}", path, e)
         return None
+    return path

@@ -22,9 +22,10 @@ needing to open them.
   chat instance follows.
 - `oom_priority/` - The OOM-prevention machinery: priority bands, the shed
   ledger, and the earlyoom integration.
-- `usage_collector/` - The workspace's record of model calls: one event per
-  call from every app, chat and agent, stored in SQLite and served as cost and
-  token totals and a live stream on `127.0.0.1:8795`.
+- `usage_collector/` - The workspace's record of model calls: follows the
+  event files every app, chat and agent appends one event per call to, indexes
+  them in SQLite, and serves cost and token totals and a live stream on
+  `127.0.0.1:8795`.
 
 The app registry (`data/.state/apps.toml`) is announced to the minds desktop by
 the shell itself (`system/apps/system_interface`, its `app_announcements` module),

@@ -16,7 +16,7 @@ import litellm
 from litellm.integrations.custom_logger import CustomLogger
 
 from workspace_usage.context import read_usage_context, read_workspace_id
-from workspace_usage.emit import emit_model_call
+from workspace_usage.emit import record_model_call
 from workspace_usage.events import (
     BILLING_MODE_API_KEY,
     BILLING_MODE_UNKNOWN,
@@ -44,7 +44,7 @@ class UsageCallback(CustomLogger):
         self,
         context: Mapping[str, str],
         workspace_id: str,
-        emit: Callable[[Mapping[str, object]], object] = emit_model_call,
+        emit: Callable[[Mapping[str, object]], object] = record_model_call,
     ) -> None:
         super().__init__()
         self._context = dict(context)

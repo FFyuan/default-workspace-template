@@ -2,9 +2,9 @@
 
 The wire format is the one ``imbue.mngr_usage.model_call`` defines (``key=value``
 pairs joined by commas, values percent-encoded, like ``OTEL_RESOURCE_ATTRIBUTES``).
-This library speaks it without importing mngr_usage, so an app's tool
-environment does not pull in mngr; the usage collector's tests hold the two
-implementations to the same output.
+It is spoken here without importing ``model_call``, which loads mngr itself, so
+an app recording a call loads none of it; the usage collector's tests hold the
+two implementations to the same output.
 
 A process with no explicit context is still attributed: under supervisord,
 ``SUPERVISOR_PROCESS_NAME`` names the program, and the app registry maps an

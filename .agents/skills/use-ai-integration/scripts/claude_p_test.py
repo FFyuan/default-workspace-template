@@ -347,9 +347,7 @@ def _complete_from_a_service(tmp_path: Path, home: Path) -> dict[str, object]:
     stub.chmod(0o755)
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"}
     env["HOME"] = str(home)
-    # Nothing listens on port 1, so the usage report is spooled under the tmp HOME.
-    env["IMBUE_USAGE_COLLECTOR_URL"] = "http://127.0.0.1:1"
-    env.pop("IMBUE_USAGE_DATA_DIR", None)
+    env["IMBUE_USAGE_DATA_DIR"] = str(tmp_path / "usage")
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     stdin_read, stdin_write = os.pipe()
     try:
@@ -388,47 +386,48 @@ def test_completion_from_a_service_gives_claude_a_closed_stdin(tmp_path: Path) -
     assert observed["stdin_at_eof"] is True
 
 
-def test_completion_reports_its_session_to_the_usage_collector_attributed_to_the_app(
+def test_a_calls_usage_is_recorded_from_its_session_log_attributed_to_the_app(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("IMBUE_USAGE_COLLECTOR_URL", "http://127.0.0.1:1")
-    monkeypatch.setenv("IMBUE_USAGE_DATA_DIR", str(tmp_path / "usage"))
-    monkeypatch.setenv("SUPERVISOR_PROCESS_NAME", "invoice-sorter")
-    monkeypatch.setenv("MNGR_AGENT_ID", "ws-7341")
-    monkeypatch.delenv("IMBUE_USAGE_CONTEXT", raising=False)
-
-    claude_p._report_usage(
-        {**os.environ, "CLAUDE_CONFIG_DIR": "/accounts/a1"},
-        "4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93",
-        delete_log=True,
+    session_id = "4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93"
+    log = tmp_path / "account" / "projects" / "-tmp-x" / f"{session_id}.jsonl"
+    log.parent.mkdir(parents=True)
+    log.write_text(
+        json.dumps({"type": "user", "timestamp": "2026-10-22T12:00:00Z"})
+        + "\n"
+        + json.dumps(
+            {
+                "type": "assistant",
+                "requestId": "req_app",
+                "sessionId": session_id,
+                "timestamp": "2026-10-22T12:00:01Z",
+                "message": {
+                    "model": "claude-haiku-4-5",
+                    "usage": {"input_tokens": 3, "output_tokens": 4},
+                },
+            }
+        )
+        + "\n"
     )
-
-    spooled = list((tmp_path / "usage" / "spool" / "claude-sessions").glob("*.json"))
-    assert len(spooled) == 1
-    assert json.loads(spooled[0].read_text()) == {
-        "config_dir": "/accounts/a1",
-        "session_id": "4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93",
-        "attribution": {
-            "workspace_id": "ws-7341",
-            "purpose": "APP_CALL",
-            "origin_kind": "APP",
-            "origin_id": "invoice-sorter",
-        },
-        "delete_log": True,
+    environ = {
+        "CLAUDE_CONFIG_DIR": str(tmp_path / "account"),
+        "IMBUE_USAGE_DATA_DIR": str(tmp_path / "usage"),
+        "IMBUE_USAGE_CONTEXT": "origin_kind=APP,origin_id=invoice-sorter",
+        "MNGR_AGENT_ID": "ws-7341",
     }
 
+    claude_p._record_usage(environ, session_id, delete_log=True)
 
-def test_usage_context_prefers_the_inherited_context() -> None:
-    env = {
-        "IMBUE_USAGE_CONTEXT": "origin_kind=ROUTINE,origin_id=nightly%2Creport",
-        "SUPERVISOR_PROCESS_NAME": "x",
-    }
-
-    assert claude_p._usage_context(env) == {
-        "origin_kind": "ROUTINE",
-        "origin_id": "nightly,report",
-    }
-    assert claude_p._usage_context({}) == {"origin_kind": "UNKNOWN"}
+    [event] = [
+        json.loads(line)
+        for line in (tmp_path / "usage" / "events" / "app-invoice-sorter.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert event["event_id"] == "req_app"
+    assert event["attribution"]["purpose"] == "APP_CALL"
+    assert event["attribution"]["workspace_id"] == "ws-7341"
+    assert not log.exists()
 
 
 def _isolate_credential_sources(
