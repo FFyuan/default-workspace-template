@@ -48,3 +48,10 @@ package = "imbue-mngr-autocompact"
 subdirectory = "libs/mngr_autocompact"
 tools = ["mngr", "chat"]
 
+
+# `mngr usage`: per-agent cost and rate-limit windows for the mngr CLI. Only a CLI
+# command, so no app's tool needs it.
+[[plugins]]
+package = "imbue-mngr-usage"
+subdirectory = "libs/mngr_usage"
+tools = ["mngr"]

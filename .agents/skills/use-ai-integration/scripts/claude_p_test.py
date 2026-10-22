@@ -32,6 +32,7 @@ def test_completion_argv_disables_tools_and_sets_system() -> None:
         "classify this",
         model="claude-haiku-4-5",
         system="You are a classifier.",
+        session_id="2f0a5c1e-7d39-4b8e-a6f4-91c3e5d72b08",
     )
     assert argv[:2] == ["claude", "-p"]
     assert (
@@ -44,11 +45,17 @@ def test_completion_argv_disables_tools_and_sets_system() -> None:
     assert "--permission-mode" not in argv
 
 
-def test_completion_argv_does_not_persist_its_session() -> None:
+def test_completion_argv_logs_under_the_given_session_for_usage_tracking() -> None:
     argv = claude_p._completion_argv(
-        "classify this", model="claude-haiku-4-5", system="You are a classifier."
+        "classify this",
+        model="claude-haiku-4-5",
+        system="You are a classifier.",
+        session_id="5b7e2d90-3c14-4f6a-8e21-d0a9c7f3b145",
     )
-    assert "--no-session-persistence" in argv
+    assert (
+        argv[argv.index("--session-id") + 1] == "5b7e2d90-3c14-4f6a-8e21-d0a9c7f3b145"
+    )
+    assert "--no-session-persistence" not in argv
 
 
 def test_task_argv_keeps_tools_and_sets_permission_mode() -> None:
@@ -58,6 +65,7 @@ def test_task_argv_keeps_tools_and_sets_permission_mode() -> None:
         system=None,
         append_system="Only touch data/.",
         permission_mode="bypassPermissions",
+        session_id="c3e81f47-0b6d-4a29-9f5e-7a2d14b8e630",
     )
     # tools=None leaves the flag off entirely, inheriting the default tool set.
     assert "--tools" not in argv
@@ -71,7 +79,10 @@ def test_task_argv_keeps_tools_and_sets_permission_mode() -> None:
 def test_dash_leading_prompt_follows_the_option_terminator() -> None:
     prompt = "---\nname: some-skill\n---\nSummarize this skill."
     completion = claude_p._completion_argv(
-        prompt, model="claude-haiku-4-5", system="You summarize."
+        prompt,
+        model="claude-haiku-4-5",
+        system="You summarize.",
+        session_id="81d4b6a2-5e07-4c93-b1f8-3a6e0c9d2f57",
     )
     task = claude_p._task_argv(
         prompt,
@@ -79,6 +90,7 @@ def test_dash_leading_prompt_follows_the_option_terminator() -> None:
         system=None,
         append_system=None,
         permission_mode="bypassPermissions",
+        session_id="e9a03c75-1f62-4d8b-a4e7-6b2c80f1d394",
     )
     for argv in (completion, task):
         assert argv[-2:] == ["--", prompt]
@@ -335,6 +347,9 @@ def _complete_from_a_service(tmp_path: Path, home: Path) -> dict[str, object]:
     stub.chmod(0o755)
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"}
     env["HOME"] = str(home)
+    # Nothing listens on port 1, so the usage report is spooled under the tmp HOME.
+    env["IMBUE_USAGE_COLLECTOR_URL"] = "http://127.0.0.1:1"
+    env.pop("IMBUE_USAGE_DATA_DIR", None)
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     stdin_read, stdin_write = os.pipe()
     try:
@@ -371,6 +386,49 @@ def test_completion_from_a_service_gives_claude_a_closed_stdin(tmp_path: Path) -
     observed = _complete_from_a_service(tmp_path, home)
 
     assert observed["stdin_at_eof"] is True
+
+
+def test_completion_reports_its_session_to_the_usage_collector_attributed_to_the_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("IMBUE_USAGE_COLLECTOR_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("IMBUE_USAGE_DATA_DIR", str(tmp_path / "usage"))
+    monkeypatch.setenv("SUPERVISOR_PROCESS_NAME", "invoice-sorter")
+    monkeypatch.setenv("MNGR_AGENT_ID", "ws-7341")
+    monkeypatch.delenv("IMBUE_USAGE_CONTEXT", raising=False)
+
+    claude_p._report_usage(
+        {**os.environ, "CLAUDE_CONFIG_DIR": "/accounts/a1"},
+        "4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93",
+        delete_log=True,
+    )
+
+    spooled = list((tmp_path / "usage" / "spool" / "claude-sessions").glob("*.json"))
+    assert len(spooled) == 1
+    assert json.loads(spooled[0].read_text()) == {
+        "config_dir": "/accounts/a1",
+        "session_id": "4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93",
+        "attribution": {
+            "workspace_id": "ws-7341",
+            "purpose": "APP_CALL",
+            "origin_kind": "APP",
+            "origin_id": "invoice-sorter",
+        },
+        "delete_log": True,
+    }
+
+
+def test_usage_context_prefers_the_inherited_context() -> None:
+    env = {
+        "IMBUE_USAGE_CONTEXT": "origin_kind=ROUTINE,origin_id=nightly%2Creport",
+        "SUPERVISOR_PROCESS_NAME": "x",
+    }
+
+    assert claude_p._usage_context(env) == {
+        "origin_kind": "ROUTINE",
+        "origin_id": "nightly,report",
+    }
+    assert claude_p._usage_context({}) == {"origin_kind": "UNKNOWN"}
 
 
 def _isolate_credential_sources(

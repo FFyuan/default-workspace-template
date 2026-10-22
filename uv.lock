@@ -48,7 +48,9 @@ members = [
     "system-monitor",
     "terminal-app",
     "tk-command-parsing",
+    "usage-collector",
     "workspace-layout",
+    "workspace-usage",
 ]
 
 [[package]]
@@ -734,6 +736,7 @@ dependencies = [
     { name = "watchdog" },
     { name = "werkzeug" },
     { name = "workspace-layout" },
+    { name = "workspace-usage" },
 ]
 
 [package.dev-dependencies]
@@ -781,6 +784,7 @@ requires-dist = [
     { name = "watchdog", specifier = ">=4.0" },
     { name = "werkzeug", specifier = ">=3.0" },
     { name = "workspace-layout", editable = "system/libs/workspace_layout" },
+    { name = "workspace-usage", editable = "system/libs/workspace_usage" },
 ]
 
 [package.metadata.requires-dev]
@@ -1013,6 +1017,7 @@ dependencies = [
     { name = "share-gateway" },
     { name = "tk-command-parsing" },
     { name = "tomlkit" },
+    { name = "usage-collector" },
     { name = "workspace-layout" },
 ]
 
@@ -1026,6 +1031,7 @@ dev = [
     { name = "imbue-mngr-codex" },
     { name = "imbue-mngr-opencode" },
     { name = "imbue-mngr-pi-coding" },
+    { name = "imbue-mngr-usage" },
     { name = "inline-snapshot" },
     { name = "mngr-cli-contract" },
     { name = "pytest" },
@@ -1052,6 +1058,7 @@ requires-dist = [
     { name = "share-gateway", editable = "system/services/share_gateway" },
     { name = "tk-command-parsing", editable = "system/libs/tk_command_parsing" },
     { name = "tomlkit", specifier = ">=0.12" },
+    { name = "usage-collector", editable = "system/services/usage_collector" },
     { name = "workspace-layout", editable = "system/libs/workspace_layout" },
 ]
 
@@ -1065,6 +1072,7 @@ dev = [
     { name = "imbue-mngr-codex", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_codex&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-opencode", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_opencode&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "imbue-mngr-pi-coding", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_pi_coding&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "imbue-mngr-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
     { name = "inline-snapshot", specifier = ">=0.31" },
     { name = "mngr-cli-contract", editable = "system/libs/mngr_cli_contract" },
     { name = "pytest", specifier = ">=8.0" },
@@ -1895,6 +1903,17 @@ version = "0.1.14"
 source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_ttyd&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
 dependencies = [
     { name = "imbue-mngr" },
+]
+
+[[package]]
+name = "imbue-mngr-usage"
+version = "0.1.6"
+source = { git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d#ea4afd649f89277a8916137d735fbb189a45101d" }
+dependencies = [
+    { name = "click" },
+    { name = "click-option-group" },
+    { name = "imbue-mngr" },
+    { name = "pydantic" },
 ]
 
 [[package]]
@@ -4214,6 +4233,39 @@ wheels = [
 ]
 
 [[package]]
+name = "usage-collector"
+version = "0.1.0"
+source = { editable = "system/services/usage_collector" }
+dependencies = [
+    { name = "flask" },
+    { name = "imbue-common" },
+    { name = "imbue-mngr-usage" },
+    { name = "loguru" },
+    { name = "pydantic" },
+    { name = "werkzeug" },
+    { name = "workspace-usage" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "flask", specifier = ">=3.0" },
+    { name = "imbue-common", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fimbue_common&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "imbue-mngr-usage", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fmngr_usage&rev=ea4afd649f89277a8916137d735fbb189a45101d" },
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "werkzeug", specifier = ">=3.1" },
+    { name = "workspace-usage", editable = "system/libs/workspace_usage" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ty", specifier = "==0.0.85" }]
+
+[[package]]
 name = "watchdog"
 version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4367,6 +4419,36 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7" },
     { name = "pydantic", specifier = ">=2.12" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ty", specifier = "==0.0.85" }]
+
+[[package]]
+name = "workspace-usage"
+version = "0.1.0"
+source = { editable = "system/libs/workspace_usage" }
+dependencies = [
+    { name = "app-manifest" },
+    { name = "loguru" },
+]
+
+[package.optional-dependencies]
+litellm = [
+    { name = "litellm" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "app-manifest", editable = "system/libs/app_manifest" },
+    { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.88.1" },
+    { name = "loguru", specifier = ">=0.7.0" },
+]
+provides-extras = ["litellm"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ty", specifier = "==0.0.85" }]

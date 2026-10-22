@@ -64,8 +64,13 @@ import json
 import os
 import subprocess
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -75,6 +80,17 @@ _MAIN_CLAUDE_SESSION_ID = "MAIN_CLAUDE_SESSION_ID"
 _MNGR_AGENT_VARS = ("MNGR_AGENT_STATE_DIR", "MNGR_AGENT_NAME", "MNGR_HOST_DIR")
 
 _DEFAULT_MODEL = "claude-haiku-4-5"
+
+# Usage reporting. Every call is recorded by the workspace's usage collector, which reads
+# the call's tokens from claude's session log. This is the same report workspace_usage's
+# report_claude_one_shot sends (system/libs/workspace_usage), inlined because this file is
+# copied into apps that may not depend on that library.
+_USAGE_COLLECTOR_URL = "IMBUE_USAGE_COLLECTOR_URL"
+_USAGE_DATA_DIR = "IMBUE_USAGE_DATA_DIR"
+_USAGE_CONTEXT = "IMBUE_USAGE_CONTEXT"
+_USAGE_CONTEXT_KEYS = ("origin_kind", "origin_id", "run_id", "parent_agent_id")
+_DEFAULT_USAGE_COLLECTOR_URL = "http://127.0.0.1:8795"
+_USAGE_POST_TIMEOUT_SECONDS = 0.5
 
 
 class ClaudeCLIError(RuntimeError):
@@ -284,7 +300,7 @@ def _build_argv(
     append_system: str | None,
     tools: str | None,
     permission_mode: str | None,
-    is_session_persisted: bool,
+    session_id: str,
 ) -> list[str]:
     """Assemble the ``claude -p`` argv. Pure, so flag emission is unit-testable.
 
@@ -307,17 +323,18 @@ def _build_argv(
         argv += ["--tools", tools]
     if permission_mode is not None:
         argv += ["--permission-mode", permission_mode]
-    if not is_session_persisted:
-        argv.append("--no-session-persistence")
+    # The session log under this id is where the usage collector reads the call's usage.
+    argv += ["--session-id", session_id]
     return argv + ["--", prompt]
 
 
-def _completion_argv(prompt: str, *, system: str, model: str) -> list[str]:
+def _completion_argv(
+    prompt: str, *, system: str, model: str, session_id: str
+) -> list[str]:
     """The argv of one non-agentic completion.
 
-    Not persisted: every completion runs from its own throwaway cwd, and claude files a
-    persisted session under a ``projects/`` directory named for that cwd, so each call
-    would leave a directory behind in the account's projects tree for good.
+    Its session is logged so the usage collector can read the call's usage; the collector
+    deletes the log once read, so a completion leaves nothing in the account's projects tree.
     """
     return _build_argv(
         prompt,
@@ -326,7 +343,7 @@ def _completion_argv(prompt: str, *, system: str, model: str) -> list[str]:
         append_system=None,
         tools="",
         permission_mode=None,
-        is_session_persisted=False,
+        session_id=session_id,
     )
 
 
@@ -337,6 +354,7 @@ def _task_argv(
     append_system: str | None,
     model: str,
     permission_mode: str | None,
+    session_id: str,
 ) -> list[str]:
     """The argv of one agentic task, persisted like any session run from the repo."""
     return _build_argv(
@@ -346,7 +364,7 @@ def _task_argv(
         append_system=append_system,
         tools=None,
         permission_mode=permission_mode,
-        is_session_persisted=True,
+        session_id=session_id,
     )
 
 
@@ -461,12 +479,16 @@ def claude_p_completion(
 ) -> ClaudeResult:
     """One non-agentic completion. ``system`` is required (see module docstring)."""
     env = _child_env(strip_mngr_agent_vars)
-    argv = _completion_argv(prompt, system=system, model=model)
+    session_id = str(uuid.uuid4())
+    argv = _completion_argv(prompt, system=system, model=model, session_id=session_id)
     # Isolated cwd: claude -p auto-discovers CLAUDE.md / .claude hooks from the
     # working directory, so a throwaway dir keeps that project context out of the
     # answer. Credentials come from the env, not the cwd, so auth is unaffected.
     with tempfile.TemporaryDirectory(prefix="claude_p_completion_") as cwd:
-        return _run_blocking(argv, env=env, cwd=cwd)
+        try:
+            return _run_blocking(argv, env=env, cwd=cwd)
+        finally:
+            _report_usage(env, session_id, delete_log=True)
 
 
 def claude_p_task(
@@ -485,11 +507,75 @@ def claude_p_task(
     default agent here).
     """
     env = _child_env(strip_mngr_agent_vars)
+    session_id = str(uuid.uuid4())
     argv = _task_argv(
         prompt,
         system=system,
         append_system=append_system,
         model=model,
         permission_mode=permission_mode,
+        session_id=session_id,
     )
-    return _run_blocking(argv, env=env, cwd=None)
+    try:
+        return _run_blocking(argv, env=env, cwd=None)
+    finally:
+        # A task's session is a real one the user may resume, so its log stays.
+        _report_usage(env, session_id, delete_log=False)
+
+
+def _usage_context(env: Mapping[str, str]) -> dict[str, str]:
+    """The attribution of this process's calls: IMBUE_USAGE_CONTEXT, else its supervisord program."""
+    context: dict[str, str] = {}
+    for pair in env.get(_USAGE_CONTEXT, "").split(","):
+        key, _, value = pair.partition("=")
+        if key.strip() in _USAGE_CONTEXT_KEYS and value.strip():
+            context[key.strip()] = urllib.parse.unquote(value.strip())
+    if "origin_kind" in context:
+        return context
+    program = env.get("SUPERVISOR_PROCESS_NAME", "").strip()
+    if program:
+        return {"origin_kind": "APP", "origin_id": program}
+    return {"origin_kind": "UNKNOWN"}
+
+
+def _report_usage(env: Mapping[str, str], session_id: str, *, delete_log: bool) -> None:
+    """Ask the usage collector to record a finished call's usage; spool the request if it is down. Never raises."""
+    config_dir = env.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    report = {
+        "config_dir": config_dir,
+        "session_id": session_id,
+        "attribution": {
+            "workspace_id": env.get("MNGR_AGENT_ID") or os.uname().nodename,
+            "purpose": "APP_CALL",
+            **_usage_context(env),
+        },
+        "delete_log": delete_log,
+    }
+    body = json.dumps(report).encode("utf-8")
+    url = (env.get(_USAGE_COLLECTOR_URL) or _DEFAULT_USAGE_COLLECTOR_URL).rstrip("/")
+    request = urllib.request.Request(
+        f"{url}/v1/claude-sessions",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_USAGE_POST_TIMEOUT_SECONDS):
+            return
+    except urllib.error.HTTPError:
+        # The collector read the report and refused it (no session log); a retry would too.
+        return
+    except OSError:
+        pass
+    data_dir = Path(
+        env.get(_USAGE_DATA_DIR) or Path.home() / "workspace/data/.apps/usage"
+    )
+    spool = data_dir / "spool" / "claude-sessions"
+    try:
+        spool.mkdir(parents=True, exist_ok=True)
+        name = uuid.uuid4().hex
+        partial = spool / f".{name}.partial"
+        partial.write_bytes(body)
+        partial.rename(spool / f"{name}.json")
+    except OSError:
+        pass

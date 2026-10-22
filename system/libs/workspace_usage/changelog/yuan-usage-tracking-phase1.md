@@ -1,0 +1,3 @@
+New library: `workspace_usage` reports the model calls a workspace app makes to the workspace's usage collector.
+
+It attributes calls through the `IMBUE_USAGE_CONTEXT` a starter hands down, or, for a supervised program with none, to the app the program runs (from the app registry) or to the workspace. It reports direct LiteLLM calls through a callback (`install_litellm_usage_callback`), and `claude -p` one-shots by their session id (`claude_session_args`, `report_claude_one_shot`), which the collector reads from the session log. Reports go to the collector on 127.0.0.1:8795 and are spooled under `data/.apps/usage/spool/` when it is down; delivery never raises.

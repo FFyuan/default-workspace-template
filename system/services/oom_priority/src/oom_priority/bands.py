@@ -246,6 +246,10 @@ SERVICE_BANDS: Final[dict[str, int]] = {
     # Opt-in runtime/ sync (added by the github-sync skill).
     "github-sync": 40,
     "host-backup": 50,
+    # The usage collector: a small HTTP server over a SQLite file. A shed loses nothing --
+    # agents' usage files and the emitters' spool hold what arrives while it is down -- but
+    # the usage views stop updating, so it sits with the other background services.
+    "usage-collector": 52,
     # The cron daemon behind the workspace's scheduled jobs. A shed defers those
     # jobs rather than losing them -- the every-minute checkers fire at the due
     # hour when the container is up, or the first minute it is back up after a
