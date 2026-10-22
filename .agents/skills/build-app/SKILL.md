@@ -474,7 +474,7 @@ directive** (`script-src`, `style-src` and `font-src`, `img-src`,
 `connect-src`); an inline `<script>` needs its
 `inline_script_source` in `script-src`; never `'unsafe-inline'` or `*` for
 scripts. The browser reports every block to the starter's `/_csp-report` route,
-which logs it to stderr as an `ERROR` line reading
+which logs it to stderr as an `ERROR` line containing
 `Content-Security-Policy blocked <url> on <page> (<directive>)` (a blocked
 inline script adds its line and first characters), so
 when something on a page does not show up, read the app's
