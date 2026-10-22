@@ -899,7 +899,11 @@ export function App(): m.Component<AppAttrs> {
   /** The tour's card or exit badge over the desktop, while one is shown. */
   function tourCardView(current: DesktopStore, shownTour: TourController): m.Children {
     if (shownTour.getState().phase === "idle") return null;
-    return m(TourCard, { tour: shownTour, avatarDesign: current.getState().avatar.design });
+    return m(TourCard, {
+      tour: shownTour,
+      avatarDesign: current.getState().avatar.design,
+      openLink: (url) => void current.openLink(url, window.location.host, SHELL_APP_NAME),
+    });
   }
 
   function runHighlightedRow(current: DesktopStore): void {

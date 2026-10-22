@@ -59,7 +59,15 @@ describe("TourCard", () => {
   it("shows each card's words, its link and picture when it has them, and the footer's verbs", () => {
     const { tour } = controller();
     tour.start();
-    mountView(() => m(TourCard, { tour, avatarDesign: "jelly-cat", viewport: { width: 1200, height: 800 } }));
+    const opened: string[] = [];
+    mountView(() =>
+      m(TourCard, {
+        tour,
+        avatarDesign: "jelly-cat",
+        openLink: (url) => opened.push(url),
+        viewport: { width: 1200, height: 800 },
+      }),
+    );
     expect(card()?.getAttribute("data-tour-card")).toBe("a");
     expect(card()?.textContent).toContain("Hello there.");
     expect(document.querySelector("[data-tour-back]")).toBeNull();
@@ -67,7 +75,12 @@ describe("TourCard", () => {
 
     press("data-tour-next");
     expect(card()?.getAttribute("data-tour-card")).toBe("b");
-    expect(document.querySelector("[data-tour-link]")?.getAttribute("href")).toBe("https://example.com/discord");
+    const link = document.querySelector<HTMLElement>("[data-tour-link]");
+    expect(link?.getAttribute("href")).toBe("https://example.com/discord");
+    // A plain click goes through the shell's link routing; a modified click is left to the browser.
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, metaKey: true }));
+    expect(opened).toEqual(["https://example.com/discord"]);
     expect(document.querySelector("[data-tour-back]")).not.toBeNull();
 
     press("data-tour-next");
@@ -85,7 +98,12 @@ describe("TourCard", () => {
     mountView(() =>
       tour.getState().phase === "idle"
         ? null
-        : m(TourCard, { tour, avatarDesign: "jelly-cat", viewport: { width: 1200, height: 800 } }),
+        : m(TourCard, {
+            tour,
+            avatarDesign: "jelly-cat",
+            openLink: () => undefined,
+            viewport: { width: 1200, height: 800 },
+          }),
     );
     press("data-tour-exit");
     expect(card()?.hasAttribute("data-tour-badge")).toBe(true);

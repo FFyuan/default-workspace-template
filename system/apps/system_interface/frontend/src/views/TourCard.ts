@@ -27,6 +27,8 @@ export interface TourCardAttrs {
   readonly tour: TourController;
   /** The workspace's avatar design, drawn beside the card's words. */
   readonly avatarDesign: string;
+  /** Opens the card's link where a link of the shell's own chrome opens (the store's link routing). */
+  readonly openLink: (url: string) => void;
   /** Where the shell's markers are looked up; the document by default. */
   readonly root?: ParentNode;
   readonly viewport?: Size;
@@ -116,7 +118,7 @@ export function TourCard(): m.Component<TourCardAttrs> {
       window.removeEventListener("resize", onResize);
     },
     view(vnode) {
-      const { tour, avatarDesign } = vnode.attrs;
+      const { tour, avatarDesign, openLink } = vnode.attrs;
       const root = vnode.attrs.root ?? document;
       const viewport = vnode.attrs.viewport ?? { width: window.innerWidth, height: window.innerHeight };
       const state = tour.getState();
@@ -129,6 +131,7 @@ export function TourCard(): m.Component<TourCardAttrs> {
       const cards = tour.getCards();
       const isLast = state.phase === "card" && state.index === cards.length - 1;
       const text = isBadge ? TOUR_EXIT_BADGE_TEXT : (card?.text ?? "");
+      const link = isBadge ? null : (card?.link ?? null);
       return m(
         "div",
         {
@@ -161,18 +164,24 @@ export function TourCard(): m.Component<TourCardAttrs> {
           card?.image === null || card?.image === undefined || isBadge
             ? null
             : m("img", { src: card.image.url, alt: card.image.alt, class: "mt-3 w-full rounded-md bg-fill-hover" }),
-          card?.link === null || card?.link === undefined || isBadge
+          link === null
             ? null
             : m(
                 "a",
                 {
                   "data-tour-link": "",
-                  href: card.link.url,
+                  href: link.url,
                   target: "_blank",
                   rel: "noopener",
                   class: buttonClass("secondary", { sm: true, extra: "mt-3" }),
+                  onclick: (event: MouseEvent) => {
+                    // A plain click goes the shell's way; a modified or middle click keeps the browser's.
+                    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    openLink(link.url);
+                  },
                 },
-                card.link.label,
+                link.label,
               ),
           isBadge
             ? m("div", { class: "mt-4 flex justify-end" }, [
