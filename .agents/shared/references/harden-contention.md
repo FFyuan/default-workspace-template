@@ -390,16 +390,16 @@ merge:
   provisional merge back with `git revert -m 1 <merge-commit>`, the reverted
   commits are still ancestors of your `HEAD`, so carrying the branch cannot
   bring them back, and `git log HEAD..<branch>` does not list them. The old
-  worker may already have brought them back on its branch, as a revert of
-  your revert; then carrying the branch carries them too. When it had not,
-  name the revert commit under `## Carried work` as well, and the new worker
-  reverts it on its own branch (`harden-creation.md`, "Carried work from a
-  superseded pass"). Never reinstate it on your branch yourself. With no
-  branch kept, it had not: bringing it back is a commit your `HEAD` lacks, so
-  the destroy would have kept the branch. Otherwise check each kept branch:
+  worker may already have brought them back, as a revert of your revert: on
+  its branch, which carrying the branch then carries, or on yours, through a
+  later report of its you merged. When it had not, name the revert commit
+  under `## Carried work` as well, and the new worker reverts it on its own
+  branch (`harden-creation.md`, "Carried work from a superseded pass"). Never
+  reinstate it on your branch yourself. Check your `HEAD` together with each
+  kept branch (with none kept, `HEAD` alone):
 
   ```bash
-  git log --oneline HEAD..superseded/<name> --grep "This reverts commit <revert-commit>"
+  git log --oneline HEAD superseded/<name> --grep "This reverts commit <revert-commit>"
   ```
 
   Empty output means the old worker had not brought it back.
