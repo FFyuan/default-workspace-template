@@ -45,7 +45,9 @@ def test_the_policy_distrusts_exactly_the_compromised_keys() -> None:
 
     spki_hashes = set()
     for entry in policy["CADistrustedCertificates"]:
-        certificate = x509.load_der_x509_certificate(base64.b64decode(entry, validate=True))
+        certificate = x509.load_der_x509_certificate(
+            base64.b64decode(entry, validate=True)
+        )
         spki = certificate.public_key().public_bytes(
             Encoding.DER, PublicFormat.SubjectPublicKeyInfo
         )
