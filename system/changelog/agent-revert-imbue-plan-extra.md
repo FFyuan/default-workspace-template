@@ -2,10 +2,17 @@ Reverts the build-app plan recorder (#530).
 
 Removes `system/scripts/imbue_plan_extra/` (the `write_plan.sh` wrapper and its
 `build-app` prompt) and the exemption for `write_plan.sh` in
-`agent_require_steps_pretool.sh`.
+`agent_require_steps_pretool.sh`. A workspace that added its own prompt under
+`prompts/` and a `write_plan.sh <flow>` line to one of its skills keeps both,
+but the command now fails with "No such file or directory"; remove the line
+from the skill.
 
-Keeps `data/.imbue/plans/CLAUDE.md` (shortened to the instruction alone), its
-`.gitignore` rules and its `data/README.md` line. Workspaces that ran the recorder still hold plans under
-`data/.imbue/plans/`, and the `CLAUDE.md` is what tells agents not to read or
-act on them; only each `plan.md` carries its own warning, not the `brief.md`
-beside it.
+Keeps `data/.imbue/plans/CLAUDE.md`, adds the same note as `AGENTS.md` for
+harnesses that do not read `CLAUDE.md`, and keeps the `.gitignore` rules that
+track both and the `data/README.md` line. Workspaces that ran the recorder
+still hold run folders under `data/.imbue/plans/<flow>/`, each with `brief.md`,
+`plan.md`, `meta.json` and `log`. Only `plan.md` carries its own warning;
+`brief.md` and `log` both contain the calling agent's description of the
+user's request. A nested `CLAUDE.md` is loaded only once an agent reads a file
+in that folder, so a shell search across `data/` can still print matching
+lines before any note is seen.
