@@ -283,12 +283,16 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    leaves its reports there too):
 
    ```bash
+   mngr list --format jsonl > /tmp/harden-agents.jsonl
    CREATED=$(jq -r 'select(.name == "<worker-name>") | .create_time' /tmp/harden-agents.jsonl)
-   LAST=$(find "$(dirname <finish_report_path>)/consumed" -maxdepth 1 -type f -newermt "$CREATED" \
-       -printf '%T@ %p\n' | sort -n | sed -n '$s/^[^ ]* //p')
+   [ -n "$CREATED" ] || exit 1
+   find "$(dirname <finish_report_path>)/consumed" -maxdepth 1 -type f -newermt "$CREATED" \
+       -printf '%T@ %p\n' | sort -n | sed -n '$s/^[^ ]* //p'
    ```
 
-   An empty `$LAST` means the worker has reported nothing yet. A worker that
+   It prints that report's path. Exit 1 means no agent has the worker's
+   name, so the worker is gone: supersede the pass instead (below). No
+   output means the worker has reported nothing yet. A worker that
    is RUNNING was answered (a `done` it is catching up on, say), and its next
    report reaches you through the poll in step 4. Otherwise the holder read
    that report but stopped before acting on it, so act on it now, by what it
