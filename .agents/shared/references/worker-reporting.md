@@ -176,6 +176,31 @@ name is always yours to pick.
    (you keep your copy); the lead's `await` recognises one it has already
    returned by its name, so that is harmless.
 
+### A milestone the lead reverted
+
+When the user rejects a milestone the lead merged, the lead reverts it and
+its reply names the revert commit and says why. The milestone's commits are
+still ancestors of the lead's `HEAD`, so a later merge of your branch would
+leave them out: bring them back on your branch, as a revert of that revert,
+and fix them there. Make that revert on top of the lead's, then merge it, so
+the merge sees the milestone unchanged and keeps what you built on it since
+(merging the lead's revert first conflicts with each later edit of yours to
+the milestone, and taking its side loses that edit). Commit anything
+outstanding, then run the block below, resolving any conflict the merge
+raises on your branch:
+
+```bash
+git checkout --detach <the revert commit>
+git revert --no-edit HEAD
+RESTORED=$(git rev-parse HEAD)
+git checkout -
+git merge --no-ff "$RESTORED" -m "Catch up to <the revert commit's short sha>"
+```
+
+The work reaches the lead again only with the next report of yours it
+merges. A harden pass does this as `harden-creation.md`'s "A reverted
+milestone" says, which adds what its test gate then covers.
+
 ## Terminal status report bodies
 
 Each worker's SKILL.md lists which of these terminal statuses apply. The body

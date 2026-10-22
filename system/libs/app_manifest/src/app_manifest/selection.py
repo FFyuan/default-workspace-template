@@ -794,7 +794,11 @@ def _select_for_reach(context: _SelectionContext, reach: CreationReach) -> _Reac
         return any(is_path_covered_by(creation, directory) for creation in reach.creation_directories)
 
     def runs_full_root(creation: str) -> bool:
-        return (layout.repo_root / creation).is_file() and _select_for_path(reach_context, creation).is_full_root
+        return (
+            not is_docs_path(creation)
+            and (layout.repo_root / creation).is_file()
+            and _select_for_path(reach_context, creation).is_full_root
+        )
 
     def suite_requests(directories: Sequence[str], reason: SelectionReason) -> list[_PytestRequest]:
         return list(

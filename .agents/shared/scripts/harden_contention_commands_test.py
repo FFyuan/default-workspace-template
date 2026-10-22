@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -82,3 +84,96 @@ def test_a_creation_a_catch_up_adds_is_found_by_the_single_flight_check(
     assert widened.returncode == 0, widened.stderr
     assert ticket_id in found.stdout
     assert "creations: skill:text-stats skill:slug-title\n" in task_file.read_text()
+
+
+_WORKER_CREATED = "2026-05-01T12:00:00.123456Z"
+
+
+def _run_takeover_lookup(
+    tmp_path: Path, listing: str | None
+) -> subprocess.CompletedProcess[str]:
+    """Run the takeover's last-report lookup as written, against an ``mngr list`` that prints
+    ``listing``, or fails when it is None."""
+    bin_directory = tmp_path / "bin"
+    bin_directory.mkdir()
+    fake_mngr = bin_directory / "mngr"
+    if listing is None:
+        fake_mngr.write_text("#!/bin/sh\nexit 1\n")
+    else:
+        listing_file = tmp_path / "listing.jsonl"
+        listing_file.write_text(listing)
+        fake_mngr.write_text(f"#!/bin/sh\ncat '{listing_file}'\n")
+    fake_mngr.chmod(0o755)
+    lookup = (
+        _bash_block_containing("-newermt")
+        .replace("<worker-name>", "harden-notes")
+        .replace("<finish_report_path>", str(tmp_path / "reports" / "report.md"))
+        .replace("/tmp/harden-agents.jsonl", str(tmp_path / "agents.jsonl"))
+    )
+    env = {**os.environ, "PATH": f"{bin_directory}{os.pathsep}{os.environ['PATH']}"}
+    return _run_bash(lookup, env, tmp_path)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="the workspace's find is GNU find")
+@pytest.mark.skipif(
+    shutil.which("jq") is None, reason="the lookup reads the agent list with jq"
+)
+@pytest.mark.parametrize(
+    ("reports", "last_report"),
+    [
+        (
+            {"earlier-pass-done.md": -3600, "1-gate.md": 60, "2-done.md": 120},
+            "2-done.md",
+        ),
+        ({"earlier-pass-done.md": -3600}, None),
+    ],
+)
+def test_a_taking_over_lead_finds_the_newest_report_its_worker_sent(
+    tmp_path: Path, reports: dict[str, int], last_report: str | None
+) -> None:
+    """The last report is the newest one in consumed/ that arrived after the worker was made,
+    so a report an earlier pass under the same name left there is never the one acted on."""
+    consumed = tmp_path / "reports" / "consumed"
+    consumed.mkdir(parents=True)
+    created = datetime.fromisoformat(_WORKER_CREATED).timestamp()
+    for name, seconds_after_created in reports.items():
+        report = consumed / name
+        report.write_text("report\n")
+        os.utime(
+            report, (created + seconds_after_created, created + seconds_after_created)
+        )
+    listing = (
+        '{"name": "chat-1", "create_time": "2026-01-01T00:00:00Z"}\n'
+        f'{{"name": "harden-notes", "create_time": "{_WORKER_CREATED}"}}\n'
+    )
+
+    result = _run_takeover_lookup(tmp_path, listing)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == (
+        "" if last_report is None else f"{consumed / last_report}\n"
+    )
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="the workspace's find is GNU find")
+@pytest.mark.skipif(
+    shutil.which("jq") is None, reason="the lookup reads the agent list with jq"
+)
+@pytest.mark.parametrize(
+    ("listing", "exit_code"),
+    [
+        ('{"name": "chat-1", "create_time": "2026-01-01T00:00:00Z"}\n', 1),
+        (None, 2),
+    ],
+)
+def test_a_takeover_lookup_tells_a_gone_worker_from_an_unread_agent_list(
+    tmp_path: Path, listing: str | None, exit_code: int
+) -> None:
+    """No agent by the worker's name means the worker is gone, and the pass is superseded; an
+    agent list that could not be read says nothing about the worker, so it exits differently."""
+    (tmp_path / "reports" / "consumed").mkdir(parents=True)
+
+    result = _run_takeover_lookup(tmp_path, listing)
+
+    assert result.returncode == exit_code
+    assert result.stdout == ""

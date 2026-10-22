@@ -283,19 +283,26 @@ on a gate nobody relayed. Become that lead; do not replace the pass.
    leaves its reports there too):
 
    ```bash
+   mngr list --format jsonl > /tmp/harden-agents.jsonl || exit 2
    CREATED=$(jq -r 'select(.name == "<worker-name>") | .create_time' /tmp/harden-agents.jsonl)
-   LAST=$(find "$(dirname <finish_report_path>)/consumed" -maxdepth 1 -type f -newermt "$CREATED" \
-       -printf '%T@ %p\n' | sort -n | sed -n '$s/^[^ ]* //p')
+   [ -n "$CREATED" ] || exit 1
+   find "$(dirname <finish_report_path>)/consumed" -maxdepth 1 -type f -newermt "$CREATED" \
+       -printf '%T@ %p\n' | sort -n | sed -n '$s/^[^ ]* //p'
    ```
 
-   An empty `$LAST` means the worker has reported nothing yet. Otherwise the
-   holder read that report but may have stopped before acting on it, so act
-   on it now, by what it is:
-   - A `gate` or `question`, with the worker WAITING, was never answered.
-     Handle it as `lead-proxy.md` says ("Deciding: answer gate yourself vs.
-     escalate"). A `final-creation` gate goes to the user, with a sentence
-     saying it comes from an earlier check of this creation that has been
-     waiting on them.
+   It prints that report's path. Exit 1 means no agent has the worker's
+   name, so the worker is gone: supersede the pass instead (below). Exit 2
+   means the agent list could not be read, which says nothing about the
+   worker: run the block again. No
+   output means the worker has reported nothing yet. A worker that is
+   RUNNING was answered (a `done` it is catching up on, say), and its next
+   report reaches you through the poll in step 4. Otherwise the holder read
+   that report but stopped before acting on it, so act on it now, by what it
+   is:
+   - A `gate` or `question` was never answered. Handle it as `lead-proxy.md`
+     says ("Deciding: answer gate yourself vs. escalate"). A
+     `final-creation` gate goes to the user, with a sentence saying it comes
+     from an earlier check of this creation that has been waiting on them.
    - A `done` was never merged: run the calling skill's merge for it now,
      its checks before merge first ("Before merge" above). They catch the
      pass up when your commits moved its base.
@@ -383,14 +390,16 @@ merge:
   provisional merge back with `git revert -m 1 <merge-commit>`, the reverted
   commits are still ancestors of your `HEAD`, so carrying the branch cannot
   bring them back, and `git log HEAD..<branch>` does not list them. The old
-  worker may already have brought them back on its branch, as a revert of
-  your revert; then carrying the branch carries them too. When it had not,
-  name the revert commit under `## Carried work` as well, and the new worker
-  reverts it on its own branch (`harden-creation.md`, "Carried work from a
-  superseded pass"). Never reinstate it on your branch yourself.
+  worker may already have brought them back, as a revert of your revert: on
+  its branch, which carrying the branch then carries, or on yours, through a
+  later report of its you merged. When it had not, name the revert commit
+  under `## Carried work` as well, and the new worker reverts it on its own
+  branch (`harden-creation.md`, "Carried work from a superseded pass"). Never
+  reinstate it on your branch yourself. Check your `HEAD` together with each
+  kept branch (with none kept, `HEAD` alone):
 
   ```bash
-  git log --oneline HEAD..superseded/<name> --grep "This reverts commit <revert-commit>"
+  git log --oneline HEAD superseded/<name> --grep "This reverts commit <revert-commit>"
   ```
 
   Empty output means the old worker had not brought it back.
