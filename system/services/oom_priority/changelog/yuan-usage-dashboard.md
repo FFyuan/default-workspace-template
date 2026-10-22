@@ -1,1 +1,0 @@
-A memory-shedding band for the new Usage app (`usage-dashboard`), between the Getting Started page and System Monitor: it is one page over the usage collector that stores nothing, so a shed costs a reload.
