@@ -86,7 +86,7 @@ def test_a_creation_a_catch_up_adds_is_found_by_the_single_flight_check(
     assert "creations: skill:text-stats skill:slug-title\n" in task_file.read_text()
 
 
-_WORKER_CREATED = "2026-05-01T12:00:00.123456+00:00"
+_WORKER_CREATED = "2026-05-01T12:00:00.123456Z"
 
 
 def _run_takeover_lookup(
@@ -143,7 +143,7 @@ def test_a_taking_over_lead_finds_the_newest_report_its_worker_sent(
             report, (created + seconds_after_created, created + seconds_after_created)
         )
     listing = (
-        '{"name": "chat-1", "create_time": "2026-01-01T00:00:00+00:00"}\n'
+        '{"name": "chat-1", "create_time": "2026-01-01T00:00:00Z"}\n'
         f'{{"name": "harden-notes", "create_time": "{_WORKER_CREATED}"}}\n'
     )
 
@@ -162,7 +162,7 @@ def test_a_taking_over_lead_finds_the_newest_report_its_worker_sent(
 @pytest.mark.parametrize(
     ("listing", "exit_code"),
     [
-        ('{"name": "chat-1", "create_time": "2026-01-01T00:00:00+00:00"}\n', 1),
+        ('{"name": "chat-1", "create_time": "2026-01-01T00:00:00Z"}\n', 1),
         (None, 2),
     ],
 )
