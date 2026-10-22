@@ -7,8 +7,8 @@ Removes `system/scripts/imbue_plan_extra/` (the `write_plan.sh` wrapper and its
 but the command now fails with "No such file or directory"; remove the line
 from the skill.
 
-Keeps `data/.imbue/plans/CLAUDE.md`, adds the same note as `AGENTS.md` for
-harnesses that do not read `CLAUDE.md`, and keeps the `.gitignore` rules that
+Keeps `data/.imbue/plans/CLAUDE.md`, moves its note into an `AGENTS.md` beside
+it that the `CLAUDE.md` imports, and keeps the `.gitignore` rules that
 track both and the `data/README.md` line. Workspaces that ran the recorder
 still hold run folders under `data/.imbue/plans/<flow>/`, each with `brief.md`,
 `plan.md`, `meta.json` and `log`. Only `plan.md` carries its own warning;
