@@ -37,6 +37,8 @@ import re
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
+from enum import Enum
 
 _API_PROBE_URL = "https://api.github.com/user"
 _PERMISSIONS_URL = "http://latchkey-self.invalid/permissions/self"
@@ -100,22 +102,45 @@ def is_git_write_permitted() -> bool:
 
 
 _PROBES = {"api": is_api_permitted, "git-write": is_git_write_permitted}
-_PERMITTED = "permitted"
-_NOT_PERMITTED = "NOT permitted"
 
 
-def access_report(kinds: list[str]) -> dict[str, str]:
-    """Each kind's status: permitted, NOT permitted, or UNKNOWN with the gateway's reason."""
-    report: dict[str, str] = {}
+class Access(Enum):
+    PERMITTED = "permitted"
+    NOT_PERMITTED = "NOT permitted"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True)
+class KindAccess:
+    access: Access
+    reason: str = ""
+
+    def __str__(self) -> str:
+        if self.reason:
+            return f"{self.access.value} ({self.reason})"
+        return self.access.value
+
+
+def access_report(kinds: list[str]) -> dict[str, KindAccess]:
+    """Each kind's access, with the gateway's reason when it is UNKNOWN."""
+    report: dict[str, KindAccess] = {}
     for kind in kinds:
         try:
-            report[kind] = _PERMITTED if _PROBES[kind]() else _NOT_PERMITTED
+            is_permitted = _PROBES[kind]()
         except AccessUnknownError as e:
-            report[kind] = f"UNKNOWN ({e})"
+            report[kind] = KindAccess(Access.UNKNOWN, str(e))
+            continue
+        report[kind] = KindAccess(
+            Access.PERMITTED if is_permitted else Access.NOT_PERMITTED
+        )
     return report
 
 
-def _format(report: dict[str, str]) -> str:
+def _is_all_permitted(report: dict[str, KindAccess]) -> bool:
+    return all(status.access is Access.PERMITTED for status in report.values())
+
+
+def _format(report: dict[str, KindAccess]) -> str:
     return "\n".join(f"{kind}: {status}" for kind, status in report.items())
 
 
@@ -137,26 +162,21 @@ def main(argv: list[str] | None = None) -> int:
         report = access_report(kinds)
         if args.command == "wait":
             deadline = time.monotonic() + args.timeout_seconds
-            while (
-                any(status != _PERMITTED for status in report.values())
-                and time.monotonic() < deadline
-            ):
+            while not _is_all_permitted(report) and time.monotonic() < deadline:
                 time.sleep(args.interval_seconds)
                 report = access_report(kinds)
     except GitHubAccessError as e:
         print(f"github_access: {e}", file=sys.stderr)
         return 1
 
-    if all(status == _PERMITTED for status in report.values()):
+    if _is_all_permitted(report):
         print(_format(report))
         return 0
     if args.command == "wait":
         print(_format(report), file=sys.stderr)
         return 1
     print(_format(report))
-    is_unknown = any(
-        status not in (_PERMITTED, _NOT_PERMITTED) for status in report.values()
-    )
+    is_unknown = any(status.access is Access.UNKNOWN for status in report.values())
     return 2 if is_unknown else 1
 
 
