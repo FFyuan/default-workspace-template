@@ -31,7 +31,6 @@ from imbue.system_interface.app_context import get_state
 from imbue.system_interface.shell.api_models import AppRunningState
 from imbue.system_interface.shell.api_models import EmbedderMessageRelayResponse
 from imbue.system_interface.shell.api_models import PendingUpdateResponse
-from imbue.system_interface.shell.api_models import TourRecord
 from imbue.system_interface.shell.api_models import UpdateRollbackStarted
 from imbue.system_interface.shell.clients import client_view
 from imbue.system_interface.shell.data_types import AppInventoryEntry
@@ -404,21 +403,15 @@ def layout_broadcast() -> ResponseReturnValue:
     return dispatch_desktop_op(_shell(), parse_op_body(body))
 
 
-def _tour_record() -> TourRecord:
-    progress = get_state().shell.tour.read()
-    return TourRecord(is_seen=progress.is_seen, resume_index=progress.resume_index)
-
-
 def get_tour() -> ResponseReturnValue:
     """Whether the show-around tour has run in this workspace, and the card it resumes at."""
-    return model_response(_tour_record())
+    return model_response(get_state().shell.tour.read())
 
 
 def set_tour() -> ResponseReturnValue:
     """Record that the tour has run and where it resumes (or clear both, so a fresh visit offers it again)."""
-    record = parse_request_body(TourRecord)
-    get_state().shell.tour.write(TourProgress(is_seen=record.is_seen, resume_index=record.resume_index))
-    return model_response(_tour_record())
+    get_state().shell.tour.write(parse_request_body(TourProgress))
+    return model_response(get_state().shell.tour.read())
 
 
 def register_shell_routes(application: Flask) -> None:

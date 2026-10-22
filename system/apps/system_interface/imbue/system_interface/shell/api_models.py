@@ -99,16 +99,3 @@ class UpdateRollbackStarted(FrozenModel):
     """What starting a rollback answers (202): the rollback is under way."""
 
     detail: str = Field(description="That the rollback has started")
-
-
-class TourRecord(FrozenModel):
-    """The body of ``POST /api/tour`` and the answer of both tour routes."""
-
-    is_seen: bool = Field(
-        description="Whether the show-around tour has started in this workspace, by itself or from the launcher"
-    )
-    resume_index: int | None = Field(
-        default=None,
-        description="The card the tour resumes at once the agent is working again, after its reply interrupted "
-        "the tour; null when nothing waits to resume",
-    )
