@@ -99,7 +99,9 @@ def test_routes_to_the_right_block_reason() -> None:
     assert checker.classify("tk start cod-step-x >/dev/null") == checker._REDIRECT
     assert checker.classify('tk close a "s" && echo hi') == checker._CHAIN
     assert checker.classify("tk start cod-step-x &") == checker._CHAIN
-    assert checker.classify('tk close a "s" >/dev/null; tk start b') == checker._REDIRECT
+    assert (
+        checker.classify('tk close a "s" >/dev/null; tk start b') == checker._REDIRECT
+    )
 
 
 def test_main_exit_codes() -> None:

@@ -22,7 +22,9 @@ def test_resolve_target_from_port(tmp_path: Path) -> None:
 
 
 def test_resolve_target_from_url(tmp_path: Path) -> None:
-    port, name, runner = smoketest_app._resolve_target("http://127.0.0.1:9090/test", tmp_path)
+    port, name, runner = smoketest_app._resolve_target(
+        "http://127.0.0.1:9090/test", tmp_path
+    )
     assert port == 9090
     assert name is None
     assert runner is None
@@ -43,8 +45,8 @@ def test_resolve_target_from_supervisord_conf(tmp_path: Path) -> None:
     conf = tmp_path / "system/supervisord.conf"
     conf.parent.mkdir(parents=True)
     conf.write_text(
-        '[program:custom-app]\n'
-        'command=python3 system/services/oom_priority/bin/oom_tag_service.py user '
+        "[program:custom-app]\n"
+        "command=python3 system/services/oom_priority/bin/oom_tag_service.py user "
         'bash -c "python3 system/scripts/forward_port.py --url http://localhost:8456 && custom-app"\n'
     )
     port, name, runner = smoketest_app._resolve_target("custom-app", tmp_path)
@@ -58,12 +60,18 @@ class _MockHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok", "pid": 1234, "started_at": time.time()}).encode())
+            self.wfile.write(
+                json.dumps(
+                    {"status": "ok", "pid": 1234, "started_at": time.time()}
+                ).encode()
+            )
         elif self.path == "/":
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
-            self.wfile.write(b"<!doctype html><html><body><h1>Welcome to My App</h1></body></html>")
+            self.wfile.write(
+                b"<!doctype html><html><body><h1>Welcome to My App</h1></body></html>"
+            )
         else:
             self.send_response(404)
             self.end_headers()
@@ -80,7 +88,9 @@ def test_poll_http_success_and_marker() -> None:
     thread.start()
     try:
         url = f"http://127.0.0.1:{port}/"
-        code, body = smoketest_app._poll_http(url, marker="Welcome to My App", timeout=2.0, interval=0.05)
+        code, body = smoketest_app._poll_http(
+            url, marker="Welcome to My App", timeout=2.0, interval=0.05
+        )
         assert code == 200
         assert "Welcome to My App" in body
     finally:
@@ -97,7 +107,9 @@ def test_poll_http_missing_marker_raises() -> None:
     try:
         url = f"http://127.0.0.1:{port}/"
         with pytest.raises(SystemExit) as exc_info:
-            smoketest_app._poll_http(url, marker="NonExistentText", timeout=0.2, interval=0.05)
+            smoketest_app._poll_http(
+                url, marker="NonExistentText", timeout=0.2, interval=0.05
+            )
         assert "marker 'NonExistentText' was not found" in str(exc_info.value)
     finally:
         server.shutdown()
@@ -107,7 +119,9 @@ def test_poll_http_missing_marker_raises() -> None:
 # --restart bounces a program through supervisord's RPC without waiting out its
 # startsecs window and reads readiness from the port; these pin the state
 # decisions that make that safe.
-def test_stop_precedes_start_only_while_supervisord_counts_the_program_as_running() -> None:
+def test_stop_precedes_start_only_while_supervisord_counts_the_program_as_running() -> (
+    None
+):
     for state in ("RUNNING", "STARTING", "BACKOFF"):
         assert smoketest_app.needs_stop(state), state
     for state in ("STOPPED", "EXITED", "FATAL", "UNKNOWN"):
@@ -123,14 +137,19 @@ def test_a_fresh_start_is_dead_in_every_state_but_starting_and_running() -> None
 
 def test_restart_raises_a_short_timeout_and_keeps_a_long_one() -> None:
     assert smoketest_app.effective_timeout(5.0, restart=False) == 5.0
-    assert smoketest_app.effective_timeout(5.0, restart=True) == smoketest_app.RESTART_MIN_TIMEOUT
+    assert (
+        smoketest_app.effective_timeout(5.0, restart=True)
+        == smoketest_app.RESTART_MIN_TIMEOUT
+    )
     assert smoketest_app.effective_timeout(60.0, restart=True) == 60.0
 
 
 class _FakeSupervisor:
     """Records the RPC calls a restart makes and raises the faults it is given."""
 
-    def __init__(self, state: str, stop_fault: int | None = None, start_fault: int | None = None) -> None:
+    def __init__(
+        self, state: str, stop_fault: int | None = None, start_fault: int | None = None
+    ) -> None:
         self.state = state
         self.stop_fault = stop_fault
         self.start_fault = start_fault
@@ -194,11 +213,15 @@ def test_restart_fails_before_any_change_when_supervisord_is_unreachable() -> No
     assert sup.calls == []
 
 
-def test_restart_fails_before_any_change_for_a_program_supervisord_does_not_know() -> None:
+def test_restart_fails_before_any_change_for_a_program_supervisord_does_not_know() -> (
+    None
+):
     bad_name = 10
     sup = _FakeSupervisor("RUNNING")
     sup.info_error = xmlrpc.client.Fault(bad_name, "BAD_NAME: app")
-    with pytest.raises(SystemExit, match="supervisord knows no program 'app'.*supervisorctl update"):
+    with pytest.raises(
+        SystemExit, match="supervisord knows no program 'app'.*supervisorctl update"
+    ):
         smoketest_app._restart_program(sup, "app")
     assert sup.calls == []
 
@@ -236,6 +259,10 @@ def test_poll_http_ends_at_once_when_the_abort_check_reports_a_failure() -> None
     started = time.monotonic()
     with pytest.raises(SystemExit, match="error: app died"):
         smoketest_app._poll_http(
-            f"http://127.0.0.1:{port}/", marker=None, timeout=10.0, interval=0.05, abort_check=lambda: "app died"
+            f"http://127.0.0.1:{port}/",
+            marker=None,
+            timeout=10.0,
+            interval=0.05,
+            abort_check=lambda: "app died",
         )
     assert time.monotonic() - started < 5.0

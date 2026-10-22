@@ -48,7 +48,9 @@ _STOPPABLE_STATES = frozenset({"RUNNING", "STARTING", "BACKOFF"})
 # of settling: supervisord reports BACKOFF within a tenth of a second of a
 # crash, long before the startsecs window would have made supervisorctl
 # return.
-_DEAD_AFTER_START_STATES = frozenset({"BACKOFF", "FATAL", "EXITED", "STOPPED", "UNKNOWN"})
+_DEAD_AFTER_START_STATES = frozenset(
+    {"BACKOFF", "FATAL", "EXITED", "STOPPED", "UNKNOWN"}
+)
 # supervisord's fault codes (supervisor.xmlrpc.Faults) for the two races a
 # restart tolerates.
 _FAULT_ALREADY_STARTED = 60
@@ -60,16 +62,22 @@ RESTART_MIN_TIMEOUT = 15.0
 
 def _find_repo_root() -> Path:
     script_root = Path(__file__).resolve().parents[2]
-    if (script_root / "pyproject.toml").exists() and (script_root / "system/supervisord.conf").exists():
+    if (script_root / "pyproject.toml").exists() and (
+        script_root / "system/supervisord.conf"
+    ).exists():
         return script_root
     current = Path.cwd().resolve()
     for parent in [current, *current.parents]:
-        if (parent / "pyproject.toml").exists() and (parent / "system/supervisord.conf").exists():
+        if (parent / "pyproject.toml").exists() and (
+            parent / "system/supervisord.conf"
+        ).exists():
             return parent
     return current
 
 
-def _resolve_target(target: str, repo_root: Path) -> tuple[int, Optional[str], Optional[Path]]:
+def _resolve_target(
+    target: str, repo_root: Path
+) -> tuple[int, Optional[str], Optional[Path]]:
     """Resolves target (name, port, or URL) to (port, app_name, runner_path)."""
     # 1. URL input
     if target.startswith("http://") or target.startswith("https://"):
@@ -94,6 +102,7 @@ def _resolve_target(target: str, repo_root: Path) -> tuple[int, Optional[str], O
     if apps_toml.exists():
         try:
             import tomllib
+
             data = tomllib.loads(apps_toml.read_text())
             for app_entry in data.get("apps", []):
                 if app_entry.get("name") == name and "url" in app_entry:
@@ -110,7 +119,9 @@ def _resolve_target(target: str, repo_root: Path) -> tuple[int, Optional[str], O
         section_start = text.find(f"[program:{name}]")
         if section_start != -1:
             next_section = text.find("[program:", section_start + 1)
-            section = text[section_start : next_section if next_section != -1 else len(text)]
+            section = text[
+                section_start : next_section if next_section != -1 else len(text)
+            ]
             m = SUPERVISOR_URL_RE.search(section)
             if m:
                 return int(m.group(1)), name, runner_path
@@ -122,7 +133,9 @@ def _resolve_target(target: str, repo_root: Path) -> tuple[int, Optional[str], O
         if m:
             return int(m.group(1)), name, runner_path
 
-    sys.exit(f"error: could not resolve port for app '{target}' (checked apps.toml, supervisord.conf, runner.py)")
+    sys.exit(
+        f"error: could not resolve port for app '{target}' (checked apps.toml, supervisord.conf, runner.py)"
+    )
 
 
 class _UnixSocketTransport(xmlrpc.client.Transport):
@@ -132,7 +145,9 @@ class _UnixSocketTransport(xmlrpc.client.Transport):
         super().__init__()
         self._socket_path = socket_path
 
-    def make_connection(self, host: str | tuple[str, dict[str, str]]) -> http.client.HTTPConnection:
+    def make_connection(
+        self, host: str | tuple[str, dict[str, str]]
+    ) -> http.client.HTTPConnection:
         socket_path = self._socket_path
 
         class _Connection(http.client.HTTPConnection):
@@ -145,7 +160,9 @@ class _UnixSocketTransport(xmlrpc.client.Transport):
 
 def _supervisor(socket_path: str = SUPERVISOR_SOCKET):
     """The ``supervisor`` namespace of supervisord's RPC interface."""
-    proxy = xmlrpc.client.ServerProxy("http://localhost/RPC2", transport=_UnixSocketTransport(socket_path))
+    proxy = xmlrpc.client.ServerProxy(
+        "http://localhost/RPC2", transport=_UnixSocketTransport(socket_path)
+    )
     return proxy.supervisor
 
 
@@ -184,18 +201,26 @@ def _restart_program(sup, name: str) -> Callable[[], Optional[str]]:
     try:
         state = sup.getProcessInfo(name)["statename"]
     except OSError as error:
-        sys.exit(f"error: cannot reach supervisord at {SUPERVISOR_SOCKET} ({error}); is it running?")
+        sys.exit(
+            f"error: cannot reach supervisord at {SUPERVISOR_SOCKET} ({error}); is it running?"
+        )
     except xmlrpc.client.Fault as fault:
-        sys.exit(f"error: supervisord knows no program {name!r} ({fault.faultString}); is its .conf loaded (supervisorctl reread && supervisorctl update)?")
+        sys.exit(
+            f"error: supervisord knows no program {name!r} ({fault.faultString}); is its .conf loaded (supervisorctl reread && supervisorctl update)?"
+        )
     if needs_stop(state):
         try:
             sup.stopProcess(name, True)
         except xmlrpc.client.Fault as fault:
             # It exited on its own between the state read and the stop.
             if fault.faultCode != _FAULT_NOT_RUNNING:
-                sys.exit(f"error: supervisord could not stop {name}: {fault.faultString}")
+                sys.exit(
+                    f"error: supervisord could not stop {name}: {fault.faultString}"
+                )
         except OSError as error:
-            sys.exit(f"error: lost supervisord at {SUPERVISOR_SOCKET} while stopping {name} ({error})")
+            sys.exit(
+                f"error: lost supervisord at {SUPERVISOR_SOCKET} while stopping {name} ({error})"
+            )
     try:
         sup.startProcess(name, False)
     except xmlrpc.client.Fault as fault:
@@ -203,9 +228,13 @@ def _restart_program(sup, name: str) -> Callable[[], Optional[str]]:
         # restart this call wanted. Anything else (SPAWN_ERROR,
         # ABNORMAL_TERMINATION, ...) is a start that failed at once.
         if fault.faultCode != _FAULT_ALREADY_STARTED:
-            sys.exit(f"error: supervisord could not start {name}: {fault.faultString}\n{_stderr_tail(name)}")
+            sys.exit(
+                f"error: supervisord could not start {name}: {fault.faultString}\n{_stderr_tail(name)}"
+            )
     except OSError as error:
-        sys.exit(f"error: lost supervisord at {SUPERVISOR_SOCKET} while starting {name} ({error})")
+        sys.exit(
+            f"error: lost supervisord at {SUPERVISOR_SOCKET} while starting {name} ({error})"
+        )
 
     def early_death() -> Optional[str]:
         try:
@@ -222,14 +251,23 @@ def _restart_program(sup, name: str) -> Callable[[], Optional[str]]:
 def _surface(repo_root: Path, name: str, mode: str) -> None:
     """Open the app's window beside the chat, or refresh its open windows, through workspace-layout."""
     args = ["open", name, "--beside"] if mode == "open" else ["refresh", "--app", name]
-    done = subprocess.run(["uv", "run", "--no-sync", "workspace-layout", *args], cwd=repo_root, capture_output=True, text=True)
+    done = subprocess.run(
+        ["uv", "run", "--no-sync", "workspace-layout", *args],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
     output = (done.stdout + done.stderr).strip()
     if done.returncode != 0:
-        sys.exit(f"error: workspace-layout {' '.join(args)} exited {done.returncode}:\n{output}")
+        sys.exit(
+            f"error: workspace-layout {' '.join(args)} exited {done.returncode}:\n{output}"
+        )
     print(f"workspace-layout {mode}: {output or 'ok'}")
 
 
-def _poll_health_for_reload(port: int, runner_path: Optional[Path], timeout: float, interval: float) -> None:
+def _poll_health_for_reload(
+    port: int, runner_path: Optional[Path], timeout: float, interval: float
+) -> None:
     """If runner_path was recently modified, ensure the server has reloaded with started_at >= mtime."""
     if not runner_path or not runner_path.exists():
         return
@@ -244,14 +282,18 @@ def _poll_health_for_reload(port: int, runner_path: Optional[Path], timeout: flo
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            req = urllib.request.Request(health_url, headers={"User-Agent": "smoketest"})
+            req = urllib.request.Request(
+                health_url, headers={"User-Agent": "smoketest"}
+            )
             with urllib.request.urlopen(req, timeout=1.0) as resp:
                 if resp.status == 200:
                     body = resp.read().decode("utf-8", errors="replace")
                     try:
                         data = json.loads(body)
                         started_at = data.get("started_at")
-                        if started_at is not None and float(started_at) >= (mtime - 0.1):
+                        if started_at is not None and float(started_at) >= (
+                            mtime - 0.1
+                        ):
                             return
                     except Exception:
                         return
@@ -309,7 +351,9 @@ def _poll_http(
             f"Response snippet:\n{snippet}"
         )
 
-    sys.exit(f"error: failed to connect to {url} within {timeout}s (last error: {last_error})")
+    sys.exit(
+        f"error: failed to connect to {url} within {timeout}s (last error: {last_error})"
+    )
 
 
 def _reexec_under_venv_without_playwright(repo_root: Path) -> None:
@@ -336,9 +380,13 @@ def _run_playwright_check(
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        sys.exit("error: playwright is not installed. Run with `uv run python ...` or activate workspace .venv.")
+        sys.exit(
+            "error: playwright is not installed. Run with `uv run python ...` or activate workspace .venv."
+        )
 
-    executable_path = str(DEFAULT_FORTRESS_PATH) if DEFAULT_FORTRESS_PATH.exists() else None
+    executable_path = (
+        str(DEFAULT_FORTRESS_PATH) if DEFAULT_FORTRESS_PATH.exists() else None
+    )
 
     with sync_playwright() as p:
         launch_kwargs = {
@@ -361,7 +409,9 @@ def _run_playwright_check(
         if marker and marker not in content:
             snippet = (content[:300] + "...") if len(content) > 300 else content
             browser.close()
-            sys.exit(f"error: browser loaded page, but marker {marker!r} was missing in DOM.\nSnippet:\n{snippet}")
+            sys.exit(
+                f"error: browser loaded page, but marker {marker!r} was missing in DOM.\nSnippet:\n{snippet}"
+            )
 
         if screenshot_path:
             screenshot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -373,32 +423,59 @@ def _run_playwright_check(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
-    parser.add_argument("target", help="app name (e.g. todo), port (e.g. 8080), or full URL")
-    parser.add_argument("--marker", default=None, help="expected string in the response or DOM")
-    parser.add_argument("--screenshot", default=None, help="path to write page screenshot (PNG)")
-    parser.add_argument("--path", default="/", help="URL path to test (defaults to '/')")
+    parser.add_argument(
+        "target", help="app name (e.g. todo), port (e.g. 8080), or full URL"
+    )
+    parser.add_argument(
+        "--marker", default=None, help="expected string in the response or DOM"
+    )
+    parser.add_argument(
+        "--screenshot", default=None, help="path to write page screenshot (PNG)"
+    )
+    parser.add_argument(
+        "--path", default="/", help="URL path to test (defaults to '/')"
+    )
     parser.add_argument(
         "--timeout",
         type=float,
         default=5.0,
         help=f"timeout in seconds (default: 5.0; at least {RESTART_MIN_TIMEOUT:g} with --restart)",
     )
-    parser.add_argument("--poll-interval", type=float, default=0.05, help="retry interval in seconds (default: 0.05)")
-    parser.add_argument("--wait-reload", action="store_true", help="verify /health reload timestamp against runner mtime")
+    parser.add_argument(
+        "--poll-interval",
+        type=float,
+        default=0.05,
+        help="retry interval in seconds (default: 0.05)",
+    )
+    parser.add_argument(
+        "--wait-reload",
+        action="store_true",
+        help="verify /health reload timestamp against runner mtime",
+    )
     parser.add_argument(
         "--restart",
         action="store_true",
         help="restart the app's supervisord program first, without waiting out its startsecs window (app name only)",
     )
     surface = parser.add_mutually_exclusive_group()
-    surface.add_argument("--open", action="store_true", help="after the checks pass, open the app's window beside the chat")
-    surface.add_argument("--refresh", action="store_true", help="after the checks pass, reload the app's open windows")
+    surface.add_argument(
+        "--open",
+        action="store_true",
+        help="after the checks pass, open the app's window beside the chat",
+    )
+    surface.add_argument(
+        "--refresh",
+        action="store_true",
+        help="after the checks pass, reload the app's open windows",
+    )
     args = parser.parse_args()
 
     repo_root = _find_repo_root()
     port, app_name, runner_path = _resolve_target(args.target, repo_root)
     if (args.restart or args.open or args.refresh) and app_name is None:
-        sys.exit("error: --restart, --open and --refresh need the app's name, not a port or URL")
+        sys.exit(
+            "error: --restart, --open and --refresh need the app's name, not a port or URL"
+        )
     if args.screenshot:
         _reexec_under_venv_without_playwright(repo_root)
     timeout = effective_timeout(args.timeout, args.restart)
@@ -412,11 +489,19 @@ def main() -> None:
 
     # 1. Reload verification if applicable (a fresh restart needs none)
     if (args.wait_reload or runner_path) and not args.restart:
-        _poll_health_for_reload(port, runner_path, timeout=min(timeout, 3.0), interval=args.poll_interval)
+        _poll_health_for_reload(
+            port, runner_path, timeout=min(timeout, 3.0), interval=args.poll_interval
+        )
 
     # 2. HTTP polling & marker check
     url = f"http://127.0.0.1:{port}{args.path}"
-    status_code, body = _poll_http(url, args.marker, timeout=timeout, interval=args.poll_interval, abort_check=abort_check)
+    status_code, body = _poll_http(
+        url,
+        args.marker,
+        timeout=timeout,
+        interval=args.poll_interval,
+        abort_check=abort_check,
+    )
     t_http = time.time()
     if abort_check is not None:
         failure = abort_check()
@@ -430,9 +515,13 @@ def main() -> None:
     if screenshot_path:
         _run_playwright_check(url, args.marker, screenshot_path, timeout=timeout)
         t_shot = time.time()
-        print(f"OK: {url} {restarted}responding (HTTP {status_code}) in {t_http - t0:.2f}s (full render + screenshot in {t_shot - t0:.2f}s)")
+        print(
+            f"OK: {url} {restarted}responding (HTTP {status_code}) in {t_http - t0:.2f}s (full render + screenshot in {t_shot - t0:.2f}s)"
+        )
     else:
-        print(f"OK: {url} {restarted}responding (HTTP {status_code}) in {t_http - t0:.2f}s")
+        print(
+            f"OK: {url} {restarted}responding (HTTP {status_code}) in {t_http - t0:.2f}s"
+        )
 
     if args.marker:
         print(f"Marker confirmed: {args.marker!r}")
