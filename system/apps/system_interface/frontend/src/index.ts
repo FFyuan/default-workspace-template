@@ -189,11 +189,12 @@ function bootstrap(): void {
     });
   }
   const started = desktopStore.start(takeDeepLinkFromLocation());
-  void Promise.all([started, desktopStore.whenAppsLoaded()]).then(() => tour.maybeAutoStart());
+  const loaded = Promise.all([started, desktopStore.whenAppsLoaded()]);
+  void loaded.then(() => tour.maybeAutoStart());
   // Announced once the page can act on what the embedder held, not merely once a handler is
   // registered: relaying a message needs the apps (which of them take it), and the embedder sends
   // what it held the moment this lands.
-  void Promise.all([started, desktopStore.whenAppsLoaded()]).then(() => announceReadyToEmbedder({ opensLinks: true }));
+  void loaded.then(() => announceReadyToEmbedder({ opensLinks: true }));
 }
 
 window.addEventListener("load", bootstrap);
