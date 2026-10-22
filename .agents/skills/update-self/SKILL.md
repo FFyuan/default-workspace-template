@@ -533,10 +533,10 @@ decision" below.
 
 ## 5. Terminal status
 
-- A worker that died without reporting is not yet a failure: restart it per
+- A worker that died without reporting is not yet a failure: recover it per
   `.agents/skills/launch-task/references/dead-worker-recovery.md`, then re-arm
-  the poll. It is stuck only once that restart has not brought it back.
-- **`stuck`**, or a dead worker the restart did not bring back -> surface per
+  the poll. It is stuck only once that recovery has not brought it back.
+- **`stuck`**, or a dead worker its recovery did not bring back -> surface per
   `.agents/skills/launch-task/references/worker-failure.md` (if the user
   then overrides, see "Resuming after `stuck`" below). Nothing is merged
   or applied. Compose it as a plain-language lead ("I couldn't complete this

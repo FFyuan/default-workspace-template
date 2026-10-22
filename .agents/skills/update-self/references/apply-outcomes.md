@@ -252,7 +252,8 @@ reports the workspace by it. Choose it by what happened:
   broken: there was no target it may take, the user declined, or the apply
   rolled back and your best effort at a retry is spent.
 - `STUCK`: a fault stopped the pass and you could not recover from it. The
-  worker reported `stuck`, a dead worker did not come back on restart, a step
+  worker reported `stuck`, a dead worker did not come back through
+  `.agents/skills/launch-task/references/dead-worker-recovery.md`, a step
   the update depends on failed, or Step 2 reported a fault. The watchdog
   records it for a lead that is gone.
 
