@@ -397,7 +397,8 @@ def test_a_scaffolded_app_passes_its_own_type_check(tmp_path: Path) -> None:
 def test_a_scaffolded_app_passes_its_own_tests(tmp_path: Path) -> None:
     """The tests the scaffold writes pass on the code it writes beside them, before the agent adds anything.
 
-    The ratchets blame each line, so the app is committed first. Its type-check ratchet is
+    The ratchets list the app's files through git and blame the lines they flag, so the app is
+    committed first. Its type-check ratchet is
     left out: it runs ``uv run ty``, which outside a workspace would install the app's
     dependencies, and the test above runs ty on a scaffolded app directly.
     """
