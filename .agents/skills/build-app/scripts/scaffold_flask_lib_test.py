@@ -406,6 +406,8 @@ def test_a_scaffolded_app_passes_its_own_tests(tmp_path: Path) -> None:
     )
     init_git_repository(tmp_path)
     commit_everything(tmp_path, "scaffold inbox-status")
+    # Options the outer run was given are not the app's: a `-k` naming this test would deselect all of its tests.
+    inherited = {name: value for name, value in os.environ.items() if name != "PYTEST_ADDOPTS"}
 
     result = subprocess.run(
         [
@@ -418,7 +420,7 @@ def test_a_scaffolded_app_passes_its_own_tests(tmp_path: Path) -> None:
             "test_inbox_status_ratchets.py::test_no_type_errors",
         ],
         cwd=lib_dir,
-        env={**os.environ, "PYTHONPATH": str(lib_dir / "src")},
+        env={**inherited, "PYTHONPATH": str(lib_dir / "src")},
         capture_output=True,
         text=True,
     )
