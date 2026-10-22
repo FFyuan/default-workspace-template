@@ -56,7 +56,7 @@ provision_drop_inherited_pins
 : "${CODEX_VERSION:=0.161.0}"
 : "${PI_VERSION:=0.87.1}"
 : "${PLAYWRIGHT_CLI_VERSION:=0.1.18}"
-: "${OPENCODE_VERSION:=1.18.19}"
+: "${OPENCODE_VERSION:=1.19.4}"
 : "${MODAL_VERSION:=1.6.2}"
 : "${GH_VERSION:=2.96.0}"
 : "${CADDY_VERSION:=2.11.4}"
