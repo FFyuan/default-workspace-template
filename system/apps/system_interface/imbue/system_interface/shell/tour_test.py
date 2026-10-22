@@ -33,3 +33,5 @@ def test_an_unreadable_or_foreign_tour_record_reads_as_unseen(tmp_path: Path) ->
     assert store.read() == UNSEEN_TOUR
     (tmp_path / TOUR_FILENAME).write_text(json.dumps({"version": 1, "is_seen": "not a flag"}))
     assert store.read() == UNSEEN_TOUR
+    (tmp_path / TOUR_FILENAME).write_text(json.dumps({"version": 1, "is_seen": True, "resume_index": -1}))
+    assert store.read() == UNSEEN_TOUR

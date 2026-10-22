@@ -28,8 +28,9 @@ class TourProgress(FrozenModel):
     is_seen: bool = Field(description="Whether the tour has started in this workspace, by itself or from the launcher")
     resume_index: int | None = Field(
         default=None,
-        description="The card the tour resumes at once the agent is working again, after its reply interrupted the "
-        "tour; None when nothing waits to resume",
+        ge=0,
+        description="The card the tour resumes at (its position in the card list) once the agent is working again, "
+        "after its reply interrupted the tour; None when nothing waits to resume",
     )
 
 

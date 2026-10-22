@@ -2709,3 +2709,4 @@ def test_the_tour_record_is_unseen_until_posted_and_round_trips(client: FlaskCli
     assert client.post("/api/tour", json={"is_seen": False}).get_json() == {"is_seen": False, "resume_index": None}
     assert client.post("/api/tour", json={"is_seen": "not a flag"}).status_code == 400
     assert client.post("/api/tour", json={"is_seen": True, "resume_index": "three"}).status_code == 400
+    assert client.post("/api/tour", json={"is_seen": True, "resume_index": -1}).status_code == 400
