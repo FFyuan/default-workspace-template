@@ -15,7 +15,7 @@ timeless; everything here is a snapshot.
 | P3 permission request stands alone | live | **partial** | live | **partial** |
 | P4 OOM band + git identity | live | live | live | live |
 | P5 substantive work under a step | live | **partial** | live | **partial** |
-| P6 `tk start`/`close` stands alone | live | **partial** | live | live |
+| P6 `tk start`/`close` shares a call only with tk | live | **partial** | live | live |
 | P7 open steps are reconciled | live | live | live | **live (turn-start only)** |
 | P8 a chat turn with something for the user notifies | prose-only | prose-only | prose-only | prose-only |
 | P9 secret file read only by the wrapper | live | live | live | **partial** |
@@ -34,8 +34,8 @@ structural rather than unwired. Measured against codex-cli 0.147.0 and pi 0.84.1
   tool result the model reads, keyed on the `active` marker's inode (which changes once per
   turn). Previously recorded as `n/a` because "agy has no prompt-submit event and its stop
   stderr goes to a tmux pane nobody reads" -- both true, and neither was the relevant channel.
-- **codex P3 / P6 — partial.** Both policies require the guarded thing to be the only thing in
-  its TOOL CALL. Under code mode a tool call is a JS program that may hold several
+- **codex P3 / P6 — partial.** Both policies are counted per TOOL CALL: P3 requires the guarded
+  thing to be the only thing in it, P6 that nothing but tk commands share it. Under code mode a tool call is a JS program that may hold several
   `tools.exec_command(...)` calls; measured, one `custom_tool_call` produced three PreToolUse
   events with three unrelated `tool_use_id`s and no field naming the outer call, so no guard can
   count per call. Each inner call is still checked on its own. The display layer no longer acts
