@@ -790,6 +790,38 @@ def test_a_seeded_chat_launched_as_the_user_signs_in_starts_silent_and_its_first
         manager.stop()
 
 
+def test_a_send_that_overlaps_the_one_carrying_the_seed_goes_as_typed(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two clients can post to the chat at once and the route serializes nothing: while one send is delivering
+    the seeded conversation, another must not carry it again, and the seed is still marked delivered once the
+    carrying send has gone through."""
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(tmp_path))
+    mngr_binary, _argv_log = write_recording_mngr_binary(tmp_path)
+    manager, store = _seed_manager(broadcaster, tmp_path, mngr_binary=mngr_binary)
+    try:
+        seeded = manager.seed_chat("Getting started", _seed_turns())
+        chat_id = ChatId(seeded.chat_id)
+        manager.create_chat("", chat_id=seeded.chat_id)
+        wait_until_true(
+            lambda: manager.get_provisional_chat(seeded.chat_id) is None, 10, "the provisional chat's completion"
+        )
+        delivered: list[str] = []
+
+        def deliver_while_another_send_arrives(text: str) -> SendOutcome:
+            delivered.append(text)
+            assert manager.carry_pending_seed(chat_id, "2", _delivering(delivered, SendOutcome.OK)) is SendOutcome.OK
+            return SendOutcome.OK
+
+        assert manager.carry_pending_seed(chat_id, "1", deliver_while_another_send_arrives) is SendOutcome.OK
+        assert delivered[0].startswith(f"<{SEED_CONTEXT_TAG}>") and delivered[0].endswith("\n1")
+        assert delivered[1] == "2"
+        assert _is_seed_pending(store, chat_id) is False
+    finally:
+        manager.stop()
+
+
 def _is_seed_pending(store: InMemoryChatRecordStore, chat_id: ChatId) -> bool:
     record = store.read(chat_id)
     assert record is not None

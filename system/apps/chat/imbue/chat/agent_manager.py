@@ -994,6 +994,10 @@ class AgentManager:
     _match_by_agent_id: dict[str, AgentMatch]
     # The chats minted here whose first agent mngr does not know yet, by chat id.
     _provisional_chats: dict[ChatId, ProvisionalChat]
+    # The chats whose pending seed a send is carrying right now (``carry_pending_seed``): the
+    # delivery runs outside the lock, and a second send overlapping it must go as typed rather
+    # than carry the conversation again.
+    _seed_carries_in_flight: set[ChatId]
     # A name shown for a chat before its rename lands: the automatic name, from the moment the
     # model answers until ``mngr rename`` (seconds of CLI startup) has carried it.
     _title_override_by_chat: dict[ChatId, str]
@@ -1220,6 +1224,7 @@ class AgentManager:
         manager._chat_record_store = chat_record_store if chat_record_store is not None else InMemoryChatRecordStore()
         manager._chat_record_by_id = manager._chat_record_store.read_all()
         manager._provisional_chats = seeded_provisional_chats(manager._chat_record_by_id)
+        manager._seed_carries_in_flight = set()
         manager._title_override_by_chat = {}
         manager._chat_settings = chat_settings if chat_settings is not None else ChatSettingsStore(path=None)
         manager._chat_files_root = chat_files_root
@@ -2513,12 +2518,26 @@ class AgentManager:
         a send the harness refused or could not take yet (its daemon still starting, as it may be right after
         the launch) leaves the conversation for the next send rather than losing it. A slash command is
         delivered as typed and leaves the seed pending, since a block ahead of it would turn the command into
-        prose."""
+        prose. One send carries the seed at a time: a send that overlaps a carrying one (the route serializes
+        nothing, and two clients can post at once) goes as typed, and the seed stays pending for the next send
+        if the carrying one was refused."""
         with self._lock:
             record = self._chat_record_by_id.get(chat_id)
-            is_seed_carried = record is not None and record.is_seed_pending and not is_slash_command(message)
+            is_seed_carried = (
+                record is not None
+                and record.is_seed_pending
+                and chat_id not in self._seed_carries_in_flight
+                and not is_slash_command(message)
+            )
+            if is_seed_carried:
+                self._seed_carries_in_flight.add(chat_id)
         text = seed_context_message(self._chat_files_root / chat_id, message) if is_seed_carried else message
-        outcome = deliver(text)
+        try:
+            outcome = deliver(text)
+        finally:
+            if is_seed_carried:
+                with self._lock:
+                    self._seed_carries_in_flight.discard(chat_id)
         if is_seed_carried and outcome is SendOutcome.OK:
             self._mark_pending_seed_delivered(chat_id)
         return outcome
