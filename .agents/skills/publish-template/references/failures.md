@@ -25,11 +25,15 @@ mirror -- ship it as an `env.d` unit instead, or drop it.
 
 ## Checking GitHub access (`github_access.py`)
 
-- `UNKNOWN (...)`, exit 2: the gateway answered with an error instead of the
-  permission rules, typically `Desktop ... is unreachable` when the user's Imbue
-  Studio app is closed or asleep. Whether a grant is missing cannot be told until
-  the app answers, and approving one needs the app anyway, so file nothing: ask
-  the user to open the app, then check again.
+- `UNKNOWN (...)`, exit 2: the gateway could not say whether the grant is there.
+  File nothing while any kind is UNKNOWN. The reason in the parentheses says why:
+  - `Desktop ... is unreachable`: the user's Imbue Studio app is closed or
+    asleep. Whether a grant is missing cannot be told until the app answers, and
+    approving one needs the app anyway: ask the user to open the app, then check
+    again.
+  - `latchkey exited ...` or `unreadable answer: ...`: this machine's gateway did
+    not answer properly. Check again; if it persists, stop and tell the user
+    GitHub access could not be checked.
 
 ## Creating the repo (`github_repo.py create`)
 
