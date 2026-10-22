@@ -9,3 +9,5 @@ New app: Usage, a window over the workspace's model usage, read from the usage c
 - the latest calls as they happen, each opening to its raw event.
 
 It stores nothing of its own, reconnects to the collector's live stream after an outage, keeps its last numbers under a banner while the collector is down, and says when the collector is still indexing past usage.
+
+Usage is visible only to the workspace owner: a visitor gets the page's notice and a 403 from every API route but health and schema, and the Share tab lists the app under System.

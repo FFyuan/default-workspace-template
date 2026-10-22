@@ -4,8 +4,10 @@ The collector (``system/services/usage_collector``) listens on 127.0.0.1 only, a
 own origin, so this server forwards the page's reads to it: ``/api/usage/totals``, ``/api/usage/latency`` and
 ``/api/usage/calls`` answer what the collector's ``/v1/...`` routes answer, ``/api/usage/stream`` relays its
 server-sent events, and ``/api/usage/health`` its health. The identity header the share gateway sets is passed
-on, so the collector refuses a visitor here exactly as it does directly. A collector that cannot be reached is
-answered with 503, which the page shows as a banner over the last numbers it had.
+on, so the collector refuses a visitor here exactly as it does directly; this server refuses one too, on every
+API route but its health and schema, so a visitor learns nothing of the workspace from it (the page itself still
+loads, to say usage is the owner's alone). A collector that cannot be reached is answered with 503, which the page
+shows as a banner over the last numbers it had.
 
 The app stores nothing. Besides the collector it reads only the app registry, for the display names the page
 shows an app's usage under.
@@ -18,6 +20,7 @@ This is a synchronous Flask app served by the threaded Werkzeug server; each ope
 stream.
 """
 
+import json
 import os
 import re
 from collections.abc import Iterator
@@ -74,6 +77,7 @@ _READ_TIMEOUT: Final[httpx.Timeout] = httpx.Timeout(10.0)
 # The collector sends a keepalive every 15 seconds, so a stream silent for a minute has gone.
 _STREAM_TIMEOUT: Final[httpx.Timeout] = httpx.Timeout(10.0, read=60.0)
 
+HTTP_FORBIDDEN: Final[int] = 403
 HTTP_SERVICE_UNAVAILABLE: Final[int] = 503
 HTTP_NOT_FOUND: Final[int] = 404
 HTTP_OK: Final[int] = 200
@@ -96,6 +100,22 @@ ROUTE_TABLE: RouteTable = {
 }
 
 
+def is_visitor_request(identity_header: str | None) -> bool:
+    """Whether the share gateway marked the request a visitor's: only an identity saying ``"owner": false`` is.
+
+    A request with no identity, or one that cannot be read, comes from inside the workspace or its local forward,
+    which are the owner's (the usage collector reads the header the same way).
+    """
+    if identity_header is None or not identity_header.strip():
+        return False
+    try:
+        identity = json.loads(identity_header)
+    except json.JSONDecodeError:
+        logger.warning("Ignored an unreadable {} header", IDENTITY_HEADER)
+        return False
+    return isinstance(identity, dict) and identity.get("owner") is False
+
+
 def _identity_headers() -> dict[str, str]:
     identity = request.headers.get(IDENTITY_HEADER)
     return {} if identity is None else {IDENTITY_HEADER: identity}
@@ -114,6 +134,16 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
     )
     attach_document_policy(app, None)
     static_directory = static_directory.resolve()
+    visitor_paths_allowed = {HEALTH_PATH, DEFAULT_API_SCHEMA_PATH}
+
+    @app.before_request
+    def _owner_only_api() -> ResponseReturnValue | None:
+        if not request.path.startswith("/api/") or request.path in visitor_paths_allowed:
+            return None
+        if not is_visitor_request(request.headers.get(IDENTITY_HEADER)):
+            return None
+        logger.info("Refused a visitor's request to {}", request.path)
+        return error_response("Usage is visible only to the workspace owner.", HTTP_FORBIDDEN)
 
     @app.get("/")
     def page() -> ResponseReturnValue:
