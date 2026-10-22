@@ -231,7 +231,7 @@ the second command printed:
 
 ```bash
 uv run .agents/skills/launch-task/scripts/create_worker.py reply \
-    --task-file <TASK_FILE> -m "<why the milestone was reverted, in the user's voice> I reverted it as <the revert commit>: bring it back on your branch per 'A reverted milestone' in harden-creation.md, then fix it."
+    --task-file <TASK_FILE> -m "<why the milestone was reverted, in the user's voice> I reverted it as <the revert commit>: bring it back on your branch per 'A milestone the lead reverted' in worker-reporting.md, then fix it."
 ```
 
 The reverted commits remain ancestors of your `HEAD`, so a later merge from
