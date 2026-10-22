@@ -51,7 +51,7 @@ class GitHubAccessError(Exception):
 
 
 class AccessUnknownError(Exception):
-    """Raised when the gateway answers, but with an error instead of an answer."""
+    """Raised when latchkey ran but brought back no readable permission answer."""
 
 
 def _latchkey_curl(*args: str) -> subprocess.CompletedProcess[str]:
