@@ -33,4 +33,4 @@ Hidden folders (dot-prefixed; workspace machinery, safe to ignore):
   `docs/system/analytics-collection.md`.
 - `.imbue/plans/` - Plans a since-removed recorder wrote for offline analysis
   when an app was built. Nothing in the workspace reads them back and no agent
-  may use them; see the `CLAUDE.md` in that folder.
+  may use them; see the `AGENTS.md` in that folder.
