@@ -2293,7 +2293,7 @@ def test_the_phone_header_kebab_renames_the_chat_on_screen(e2e_server: RunningWo
     page.locator("[data-chat-header-menu]").click()
     menu = page.locator(".chat-header-menu")
     expect(menu.locator("[data-menu-row]")).to_have_text(
-        ["Rename", "Stop chat", "Delete chat", "Copy reference", "Explain...", "Modify..."]
+        ["Rename", "Delete chat", "Copy reference", "Explain...", "Modify..."]
     )
     menu.locator('[data-menu-row="rename"]').click()
     field = page.locator(".chat-header .chat-rail-rename-input")
