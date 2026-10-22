@@ -1020,6 +1020,36 @@ def test_a_seeded_chats_failed_create_takes_its_agent_back_off_the_record(
         manager.stop()
 
 
+def test_a_seeded_chats_failed_sign_in_launch_leaves_no_seed_pending_on_the_record(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A launch with no message marks the seed as pending for the member it names; when that create fails and
+    the member is taken back off the record, the flag goes with it, so the seed-only record does not say a
+    conversation waits for an agent it no longer names."""
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(tmp_path))
+    script = tmp_path / "fake-mngr"
+    script.write_text('#!/bin/sh\necho "No provider account is signed in" >&2\nexit 3\n')
+    script.chmod(0o755)
+    manager, store = _seed_manager(broadcaster, tmp_path, mngr_binary=str(script))
+
+    def is_failed() -> bool:
+        provisional = manager.get_provisional_chat(seeded.chat_id)
+        return provisional is not None and provisional.phase is ProvisionalChatPhase.FAILED
+
+    try:
+        seeded = manager.seed_chat("Getting started", _seed_turns())
+        chat_id = ChatId(seeded.chat_id)
+        manager.create_chat("", chat_id=seeded.chat_id)
+        wait_until_true(is_failed, 10, "the failed creation")
+
+        record = store.read(chat_id)
+        assert record is not None and record.is_seed_only
+        assert record.is_seed_pending is False
+    finally:
+        manager.stop()
+
+
 def test_a_seeded_chats_failed_create_destroys_the_agent_mngr_had_already_made(
     broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
