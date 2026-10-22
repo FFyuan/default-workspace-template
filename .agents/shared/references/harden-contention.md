@@ -394,7 +394,9 @@ merge:
   your revert; then carrying the branch carries them too. When it had not,
   name the revert commit under `## Carried work` as well, and the new worker
   reverts it on its own branch (`harden-creation.md`, "Carried work from a
-  superseded pass"). Never reinstate it on your branch yourself.
+  superseded pass"). Never reinstate it on your branch yourself. With no
+  branch kept, it had not: bringing it back is a commit your `HEAD` lacks, so
+  the destroy would have kept the branch. Otherwise check each kept branch:
 
   ```bash
   git log --oneline HEAD..superseded/<name> --grep "This reverts commit <revert-commit>"
