@@ -1,1 +1,0 @@
-`claude_p.py` (use-ai-integration) now records every call's usage: each run logs under a session id it chooses and reports it to the workspace's usage collector, attributed to the calling app. A completion's session log is deleted once read; a task's is kept. The build-app scaffolder refuses the new `usage-collector` and `workspace-usage` names.

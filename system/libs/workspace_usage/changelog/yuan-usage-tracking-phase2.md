@@ -1,3 +1,0 @@
-Calls are now recorded by appending them to an event file under `data/.apps/usage/events/` (one per origin), which the usage collector follows, instead of being posted to it and spooled when it was down: `record_model_call` replaces `emit_model_call`. `claude -p` one-shots are read from their session log by the library itself, with mngr_usage's session-log reader, and recorded the same way (`record_claude_one_shot`); it bills a one-shot as its account records when the caller does not say. The library now depends on `imbue-mngr-usage`.
-
-Added `USAGE_CONTEXT_FILENAME`, the file in an agent's state directory that its usage writers read ahead of its environment, so a long-lived agent's attribution can change per run.

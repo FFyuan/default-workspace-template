@@ -1,3 +1,0 @@
-The collector now only reads files. Besides the agents' usage event files and the preserved files of destroyed agents, it follows the event files `workspace_usage` writes under `data/.apps/usage/events/`, so every model call reaches it the same way and nothing depends on it being up. The `POST /v1/events` and `POST /v1/claude-sessions` endpoints and the spool are gone. The files are the source of truth: the database is an index of them, rebuilt by re-reading them when it is deleted, and raw events pruned from it after 90 days stay in the files.
-
-Every event is attributed to this workspace (an agent cannot tell which workspace it runs in), and `workspace_id` can be grouped on in `GET /v1/totals`.

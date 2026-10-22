@@ -1,1 +1,0 @@
-Chat titles are now recorded in the workspace's usage: the naming call runs `claude -p` under a known session id and reports it to the usage collector, attributed to the chat with the purpose `CHAT_TITLE`. The collector deletes the session log once read, so naming still leaves no session behind under the account. Codex chats' naming calls are not recorded yet.
