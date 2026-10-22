@@ -525,31 +525,17 @@ starting over.
 ## A reverted milestone
 
 When the lead reverts a milestone it merged, its reply names the revert
-commit and says why. The milestone's commits are still ancestors of the
-lead's `HEAD`, so your branch has to bring them back, as a revert of that
-revert: it is the only place they get fixed. Make that revert on top of the
-lead's, then merge it, so the merge sees the milestone unchanged and keeps
-what you built on it since. Merging the lead's revert first would conflict
-with each later edit of yours to the milestone, and taking its side there
-loses that edit for good. Commit anything outstanding, then:
-
-```bash
-git checkout --detach <the revert commit>
-git revert --no-edit HEAD
-RESTORED=$(git rev-parse HEAD)
-git checkout -
-git merge --no-ff "$RESTORED" -m "Catch up to <the revert commit's short sha>"
-```
-
-Resolve any conflict as step 2 of "Catching up to a moved base" says, then
-fix the milestone's work per the lead's reply.
+commit and says why. Bring the milestone back on your branch as
+`worker-reporting.md`'s "A milestone the lead reverted" says, resolve any
+conflict as step 2 of "Catching up to a moved base" says, then fix the
+milestone's work per the lead's reply.
 
 The revert of the revert is yours, selected like any change, so your test
 gate covers the milestone's work again. A pass still under way goes on as
 before; one that had already reported `done` finishes with steps 3 to 5 of
 that section, where the tree before your change is the lead's revert commit,
-not the merge's second parent, which holds the milestone again. Either way the work reaches the lead only with the next report
-of yours it merges.
+not the merge's second parent, which holds the milestone again. Either way
+the work reaches the lead only with the next report of yours it merges.
 
 ## If you need to give up
 
