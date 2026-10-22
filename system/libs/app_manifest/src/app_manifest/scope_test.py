@@ -805,7 +805,6 @@ def test_after_merging_the_leads_head_its_commits_are_the_leads_and_not_the_pass
     assert whole_pass.diff.incoming_base == fork
 
 
-@pytest.mark.flaky
 def test_a_second_catch_up_brings_in_only_what_the_lead_did_since_the_first(tmp_path: Path) -> None:
     """A worker that already caught up once and catches up again starts its window at the lead
     commit the first round merged: what came in then is in the tree its last gate ran on, so only
