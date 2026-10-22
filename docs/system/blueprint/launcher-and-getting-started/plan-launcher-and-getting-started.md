@@ -97,7 +97,9 @@ On a stock machine "Chat" raises the pinned chat window and "Terminal", "File Vi
 
 ### 3.4 The first-visit window
 
-Getting Started opens its own window once per workspace, the way the chat app surfaces the welcome chat (`imbue/chat/auto_open.py`): from the app, through the loopback op route, for the first client that connects.
+**Removed in the new onboarding (October 2026):** a new workspace now opens on the welcome chat alone, drawn at most of the backdrop, and the desktop's show-around tour (the new-onboarding spec) introduces the apps once the chat is snapped aside. The opener, its ledger, and the placement below are gone from the app; the rest of this section records the design as it was.
+
+Getting Started opened its own window once per workspace, the way the chat app surfaces the welcome chat (`imbue/chat/auto_open.py`): from the app, through the loopback op route, for the first client that connects.
 The shell learns nothing new; no manifest field, no shell state, and no placement rule are added for this.
 
 On startup the app starts one background thread that, while the window has not yet been delivered, polls the shell's client list (`GET /api/clients`) and, once a connected client is listed, posts two ops targeting that client on the first desktop (the first entry of `GET /api/desktops`):
@@ -132,7 +134,7 @@ Running any row closes the menu and clears the field.
 
 ### 3.6 The Getting Started app
 
-An ordinary app under `system/apps/getting_started`, registered as `getting-started` ("Getting Started"), declaring no launch paths (so the shell synthesizes its one, `open` at `/`, labelled "Open Getting Started"; contracts section 2), a `default_shortcut` of `{launch = "open", mode = "focus"}` (one window is what it is for, as for the browser), `launcher_rank = 5`, `critical = false`, and the first-visit opener of section 3.4.
+An ordinary app under `system/apps/getting_started`, registered as `getting-started` ("Getting Started"), declaring no launch paths (so the shell synthesizes its one, `open` at `/`, labelled "Open Getting Started"; contracts section 2), a `default_shortcut` of `{launch = "open", mode = "focus"}` (one window is what it is for, as for the browser), `launcher_rank = 5`, and `critical = false` (the first-visit opener of section 3.4 has since been removed).
 Its page holds, top to bottom: a search field over its own content; "Start something", the eight intent tiles of today's `startSomething.ts`, two to a row with four shown at first and the rest behind "See more"; "Start from a template", the catalog shelves of today's `TemplateShelves.ts`.
 The page is its own scroller (the shared base styles pin the body to the viewport), so a window shorter than its content scrolls.
 Picking a template shows the template's detail as a page inside the app (today's `TemplateDetailModal`, with a back control instead of a close), whose two actions are "Make it mine" and "Create a new machine from it".

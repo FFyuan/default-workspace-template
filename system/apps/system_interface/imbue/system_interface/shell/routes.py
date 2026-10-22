@@ -87,6 +87,7 @@ from imbue.system_interface.shell.route_helpers import detail_response
 from imbue.system_interface.shell.route_helpers import require_loopback
 from imbue.system_interface.shell.state import ShellState
 from imbue.system_interface.shell.tour import TOUR_ROUTE
+from imbue.system_interface.shell.tour import TourProgress
 
 
 def _answer_shell_error(error: ShellError) -> ResponseReturnValue:
@@ -403,16 +404,21 @@ def layout_broadcast() -> ResponseReturnValue:
     return dispatch_desktop_op(_shell(), parse_op_body(body))
 
 
+def _tour_record() -> TourRecord:
+    progress = get_state().shell.tour.read()
+    return TourRecord(is_seen=progress.is_seen, resume_index=progress.resume_index)
+
+
 def get_tour() -> ResponseReturnValue:
-    """Whether the show-around tour has run in this workspace."""
-    return model_response(TourRecord(is_seen=get_state().shell.tour.read()))
+    """Whether the show-around tour has run in this workspace, and the card it resumes at."""
+    return model_response(_tour_record())
 
 
 def set_tour() -> ResponseReturnValue:
-    """Record that the tour has run (or clear that, so a fresh visit offers it again)."""
+    """Record that the tour has run and where it resumes (or clear both, so a fresh visit offers it again)."""
     record = parse_request_body(TourRecord)
-    get_state().shell.tour.write(record.is_seen)
-    return model_response(TourRecord(is_seen=get_state().shell.tour.read()))
+    get_state().shell.tour.write(TourProgress(is_seen=record.is_seen, resume_index=record.resume_index))
+    return model_response(_tour_record())
 
 
 def register_shell_routes(application: Flask) -> None:

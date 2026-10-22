@@ -4,7 +4,7 @@ import { mountView, unmountViews } from "@imbue/workspace-ui/src/testing/mount";
 import m from "mithril";
 import { afterEach, describe, expect, it } from "vitest";
 import { TourController } from "../model/tour";
-import { TOUR_EXIT_BADGE_TEXT } from "../model/tourCards";
+import { TOUR_EXIT_BADGE_TEXT, TOUR_PAUSED_TEXT } from "../model/tourCards";
 import { FAKE_TOUR_CARDS as CARDS, FakeTourApi } from "../testing/fakeTour";
 import { TourCard, chromeSideOf, placeCard } from "./TourCard";
 
@@ -23,7 +23,7 @@ function controller(): { tour: TourController; highlights: (string | null)[] } {
 }
 
 function card(): HTMLElement | null {
-  return document.querySelector("[data-tour-card], [data-tour-badge]");
+  return document.querySelector("[data-tour-card], [data-tour-badge], [data-tour-paused]");
 }
 
 function press(marker: string): void {
@@ -55,6 +55,8 @@ describe("TourCard", () => {
     expect(card()?.getAttribute("data-tour-card")).toBe("b");
     const link = document.querySelector<HTMLElement>("[data-tour-link]");
     expect(link?.getAttribute("href")).toBe("https://example.com/discord");
+    // The link sits in a row of its own, at the card's right edge.
+    expect(link?.parentElement?.classList.contains("justify-end")).toBe(true);
     // A plain click goes through the shell's link routing; a modified click is left to the browser.
     link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
     link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, metaKey: true }));
@@ -64,6 +66,10 @@ describe("TourCard", () => {
     press("data-tour-next");
     expect(card()?.getAttribute("data-tour-card")).toBe("c");
     expect(document.querySelector("[data-tour-card] img[alt='devices']")).not.toBeNull();
+    expect([...document.querySelectorAll("[data-tour-card] li")].map((item) => item.textContent)).toEqual([
+      "Laptops",
+      "Phones",
+    ]);
     expect(document.querySelector("[data-tour-next]")?.textContent).toBe("Done");
     press("data-tour-back");
     expect(card()?.getAttribute("data-tour-card")).toBe("b");
@@ -90,6 +96,30 @@ describe("TourCard", () => {
     press("data-tour-next");
     expect(card()).toBeNull();
   });
+
+  it("shows the pause notice after the agent's reply interrupted a card, which OK dismisses", () => {
+    const { tour } = controller();
+    tour.start();
+    tour.noteAgentWorking(true);
+    tour.noteAgentWorking(false);
+    mountView(() =>
+      tour.getState().phase === "idle"
+        ? null
+        : m(TourCard, {
+            tour,
+            avatarDesign: "jelly-cat",
+            openLink: () => undefined,
+            viewport: { width: 1200, height: 800 },
+          }),
+    );
+    expect(card()?.getAttribute("data-tour-card")).toBe("a");
+    press("data-tour-next");
+    expect(card()?.hasAttribute("data-tour-paused")).toBe(true);
+    expect(card()?.textContent).toContain(TOUR_PAUSED_TEXT);
+    expect(document.querySelector("[data-tour-exit]")).toBeNull();
+    press("data-tour-next");
+    expect(card()).toBeNull();
+  });
 });
 
 describe("placeCard", () => {
@@ -112,8 +142,9 @@ describe("placeCard", () => {
       arrow: { side: "top", offset: 40 },
     });
     expect(placeCard(CARDS[0], size, root, viewport)).toEqual({ left: 24 + 72 + 12, top: 680 - 120, arrow: null });
-    // The badge points at the launcher.
-    expect(placeCard(null, size, root, viewport).arrow?.side).toBe("bottom");
+    // The badge points at the launcher; the pause notice pops out of the avatar.
+    expect(placeCard("badge", size, root, viewport).arrow?.side).toBe("bottom");
+    expect(placeCard("paused", size, root, viewport)).toEqual({ left: 24 + 72 + 12, top: 680 - 120, arrow: null });
     expect(chromeSideOf("help")).toBe("right");
     expect(chromeSideOf("share")).toBe("left");
   });

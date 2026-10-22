@@ -1,8 +1,9 @@
 /**
  * The show-around tour's cards (the new-onboarding spec, section 2.5): what each says, what it points at, and the
- * picture or link it carries. A card points at something the shell draws itself (``target``), names a control of
- * the Imbue Studio chrome for the chrome to ring (``chromeAnchor``), or neither, in which case it pops out of the
- * agent's avatar. The pictures are hosted under content-addressed names; nothing is bundled.
+ * picture, link, or action it carries. A card points at something the shell draws itself (``target``), names a
+ * control of the Imbue Studio chrome for the chrome to ring (``chromeAnchor``), or neither, in which case it pops
+ * out of the agent's avatar. A card with an action does it as Next is pressed. The pictures are hosted under
+ * content-addressed names; nothing is bundled.
  */
 
 /** What the shell draws that a card can sit beside: the agent's avatar, the desktop's shortcuts, or the launcher. */
@@ -10,6 +11,12 @@ export type TourTarget = "avatar" | "shortcuts" | "launcher";
 
 /** A control of the Imbue Studio chrome a card talks about, as the embed contract names it (minds:highlight-chrome). */
 export type ChromeAnchor = "workspace-switcher" | "permissions" | "settings" | "share" | "help";
+
+/** What the shell does as a card's Next is pressed: snap the pinned chat window to the right half of the desktop. */
+export type TourAction = "snap-chat-right";
+
+/** The app whose pinned window the chat card's action snaps. */
+export const CHAT_APP_NAME = "chat";
 
 export interface TourImage {
   readonly url: string;
@@ -24,10 +31,13 @@ export interface TourLink {
 export interface TourCard {
   readonly id: string;
   readonly text: string;
+  /** Lines listed under the text, when the card has them. */
+  readonly bullets: readonly string[] | null;
   readonly target: TourTarget | null;
   readonly chromeAnchor: ChromeAnchor | null;
   readonly image: TourImage | null;
   readonly link: TourLink | null;
+  readonly action: TourAction | null;
   /** The label of the card's forward button; "Next" when null, "Done" on the last card. */
   readonly buttonLabel: string | null;
 }
@@ -35,7 +45,16 @@ export interface TourCard {
 const ONBOARDING_MEDIA_BASE_URL = "https://onboarding-media.imbueminds.com";
 
 function card(fields: Partial<TourCard> & Pick<TourCard, "id" | "text">): TourCard {
-  return { target: null, chromeAnchor: null, image: null, link: null, buttonLabel: null, ...fields };
+  return {
+    bullets: null,
+    target: null,
+    chromeAnchor: null,
+    image: null,
+    link: null,
+    action: null,
+    buttonLabel: null,
+    ...fields,
+  };
 }
 
 export const TOUR_CARDS: readonly TourCard[] = [
@@ -49,20 +68,23 @@ export const TOUR_CARDS: readonly TourCard[] = [
     chromeAnchor: "workspace-switcher",
   }),
   card({
+    id: "chat-window",
+    text: "Our chat is a window like any other. Let’s make it smaller so you can see the rest of your desktop.",
+    target: "avatar",
+    action: "snap-chat-right",
+  }),
+  card({
     id: "apps",
     text: "Your apps live here. Use them inside the workspace, or drag them onto your own desktop.",
     target: "shortcuts",
   }),
   card({
-    id: "connectors",
-    text:
-      "Bring in information from the services you already use, like Gmail and Slack. Secure connectors keep your " +
-      "credentials safe; to connect anything, just ask me.",
-    chromeAnchor: "permissions",
-  }),
-  card({
-    id: "sync",
-    text: "You can also sync files and folders from your device, or from services like Dropbox and Google Drive.",
+    id: "connect",
+    text: "Securely connect your data:",
+    bullets: [
+      "Services like Gmail, Slack, and 100’s more",
+      "Sync folders on your computer, or in Google Drive, Dropbox, etc",
+    ],
     chromeAnchor: "permissions",
   }),
   card({
@@ -118,6 +140,10 @@ export const TOUR_CARDS: readonly TourCard[] = [
 export const TOUR_EXIT_BADGE_TEXT =
   "You can take the tour again any time: open the launcher and choose Show me around.";
 export const TOUR_EXIT_BADGE_BUTTON_LABEL = "Got it";
+
+/** What the card after an interrupted one says: the agent answered while the tour was on, so it waits. */
+export const TOUR_PAUSED_TEXT = "The agent is waiting for you. We’ll resume the tour later.";
+export const TOUR_PAUSED_BUTTON_LABEL = "OK";
 
 /** The launcher row that runs the tour, and the words it matches. */
 export const TOUR_LAUNCHER_LABEL = "Show me around";

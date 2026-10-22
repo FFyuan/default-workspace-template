@@ -107,3 +107,8 @@ class TourRecord(FrozenModel):
     is_seen: bool = Field(
         description="Whether the show-around tour has started in this workspace, by itself or from the launcher"
     )
+    resume_index: int | None = Field(
+        default=None,
+        description="The card the tour resumes at once the agent is working again, after its reply interrupted "
+        "the tour; null when nothing waits to resume",
+    )

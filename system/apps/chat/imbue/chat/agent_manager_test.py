@@ -739,6 +739,52 @@ def test_a_seeded_chats_launch_carries_the_conversation_the_chat_opened_on(
     assert recorded.endswith(f"</{SEED_CONTEXT_TAG}> 1")
 
 
+def test_a_seeded_chat_launched_as_the_user_signs_in_starts_silent_and_its_first_send_carries_the_conversation(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sign-in that makes the workspace's first account launches the welcome chat's agent before the user has
+    typed: the create carries no message, the record marks the seed as pending, and the first send since carries
+    the conversation ahead of the user's words, once; a slash command goes as typed and leaves the seed pending."""
+    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
+    monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(tmp_path))
+    mngr_binary, argv_log = write_recording_mngr_binary(tmp_path)
+    manager, store = _seed_manager(broadcaster, tmp_path, mngr_binary=mngr_binary)
+    try:
+        seeded = manager.seed_chat("Getting started", _seed_turns())
+        chat_id = ChatId(seeded.chat_id)
+        launched = manager.create_chat("", chat_id=seeded.chat_id)
+        wait_until_true(
+            lambda: manager.get_provisional_chat(seeded.chat_id) is None, 10, "the provisional chat's completion"
+        )
+
+        assert launched.chat_id == seeded.chat_id
+        record = store.read(chat_id)
+        assert record is not None
+        assert len(record.agents) == 2 and record.is_seed_pending is True
+        (argv_line,) = argv_log.read_text().splitlines()
+        assert "--message" not in argv_line.split()
+
+        assert manager.carry_pending_seed(chat_id, "/model opus") == "/model opus"
+        assert store.read(chat_id).is_seed_pending is True  # type: ignore[union-attr]
+        carried = manager.carry_pending_seed(chat_id, "1")
+        assert carried.startswith(f"<{SEED_CONTEXT_TAG}>") and carried.endswith(f"</{SEED_CONTEXT_TAG}>\n1")
+        assert "Wait.. what is honest software?" in carried
+        assert store.read(chat_id).is_seed_pending is False  # type: ignore[union-attr]
+        assert manager.carry_pending_seed(chat_id, "2") == "2"
+    finally:
+        manager.stop()
+
+
+def test_a_send_to_an_unseeded_or_unknown_chat_is_delivered_as_given(
+    broadcaster: WebSocketBroadcaster, tmp_path: Path
+) -> None:
+    manager, _store = _seed_manager(broadcaster, tmp_path)
+    try:
+        assert manager.carry_pending_seed(ChatId("agent-nobody"), "hello") == "hello"
+    finally:
+        manager.stop()
+
+
 def test_a_waited_launch_of_a_seeded_chat_reports_the_member_agent_it_created(
     broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -969,24 +1015,6 @@ def test_seed_chat_checks_its_title_like_a_launch_checks_a_requested_name(
             manager.seed_chat("getting-started", _seed_turns())
         assert [proto.name for proto in manager.get_provisional_chats()] == ["Getting started"]
         assert len(store.read_all()) == 1
-    finally:
-        manager.stop()
-
-
-def test_a_seeded_chat_must_be_launched_with_a_message(
-    broadcaster: WebSocketBroadcaster, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # The launch resolves its work dir before it reads the message, so name one (CI sets none).
-    monkeypatch.setenv("MNGR_HOST_DIR", str(tmp_path))
-    monkeypatch.setenv("MNGR_AGENT_WORK_DIR", str(tmp_path))
-    manager, _store = _seed_manager(broadcaster, tmp_path)
-    try:
-        seeded = manager.seed_chat("", _seed_turns())
-        with pytest.raises(AgentCreationError, match="first message"):
-            manager.create_chat("", chat_id=seeded.chat_id)
-        provisional = manager.get_provisional_chat(seeded.chat_id)
-        assert provisional is not None
-        assert provisional.phase is ProvisionalChatPhase.AWAITING_FIRST_SEND
     finally:
         manager.stop()
 

@@ -1727,11 +1727,11 @@ def test_a_pinned_app_has_one_window_on_every_desktop_whose_entry_restores_minim
         window = _window(page, pinned["id"])
         expect(window).to_be_visible(timeout=15000)
         expect(window).to_have_attribute("data-pinned", "true")
-        # The first restore lands at the pinned frame: the right half of the backdrop, a margin in.
+        # The first restore lands at the pinned frame: most of the backdrop, a margin in on every side.
         backdrop = _box(page.locator(f'[data-desktop-id="{_HOME_DESKTOP_ID}"]'))
         shown = _box(window)
-        _assert_close(shown["x"], backdrop["x"] + 0.46 * backdrop["width"], "pinned frame x")
-        _assert_close(shown["width"], 0.5 * backdrop["width"], "pinned frame width")
+        _assert_close(shown["x"], backdrop["x"] + 0.05 * backdrop["width"], "pinned frame x")
+        _assert_close(shown["width"], 0.9 * backdrop["width"], "pinned frame width")
         _assert_close(shown["height"], 0.9 * backdrop["height"], "pinned frame height")
         expect(window.locator('[data-window-control="minimize"]')).to_be_visible()
         assert _page_frame(page, pinned["id"]).url == f"{server.pinned_url}{_PINNED_HOME_PATH}"

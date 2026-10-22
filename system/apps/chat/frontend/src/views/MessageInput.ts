@@ -1359,14 +1359,34 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
         );
       }
 
+      /**
+       * The chooser for a chat with no provider to start on: the sign-in it produces launches a chat still
+       * awaiting its first send right away, so its agent is up before the user has typed, and the first send
+       * goes to the running agent (carrying the seeded conversation, for a seeded chat). A launch the chat app
+       * refuses lands on the page as a failed create, with its "Try again".
+       */
+      function openProviderChooserForFirstSend(awaitingChatId: string): void {
+        openProviderChooser({
+          onSignedIn: (accountId) => {
+            const awaiting = getProvisionalChat(awaitingChatId);
+            if (awaiting?.phase !== "awaiting_first_send" || getChatById(awaitingChatId) !== undefined) return;
+            launchChat(awaitingChatId, accountId).catch((error: unknown) => {
+              console.error(
+                `The chat ${awaitingChatId} could not be started on sign-in: ${describeRequestError(error)}`,
+              );
+            });
+          },
+        });
+      }
+
       /** In place of the composer while nothing is signed in that a new chat could start on. The chooser opens as the
        *  notice appears, and its button opens it again once dismissed. */
-      function renderNoProviderNotice(): m.Children {
+      function renderNoProviderNotice(awaitingChatId: string): m.Children {
         return providerNotice(
           "message-input-no-provider",
           "Connect an AI provider to start chatting.",
-          () => openProviderChooser(),
-          () => openProviderChooser(),
+          () => openProviderChooserForFirstSend(awaitingChatId),
+          () => openProviderChooserForFirstSend(awaitingChatId),
         );
       }
 
@@ -1398,8 +1418,8 @@ export function MessageInput(): m.Component<MessageInputAttrs> {
       const canSendNow = canSend && !isComposerDisabled;
       const blockingNotice = isBlockedBySignedOutAccount
         ? renderSignedOutAccountNotice(chatId)
-        : isBlockedByNoProvider
-          ? renderNoProviderNotice()
+        : isBlockedByNoProvider && chatId !== null
+          ? renderNoProviderNotice(chatId)
           : null;
 
       // The stop button is only meaningful while the agent has an interruptible

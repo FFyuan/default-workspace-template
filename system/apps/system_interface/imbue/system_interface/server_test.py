@@ -288,6 +288,8 @@ def test_the_built_page_and_the_placeholder_are_served_under_the_document_policy
         assert_document_policy_admits_page(page)
         policy = page.headers["Content-Security-Policy"]
         assert "frame-src http: https:" in policy
+        # The tour's pictures are hosted, so the page admits images from their origin.
+        assert "img-src 'self' data: blob: https://onboarding-media.imbueminds.com" in policy
         assert "connect-src" not in policy
         assert "frame-ancestors" not in policy
     assert "Content-Security-Policy" not in test_client.get("/api/health").headers

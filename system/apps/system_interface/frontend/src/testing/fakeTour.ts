@@ -1,52 +1,66 @@
 /**
- * The show-around tour's test doubles: a fake of its two routes (``GET`` and ``POST /api/tour``), whose flag is set
+ * The show-around tour's test doubles: a fake of its two routes (``GET`` and ``POST /api/tour``), whose record is set
  * by hand, whose read can be made to fail, and whose every write is recorded; and a short list of cards, one of
  * each kind the tour draws.
  */
 
-import type { TourApi } from "../model/tour";
+import type { TourApi, TourRecord } from "../model/tour";
 import type { TourCard } from "../model/tourCards";
 
-/** Three cards: one popped out of the avatar, one about a chrome control with a link, one at the launcher with a
- *  picture and the Done label. */
+/** Three cards: one popped out of the avatar whose Next snaps the chat, one about a chrome control with a link, one
+ *  at the launcher with a picture, bullets, and the Done label. */
 export const FAKE_TOUR_CARDS: readonly TourCard[] = [
-  { id: "a", text: "Hello there.", target: "avatar", chromeAnchor: null, image: null, link: null, buttonLabel: null },
+  {
+    id: "a",
+    text: "Hello there.",
+    bullets: null,
+    target: "avatar",
+    chromeAnchor: null,
+    image: null,
+    link: null,
+    action: "snap-chat-right",
+    buttonLabel: null,
+  },
   {
     id: "b",
     text: "About sharing.",
+    bullets: null,
     target: null,
     chromeAnchor: "share",
     image: null,
     link: { label: "Join us", url: "https://example.com/discord" },
+    action: null,
     buttonLabel: null,
   },
   {
     id: "c",
     text: "Devices.",
+    bullets: ["Laptops", "Phones"],
     target: "launcher",
     chromeAnchor: null,
     image: { url: "https://cdn.example/devices.png", alt: "devices" },
     link: null,
+    action: null,
     buttonLabel: "Done",
   },
 ];
 
 export class FakeTourApi implements TourApi {
-  isSeen = false;
+  record: TourRecord;
   isFetchFailing = false;
-  readonly writes: boolean[] = [];
+  readonly writes: TourRecord[] = [];
 
-  constructor(options: { isSeen?: boolean } = {}) {
-    this.isSeen = options.isSeen ?? false;
+  constructor(options: { isSeen?: boolean; resumeIndex?: number | null } = {}) {
+    this.record = { isSeen: options.isSeen ?? false, resumeIndex: options.resumeIndex ?? null };
   }
 
-  async fetchIsSeen(): Promise<boolean> {
+  async fetch(): Promise<TourRecord> {
     if (this.isFetchFailing) throw new Error("down");
-    return this.isSeen;
+    return this.record;
   }
 
-  async markSeen(): Promise<void> {
-    this.writes.push(true);
-    this.isSeen = true;
+  async write(record: TourRecord): Promise<void> {
+    this.writes.push(record);
+    this.record = record;
   }
 }

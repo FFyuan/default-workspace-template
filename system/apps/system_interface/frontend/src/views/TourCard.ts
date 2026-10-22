@@ -1,12 +1,13 @@
 /**
- * The show-around tour's card, and the badge the tour leaves when exited early (the new-onboarding spec, section
- * 2.5). One fixed box over the desktop: the avatar and the card's words, a picture or a link when the card has one,
- * and a footer with Exit walkthrough, Go back, and Next (Done on the last card). Where it sits comes from
- * ``model/tourPlacement``: beside the shell's own target when the card has one, popped out of the avatar
- * otherwise, and under the Imbue Studio chrome for a card about one of its controls. Targets move (a window opens,
- * the avatar is dragged), so the card measures again on every redraw, on resize, and on a short interval.
- * Markers the tests use: ``data-tour-card``, ``data-tour-badge``, ``data-tour-exit``, ``data-tour-back``,
- * ``data-tour-next``, ``data-tour-link``.
+ * The show-around tour's card, the badge the tour leaves when exited early, and the pause notice it shows when the
+ * agent's reply interrupted it (the new-onboarding spec, section 2.5). One fixed box over the desktop: the avatar
+ * and the card's words, its bullets, a picture or a link when the card has one, and a footer with Exit walkthrough,
+ * Go back, and Next (Done on the last card). Where it sits comes from ``model/tourPlacement``: beside the shell's
+ * own target when the card has one, popped out of the avatar otherwise, and under the Imbue Studio chrome for a
+ * card about one of its controls. Targets move (a window opens, the avatar is dragged), so the card measures again
+ * on every redraw, on resize, and on a short interval.
+ * Markers the tests use: ``data-tour-card``, ``data-tour-badge``, ``data-tour-paused``, ``data-tour-exit``,
+ * ``data-tour-back``, ``data-tour-next``, ``data-tour-link``.
  */
 
 import m from "mithril";
@@ -14,7 +15,13 @@ import { Button, buttonClass } from "@imbue/workspace-ui/src/components/Button";
 import { avatarImageUrl } from "../model/api";
 import type { TourController } from "../model/tour";
 import type { ChromeAnchor, TourCard as TourCardRecord } from "../model/tourCards";
-import { TOUR_EXIT_BADGE_BUTTON_LABEL, TOUR_EXIT_BADGE_TEXT, tourTargetSelectors } from "../model/tourCards";
+import {
+  TOUR_EXIT_BADGE_BUTTON_LABEL,
+  TOUR_EXIT_BADGE_TEXT,
+  TOUR_PAUSED_BUTTON_LABEL,
+  TOUR_PAUSED_TEXT,
+  tourTargetSelectors,
+} from "../model/tourCards";
 import type { Box, Size, TourPlacement } from "../model/tourPlacement";
 import { placeBeside, placeByAvatar, placeUnderChrome } from "../model/tourPlacement";
 
@@ -58,18 +65,23 @@ export function chromeSideOf(anchor: ChromeAnchor): "left" | "right" {
   return anchor === "help" ? "right" : "left";
 }
 
-/** Where the card goes for ``card`` (or the badge, for null), given the card's own size. */
+/** What the box shows when it is not a card: the exit badge at the launcher, or the pause notice by the avatar. */
+export type TourNotice = "badge" | "paused";
+
+/** Where the box goes for ``subject`` (a card or a notice), given its own size. */
 export function placeCard(
-  card: TourCardRecord | null,
+  subject: TourCardRecord | TourNotice,
   cardSize: Size,
   root: ParentNode,
   viewport: Size,
 ): TourPlacement {
   const avatar = findTargetBox(root, tourTargetSelectors("avatar"));
-  if (card === null) {
+  if (subject === "paused") return placeByAvatar(avatar, cardSize, viewport);
+  if (subject === "badge") {
     const launcher = findTargetBox(root, tourTargetSelectors("launcher"));
     return launcher === null ? placeByAvatar(avatar, cardSize, viewport) : placeBeside(launcher, cardSize, viewport);
   }
+  const card = subject;
   if (card.chromeAnchor !== null) return placeUnderChrome(chromeSideOf(card.chromeAnchor), cardSize, viewport);
   if (card.target === null || card.target === "avatar") return placeByAvatar(avatar, cardSize, viewport);
   const target = findTargetBox(root, tourTargetSelectors(card.target));
@@ -126,22 +138,27 @@ export function TourCard(): m.Component<TourCardAttrs> {
       const viewport = vnode.attrs.viewport ?? { width: window.innerWidth, height: window.innerHeight };
       const state = tour.getState();
       const card = tour.shownCard();
-      const isBadge = state.phase === "exit-badge";
+      const notice: TourNotice | null =
+        state.phase === "exit-badge" ? "badge" : state.phase === "paused" ? "paused" : null;
       const width = card?.image !== null && card?.image !== undefined ? IMAGE_CARD_WIDTH_PX : CARD_WIDTH_PX;
       const cardSize = size ?? { width, height: 160 };
-      const placement = placeCard(card, { ...cardSize, width }, root, viewport);
+      const placement = placeCard(notice ?? card ?? "badge", { ...cardSize, width }, root, viewport);
       const arrow = arrowStyle(placement);
       const cards = tour.getCards();
       const isLast = state.phase === "card" && state.index === cards.length - 1;
-      const text = isBadge ? TOUR_EXIT_BADGE_TEXT : (card?.text ?? "");
-      const link = isBadge ? null : (card?.link ?? null);
+      const text =
+        notice === "badge" ? TOUR_EXIT_BADGE_TEXT : notice === "paused" ? TOUR_PAUSED_TEXT : (card?.text ?? "");
+      const bullets = notice === null ? (card?.bullets ?? null) : null;
+      const link = notice === null ? (card?.link ?? null) : null;
+      const image = notice === null ? (card?.image ?? null) : null;
       return m(
         "div",
         {
           role: "dialog",
           "aria-live": "polite",
-          "data-tour-card": card?.id ?? undefined,
-          "data-tour-badge": isBadge ? "" : undefined,
+          "data-tour-card": notice === null ? card?.id : undefined,
+          "data-tour-badge": notice === "badge" ? "" : undefined,
+          "data-tour-paused": notice === "paused" ? "" : undefined,
           class:
             "tour-card fixed z-(--z-popover) rounded-lg border border-default bg-surface p-4 shadow-overlay " +
             (size === null ? "invisible" : ""),
@@ -162,36 +179,54 @@ export function TourCard(): m.Component<TourCardAttrs> {
               draggable: false,
               class: "size-8 shrink-0",
             }),
-            m("p", { class: "m-0 type-body text-primary" }, text),
+            m("div", { class: "min-w-0" }, [
+              m("p", { class: "m-0 type-body text-primary" }, text),
+              bullets === null
+                ? null
+                : m(
+                    "ul",
+                    { class: "mt-2 mb-0 list-disc pl-5 type-body text-primary" },
+                    bullets.map((line) => m("li", line)),
+                  ),
+            ]),
           ]),
-          card?.image === null || card?.image === undefined || isBadge
+          image === null
             ? null
-            : m("img", { src: card.image.url, alt: card.image.alt, class: "mt-3 w-full rounded-md bg-fill-hover" }),
+            : m("img", { src: image.url, alt: image.alt, class: "mt-3 w-full rounded-md bg-fill-hover" }),
           link === null
             ? null
-            : m(
-                "a",
-                {
-                  "data-tour-link": "",
-                  href: link.url,
-                  target: "_blank",
-                  rel: "noopener",
-                  class: buttonClass("secondary", { sm: true, extra: "mt-3" }),
-                  onclick: (event: MouseEvent) => {
-                    // A plain click goes the shell's way; a modified or middle click keeps the browser's.
-                    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-                    event.preventDefault();
-                    openLink(link.url);
+            : m("div", { class: "mt-3 flex justify-end" }, [
+                m(
+                  "a",
+                  {
+                    "data-tour-link": "",
+                    href: link.url,
+                    target: "_blank",
+                    rel: "noopener",
+                    class: buttonClass("secondary", { sm: true }),
+                    onclick: (event: MouseEvent) => {
+                      // A plain click goes the shell's way; a modified or middle click keeps the browser's.
+                      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+                        return;
+                      }
+                      event.preventDefault();
+                      openLink(link.url);
+                    },
                   },
-                },
-                link.label,
-              ),
-          isBadge
+                  link.label,
+                ),
+              ]),
+          notice !== null
             ? m("div", { class: "mt-4 flex justify-end" }, [
                 m(
                   Button,
-                  { variant: "primary", sm: true, "data-tour-next": "", onclick: () => tour.dismissBadge() },
-                  TOUR_EXIT_BADGE_BUTTON_LABEL,
+                  {
+                    variant: "primary",
+                    sm: true,
+                    "data-tour-next": "",
+                    onclick: () => (notice === "badge" ? tour.dismissBadge() : tour.dismissPause()),
+                  },
+                  notice === "badge" ? TOUR_EXIT_BADGE_BUTTON_LABEL : TOUR_PAUSED_BUTTON_LABEL,
                 ),
               ])
             : m("div", { class: "mt-4 flex items-center justify-between gap-2" }, [

@@ -29,7 +29,10 @@ import { frameFromViewportFractions } from "./geometry/frames";
 import type { OutsideLinkOpener, PopOutBridge } from "./store/DesktopStore";
 import { PointerGestureSource } from "./gestures/pointerGestures";
 import { getOwnIdentity, startPresenceHeartbeat } from "./model/Presence";
-import { TOUR_API, TourController } from "./model/tour";
+import { TOUR_API, TourController, tourStartDelayFromSearch } from "./model/tour";
+import { CHAT_APP_NAME } from "./model/tourCards";
+import type { TourAction } from "./model/tourCards";
+import { pinnedWindowOf } from "./reducers/desktopState";
 import { initEmbedderRelay, setEmbedderAppMessageHandler } from "./relay";
 import { reloadInterface } from "./reload";
 import { DesktopStore } from "./store/DesktopStore";
@@ -163,8 +166,18 @@ function bootstrap(): void {
     if (phase !== "out" && phase !== "in" && phase !== "released") return;
     desktopStore.setTearOut(windowId, phase);
   });
-  // The show-around tour: by itself on a fresh workspace, for the owner looking at the whole desktop; from the
-  // launcher's row any time. A card about a chrome control asks the chrome to ring it.
+  // The show-around tour: by itself the first time the agent goes to work on a fresh workspace, for the owner
+  // looking at the whole desktop, resumed the same way after the agent's reply interrupted it; from the launcher's
+  // row any time. A card about a chrome control asks the chrome to ring it; the chat card's Next snaps the chat.
+  const runTourAction = (action: TourAction): void => {
+    switch (action) {
+      case "snap-chat-right": {
+        const chat = pinnedWindowOf(desktopStore.getState(), CHAT_APP_NAME);
+        if (chat !== null) desktopStore.setWindowState(chat.id, "SNAPPED_RIGHT");
+        return;
+      }
+    }
+  };
   const tour = new TourController({
     api: TOUR_API,
     highlightChrome: (anchor) => sendToEmbedder(HIGHLIGHT_CHROME, { anchor }),
@@ -173,8 +186,11 @@ function bootstrap(): void {
       desktopStore.getSoloWindowId() === null &&
       !isPreviewShell() &&
       (getOwnIdentity()?.owner ?? true),
+    performAction: runTourAction,
+    startAfterWorkingMs: tourStartDelayFromSearch(window.location.search),
     redraw: () => m.redraw(),
   });
+  desktopStore.subscribe(() => tour.noteAgentWorking(desktopStore.getState().avatar.status.mood === "working"));
   const rootElement = document.getElementById("app");
   if (rootElement) {
     m.mount(rootElement, {
@@ -190,7 +206,7 @@ function bootstrap(): void {
   }
   const started = desktopStore.start(takeDeepLinkFromLocation());
   const loaded = Promise.all([started, desktopStore.whenAppsLoaded()]);
-  void loaded.then(() => tour.maybeAutoStart());
+  void loaded.then(() => tour.load());
   // Announced once the page can act on what the embedder held, not merely once a handler is
   // registered: relaying a message needs the apps (which of them take it), and the embedder sends
   // what it held the moment this lands.

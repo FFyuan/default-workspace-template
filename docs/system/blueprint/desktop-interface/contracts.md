@@ -131,7 +131,7 @@ Under `data/.state/system_interface/`, written atomically under one process-wide
 - `frame` values are floats in `0..1` with `x + width <= 1` and `y + height <= 1`; `state` is `NORMAL`, `SNAPPED_LEFT`, `SNAPPED_RIGHT`, or `MAXIMIZED`.
 - `is_detached` (default `false`) marks a window pulled out into a desktop window of the embedding chrome's own (mngr's `specs/pull-out-window/spec.md`): the desktop draws a ghost at its frame and its page is shown there; a file without the key reads as attached, and a writer without it drops the flag on its next save. Orthogonal to `state` and `is_minimized` (a detached placement that is also minimized is a pulled-out window whose ghost is hidden; the window stays out); a detached placement is never the focused one.
 - A placement naming a window the desktop no longer holds is dropped on read.
-- A window with no placement reads as `{frame: cascade(n), state: NORMAL, is_minimized: true}` at the start of the list (the bottom of the stack), where `n` is the count of stored placements. A pinned window with no placement is answered by the layout route as `{frame: {x: 0.46, y: 0.05, width: 0.5, height: 0.9}, state: NORMAL, is_minimized: true}` at the start of the list instead (pinned-taskbar-entries plan section 3.2), unwritten until the client saves or an op edits that client's layout.
+- A window with no placement reads as `{frame: cascade(n), state: NORMAL, is_minimized: true}` at the start of the list (the bottom of the stack), where `n` is the count of stored placements. A pinned window with no placement is answered by the layout route as `{frame: {x: 0.05, y: 0.05, width: 0.9, height: 0.9}, state: NORMAL, is_minimized: true}` at the start of the list instead (pinned-taskbar-entries plan section 3.2), unwritten until the client saves or an op edits that client's layout.
 - The old `layouts/` directory is never read.
 
 ### 4.3 `clients.json`
@@ -159,7 +159,7 @@ A user id matches `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`, as the identity header c
 
 ### 4.5a `tour.json`
 
-`{"version": 1, "is_seen": true | false}`: whether the show-around tour has started in this workspace, by itself or from the launcher; absent or unreadable reads as `false`, so a fresh workspace offers the tour once.
+`{"version": 1, "is_seen": true | false, "resume_index": <int> | null}`: whether the show-around tour has started in this workspace (by itself or from the launcher), and the card it resumes at after the agent's reply interrupted it (`null` when nothing waits to resume); absent or unreadable reads as unseen with nothing to resume, so a fresh workspace offers the tour once. The tour begins the first time the workspace's agent goes to work (the avatar's `working` mood), after `tour_start_ms` of work when the page's query string names it, at once otherwise; the agent going idle while a card is up interrupts the tour, whose Next then shows a pause notice and records the card that would have come next.
 
 ### 4.6 Wallpapers
 
@@ -237,7 +237,7 @@ A save whose placements name windows the desktop does not hold is accepted with 
 | `GET /api/avatars/<id>/image.svg?mood=idle\|working&preview=1` | the rendered image; `GET /api/avatars/<id>/source.svg` the original as an attachment; `404` otherwise |
 | `GET /api/avatars/<id>/icon.png?size=180` | the design's still pose on an opaque square tile as a PNG of `size` pixels (16 to 1024, default 180); `400` for another size, `404` for an unknown design. `GET /apple-touch-icon.png` answers the selected design's at 180, and `GET /manifest.webmanifest` a web manifest naming the workspace with the selected design's icons |
 | `POST /api/avatar-selection` | takes `{"design"}`; writes `avatar_selection.json` and announces `avatar_selection_changed`; `400` for an unknown design |
-| `GET /api/tour`, `POST /api/tour` | `{"is_seen"}`: whether the show-around tour has run (section 4.5a); the `POST` takes the same body, writes `tour.json`, and answers it; `400` for a body that is not a flag |
+| `GET /api/tour`, `POST /api/tour` | `{"is_seen", "resume_index"}`: whether the show-around tour has run and the card it resumes at (section 4.5a); the `POST` takes the same body (`resume_index` optional, `null` by default), writes `tour.json`, and answers it; `400` for a body that is not a flag and an optional whole number |
 | `GET /api/inventory` | `{"is_preview", "workspace_name", "desktops": [desktop, ...], "apps": [app, ...], "clients": [client with "shown": [window_id, ...] and "popped_out": [{"window_id", "desktop_id", "is_ghost_hidden"}, ...]]}` where `is_preview` is whether a preview shell (section 5.1) answered, `workspace_name` is the workspace's name (the `SYSTEM_INTERFACE_WORKSPACE_NAME` setting, else the services agent's `workspace_display_name` label, else the host's name, else `Workspace`), which the page's title carries too, `shown` is the windows of the client's active desktop that its layout does not minimize, and `popped_out` is every window the client's layouts of every desktop say is pulled out (`is_detached`, section 4.2), with whether its ghost is hidden (`is_minimized`), for every client, connected or not. The one read a shell page boots from (below), and what an agent's `desktops` and `list` ops answer (section 8) |
 | `GET /api/wallpapers` | `{"wallpapers": [{"kind", "name", "url"}]}`, bundled first |
 | `GET /wallpapers/<kind>/<name>` | the image; `404` otherwise |
@@ -507,7 +507,7 @@ Data attributes, never classes, so restyling cannot break a test:
 | `data-phone-app="<app>"`, `data-phone-home-grid` | the home grid's tiles, and the grid |
 | `data-phone-page-host="<window-id>"` | the area the shown window's page is laid over |
 | `data-toast` | each toast, on both layouts |
-| `data-tour-card="<id>"`, `data-tour-badge`, `data-tour-exit`, `data-tour-back`, `data-tour-next`, `data-tour-link` | the show-around tour's card (naming the card shown) or its exit badge, and the card's Exit walkthrough, Go back, Next or Done (Got it on the badge), and link button |
+| `data-tour-card="<id>"`, `data-tour-badge`, `data-tour-paused`, `data-tour-exit`, `data-tour-back`, `data-tour-next`, `data-tour-link` | the show-around tour's card (naming the card shown), its exit badge, or its pause notice, and the card's Exit walkthrough, Go back, Next or Done (Got it on the badge, OK on the notice), and link button |
 | `data-tour-row` | the launcher's "Show me around" row |
 
 ## 13. Where data lives
