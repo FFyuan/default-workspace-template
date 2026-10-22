@@ -1856,10 +1856,17 @@ def test_step_4_ends_a_hold_with_a_decision_keeping_the_worker() -> None:
     order = [
         _first_index(relanding, "run-status start"),
         _first_index(relanding, "git merge-base --is-ancestor HEAD mngr/update-self"),
-        _first_index(relanding, "mngr start update-self"),
-        _first_index(relanding, "mngr message update-self"),
+        _first_index(relanding, "worker_agent_id"),
+        _first_index(relanding, 'message_chat.py "$WORKER_ID"'),
     ]
     assert order == sorted(order)
+    # The stopped worker is reached the way 5b's catch-up reaches it: by its id, through a sender
+    # that starts it, never by its mngr name.
+    assert _first_index(relanding, '--start -m "$DECISION"') > order[-1]
+    assert not any(
+        "mngr start update-self" in command or "mngr message update-self" in command
+        for command in relanding
+    )
 
 
 # The atomic apply

@@ -895,17 +895,19 @@ Step 4 cycle, not a new pass.
    git merge-base --is-ancestor HEAD mngr/update-self
    ```
 
-5. Start the worker and give it the decision, in the user's voice. On exit 1
-   above, ask in the same message for the catch-up 5b asks for, so it re-fits
-   and catches up in one round; on exit 0, send the decision alone:
+5. Give the worker the decision, in the user's voice, the way 5b sends its
+   catch-up, which starts the stopped worker. On exit 1 above, ask in the same
+   message for the catch-up 5b asks for, so it re-fits and catches up in one
+   round; on exit 0, send the decision alone:
 
    ```bash
-   mngr start update-self
-   ```
-
-   ```bash
-   mngr message update-self \
-       -m "<their decision>. Then catch up to $(git rev-parse HEAD) per §7 of your worker guide, and report done."
+   DECISION="<their decision>. Then catch up to $(git rev-parse HEAD) per §7 of your worker guide, and report done."
+   WORKER_ID=$(sed -n 's/^worker_agent_id: *//p' data/.tasks/update-self/task.md)
+   if [ -f system/scripts/message_chat.py ] && [ -n "$WORKER_ID" ]; then
+       python3 system/scripts/message_chat.py "$WORKER_ID" -m "$DECISION"
+   else
+       mngr message "${WORKER_ID:-update-self}" --start -m "$DECISION"
+   fi
    ```
 
    A failed send is handled as 5b's catch-up message says.
