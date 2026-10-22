@@ -16,6 +16,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -4399,9 +4400,16 @@ def test_created_agent_id_reads_the_created_event(
 # These two tests run real git to prove the spec's two claims about what follows:
 # a provisional merge advances the merge-base so `done` brings only the
 # remainder, and reverting one leaves its commits as ancestors, so the change
-# stays out of `done` until the revert is itself reverted.
+# stays out of `done` until the worker reverts the revert on its branch.
 
 _CREATION_FILENAME = "skill.md"
+_WORKER_REPORTING = (
+    Path(__file__).resolve().parents[4]
+    / ".agents"
+    / "shared"
+    / "references"
+    / "worker-reporting.md"
+)
 
 # The worker's two commits touch lines 2 and 8: far enough apart that the merges
 # exercise bookkeeping, not conflict resolution.
@@ -4521,10 +4529,30 @@ def test_provisional_merge_advances_the_merge_base_so_done_brings_the_rest(
     )
 
 
-def test_reverting_a_provisional_merge_hides_it_from_done_until_reinstated(
+def _worker_restore_block(revert_commit: str) -> str:
+    """worker-reporting.md's block for bringing back a milestone the lead reverted."""
+    blocks = [
+        block
+        for block in re.findall(
+            r"```bash\n(.*?)```", _WORKER_REPORTING.read_text(), re.DOTALL
+        )
+        if "git revert --no-edit HEAD" in block
+    ]
+    assert len(blocks) == 1, f"expected one restore block in {_WORKER_REPORTING}"
+    return (
+        blocks[0]
+        .replace("<the revert commit's short sha>", revert_commit[:7])
+        .replace("<the revert commit>", revert_commit)
+    )
+
+
+def test_a_worker_restores_a_reverted_milestone_so_done_brings_it_back_with_its_later_edits(
     tmp_path: Path,
 ) -> None:
-    """``git revert -m 1`` leaves the commits as ancestors, so ``done`` omits them until the revert is reverted."""
+    """``git revert -m 1`` leaves the milestone's commits as ancestors of the lead's branch,
+    so a ``done`` merge alone would omit them. The worker's documented restore, a revert of
+    the lead's revert merged into its branch, brings them back with that merge, keeping
+    the worker's own later edit to the milestone."""
     if shutil.which("git") is None:
         pytest.skip("git is not on PATH")
     lead, worker = _make_lead_repo_and_worker_worktree(tmp_path)
@@ -4546,15 +4574,24 @@ def test_reverting_a_provisional_merge_hides_it_from_done_until_reinstated(
     _git(lead, "revert", "-m", "1", "--no-edit", provisional_merge)
     revert_commit = _git(lead, "rev-parse", "HEAD")
     assert "line2-usable" not in (lead / _CREATION_FILENAME).read_text()
+    _git(lead, "merge-base", "--is-ancestor", milestone_sha, "HEAD")
 
-    # The worker carries on and reports done. The milestone commit is still an
-    # ancestor, so this merge does NOT bring its change back.
-    _commit_creation_line(worker, 7, "line8-hardened", "Worker commit B")
+    # The worker fixes the milestone, keeps hardening, then restores it as documented.
+    _commit_creation_line(
+        worker, 1, "line2-fixed", "Worker commit B (fix the milestone)"
+    )
+    _commit_creation_line(worker, 7, "line8-hardened", "Worker commit C")
+    subprocess.run(
+        ["bash", "-c", _worker_restore_block(revert_commit)],
+        cwd=worker,
+        env=_hermetic_git_env(),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert _git(worker, "branch", "--show-current") == "mngr/demo"
+
     _git(lead, "merge", "--no-ff", "mngr/demo", "-m", "Merge demo (done)")
-    after_done_merge = (lead / _CREATION_FILENAME).read_text()
-    assert "line8-hardened" in after_done_merge
-    assert "line2-usable" not in after_done_merge
-
-    # Reverting the revert is what puts it back.
-    _git(lead, "revert", "--no-edit", revert_commit)
-    assert "line2-usable" in (lead / _CREATION_FILENAME).read_text()
+    after_done_merge = (lead / _CREATION_FILENAME).read_text().splitlines()
+    assert after_done_merge[1] == "line2-fixed"
+    assert after_done_merge[7] == "line8-hardened"
