@@ -398,9 +398,9 @@ def test_a_scaffolded_app_passes_its_own_tests(tmp_path: Path) -> None:
     """The tests the scaffold writes pass on the code it writes beside them, before the agent adds anything.
 
     The ratchets list the app's files through git and blame the lines they flag, so the app is
-    committed first. Its type-check ratchet is
-    left out: it runs ``uv run ty``, which outside a workspace would install the app's
-    dependencies, and the test above runs ty on a scaffolded app directly.
+    committed first. Its type-check ratchet is left out: it runs ``uv run ty``, which outside a
+    workspace would install the app's dependencies, and the test above runs ty on a scaffolded
+    app directly.
     """
     lib_dir = scaffold_flask_lib._write_lib(
         tmp_path, "inbox-status", "inbox status dashboard", "Inbox status", 8081, [], _ICON
