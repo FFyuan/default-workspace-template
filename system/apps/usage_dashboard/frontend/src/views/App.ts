@@ -31,6 +31,7 @@ import {
   formatDuration,
   formatPercent,
 } from "../models/format";
+import { pageCount, pageNumbers, pageRange } from "../models/callPages";
 import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
 import { type Route, pathOf } from "../models/routing";
@@ -301,7 +302,6 @@ function callShare(call: StoredCall, scale: UsageScale): number | null {
 function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): m.Vnode {
   const showsMoney = columns.length === 0;
   const columnCount = 6 + (showsMoney ? 1 : columns.length);
-  const page = model.callPage;
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
       m("h2", { class: "type-section text-primary" }, "Latest calls"),
@@ -325,7 +325,7 @@ function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
             ]),
             m(
               "tbody",
-              page.rows.flatMap((call) => {
+              model.calls.flatMap((call) => {
                 const event = call.event;
                 const group = callGroup(event);
                 const duration = Date.parse(event.ended_at) - Date.parse(event.started_at);
@@ -406,28 +406,56 @@ function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
             ),
           ]),
         ]),
-    page.hasNewer || page.hasOlder
-      ? m("div", { class: "calls-pages flex items-center justify-between gap-2" }, [
-          m("span", { class: "type-helper tabular-nums text-faint" }, `${page.first}–${page.last}`),
-          m("div", { class: "flex gap-2" }, [
-            m(
-              Button,
-              { sm: true, disabled: !page.hasNewer, "data-page": "newer", onclick: () => model.showNewerCalls() },
-              "Newer",
-            ),
-            m(
+    callPager(model),
+  ]);
+}
+
+/** The latest calls' page numbers, with the calls the page shows; nothing while they fit on one page. */
+function callPager(model: DashboardModel): m.Vnode | null {
+  const count = pageCount(model.callsTotal);
+  if (count === 1) return null;
+  const current = model.callsPage;
+  const [first, last] = pageRange(current, model.callsTotal);
+  const step = (page: number, label: string, title: string): m.Vnode =>
+    m(
+      Button,
+      {
+        sm: true,
+        variant: "ghost",
+        disabled: page < 1 || page > count,
+        title,
+        "aria-label": title,
+        onclick: () => model.showCallsPage(page),
+      },
+      label,
+    );
+  return m("nav", { class: "calls-pages flex flex-wrap items-center justify-between gap-2", "aria-label": "Pages" }, [
+    m(
+      "span",
+      { class: "type-helper tabular-nums text-faint" },
+      `${first.toLocaleString()}–${last.toLocaleString()} of ${model.callsTotal.toLocaleString()}`,
+    ),
+    m("div", { class: "flex items-center gap-1 tabular-nums" }, [
+      step(current - 1, "‹", "Previous page"),
+      pageNumbers(current, count).map((item, index) =>
+        item === "gap"
+          ? m("span", { key: `gap${index}`, class: "px-1 text-faint" }, "…")
+          : m(
               Button,
               {
+                key: item,
                 sm: true,
-                disabled: !page.hasOlder,
-                "data-page": "older",
-                onclick: () => void model.showOlderCalls(),
+                variant: "ghost",
+                selected: item === current,
+                "aria-current": item === current ? "page" : undefined,
+                "data-page": item,
+                onclick: () => model.showCallsPage(item),
               },
-              "Older",
+              String(item),
             ),
-          ]),
-        ])
-      : null,
+      ),
+      step(current + 1, "›", "Next page"),
+    ]),
   ]);
 }
 

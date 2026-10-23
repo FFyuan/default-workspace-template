@@ -8,7 +8,7 @@ Below the cards, a Total row of tiles across every provider has the time window 
 
 - a chart of spend or tokens over the window, stacked by model, and a breakdown by model, source or billing mode, where clicking a row filters the whole page;
 
-- the latest calls as they happen, 20 to a page with Newer and Older to move between pages, each opening to its raw event.
+- the latest calls as they happen, 20 to a numbered page, each opening to its raw event.
 
 It stores nothing of its own, reconnects to the collector's live stream after an outage, keeps its last numbers under a banner while the collector is down, and says when the collector is still indexing past usage.
 

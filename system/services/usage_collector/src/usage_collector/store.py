@@ -481,25 +481,20 @@ class UsageStore:
         limit: int = DEFAULT_CALLS_LIMIT,
         before: str | None = None,
         after: int | None = None,
+        offset: int = 0,
     ) -> list[StoredCall]:
         """Stored calls whose fields take one of the values ``filters`` gives them ("" for "not known"), newest first.
 
         ``before`` (an event id) pages back to calls that ended before that one;
         ``after`` (a sequence) returns only calls stored after it, which is how a
-        stream client fills the gap a reconnect left.
+        stream client fills the gap a reconnect left. ``offset`` skips that many
+        of the newest, for numbered pages.
         """
-        unknown = [
-            dimension
-            for dimension in filters
-            if dimension not in CALL_FILTER_DIMENSIONS
-        ]
-        if unknown:
-            raise UsageStoreError(
-                f"Cannot filter by {unknown}; choose from {list(CALL_FILTER_DIMENSIONS)}"
-            )
         if not 1 <= limit <= MAX_CALLS_LIMIT:
             raise UsageStoreError(f"limit must be between 1 and {MAX_CALLS_LIMIT}")
-        clauses, parameters = _any_of(filters)
+        if offset < 0:
+            raise UsageStoreError("offset must not be negative")
+        clauses, parameters = _call_filters(filters)
         with self._lock:
             if before is not None:
                 anchor = self._connection.execute(
@@ -516,13 +511,23 @@ class UsageStore:
             where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
             rows = self._connection.execute(
                 f"SELECT rowid, event_json FROM model_call{where} "
-                "ORDER BY ended_at DESC, rowid DESC LIMIT ?",
-                (*parameters, limit),
+                "ORDER BY ended_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (*parameters, limit, offset),
             ).fetchall()
         return [
             StoredCall(sequence=row["rowid"], event=json.loads(row["event_json"]))
             for row in rows
         ]
+
+    def count_calls(self, filters: Mapping[str, Sequence[str]]) -> int:
+        """How many stored calls ``calls`` would page through for ``filters``."""
+        clauses, parameters = _call_filters(filters)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._lock:
+            row = self._connection.execute(
+                f"SELECT COUNT(*) FROM model_call{where}", parameters
+            ).fetchone()
+        return int(row[0])
 
 
 def _totals_row(
@@ -559,6 +564,19 @@ def _checked_dimensions(group_by: Sequence[str]) -> list[str]:
             f"Cannot group by {unknown}; choose from {list(GROUPABLE_DIMENSIONS)}"
         )
     return list(dict.fromkeys(group_by))
+
+
+def _call_filters(
+    filters: Mapping[str, Sequence[str]],
+) -> tuple[list[str], list[object]]:
+    unknown = [
+        dimension for dimension in filters if dimension not in CALL_FILTER_DIMENSIONS
+    ]
+    if unknown:
+        raise UsageStoreError(
+            f"Cannot filter by {unknown}; choose from {list(CALL_FILTER_DIMENSIONS)}"
+        )
+    return _any_of(filters)
 
 
 def _any_of(filters: Mapping[str, Sequence[str]]) -> tuple[list[str], list[object]]:

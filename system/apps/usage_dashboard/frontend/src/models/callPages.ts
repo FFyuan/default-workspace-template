@@ -1,51 +1,39 @@
-/**
- * Pages of the latest calls.
- *
- * A page is a window into the loaded calls, newest first, that starts at an offset. Calls that stream in while
- * an older page is shown push the offset along with them, so the rows being read stay put; only the first
- * page takes new calls in.
- */
+/** Numbered pages of the latest calls, newest first. */
 
 export const CALLS_PER_PAGE = 20;
 
-export interface CallPage<T> {
-  rows: readonly T[];
-  /** 1-based positions of the first and last row shown. */
-  first: number;
-  last: number;
-  hasNewer: boolean;
-  hasOlder: boolean;
+/** How many pages ``total`` calls fill; one page even with none. */
+export function pageCount(total: number): number {
+  return Math.max(1, Math.ceil(total / CALLS_PER_PAGE));
 }
 
-/** The page starting at ``offset``; ``hasMoreToLoad`` says whether older calls exist beyond those loaded. */
-export function callPage<T>(calls: readonly T[], offset: number, hasMoreToLoad: boolean): CallPage<T> {
-  const start = Math.min(Math.max(offset, 0), Math.max(calls.length - 1, 0));
-  const rows = calls.slice(start, start + CALLS_PER_PAGE);
-  return {
-    rows,
-    first: rows.length === 0 ? 0 : start + 1,
-    last: start + rows.length,
-    hasNewer: start > 0,
-    hasOlder: start + CALLS_PER_PAGE < calls.length || hasMoreToLoad,
-  };
+/** How many of the newest calls page ``page`` (from 1) skips. */
+export function pageOffset(page: number): number {
+  return (page - 1) * CALLS_PER_PAGE;
 }
 
-/** The offset after ``added`` calls arrived above it: the first page stays on the newest, others stay put. */
-export function offsetAfterNewCalls(offset: number, added: number): number {
-  return offset === 0 ? 0 : offset + added;
+/** 1-based positions of the first and last call on ``page``; [0, 0] with none. */
+export function pageRange(page: number, total: number): [number, number] {
+  if (total === 0) return [0, 0];
+  return [pageOffset(page) + 1, Math.min(pageOffset(page) + CALLS_PER_PAGE, total)];
 }
 
-/** The offset one page newer. */
-export function newerOffset(offset: number): number {
-  return Math.max(offset - CALLS_PER_PAGE, 0);
-}
-
-/** The offset one page older. */
-export function olderOffset(offset: number): number {
-  return offset + CALLS_PER_PAGE;
-}
-
-/** Whether showing the page at ``offset`` needs more calls than are loaded. */
-export function needsMoreCalls(loaded: number, offset: number): boolean {
-  return offset + CALLS_PER_PAGE > loaded;
+/**
+ * The page numbers to offer around ``current``: always the first and last, the current one with a neighbour on
+ * each side, and "gap" where numbers are left out. A gap never stands for a single page, which is shown instead.
+ */
+export function pageNumbers(current: number, count: number): (number | "gap")[] {
+  const shown = new Set([1, count, current - 1, current, current + 1].filter((page) => page >= 1 && page <= count));
+  // Near either end, show enough pages that the row keeps its length.
+  if (current <= 3) for (let page = 2; page <= Math.min(4, count); page++) shown.add(page);
+  if (current >= count - 2) for (let page = Math.max(count - 3, 1); page < count; page++) shown.add(page);
+  const pages = [...shown].sort((a, b) => a - b);
+  const items: (number | "gap")[] = [];
+  for (const [index, page] of pages.entries()) {
+    const previous = pages[index - 1];
+    if (previous !== undefined && page - previous === 2) items.push(previous + 1);
+    else if (previous !== undefined && page - previous > 2) items.push("gap");
+    items.push(page);
+  }
+  return items;
 }
