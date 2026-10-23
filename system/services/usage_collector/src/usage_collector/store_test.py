@@ -203,11 +203,11 @@ def test_calls_filter_by_rollup_dimensions(store: UsageStore) -> None:
     store.insert(_event(attribution={"origin_id": "files"}))
     store.insert(_event(attribution={"origin_id": "routines"}))
 
-    [call] = store.calls({"origin_id": "routines"})
+    [call] = store.calls({"origin_id": ["routines"]})
 
     assert ModelCallEvent.model_validate(call.event).attribution.origin_id == "routines"
     with pytest.raises(UsageStoreError):
-        store.calls({"harness": "litellm"})
+        store.calls({"harness": ["litellm"]})
 
 
 def test_totals_group_by_cost_provenance(store: UsageStore) -> None:
@@ -271,3 +271,21 @@ def test_latency_filters_keep_calls_with_any_of_the_given_values(
     assert (row.timed_calls, row.p95_ms) == (2, 3000)
     with pytest.raises(UsageStoreError):
         store.latency([], NOW - timedelta(hours=1), filters={"nonsense": ["x"]})
+
+
+def test_calls_filter_by_provider_and_any_of_several_values(store: UsageStore) -> None:
+    store.insert(_event(billing_mode="API_KEY"))
+    store.insert(_event(billing_mode="UNKNOWN"))
+    store.insert(_event(billing_mode="SUBSCRIPTION"))
+    store.insert(
+        _event(provider="openai", model="openai/gpt-5.2", billing_mode="API_KEY")
+    )
+
+    calls = store.calls(
+        {"provider": ["anthropic"], "billing_mode": ["API_KEY", "UNKNOWN"]}
+    )
+
+    assert sorted(str(call.event["billing_mode"]) for call in calls) == [
+        "API_KEY",
+        "UNKNOWN",
+    ]

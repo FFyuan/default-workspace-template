@@ -3,7 +3,8 @@
 - ``GET /v1/totals?group_by=origin_id,model&since=24h[&until=...][&bucket=hour]``: cost and token totals.
 - ``GET /v1/latency?group_by=model&since=24h[&until=...][&provider=anthropic][&billing_mode=API_KEY,UNKNOWN]``: call
   duration percentiles, optionally over only the calls whose fields take the given values.
-- ``GET /v1/calls?model=...&limit=50[&before=<event id>][&after=<sequence>]``: stored calls, newest first.
+- ``GET /v1/calls?provider=...&billing_mode=API_KEY,UNKNOWN&limit=50[&before=<event id>][&after=<sequence>]``:
+  stored calls, newest first, optionally only those whose fields take one of the given values.
 - ``GET /v1/limits?since=7d``: the freshest subscription limit reading of every window.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
 - ``GET /health``: whether the collector is up, and whether it is still reading the event files.
@@ -152,7 +153,7 @@ def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flas
     @app.get("/v1/calls")
     def _get_calls() -> Response | tuple[Response, int]:
         filters = {
-            dimension: request.args[dimension]
+            dimension: request.args[dimension].split(",")
             for dimension in CALL_FILTER_DIMENSIONS
             if dimension in request.args
         }

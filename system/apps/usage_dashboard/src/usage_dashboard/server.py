@@ -86,7 +86,11 @@ _NOT_BUILT_PAGE: Final[str] = (
 )
 
 ROUTE_TABLE: RouteTable = {
-    ("GET", "/"): SchemalessRoute(reason="the Usage page"),
+    ("GET", "/"): SchemalessRoute(reason="the Usage home page"),
+    ("GET", "/all"): SchemalessRoute(reason="the detail page for all usage: the same document, which reads its path"),
+    ("GET", "/p/{item}"): SchemalessRoute(
+        reason="the detail page for one provider's usage: the same document, which reads its path"
+    ),
     ("GET", "/assets/{filename}"): SchemalessRoute(reason="one file of the page's built bundle"),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
     ("GET", "/api/apps"): RouteModels(response_model=AppNamesResponse),
@@ -112,8 +116,10 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
     static_directory = static_directory.resolve()
 
     @app.get("/")
-    def page() -> ResponseReturnValue:
-        """The Usage page."""
+    @app.get("/all")
+    @app.get("/p/<item>")
+    def page(item: str | None = None) -> ResponseReturnValue:
+        """The Usage page: the one document, which reads its path (the home page, all usage, or one provider's)."""
         document = static_directory / PAGE_DOCUMENT_FILENAME
         if not document.is_file():
             return Response(_NOT_BUILT_PAGE, mimetype="text/html", headers={"Cache-Control": "no-store"})
