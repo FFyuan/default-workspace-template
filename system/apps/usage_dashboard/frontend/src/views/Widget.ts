@@ -52,7 +52,7 @@ function ringView(window: LimitWindow, radius: number, role: "inner" | "outer"):
   return [track, arc];
 }
 
-function ringPairView(pair: RingPair, isLabelled: boolean): m.Vnode {
+function ringPairView(pair: RingPair): m.Vnode {
   return m(
     "span",
     { key: pair.key, "data-widget-rings": pair.key, class: "flex items-center gap-1", title: pair.tooltip },
@@ -65,7 +65,7 @@ function ringPairView(pair: RingPair, isLabelled: boolean): m.Vnode {
           ...ringView(pair.inner, INNER_RADIUS, "inner"),
         ],
       ),
-      isLabelled ? m("span", { class: "text-secondary" }, pair.name) : null,
+      m("span", { class: "text-secondary" }, pair.name),
     ],
   );
 }
@@ -119,12 +119,7 @@ export const Widget: m.Component<WidgetAttrs> = {
     const content: m.Children = model.isCatchingUp
       ? m("span", { class: "text-secondary" }, isCollapsed ? "..." : "Indexing usage...")
       : isCollapsed && rings.length > 0
-        ? // One pair alone needs no name: the hover gives it; beside another pair, each says whose it is.
-          m(
-            "span",
-            { class: "flex items-center gap-2" },
-            rings.map((pair) => ringPairView(pair, rings.length > 1)),
-          )
+        ? m("span", { class: "flex items-center gap-2" }, rings.map(ringPairView))
         : isCollapsed
           ? m(
               "span",

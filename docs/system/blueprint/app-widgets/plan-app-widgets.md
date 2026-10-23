@@ -232,7 +232,7 @@ Each row's `title` gives the detail a hover asks for (each window's reset time, 
 
 ### 7.4 Collapsed
 
-A pair of concentric hairline rings per subscription, in the expanded rows' order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock in its level's colour (75% high, 90% critical, as the page draws them). A pair beside another carries its subscription's short name; one alone carries none. The figures, resets, and reading time are the pair's `title`.
+A pair of concentric hairline rings per subscription, in the expanded rows' order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock in its level's colour (75% high, 90% critical, as the page draws them). Each pair carries its subscription's short name beside it, one alone as well. The figures, resets, and reading time are the pair's `title`.
 With no subscription, the collapsed widget is one pill of this month's total spend (`$165.21`).
 
 ### 7.5 States

@@ -47,11 +47,11 @@ describe("the collapsed Usage widget", () => {
     expect([outer?.getAttribute("r"), outer?.getAttribute("stroke-dasharray")]).toEqual(["12.5", "34 100"]);
     expect([inner?.getAttribute("r"), inner?.getAttribute("stroke-dasharray")]).toEqual(["8.5", "80 100"]);
     expect(inner?.getAttribute("data-ring-level")).toBe("high");
-    // One pair alone carries no name.
-    expect(pair?.textContent).toBe("");
+    // A pair carries its provider's name, alone as beside another.
+    expect(pair?.textContent).toBe("Claude");
   });
 
-  it("names each pair beside another, and leaves a reset window's ring as a bare track", () => {
+  it("names each of several pairs, and leaves a reset window's ring as a bare track", () => {
     const root = rendered(
       [reading({ resets_at: "2026-10-22T19:00:00Z" }), reading({ source: "codex", used_percentage: 18 })],
       "collapsed",
