@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LimitReading } from "./api";
 import { totalsRow } from "../testing/rows";
-import { limitLevel, providerCards, windowLabel } from "./providers";
+import { type LimitWindow, limitLevel, limitWarning, providerCards, ringOrder, windowLabel } from "./providers";
 
 const NOW = new Date("2026-10-22T20:00:00Z");
 
@@ -99,5 +99,60 @@ describe("windowLabel", () => {
 describe("limitLevel", () => {
   it("is high from 75% and critical from 90%", () => {
     expect([74, 75, 89, 90].map(limitLevel)).toEqual(["ok", "high", "high", "critical"]);
+  });
+});
+
+function limitWindow(overrides: Partial<LimitWindow>): LimitWindow {
+  return {
+    key: "five_hour",
+    label: "5-hour limit",
+    usedPercent: 10,
+    resetsAt: new Date("2026-10-22T23:00:00Z"),
+    isResetSinceReading: false,
+    level: "ok",
+    windowSeconds: 18_000,
+    observedAt: NOW,
+    readingPercent: 10,
+    readingResetsAt: new Date("2026-10-22T23:00:00Z"),
+    ...overrides,
+  };
+}
+
+describe("ringOrder", () => {
+  it("puts the longest window outermost, and one of unknown length outside the rest", () => {
+    const fiveHour = limitWindow({ key: "five_hour", windowSeconds: 18_000 });
+    const week = limitWindow({ key: "seven_day", windowSeconds: 604_800 });
+    const unknown = limitWindow({ key: "monthly", windowSeconds: null });
+    expect(ringOrder([fiveHour, unknown, week]).map((window) => window.key)).toEqual([
+      "monthly",
+      "seven_day",
+      "five_hour",
+    ]);
+  });
+});
+
+describe("limitWarning", () => {
+  const clock = (at: Date): string => at.toISOString().slice(11, 16);
+
+  it("says nothing while every window has room", () => {
+    expect(limitWarning([limitWindow({})], clock)).toBeNull();
+  });
+
+  it("names the week for a weekly window and the reset time for a shorter one", () => {
+    expect(limitWarning([limitWindow({ usedPercent: 93, level: "critical", windowSeconds: 604_800 })], clock)).toBe(
+      "Almost out this week",
+    );
+    expect(limitWarning([limitWindow({ usedPercent: 80, level: "high" })], clock)).toBe("Getting close until 23:00");
+  });
+
+  it("warns about the fullest window, and not one that has reset since its reading", () => {
+    const windows = [
+      limitWindow({ key: "five_hour", usedPercent: 82, level: "high" }),
+      limitWindow({ key: "seven_day", usedPercent: 93, level: "critical", windowSeconds: 604_800 }),
+    ];
+    expect(limitWarning(windows, clock)).toBe("Almost out this week");
+    expect(
+      limitWarning([limitWindow({ usedPercent: 95, level: "critical", isResetSinceReading: true })], clock),
+    ).toBeNull();
   });
 });

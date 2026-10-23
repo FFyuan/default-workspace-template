@@ -1,4 +1,4 @@
-New app: Usage, a window over the workspace's model usage, read from the usage collector. It opens on one card per provider in use, answering how much of each subscription is used: a subscription card with each limit's share used and when it resets (Claude, Codex, any harness that reports limits), or a spend card with this month's spend for usage without a subscription.
+New app: Usage, a window over the workspace's model usage, read from the usage collector. It opens on one card per provider in use, answering how much of each subscription is used: a subscription card with each limit's share used as concentric rings and when it resets (Claude, Codex, any harness that reports limits), or a spend card with this month's spend for usage without a subscription.
 
 Below the cards, a Total row of tiles across every provider has the time window picker. Each card opens its provider's detail page: a list of every provider on the left, and on the right that provider's card, tiles, chart, breakdown and latest calls. For the last 30 minutes, 24 hours, 7 days or this month (from local midnight on the 1st), the pages show:
 

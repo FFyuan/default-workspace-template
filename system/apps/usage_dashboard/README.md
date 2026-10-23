@@ -12,7 +12,9 @@ The app has three kinds of page, one document reading its path:
   the Total row to all usage.
   - **A subscription card** for every harness that reports its subscription's
     limits (Claude Pro/Max, a ChatGPT plan through Codex): each window's share
-    used, as a bar, and when it resets, from the freshest reading the collector
+    used, as concentric rings (the longest window outermost, the shortest's share
+    in the middle, each coloured by how close it is to full, with a warning such
+    as "Almost out this week"), and when it resets, from the freshest reading the collector
     has. A reading is only as new as the last call that carried one, so the card
     says when it was taken; a window whose reset time has passed since then shows
     as reset. A provider is shown while it has a reading from the last 7 days.
