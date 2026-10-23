@@ -341,6 +341,47 @@ function activityCells(cells: ActivityCells, now: Date, columns: UsageColumns, l
   ];
 }
 
+/**
+ * The same row as two lines, for a screen too narrow for the table: what it was and what it used on the first
+ * (its source, and its share of each limit or its cost), the rest muted on the second, its status only when a
+ * call failed.
+ */
+function activityLines(cells: ActivityCells, now: Date, columns: UsageColumns, lead: m.Children): m.Children {
+  const usage =
+    columns.length === 0
+      ? [m("span", { class: "activity-usage" }, cells.cost)]
+      : columns.map((limit, index) => {
+          const share = cells.shares[index] ?? null;
+          return m(
+            "span",
+            { class: "activity-usage", "data-limit": limit.scale.windowKey },
+            `${share === null ? "–" : formatShare(share)} ${limitName(limit.scale)}`,
+          );
+        });
+  const details = [
+    formatCallTime(cells.endedAt, now),
+    cells.model,
+    ...(cells.calls === null ? [] : [`${formatCount(cells.calls)} ${cells.calls === 1 ? "call" : "calls"}`]),
+    `${formatCount(cells.tokens)} tokens`,
+    ...(cells.durationMs > 0 ? [formatDuration(cells.durationMs)] : []),
+  ];
+  return [
+    m("div", { class: "flex items-baseline gap-2" }, [
+      lead,
+      m("span", { class: "min-w-0 flex-1 truncate text-primary" }, cells.source),
+      m(
+        "span",
+        { class: "flex shrink-0 gap-2 tabular-nums text-secondary" },
+        usage.flatMap((part, index) => (index === 0 ? [part] : [m("span", { class: "text-faint" }, "·"), part])),
+      ),
+    ]),
+    m("div", { class: "flex flex-wrap gap-x-2 pl-6 type-helper tabular-nums text-faint", title: cells.modelTitle }, [
+      details.join(" · "),
+      cells.status.isOk ? null : m("span", { class: "text-danger" }, cells.status.text),
+    ]),
+  ];
+}
+
 function turnCells(turn: TurnRow, model: DashboardModel, columns: UsageColumns): ActivityCells {
   const subscription = turn.subscription_cost_usd === null ? null : Number(turn.subscription_cost_usd);
   const [first, ...rest] = turn.models;
@@ -433,6 +474,75 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
       return rows;
     });
   };
+  // Below md the same turns and calls as stacked two-line items, since the table needs about twice the width.
+  const callItems = (turn: TurnRow): m.Vnode[] => {
+    const calls = model.expandedTurnCalls;
+    if (calls === null) {
+      return [
+        m("div", { key: `${turnKey(turn)}:loading`, class: "py-2 pl-6 type-helper text-faint" }, "Loading calls…"),
+      ];
+    }
+    return calls.flatMap((call) => {
+      const event = call.event;
+      const isOpen = model.expandedCallId === event.event_id;
+      return [
+        m(
+          "div",
+          {
+            key: event.event_id,
+            class:
+              "call-item cursor-pointer border-b border-subtle bg-surface-secondary py-2 pl-6 hover:bg-fill-hover",
+            "data-call": event.event_id,
+            title: isOpen ? "Hide the raw event" : "Show the raw event",
+            onclick: () => model.toggleCall(event.event_id),
+          },
+          activityLines(callCells(call, model, columns), now, columns, m("span", { class: "inline-block w-6" })),
+        ),
+        ...(isOpen
+          ? [
+              m(
+                "div",
+                { key: `${event.event_id}:raw`, class: "border-b border-subtle bg-surface-secondary py-2 pl-6" },
+                [
+                  m(
+                    "pre",
+                    {
+                      class:
+                        "call-raw max-h-80 overflow-auto rounded-md bg-surface p-3 font-mono type-helper text-secondary",
+                    },
+                    JSON.stringify(event, null, 2),
+                  ),
+                ],
+              ),
+            ]
+          : []),
+      ];
+    });
+  };
+  const turnItems = model.turns.flatMap((turn) => {
+    const key = turnKey(turn);
+    const isOpen = model.expandedTurnKey === key;
+    return [
+      m(
+        "div",
+        {
+          key,
+          class: "turn-item cursor-pointer border-b border-subtle py-2 hover:bg-fill-hover",
+          "data-turn": key,
+          "aria-expanded": isOpen ? "true" : "false",
+          title: isOpen ? "Hide its calls" : "Show its calls",
+          onclick: () => model.toggleTurn(turn),
+        },
+        activityLines(
+          turnCells(turn, model, columns),
+          now,
+          columns,
+          m("span", { class: "inline-block w-6 shrink-0 text-faint", "aria-hidden": "true" }, isOpen ? "▾" : "▸"),
+        ),
+      ),
+      ...(isOpen ? callItems(turn) : []),
+    ];
+  });
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
       cardTitle("Latest turns"),
@@ -440,7 +550,10 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
     ]),
     model.turns.length === 0
       ? m("div", { class: "type-helper text-faint" }, "No turns yet.")
-      : m("div", { class: "overflow-x-auto" }, [
+      : m("div", { class: "turns-list flex flex-col type-body md:hidden" }, turnItems),
+    model.turns.length === 0
+      ? null
+      : m("div", { class: "hidden overflow-x-auto md:block" }, [
           m("table", { class: "turns-table w-full border-collapse type-body" }, [
             m("thead", [
               m("tr", { class: "border-b border-default text-left type-tag uppercase tracking-wide text-faint" }, [

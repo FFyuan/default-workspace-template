@@ -31,7 +31,10 @@ The app has three kinds of page, one document reading its path:
   A provider's subscription use and its use without one are separate items.
   On a narrow window the list sits above the page as a row (left out when there
   is only one provider), and the page's heading names the provider in place of
-  "Usage".
+  "Usage". There the latest turns (and a turn's calls) are two-line rows rather
+  than a table: the source and its share of each limit (or its cost) on the first
+  line, the time, model, calls, tokens and duration on the second, and its status
+  only when a call failed.
   The home page's "See details" link opens the first provider's page.
 - **`/all`**: the same for every provider at once, for a link made by hand.
 
