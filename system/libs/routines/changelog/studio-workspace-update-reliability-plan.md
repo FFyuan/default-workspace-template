@@ -1,1 +1,1 @@
-The cron migration now leaves the Imbue Studio app's `update-self-dispatch` entry with cron, untouched. The app rewrites that entry whenever it arms an update, so converting it made a routine that ran beside the cron line, and its whitespace split of the entry's quoted command left a routine that failed every minute.
+The cron migration leaves the Imbue Studio app's `update-self-dispatch` cron entry in place: the app owns and rewrites that entry, so it is never converted into a routine.
