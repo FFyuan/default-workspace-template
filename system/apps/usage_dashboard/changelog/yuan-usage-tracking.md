@@ -1,6 +1,6 @@
 New app: Usage, a window over the workspace's model usage, read from the usage collector. It opens on one card per provider in use, answering how much of each subscription is used: a subscription card with each limit's share used and when it resets (Claude, Codex, any harness that reports limits), or a spend card with this month's spend for usage without a subscription.
 
-Below the cards, a Details section, closed by default, has a Total row across every provider and then one section per provider, matching the cards. Each shows, for the last 30 minutes, 24 hours, 7 days or this month (from local midnight on the 1st):
+Below the cards, a Total row of tiles across every provider has the time window picker. Each card opens its provider's detail page: a list of every provider and All on the left, and on the right that provider's card, tiles, chart, breakdown and latest calls. For the last 30 minutes, 24 hours, 7 days or this month (from local midnight on the 1st), the pages show:
 
 - what was billed (Imbue key and API key spend), with a subscription's usage at list price in its own tile, calls of unknown cost counted beside the total rather than added as $0, and a "~" on totals that include costs estimated from tokens;
 

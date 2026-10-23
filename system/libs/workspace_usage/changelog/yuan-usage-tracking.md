@@ -1,3 +1,5 @@
 New library: `workspace_usage` records the model calls a workspace app makes in the workspace's usage. Each call is appended as one `model_call` event to an event file under `data/.apps/usage/events/` (one per origin), which the usage collector follows; recording depends on nothing else running and never fails the call.
 
 Calls are attributed through the `IMBUE_USAGE_CONTEXT` a starter hands down, or, for a supervised program with none, to the app the program runs (from the app registry) or to the workspace. Direct LiteLLM calls are recorded through a callback (`install_litellm_usage_callback`). `claude -p` one-shots run under a session id chosen up front (`claude_session_args`) and are recorded from that session log with mngr_usage's reader (`record_claude_one_shot`), billed as the account records when the caller does not say.
+
+An `IMBUE_USAGE_CONTEXT` from a newer starter still reads: a key this version does not know is ignored, and an origin kind it does not know reads as `UNKNOWN`, rather than the whole context being dropped in favour of the supervisord fallback.

@@ -33,6 +33,7 @@ import {
   withFilterFields,
 } from "./breakdown";
 import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./providers";
+import { type Route, combinedFilters, inScope, scopeFilters } from "./routing";
 import { SECTION_FIELDS, type SectionSpec, detailSections, inSection } from "./sections";
 import { type Summary, failedShare, summarize } from "./summary";
 import { type WindowId, windowSpec, windowStart } from "./windows";
@@ -53,16 +54,20 @@ export interface UsageFigures {
   latency: LatencyRow | null;
 }
 
-/** One provider's details: its tiles, its chart rows (bucketed, by model) and its breakdown. */
-export interface DetailSection extends UsageFigures {
-  spec: SectionSpec;
+/** A set of calls' tiles, chart rows (bucketed, by model) and breakdown: all usage, or one provider's. */
+export interface SectionFigures extends UsageFigures {
   chartRows: TotalsRow[];
   breakdownRows: TotalsRow[];
   breakdownLatency: LatencyRow[];
 }
 
+/** One provider's details. */
+export interface DetailSection extends SectionFigures {
+  spec: SectionSpec;
+}
+
 export interface DashboardData {
-  total: UsageFigures;
+  total: SectionFigures;
   sections: DetailSection[];
   windowId: WindowId;
   breakdown: BreakdownId;
@@ -77,6 +82,8 @@ export interface StreamLike {
 }
 
 export interface DashboardDeps {
+  /** The page shown, which scopes the latest calls to its item. */
+  route: Route;
   now: () => Date;
   redraw: () => void;
   openStream: (url: string) => StreamLike;
@@ -90,10 +97,8 @@ export class DashboardModel {
   filter: Filter | null = null;
   /** The chart each section shows, once its viewer picked one; a section otherwise shows its default. */
   chartMetrics: Record<string, ChartMetric> = {};
-  collapsedSections = new Set<string>();
   /** The cards at the top, which answer for now and this month whatever the Details window or filter. */
   providers: ProviderCard[] | null = null;
-  isDetailsOpen = false;
   data: DashboardData | null = null;
   calls: StoredCall[] = [];
   hasOlderCalls = false;
@@ -148,19 +153,8 @@ export class DashboardModel {
     void this.refresh();
   }
 
-  toggleDetails(): void {
-    this.isDetailsOpen = !this.isDetailsOpen;
-    this.deps.redraw();
-  }
-
   selectChartMetric(sectionKey: string, metric: ChartMetric): void {
     this.chartMetrics = { ...this.chartMetrics, [sectionKey]: metric };
-    this.deps.redraw();
-  }
-
-  toggleSection(sectionKey: string): void {
-    if (this.collapsedSections.has(sectionKey)) this.collapsedSections.delete(sectionKey);
-    else this.collapsedSections.add(sectionKey);
     this.deps.redraw();
   }
 
@@ -191,17 +185,27 @@ export class DashboardModel {
     this.deps.redraw();
     try {
       const split = (fields: readonly string[]): string[] => withFilterFields([...fields, ...SECTION_FIELDS], filter);
-      const [limits, monthRows, summaryRows, statusRows, chartRows, breakdownRows, totalLatency, health] =
-        await Promise.all([
-          fetchLimits(new Date(now.getTime() - LIMITS_LOOKBACK_MS)),
-          fetchTotals({ groupBy: ["provider", "billing_mode", "cost_provenance"], since: windowStart("month", now) }),
-          fetchTotals({ groupBy: split(["cost_provenance"]), since }),
-          fetchTotals({ groupBy: split(["status"]), since }),
-          fetchTotals({ groupBy: split(["model"]), since, bucket }),
-          fetchTotals({ groupBy: split(breakdownSpec(breakdown).fields), since }),
-          fetchLatency(filterFields, since),
-          fetchCollectorHealth(),
-        ]);
+      const [
+        limits,
+        monthRows,
+        summaryRows,
+        statusRows,
+        chartRows,
+        breakdownRows,
+        totalLatency,
+        totalBreakdownLatency,
+        health,
+      ] = await Promise.all([
+        fetchLimits(new Date(now.getTime() - LIMITS_LOOKBACK_MS)),
+        fetchTotals({ groupBy: ["provider", "billing_mode", "cost_provenance"], since: windowStart("month", now) }),
+        fetchTotals({ groupBy: split(["cost_provenance"]), since }),
+        fetchTotals({ groupBy: split(["status"]), since }),
+        fetchTotals({ groupBy: split(["model"]), since, bucket }),
+        fetchTotals({ groupBy: split(breakdownSpec(breakdown).fields), since }),
+        fetchLatency(filterFields, since),
+        fetchLatency(breakdownFields, since),
+        fetchCollectorHealth(),
+      ]);
       if (generation !== this.generation) return;
       const keep = <T extends { group: Record<string, string | null> }>(rows: T[]): T[] =>
         rows.filter((row) => matchesFilter(row.group, filter));
@@ -221,6 +225,9 @@ export class DashboardModel {
           summary: summarize(keep(summaryRows)),
           failed: failedShare(keep(statusRows)),
           latency: keep(totalLatency)[0] ?? null,
+          chartRows: keep(chartRows),
+          breakdownRows: keep(breakdownRows),
+          breakdownLatency: keep(totalBreakdownLatency),
         },
         sections: specs.map((spec, index) => ({
           spec,
@@ -254,7 +261,7 @@ export class DashboardModel {
   async loadCalls(): Promise<void> {
     const filter = this.filter;
     try {
-      const calls = await fetchCalls({ filters: filter?.values ?? {}, limit: CALLS_PAGE });
+      const calls = await fetchCalls({ filters: this.callFilters(filter), limit: CALLS_PAGE });
       if (filter !== this.filter) return;
       this.calls = calls;
       this.hasOlderCalls = calls.length === CALLS_PAGE;
@@ -271,7 +278,7 @@ export class DashboardModel {
     const filter = this.filter;
     try {
       const older = await fetchCalls({
-        filters: filter?.values ?? {},
+        filters: this.callFilters(filter),
         limit: CALLS_PAGE,
         before: oldest.event.event_id,
       });
@@ -286,11 +293,17 @@ export class DashboardModel {
 
   /** Take one streamed call: show it if it matches the filter, and schedule a refetch of the totals. */
   receiveCall(call: ModelCall): void {
-    if (matchesFilter(callGroup(call), this.filter)) {
+    const group = callGroup(call);
+    if (matchesFilter(group, this.filter) && inScope(group, this.deps.route)) {
       this.mergeCalls([{ sequence: 0, event: call }]);
     }
     this.scheduleEventRefresh();
     this.deps.redraw();
+  }
+
+  /** The calls filters for the page's item, narrowed by ``filter``. */
+  private callFilters(filter: Filter | null): Record<string, readonly string[]> {
+    return combinedFilters(scopeFilters(this.deps.route), filter?.values ?? null);
   }
 
   /** Record why a read failed: a collector that is down (retried with backoff), or anything else. */
@@ -367,7 +380,7 @@ export class DashboardModel {
     const filter = this.filter;
     try {
       const missed = await fetchCalls({
-        filters: filter?.values ?? {},
+        filters: this.callFilters(filter),
         limit: GAP_FILL_LIMIT,
         after: this.lastSequence ?? undefined,
       });

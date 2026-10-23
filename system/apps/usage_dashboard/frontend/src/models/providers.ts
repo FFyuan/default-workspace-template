@@ -29,6 +29,8 @@ export interface LimitWindow {
 export interface SubscriptionCard {
   kind: "subscription";
   key: string;
+  /** The detail item (a section key) the card opens. */
+  sectionKey: string;
   title: string;
   windows: LimitWindow[];
   observedAt: Date;
@@ -39,6 +41,7 @@ export interface SubscriptionCard {
 export interface SpendCard {
   kind: "spend";
   key: string;
+  sectionKey: string;
   title: string;
   spend: number;
   calls: number;
@@ -127,6 +130,7 @@ function subscriptionCards(
     return {
       kind: "subscription",
       key: `subscription:${source}`,
+      sectionKey: `subscription:${provider ?? source}`,
       title: SUBSCRIPTION_TITLES[source] ?? `${capitalized(source)} subscription`,
       windows,
       observedAt: new Date(Math.max(...readings.map((reading) => Date.parse(reading.observed_at)))),
@@ -144,6 +148,7 @@ function spendCards(monthRows: readonly TotalsRow[]): SpendCard[] {
     const card = byProvider.get(provider) ?? {
       kind: "spend",
       key: `spend:${provider}`,
+      sectionKey: `spend:${provider}`,
       title: `${providerName(provider)} API`,
       spend: 0,
       calls: 0,

@@ -104,14 +104,16 @@ export async function fetchLatency(
 }
 
 export interface CallsQuery {
-  filters: Record<string, string>;
+  /** Keep calls whose field is one of the given values ("" for not known). */
+  filters: Record<string, readonly string[]>;
   limit: number;
   before?: string;
   after?: number;
 }
 
 export async function fetchCalls(query: CallsQuery): Promise<StoredCall[]> {
-  const params = new URLSearchParams({ ...query.filters, limit: String(query.limit) });
+  const params = new URLSearchParams({ limit: String(query.limit) });
+  for (const [field, values] of Object.entries(query.filters)) params.set(field, values.join(","));
   if (query.before !== undefined) params.set("before", query.before);
   if (query.after !== undefined) params.set("after", String(query.after));
   const answer = await requestJson<{ calls: StoredCall[] }>("GET", `/api/usage/calls?${params}`);

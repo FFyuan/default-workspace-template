@@ -43,9 +43,10 @@ indefinitely; older raw events stay in the files.
   duration (`ended_at` minus `started_at`) per group, from raw events. Calls
   with no duration are left out of the percentiles and counted, and calls
   timed from Claude session logs are counted as approximate.
-- `GET /v1/calls?limit=50[&model=...][&before=<event id>][&after=<sequence>]`:
+- `GET /v1/calls?limit=50[&provider=...][&billing_mode=API_KEY,UNKNOWN][&before=<event id>][&after=<sequence>]`:
   stored calls, newest first, filtered by any of origin_kind, origin_id,
-  agent_id, model and billing_mode. `before` pages back; `after` returns the
+  agent_id, model, billing_mode and provider (comma-separated values mean any
+  of them). `before` pages back; `after` returns the
   calls stored since a `sequence` a client last saw.
 - `GET /v1/limits?since=7d`: the freshest subscription limit reading of every
   window, per source (claude, codex, ...): the share used, when it resets, the

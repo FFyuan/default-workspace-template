@@ -89,7 +89,11 @@ _NOT_BUILT_PAGE: Final[str] = (
 )
 
 ROUTE_TABLE: RouteTable = {
-    ("GET", "/"): SchemalessRoute(reason="the Usage page"),
+    ("GET", "/"): SchemalessRoute(reason="the Usage home page"),
+    ("GET", "/all"): SchemalessRoute(reason="the detail page for all usage: the same document, which reads its path"),
+    ("GET", "/p/{item}"): SchemalessRoute(
+        reason="the detail page for one provider's usage: the same document, which reads its path"
+    ),
     ("GET", WIDGET_PATH): SchemalessRoute(reason="the Usage widget, which the workspace shell frames in a corner"),
     ("GET", "/assets/{filename}"): SchemalessRoute(reason="one file of the page's built bundle"),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
@@ -124,8 +128,10 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
         )
 
     @app.get("/")
-    def page() -> ResponseReturnValue:
-        """The Usage page."""
+    @app.get("/all")
+    @app.get("/p/<item>")
+    def page(item: str | None = None) -> ResponseReturnValue:
+        """The Usage page: the one document, which reads its path (the home page, all usage, or one provider's)."""
         return built_document(PAGE_DOCUMENT_FILENAME)
 
     @app.get(WIDGET_PATH)

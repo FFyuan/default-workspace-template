@@ -6,7 +6,6 @@ import m from "mithril";
 
 import { bannerClass } from "@imbue/workspace-ui/src/components/banner";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
-import { icon } from "@imbue/workspace-ui/src/components/icons";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 
 import type { LatencyRow, StoredCall } from "../models/api";
@@ -22,7 +21,7 @@ import {
   modelLabel,
   sourceLabel,
 } from "../models/breakdown";
-import type { ChartMetric, DashboardData, DashboardModel, DetailSection, UsageFigures } from "../models/dashboard";
+import type { ChartMetric, DashboardData, DashboardModel, SectionFigures, UsageFigures } from "../models/dashboard";
 import {
   formatCalls,
   formatCallTime,
@@ -34,9 +33,11 @@ import {
 } from "../models/format";
 import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
+import { type Route, pathOf } from "../models/routing";
+import type { SectionKind } from "../models/sections";
 import { WINDOWS, type WindowId } from "../models/windows";
 import { UsageChart } from "./chart";
-import { providerSection } from "./providerCards";
+import { providerCard, providerSection } from "./providerCards";
 
 const CARD_CLASS = "rounded-lg border border-default bg-surface p-4";
 
@@ -138,7 +139,7 @@ function latencyTile(data: UsageFigures): m.Vnode {
   );
 }
 
-function breakdownSection(model: DashboardModel, breakdown: BreakdownId, section: DetailSection): m.Vnode {
+function breakdownSection(model: DashboardModel, breakdown: BreakdownId, section: SectionFigures): m.Vnode {
   const lines = breakdownLines(breakdown, section.breakdownRows, section.breakdownLatency, model.appNames);
   const totalTokensAll = lines.reduce((sum, line) => sum + line.tokens, 0);
   const activeKey = model.filter === null ? null : filterKey(model.filter);
@@ -404,143 +405,245 @@ function banners(model: DashboardModel): m.Children {
   ];
 }
 
-/** One provider's details: its tiles, its usage over the window by model, and its breakdown. */
-function providerDetails(
+/** A set of calls' figures: their tiles, their usage over the window by model, and their breakdown. */
+function figuresView(
   model: DashboardModel,
   data: DashboardData,
-  section: DetailSection,
+  figures: SectionFigures,
+  kind: "all" | SectionKind,
+  chartKey: string,
   now: Date,
   colors: SeriesColors,
-): m.Vnode {
-  const { spec } = section;
-  const isCollapsed = model.collapsedSections.has(spec.key);
-  const isSubscription = spec.kind === "subscription";
+): m.Children {
+  const isSubscription = kind === "subscription";
   // A subscription's calls are not billed per call, so its chart is always tokens.
   const metric: ChartMetric = isSubscription
     ? "tokens"
-    : (model.chartMetrics[spec.key] ?? (section.summary.spend > 0 ? "spend" : "tokens"));
-  return m("section", { class: `${CARD_CLASS} provider-details flex flex-col gap-4`, "data-section": spec.key }, [
+    : (model.chartMetrics[chartKey] ?? (figures.summary.spend > 0 ? "spend" : "tokens"));
+  const tiles =
+    kind === "all"
+      ? [spendTile(figures), subscriptionTile(figures), tokensTile(figures), callsTile(figures), latencyTile(figures)]
+      : [
+          isSubscription ? subscriptionTile(figures) : spendTile(figures),
+          tokensTile(figures),
+          callsTile(figures),
+          latencyTile(figures),
+        ];
+  return [
+    m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3" }, tiles),
+    m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
+      m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
+        m(
+          "h3",
+          { class: "type-tag uppercase tracking-wide text-faint" },
+          metric === "spend" ? "Spend by model" : "Tokens by model",
+        ),
+        isSubscription
+          ? null
+          : m(SegmentedControl<ChartMetric>(), {
+              label: "Chart",
+              segments: [
+                { value: "spend", label: "Spend" },
+                { value: "tokens", label: "Tokens" },
+              ],
+              value: metric,
+              onSelect: (choice) => model.selectChartMetric(chartKey, choice),
+            }),
+      ]),
+      m(UsageChart, { windowId: data.windowId, now, rows: figures.chartRows, metric, colors }),
+    ]),
+    m("section", { class: CARD_CLASS }, breakdownSection(model, data.breakdown, figures)),
+  ];
+}
+
+function windowPicker(model: DashboardModel): m.Children {
+  return m(SegmentedControl<WindowId>(), {
+    label: "Time window",
+    segments: WINDOWS.map((spec) => ({ value: spec.id, label: spec.label })),
+    value: model.windowId,
+    onSelect: (id) => model.selectWindow(id),
+  });
+}
+
+function pageHeader(model: DashboardModel, back: boolean): m.Vnode {
+  return m("header", { class: "flex flex-wrap items-center gap-3" }, [
+    back
+      ? m(
+          "a",
+          {
+            href: pathOf({ page: "home" }),
+            class: "back-link type-body text-secondary no-underline hover:text-primary",
+          },
+          "‹ Back",
+        )
+      : null,
+    m("h1", { class: "type-heading text-primary" }, "Usage"),
+    liveIndicator(model),
+  ]);
+}
+
+/** The home page: one card per provider in use, then the Total row, which opens all usage. */
+function homePage(model: DashboardModel, now: Date): m.Children {
+  const data = model.data;
+  return [
+    pageHeader(model, false),
+    banners(model),
+    m("div", { class: model.isCollectorDown ? "opacity-60" : "" }, providerSection(model.providers, now)),
     m(
-      "button",
-      {
-        type: "button",
-        class: "flex items-center gap-1.5 self-start type-section text-primary",
-        "aria-expanded": isCollapsed ? "false" : "true",
-        onclick: () => model.toggleSection(spec.key),
-      },
+      "section",
+      { class: `total-row flex flex-col gap-2 ${model.isCollectorDown ? "opacity-60" : ""}`, "data-section": "total" },
       [
-        m.trust(icon(isCollapsed ? "chevron-right" : "chevron-down", { size: 14, className: "shrink-0 text-faint" })),
-        spec.title,
+        m("div", { class: "flex flex-wrap items-center justify-between gap-3" }, [
+          m("div", { class: "flex items-baseline gap-3" }, [
+            m("h2", { class: "type-section text-primary" }, "Total"),
+            m(
+              "a",
+              { href: pathOf({ page: "all" }), class: "all-link type-helper text-secondary hover:text-primary" },
+              "See all usage ›",
+            ),
+          ]),
+          windowPicker(model),
+        ]),
+        data === null
+          ? m(
+              "div",
+              { class: "type-helper py-6 text-center text-faint" },
+              model.isCollectorDown ? "" : "Loading usage…",
+            )
+          : m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3" }, [
+              spendTile(data.total),
+              subscriptionTile(data.total),
+              tokensTile(data.total),
+              callsTile(data.total),
+              latencyTile(data.total),
+            ]),
       ],
     ),
-    isCollapsed
-      ? null
-      : [
-          m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3" }, [
-            isSubscription ? subscriptionTile(section) : spendTile(section),
-            tokensTile(section),
-            callsTile(section),
-            latencyTile(section),
-          ]),
-          m("div", { class: "flex flex-col gap-3" }, [
-            m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
+  ];
+}
+
+interface NavItem {
+  route: Route;
+  key: string;
+  title: string;
+  note: string;
+}
+
+/** The detail page's list: the providers in the order of the home page's cards, any other with calls, then All. */
+function navItems(model: DashboardModel): NavItem[] {
+  const items: NavItem[] = [];
+  for (const card of model.providers ?? []) {
+    const note =
+      card.kind === "subscription"
+        ? card.windows
+            .map(
+              (window) =>
+                `${window.label.replace(" limit", "")} ${window.usedPercent === null ? "–" : `${Math.round(window.usedPercent)}%`}`,
+            )
+            .join(" · ")
+        : `${card.isEstimated ? "~" : ""}${formatDollars(card.spend)} this month`;
+    items.push({ route: { page: "item", key: card.sectionKey }, key: card.sectionKey, title: card.title, note });
+  }
+  for (const section of model.data?.sections ?? []) {
+    if (items.some((item) => item.key === section.spec.key)) continue;
+    items.push({
+      route: { page: "item", key: section.spec.key },
+      key: section.spec.key,
+      title: section.spec.title,
+      note: "",
+    });
+  }
+  items.push({ route: { page: "all" }, key: "all", title: "All", note: "Every provider" });
+  return items;
+}
+
+/** A detail page: the list of providers, and the chosen one's limits, figures and latest calls. */
+function detailPage(model: DashboardModel, route: Route, now: Date, colors: SeriesColors): m.Children {
+  const data = model.data;
+  const selectedKey = route.page === "item" ? route.key : "all";
+  const items = navItems(model);
+  const selected = items.find((item) => item.key === selectedKey);
+  const card = (model.providers ?? []).find((candidate) => candidate.sectionKey === selectedKey);
+  const section = data?.sections.find((candidate) => candidate.spec.key === selectedKey);
+  const kind: "all" | SectionKind =
+    route.page === "item" ? (selectedKey.startsWith("subscription:") ? "subscription" : "spend") : "all";
+  const figures = route.page === "all" ? data?.total : section;
+  return [
+    pageHeader(model, true),
+    banners(model),
+    m("div", { class: "detail-layout grid gap-4 md:grid-cols-[15rem_minmax(0,1fr)]" }, [
+      m(
+        "nav",
+        { class: "detail-nav flex gap-1 overflow-x-auto md:flex-col md:overflow-visible", "aria-label": "Providers" },
+        items.map((item) => {
+          const isSelected = item.key === selectedKey;
+          return m(
+            "a",
+            {
+              key: item.key,
+              href: pathOf(item.route),
+              class: `nav-item flex shrink-0 flex-col rounded-md px-3 py-2 no-underline ${isSelected ? "bg-fill-active" : "hover:bg-fill-hover"}`,
+              "aria-current": isSelected ? "page" : undefined,
+              "data-nav": item.key,
+            },
+            [
               m(
-                "h3",
-                { class: "type-tag uppercase tracking-wide text-faint" },
-                metric === "spend" ? "Spend by model" : "Tokens by model",
+                "span",
+                { class: `type-body ${isSelected ? "font-semibold text-primary" : "text-primary"}` },
+                item.title,
               ),
-              isSubscription
-                ? null
-                : m(SegmentedControl<ChartMetric>(), {
-                    label: "Chart",
-                    segments: [
-                      { value: "spend", label: "Spend" },
-                      { value: "tokens", label: "Tokens" },
-                    ],
-                    value: metric,
-                    onSelect: (choice) => model.selectChartMetric(spec.key, choice),
-                  }),
-            ]),
-            m(UsageChart, { windowId: data.windowId, now, rows: section.chartRows, metric, colors }),
-          ]),
-          breakdownSection(model, data.breakdown, section),
-        ],
-  ]);
+              item.note === "" ? null : m("span", { class: "type-helper text-faint" }, item.note),
+            ],
+          );
+        }),
+      ),
+      m("div", { class: `detail-content flex min-w-0 flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
+        // A card names its provider itself; without one the item needs a heading.
+        card === undefined
+          ? m("h2", { class: "type-heading text-primary" }, selected?.title ?? "Unknown provider")
+          : null,
+        card === undefined ? null : providerCard(card, now),
+        detailsControls(model, model.appNames),
+        data === null
+          ? m(
+              "div",
+              { class: "type-helper py-10 text-center text-faint" },
+              model.isCollectorDown ? "" : "Loading usage…",
+            )
+          : figures === undefined || figures.summary.calls === 0
+            ? m(
+                "div",
+                { class: `${CARD_CLASS} empty-window type-body text-secondary` },
+                data.windowId === "month"
+                  ? "No calls this month."
+                  : "No calls in this window. Try 7 days or this month.",
+              )
+            : figuresView(model, data, figures, kind, selectedKey, now, colors),
+        callsSection(model, now),
+      ]),
+    ]),
+  ];
 }
 
 export interface AppAttrs {
   model: DashboardModel;
+  route: Route;
   now: () => Date;
 }
 
 export function App(): m.Component<AppAttrs> {
   const colors = new SeriesColors();
   return {
-    view({ attrs: { model, now } }) {
-      const data = model.data;
+    view({ attrs: { model, route, now } }) {
       const current = now();
       return m(
         "div",
         { class: "h-screen overflow-y-auto" },
-        m("main", { class: "mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6" }, [
-          m("header", { class: "flex items-center gap-3" }, [
-            m("h1", { class: "type-heading text-primary" }, "Usage"),
-            liveIndicator(model),
-          ]),
-          banners(model),
-          m("div", { class: model.isCollectorDown ? "opacity-60" : "" }, providerSection(model.providers, current)),
-          m(
-            "button",
-            {
-              type: "button",
-              class: "details-toggle flex items-center gap-1.5 self-start type-body text-secondary hover:text-primary",
-              "aria-expanded": model.isDetailsOpen ? "true" : "false",
-              onclick: () => model.toggleDetails(),
-            },
-            [
-              m.trust(
-                icon(model.isDetailsOpen ? "chevron-down" : "chevron-right", {
-                  size: 14,
-                  className: "shrink-0 text-faint",
-                }),
-              ),
-              "Details",
-            ],
-          ),
-          !model.isDetailsOpen
-            ? null
-            : data === null
-              ? m(
-                  "div",
-                  { class: "type-helper py-10 text-center text-faint" },
-                  model.isCollectorDown ? "" : "Loading usage…",
-                )
-              : m("div", { class: `details flex flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
-                  detailsControls(model, model.appNames),
-                  data.total.summary.calls === 0 && model.filter === null
-                    ? m(
-                        "div",
-                        { class: `${CARD_CLASS} empty-window type-body text-secondary` },
-                        data.windowId === "month"
-                          ? "No model calls yet this month."
-                          : "No model calls yet in this window. Try 7 days or this month.",
-                      )
-                    : [
-                        m("section", { class: "total-row flex flex-col gap-2", "data-section": "total" }, [
-                          m("h2", { class: "type-section text-primary" }, "Total"),
-                          m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3" }, [
-                            spendTile(data.total),
-                            subscriptionTile(data.total),
-                            tokensTile(data.total),
-                            callsTile(data.total),
-                            latencyTile(data.total),
-                          ]),
-                        ]),
-                        data.sections.map((section) => providerDetails(model, data, section, current, colors)),
-                      ],
-                  callsSection(model, current),
-                ]),
-        ]),
+        m(
+          "main",
+          { class: "mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6" },
+          route.page === "home" ? homePage(model, current) : detailPage(model, route, current, colors),
+        ),
       );
     },
   };

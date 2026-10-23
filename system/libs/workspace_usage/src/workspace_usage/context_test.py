@@ -39,12 +39,17 @@ def test_format_and_parse_round_trip_values_with_separators() -> None:
     assert parse_usage_context(serialized) == context
 
 
-@pytest.mark.parametrize(
-    "value", ["origin_id=x", "origin_kind", "origin_kind=APP,colour=red"]
-)
+@pytest.mark.parametrize("value", ["origin_id=x", "origin_kind", "origin_kind=APP,x"])
 def test_parse_rejects_malformed_contexts(value: str) -> None:
     with pytest.raises(UsageContextError):
         parse_usage_context(value)
+
+
+def test_parse_reads_a_newer_starters_context() -> None:
+    assert parse_usage_context("origin_kind=NEWER_KIND,origin_id=c1,colour=red") == {
+        "origin_kind": "UNKNOWN",
+        "origin_id": "c1",
+    }
 
 
 def test_explicit_context_wins_over_the_supervisord_program(tmp_path: Path) -> None:
