@@ -50,9 +50,10 @@
  * every such element, or pressing, sends the same type with no text.
  *
  * A right-click on a widget's page asks the shell for the widget's menu (``shell:widget-menu``) rather than opening
- * the browser's. In the tray (mode ``tray``) a widget does not move, and a click on it is not the page's: it asks the
- * shell to open or close the widget's popover (``shell:widget-press``), and Escape on it asks the shell to close the
- * popover (``shell:widget-dismiss``), since the page then holds the keyboard; a tray page needs no code for any.
+ * the browser's. In the taskbar (mode ``tray``, or ``toolbar`` in the taskbar's row) a widget does not move, and a
+ * click on it is not the page's: it asks the shell to open or close the widget's popover (``shell:widget-press``), and
+ * Escape on it asks the shell to close the popover (``shell:widget-dismiss``), since the page then holds the keyboard;
+ * a page in the taskbar needs no code for any.
  */
 
 /** Shell to app: sent after every `load` of the frame; says which window, desktop, path, and client this page is in. */
@@ -96,7 +97,7 @@ export const SHELL_WIDGET_DRAG = "shell:widget-drag";
 
 /** App to shell, from a widget only: the tooltip of the element the pointer is over, or none (see the module docs). */
 export const SHELL_WIDGET_TOOLTIP = "shell:widget-tooltip";
-/** App to shell, from a widget in the tray only: a click on the page, which opens or closes its popover. */
+/** App to shell, from a widget in the taskbar only: a click on the page, which opens or closes its popover. */
 export const SHELL_WIDGET_PRESS = "shell:widget-press";
 /** App to shell, from a widget only: a right-click on the page at ``x``, ``y`` (the frame's pixels), which opens the
  *  shell's menu for the widget. */
@@ -104,8 +105,8 @@ export const SHELL_WIDGET_MENU = "shell:widget-menu";
 /** App to shell, from a widget only: Escape was pressed on the page, which closes the widget's popover if it is
  *  open. */
 export const SHELL_WIDGET_DISMISS = "shell:widget-dismiss";
-/** App to shell, from any page of an app that declares a widget: put the app's widget on the desktop or in the taskbar's
- *  tray for this client, as its menu's Move to taskbar / Move to desktop does (app-widgets plan section 4.10). */
+/** App to shell, from any page of an app that declares a widget: put the app's widget on the desktop, in the taskbar's
+ *  tray or in its row, for this client, as its menu's Move items do (app-widgets plan section 4.10). */
 export const SHELL_WIDGET_PLACEMENT = "shell:widget-placement";
 /** The attribute a widget page's element carries its tooltip's text in. */
 export const WIDGET_TOOLTIP_ATTRIBUTE = "data-widget-tooltip";
@@ -160,12 +161,13 @@ export function hasWorkspaceCoordinate(host: string): boolean {
 /** What frames the page: a window, or a widget on the desktop (app-widgets plan section 6). */
 export type ShellSurface = "window" | "widget";
 
-/** How the client draws a widget: in full, as its one-line pill, or in the taskbar's tray (a page the manifest says
- *  draws a tray form only; app-widgets plan section 4.10). */
-export type WidgetMode = "expanded" | "collapsed" | "tray";
+/** How the client draws a widget: in full, as its one-line pill, in the taskbar's tray, or in the taskbar's row
+ *  among the windows' entries (each only for a page the manifest says draws that form; app-widgets plan section
+ *  4.10). */
+export type WidgetMode = "expanded" | "collapsed" | "tray" | "toolbar";
 
-/** Where a client draws an app's widget: on the desktop, or in the taskbar's tray. */
-export type WidgetPlacement = "desktop" | "tray";
+/** Where a client draws an app's widget: on the desktop, in the taskbar's tray, or in the taskbar's row. */
+export type WidgetPlacement = "desktop" | "tray" | "toolbar";
 
 export interface ShellHandshake {
   clientId: string;
@@ -231,8 +233,8 @@ export interface ShellConnection {
   widgetSize(width: number, height: number): void;
   /** Tell the shell a widget has nothing to show (true) or has again (false); nothing from a window. */
   widgetHidden(isHidden: boolean): void;
-  /** Ask the shell to put this app's widget on the desktop or in the taskbar's tray, for this client; the shell does
-   *  so only for an app that declares a widget (and, for the tray, one whose page draws a tray form). */
+  /** Ask the shell to put this app's widget on the desktop, in the taskbar's tray or in its row, for this client; the
+   *  shell does so only for an app that declares a widget (and, in the taskbar, one whose page draws that form). */
   placeWidget(placement: WidgetPlacement): void;
   /** Stop listening to the shell. */
   disconnect(): void;
@@ -261,7 +263,7 @@ function readHandshake(data: Record<string, unknown>): ShellHandshake | null {
 }
 
 function readWidgetMode(value: unknown): WidgetMode | null {
-  return value === "expanded" || value === "collapsed" || value === "tray" ? value : null;
+  return value === "expanded" || value === "collapsed" || value === "tray" || value === "toolbar" ? value : null;
 }
 
 function checkedCapabilities(handlers: ShellConnectionHandlers): ShellCapabilities {
@@ -499,12 +501,12 @@ function widgetTooltipTracker(
 }
 
 /**
- * Hand a widget page's right-click, and in the tray its click, to the shell (see the module docs). Returns the
+ * Hand a widget page's right-click, and in the taskbar its click, to the shell (see the module docs). Returns the
  * listeners to add to the page's window, each named by its event.
  */
 function widgetPressTracker(
   isWidget: () => boolean,
-  isInTray: () => boolean,
+  isInTaskbar: () => boolean,
   send: (type: string, payload: Record<string, unknown>) => void,
 ): Readonly<Record<string, (event: Event) => void>> {
   return {
@@ -518,7 +520,7 @@ function widgetPressTracker(
       if (isWidget() && (event as KeyboardEvent).key === "Escape") send(SHELL_WIDGET_DISMISS, {});
     },
     click: (event) => {
-      if (!isInTray() || (event as MouseEvent).button !== PRIMARY_BUTTON) return;
+      if (!isInTaskbar() || (event as MouseEvent).button !== PRIMARY_BUTTON) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       send(SHELL_WIDGET_PRESS, {});
@@ -601,10 +603,10 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
 
   // In the capture phase, so a swallowed click never reaches the page's handlers or the link rule.
   const isWidget = (): boolean => hasShell && surface === "widget";
-  const isInTray = (): boolean => isWidget() && widgetMode === "tray";
-  const dragListeners = widgetDragTracker(() => isWidget() && !isInTray(), send);
+  const isInTaskbar = (): boolean => isWidget() && (widgetMode === "tray" || widgetMode === "toolbar");
+  const dragListeners = widgetDragTracker(() => isWidget() && !isInTaskbar(), send);
   const tooltipListeners = widgetTooltipTracker(isWidget, send);
-  const pressListeners = widgetPressTracker(isWidget, isInTray, send);
+  const pressListeners = widgetPressTracker(isWidget, isInTaskbar, send);
 
   boundWindow.addEventListener("message", onMessage);
   if (isFramed) {

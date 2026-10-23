@@ -298,7 +298,7 @@ def set_client_entry(client_id: str, app: str) -> ResponseReturnValue:
 
 def set_client_widget(client_id: str, app: str) -> ResponseReturnValue:
     """How one client shows one widget (app-widgets plan section 5.3): its position, mode and placement; the app must
-    declare a widget, and one whose page draws a tray form to be placed in the tray."""
+    declare a widget, and one whose page draws a tray (toolbar) form to be placed in the tray (the taskbar's row)."""
     body = parse_request_body(WidgetPresentation)
     shell = _shell()
     entry = _entry_or_raise(app)
@@ -306,6 +306,8 @@ def set_client_widget(client_id: str, app: str) -> ResponseReturnValue:
         raise InvalidShellValueError(f"App {app!r} declares no widget")
     if body.placement is WidgetPlacement.TRAY and not entry.row.widget.tray:
         raise InvalidShellValueError(f"App {app!r}'s widget draws no tray form")
+    if body.placement is WidgetPlacement.TOOLBAR and not entry.row.widget.toolbar:
+        raise InvalidShellValueError(f"App {app!r}'s widget draws no toolbar form")
     record = shell.set_client_widget_presentation(ClientId(client_id), AppName(app), body)
     return model_response(client_view(record, str(record.id) in shell.broadcaster.connected_client_ids()))
 

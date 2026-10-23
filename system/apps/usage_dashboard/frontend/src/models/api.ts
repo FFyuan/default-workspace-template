@@ -204,6 +204,8 @@ export interface UsageSettings {
   widget_size: string;
   widget_detail: string;
   widget_tray: string;
+  widget_taskbar: string;
+  widget_toolbar: string;
 }
 
 export function fetchSettings(): Promise<UsageSettings> {

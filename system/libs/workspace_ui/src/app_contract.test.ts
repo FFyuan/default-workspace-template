@@ -292,7 +292,7 @@ describe("connectToShell", () => {
     ]);
   });
 
-  it("hands a widget's right-click to the shell, and in the tray its click instead of the link and no drag", () => {
+  it("hands a widget's right-click to the shell, and in the taskbar its click instead of the link and no drag", () => {
     const parent = framed();
     const onWidgetMode = vi.fn();
     connection = connectToShell({ onWidgetMode });
@@ -324,12 +324,17 @@ describe("connectToShell", () => {
     };
     press(0);
     press(40);
+    deliver({ type: SHELL_WIDGET_MODE, mode: "toolbar" }, parent);
+    click();
+    press(0);
+    press(40);
     root.remove();
 
-    expect(onWidgetMode.mock.calls).toEqual([["tray"]]);
+    expect(onWidgetMode.mock.calls).toEqual([["tray"], ["toolbar"]]);
     expect(parent.postMessage.mock.calls.map(([message]) => message)).toEqual([
       { type: SHELL_WIDGET_MENU, x: 12, y: 7 },
       { type: SHELL_OPEN, path: "/", ifPresent: "focus" },
+      { type: SHELL_WIDGET_PRESS },
       { type: SHELL_WIDGET_PRESS },
     ]);
   });
@@ -338,9 +343,11 @@ describe("connectToShell", () => {
     const parent = shellFramed();
     parent.postMessage.mockClear();
     connection?.placeWidget("tray");
+    connection?.placeWidget("toolbar");
     connection?.placeWidget("desktop");
     expect(parent.postMessage.mock.calls).toEqual([
       [{ type: SHELL_WIDGET_PLACEMENT, placement: "tray" }, "*"],
+      [{ type: SHELL_WIDGET_PLACEMENT, placement: "toolbar" }, "*"],
       [{ type: SHELL_WIDGET_PLACEMENT, placement: "desktop" }, "*"],
     ]);
   });

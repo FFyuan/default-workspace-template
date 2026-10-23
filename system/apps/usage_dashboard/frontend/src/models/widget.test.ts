@@ -4,6 +4,7 @@ import type { LimitReading } from "./api";
 import { totalsRow } from "../testing/rows";
 import { providerCards } from "./providers";
 import { WidgetModel, ringFraction, widgetPill, widgetRings, widgetRows } from "./widget";
+import { DEFAULT_WIDGET_LOOK } from "./widgetLook";
 
 const NOW = new Date("2026-10-22T20:00:00Z");
 
@@ -130,7 +131,7 @@ describe("WidgetModel", () => {
     expect(widget.look.variant).toBe("rings");
     stubCollector([reading({})], false, null, "bars");
     await widget.refresh();
-    expect(widget.look).toEqual({ variant: "bars", size: "medium", detail: "standard", tray: "rings" });
+    expect(widget.look).toEqual({ ...DEFAULT_WIDGET_LOOK, variant: "bars" });
     stubCollector([reading({})], false, 503);
     await widget.refresh();
     expect(widget.look.variant).toBe("bars");

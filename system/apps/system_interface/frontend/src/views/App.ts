@@ -21,7 +21,7 @@ import type { ReferenceScope } from "@imbue/workspace-ui/src/element_reference";
 import { fetchWallpapers, wallpaperBackgroundImage } from "../model/api";
 import { appShortcutOf, launchPathOf } from "../model/launch";
 import { SHELL_APP_NAME } from "../model/UpdateNotice";
-import type { AvatarDesign, Desktop, DesktopShortcut, WallpaperListing } from "../model/records";
+import type { AvatarDesign, Desktop, DesktopShortcut, WallpaperListing, WidgetPlacement } from "../model/records";
 import { shortcutKey } from "../model/records";
 import type { PixelPoint } from "../geometry/frames";
 import { mostRecentlyFocusedWindowOfApp, placementOf } from "../geometry/stack";
@@ -36,11 +36,12 @@ import {
   entryLook,
   floatingEntries,
   pinnedWindowOf,
-  isInTray,
   shownWidgets,
-  trayWidgets,
+  taskbarSpotOf,
+  taskbarWidgets,
   widgetSwitchOf,
 } from "../reducers/desktopState";
+import type { TaskbarSpot } from "../reducers/desktopState";
 import {
   defaultHighlightIndex,
   isRowEnabled,
@@ -276,7 +277,8 @@ export function App(): m.Component<AppAttrs> {
     // A tray widget's popover closes on a press anywhere but on it or its slot (whose own click toggles it).
     if (store !== null && store.getState().trayPopoverApp !== null) {
       const target = event.target;
-      if (!(target instanceof Element && target.closest("[data-widget-popover], [data-tray-widget]") !== null)) {
+      const own = "[data-widget-popover], [data-tray-widget], [data-toolbar-widget]";
+      if (!(target instanceof Element && target.closest(own) !== null)) {
         store.closeTrayPopover();
         m.redraw();
       }
@@ -821,22 +823,28 @@ export function App(): m.Component<AppAttrs> {
     };
   }
 
-  /** The widgets in the tray whose page has reported its tray form's size and has not asked to be hidden. */
-  function trayWidgetsOf(current: DesktopStore): TrayWidget[] {
+  /** The widgets at ``spot`` in the taskbar whose page has reported its form's size there and has not asked to be
+   *  hidden. */
+  function taskbarWidgetsOf(current: DesktopStore, spot: TaskbarSpot): TrayWidget[] {
     const reports = current.getState().widgetReports;
-    return trayWidgets(current.getState()).flatMap(({ app }) => {
+    return taskbarWidgets(current.getState(), spot).flatMap(({ app }) => {
       const report = reports[app.name];
       if (report === undefined || report.traySize === null || report.isHidden) return [];
       return [{ app, size: report.traySize }];
     });
   }
 
-  /** The open popover of a widget in the tray, once its page has reported its expanded size; null otherwise. */
+  /** The open popover of a widget in the taskbar, once its page has reported its expanded size; null otherwise. */
   function trayPopoverOf(current: DesktopStore): TrayWidgetPopoverAttrs | null {
     const app = current.getState().trayPopoverApp;
-    if (app === null || !trayWidgetsOf(current).some((widget) => widget.app.name === app)) return null;
+    if (app === null) return null;
+    const spot = (["tray", "toolbar"] as const).find((candidate) =>
+      taskbarWidgetsOf(current, candidate).some((widget) => widget.app.name === app),
+    );
     const size = current.getState().widgetReports[app]?.size ?? null;
-    return size === null ? null : { app, size: clampedWidgetSize(size, current.getMetrics()) };
+    return spot === undefined || size === null
+      ? null
+      : { app, spot, size: clampedWidgetSize(size, current.getMetrics()) };
   }
 
   /** The taskbar's host for the tray widgets' frames was made, or is gone. */
@@ -845,16 +853,16 @@ export function App(): m.Component<AppAttrs> {
     widgetFrames?.setTrayHost(host);
   }
 
-  /** A widget's menu: collapse or expand it (on the desktop), move it to the tray or back (when its page draws a
-   *  tray form), open its app, or hide it for the whole workspace. */
+  /** A widget's menu: collapse or expand it (on the desktop), move it to each other place its page draws a form for
+   *  (the desktop, the taskbar's tray, the bar's row), open its app, or hide it for the whole workspace. */
   function rowsOfWidgetMenu(current: DesktopStore, appName: string): MenuRow[] | null {
     const state = current.getState();
     const shown = shownWidgets(state).find((widget) => widget.app.name === appName);
     if (shown === undefined) return null;
     const isCollapsed = shown.presentation.mode === "collapsed";
-    const inTray = isInTray(shown);
+    const spot = taskbarSpotOf(shown);
     const rows: MenuRow[] = [];
-    if (!inTray) {
+    if (spot === null) {
       rows.push({
         kind: "action",
         key: isCollapsed ? "widget-expand" : "widget-collapse",
@@ -862,13 +870,21 @@ export function App(): m.Component<AppAttrs> {
         onSelect: () => void current.setWidgetMode(appName, isCollapsed ? "expanded" : "collapsed"),
       });
     }
-    if (shown.app.widget?.tray === true && !current.isPhoneLayout()) {
-      rows.push({
-        kind: "action",
-        key: inTray ? "widget-to-desktop" : "widget-to-tray",
-        label: inTray ? "Move to desktop" : "Move to taskbar",
-        onSelect: () => void current.setWidgetPlacement(appName, inTray ? "desktop" : "tray"),
-      });
+    if (!current.isPhoneLayout()) {
+      const moves: readonly [WidgetPlacement, string, boolean][] = [
+        ["desktop", "Move to desktop", spot !== null],
+        ["toolbar", "Move to toolbar", spot !== "toolbar" && shown.app.widget?.toolbar === true],
+        ["tray", "Move to tray", spot !== "tray" && shown.app.widget?.tray === true],
+      ];
+      for (const [placement, label, isOffered] of moves) {
+        if (!isOffered) continue;
+        rows.push({
+          kind: "action",
+          key: `widget-to-${placement}`,
+          label,
+          onSelect: () => void current.setWidgetPlacement(appName, placement),
+        });
+      }
     }
     rows.push({
       kind: "action",
@@ -1364,7 +1380,7 @@ export function App(): m.Component<AppAttrs> {
               },
             },
             tray: {
-              widgets: trayWidgetsOf(current),
+              widgets: taskbarWidgetsOf(current, "tray"),
               widgetPopoverApp: state.trayPopoverApp,
               onWidgetContextMenu: (app, x, y, target) => {
                 openMenuAt(
@@ -1387,6 +1403,7 @@ export function App(): m.Component<AppAttrs> {
                 );
               },
             },
+            toolbarWidgets: taskbarWidgetsOf(current, "toolbar"),
             widgetPopover: trayPopoverOf(current),
             onTrayFramesHostCreated: (host) => setTrayFramesHost(host),
             onTrayFramesHostRemoved: (host) => {

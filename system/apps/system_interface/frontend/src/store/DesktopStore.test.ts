@@ -7,7 +7,7 @@ import {
   activePlacements,
   isLayoutDirty,
   shownWidgets,
-  trayWidgets,
+  taskbarWidgets,
 } from "../reducers/desktopState";
 import { STILL_CONNECTING_NOTICE, resolveLaunchRun } from "../reducers/shortcuts";
 import { FakeDesktopApi, FakeDesktopSocket, PINNED_WINDOW_FRAME, offerApps, settle } from "../testing/fakeShell";
@@ -2714,7 +2714,7 @@ describe("the phone layout", () => {
 });
 
 describe("widgets", () => {
-  const gauge = appRecord("gauge", { widget: { path: "/widget", default_enabled: true, tray: true } });
+  const gauge = appRecord("gauge", { widget: { path: "/widget", default_enabled: true, tray: true, toolbar: true } });
 
   async function widgetStore(): Promise<DesktopStore> {
     api.apps = [appRecord("docs"), gauge];
@@ -2804,7 +2804,8 @@ describe("widgets", () => {
     await store.setWidgetPlacement("gauge", "tray");
     expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:0.016,0.98:expanded:tray");
     expect(store.widgetRects().has("gauge")).toBe(false);
-    expect(trayWidgets(store.getState()).map((widget) => widget.app.name)).toEqual(["gauge"]);
+    expect(taskbarWidgets(store.getState(), "tray").map((widget) => widget.app.name)).toEqual(["gauge"]);
+    expect(taskbarWidgets(store.getState(), "toolbar")).toEqual([]);
 
     // The tray form's size is kept apart from the expanded one the popover shows.
     store.reportWidgetSize("gauge", { width: 60, height: 24 }, true);
@@ -2825,6 +2826,12 @@ describe("widgets", () => {
     await store.setWidgetPlacement("gauge", "desktop");
     expect(store.getState().trayPopoverApp).toBeNull();
     expect(store.widgetRects().has("gauge")).toBe(true);
+
+    // In the bar's row, it is out of the desktop's geometry too.
+    await store.setWidgetPlacement("gauge", "toolbar");
+    expect(store.widgetRects().has("gauge")).toBe(false);
+    expect(taskbarWidgets(store.getState(), "toolbar").map((widget) => widget.app.name)).toEqual(["gauge"]);
+    expect(taskbarWidgets(store.getState(), "tray")).toEqual([]);
   });
 
   it("puts a widget in the tray or back when a page of its app asks, and only a widget that draws a tray form", async () => {
@@ -2837,9 +2844,22 @@ describe("widgets", () => {
     expect(api.calls).toHaveLength(writes);
     await store.placeWidgetFromApp("gauge", "desktop");
     expect(store.getState().widgets.gauge.placement).toBe("desktop");
+    await store.placeWidgetFromApp("gauge", "toolbar");
+    expect(store.getState().widgets.gauge.placement).toBe("toolbar");
     // An app with no widget is ignored.
     await store.placeWidgetFromApp("docs", "tray");
     expect(store.getState().widgets.docs).toBeUndefined();
+  });
+
+  it("puts a widget in the bar's row only when its page draws a toolbar form", async () => {
+    api.apps = [
+      appRecord("docs"),
+      appRecord("gauge", { widget: { path: "/widget", default_enabled: true, tray: true, toolbar: false } }),
+    ];
+    api.widgetSwitches = [{ app: "gauge", is_enabled: true }];
+    const store = await startedStore();
+    await store.placeWidgetFromApp("gauge", "toolbar");
+    expect(store.getState().widgets.gauge).toBeUndefined();
   });
 
   it("raises any window of a widget's app, whatever its page, and opens one only when the app has none", async () => {

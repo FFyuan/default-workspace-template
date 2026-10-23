@@ -155,6 +155,8 @@ export interface AppWidget {
   readonly default_enabled: boolean;
   /** Whether the page draws a tray form, so a client may put the widget in the taskbar's tray. */
   readonly tray: boolean;
+  /** Whether the page draws a toolbar form, so a client may put the widget in the taskbar's row. */
+  readonly toolbar: boolean;
 }
 
 /** Where a client keeps a widget it has moved: the corner of the widget's box nearest the backdrop's corner of
@@ -167,8 +169,9 @@ export interface WidgetPosition {
 /** Whether one client draws a widget in full or as its one-line pill. */
 export type WidgetMode = "expanded" | "collapsed";
 
-/** Where one client draws a widget: on the desktop, or in the taskbar's tray (app-widgets plan section 4.10). */
-export type WidgetPlacement = "desktop" | "tray";
+/** Where one client draws a widget: on the desktop, in the taskbar's tray, or in the taskbar's row beside the
+ *  launcher, among the windows' entries (app-widgets plan section 4.10). */
+export type WidgetPlacement = "desktop" | "tray" | "toolbar";
 
 /** How one client shows one widget (app-widgets plan section 3.3); global across desktops. */
 export interface WidgetPresentation {
@@ -541,6 +544,7 @@ function parseWidget(raw: unknown): AppWidget | null {
     path: asString(record.path, "widget.path"),
     default_enabled: asBoolean(record.default_enabled ?? true, "widget.default_enabled"),
     tray: asBoolean(record.tray ?? false, "widget.tray"),
+    toolbar: asBoolean(record.toolbar ?? false, "widget.toolbar"),
   };
 }
 
@@ -615,7 +619,7 @@ export function parseWidgetPresentation(raw: unknown): WidgetPresentation {
     mode: asOneOf(record.mode ?? DEFAULT_WIDGET_PRESENTATION.mode, ["expanded", "collapsed"], "widget.mode"),
     placement: asOneOf(
       record.placement ?? DEFAULT_WIDGET_PRESENTATION.placement,
-      ["desktop", "tray"],
+      ["desktop", "tray", "toolbar"],
       "widget.placement",
     ),
   };

@@ -213,7 +213,7 @@ class WidgetPresentation(FrozenModel):
     )
     mode: WidgetMode = Field(default=WidgetMode.EXPANDED, description="In full, or as its one-line pill")
     placement: WidgetPlacement = Field(
-        default=WidgetPlacement.DESKTOP, description="On the desktop, or in the taskbar's tray"
+        default=WidgetPlacement.DESKTOP, description="On the desktop, in the taskbar's tray, or in the taskbar's row"
     )
 
 

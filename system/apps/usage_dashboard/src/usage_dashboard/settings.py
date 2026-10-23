@@ -68,6 +68,28 @@ class TrayDesign(LowerCaseStrEnum):
     STACKED = auto()
 
 
+class TaskbarSpot(LowerCaseStrEnum):
+    """Where in the taskbar the Usage widget goes when it is picked there."""
+
+    # In the taskbar's row beside the launcher, drawn like a window's entry.
+    TOOLBAR = auto()
+    # In the tray at the bar's right end.
+    TRAY = auto()
+
+
+class ToolbarDesign(LowerCaseStrEnum):
+    """How the Usage widget is drawn in the taskbar's row, among the windows' entries."""
+
+    # A chip like a window's entry: the ring pair as its icon, the name and the 5-hour figure as its title.
+    CHIP = auto()
+    # Upright 5-hour and weekly meters, as tall as an entry, beside the name and the 5-hour figure.
+    METERS = auto()
+    # The names and 5-hour figures as one line of text, like a window's title.
+    INLINE = auto()
+    # The name and the 5-hour figure over a thin line filled to the 5-hour share.
+    LINE = auto()
+
+
 class UsageSettings(FrozenModel):
     """What the settings file holds. Every field has a default, so an older file reads whole."""
 
@@ -75,6 +97,12 @@ class UsageSettings(FrozenModel):
     widget_size: WidgetSize = Field(default=WidgetSize.MEDIUM, description="How large the widget is drawn")
     widget_detail: WidgetDetail = Field(default=WidgetDetail.STANDARD, description="How much the widget shows")
     widget_tray: TrayDesign = Field(default=TrayDesign.RINGS, description="The widget's design in the taskbar's tray")
+    widget_taskbar: TaskbarSpot = Field(
+        default=TaskbarSpot.TRAY, description="Where in the taskbar the widget goes when it is picked there"
+    )
+    widget_toolbar: ToolbarDesign = Field(
+        default=ToolbarDesign.CHIP, description="The widget's design in the taskbar's row"
+    )
 
 
 class UsageSettingsStore(MutableModel):

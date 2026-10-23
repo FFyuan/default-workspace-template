@@ -30,6 +30,7 @@ export const SystemTray: m.Component<SystemTrayAttrs> = {
     const attrs = vnode.attrs;
     return m("div", { "data-system-tray": "", class: "system-tray flex shrink-0 items-center gap-2 pl-2" }, [
       m(TrayWidgetSlots, {
+        spot: "tray",
         widgets: attrs.widgets,
         popoverApp: attrs.widgetPopoverApp,
         onContextMenu: attrs.onWidgetContextMenu,

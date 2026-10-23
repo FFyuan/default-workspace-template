@@ -123,7 +123,7 @@ class Pin(FrozenModel):
 class Widget(FrozenModel):
     """An app's widget (app-widgets plan section 3.1): a page of the app the shell keeps on every
     client's desktop, above the windows, while the workspace has it enabled; or, for a client that put it
-    there, in the taskbar's tray, when the page draws a tray form."""
+    there, in the taskbar's tray or its row, when the page draws a form for it."""
 
     path: LaunchPathValue = Field(description="The widget page: a page of the app the shell frames on the desktop")
     default_enabled: bool = Field(
@@ -132,6 +132,10 @@ class Widget(FrozenModel):
     tray: bool = Field(
         default=False,
         description="Whether the page draws a tray form, so a client may put the widget in the taskbar's tray",
+    )
+    toolbar: bool = Field(
+        default=False,
+        description="Whether the page draws a toolbar form, so a client may put the widget in the taskbar's row",
     )
 
 

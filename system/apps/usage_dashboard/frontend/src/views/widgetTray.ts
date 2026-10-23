@@ -25,7 +25,7 @@ const NAME_CLASS =
   "text-[0.7em] leading-none font-semibold tracking-wider whitespace-nowrap text-(--widget-muted) uppercase";
 
 /** A window's figure, in its level's colour once it nears the cap. */
-function figure(window: LimitWindow, role: WindowRole, extra: string): m.Vnode {
+export function figure(window: LimitWindow, role: WindowRole, extra: string): m.Vnode {
   return m(
     "span",
     {
@@ -39,7 +39,7 @@ function figure(window: LimitWindow, role: WindowRole, extra: string): m.Vnode {
 }
 
 /** A mark per subscription, or with none the month's spend. */
-function perSubscription(model: WidgetModel, draw: (pair: RingPair) => m.Vnode): m.Children {
+export function perSubscription(model: WidgetModel, draw: (pair: RingPair) => m.Vnode): m.Children {
   const cards = model.cards ?? [];
   const pairs = widgetRings(cards);
   return pairs.length === 0 ? pillView(cards) : pairs.map(draw);

@@ -72,6 +72,7 @@ function render(overrides: Partial<TaskbarAttrs> = {}): HTMLElement {
       widgetPopoverApp: null,
       onWidgetContextMenu: vi.fn(),
     },
+    toolbarWidgets: [],
     widgetPopover: null,
     onTrayFramesHostCreated: vi.fn(),
     onTrayFramesHostRemoved: vi.fn(),
@@ -255,7 +256,7 @@ describe("Taskbar", () => {
 });
 
 describe("the tray's widgets", () => {
-  const gauge = appRecord("gauge", { widget: { path: "/widget", default_enabled: true, tray: true } });
+  const gauge = appRecord("gauge", { widget: { path: "/widget", default_enabled: true, tray: true, toolbar: true } });
 
   it("draws a slot per tray widget at its tray size, and the open one's popover above the bar", () => {
     const tray = {
@@ -269,7 +270,7 @@ describe("the tray's widgets", () => {
       widgetPopoverApp: "gauge",
       onWidgetContextMenu: vi.fn(),
     };
-    const taskbar = render({ tray, widgetPopover: { app: "gauge", size: { width: 180, height: 90 } } });
+    const taskbar = render({ tray, widgetPopover: { app: "gauge", spot: "tray", size: { width: 180, height: 90 } } });
 
     const slot = taskbar.querySelector('[data-tray-widget="gauge"]') as HTMLElement;
     expect([slot.style.width, slot.style.height]).toEqual(["64px", "24px"]);
@@ -281,5 +282,23 @@ describe("the tray's widgets", () => {
 
     const closed = render({ tray: { ...tray, widgetPopoverApp: null }, widgetPopover: null });
     expect(closed.querySelector("[data-widget-popover]")).toBeNull();
+    expect(closed.querySelector("[data-toolbar-widgets]")).toBeNull();
+  });
+
+  it("draws a toolbar widget in the bar's row after the launcher, with its popover over that end of the bar", () => {
+    const taskbar = render({
+      toolbarWidgets: [{ app: gauge, size: { width: 120, height: 28 } }],
+      widgetPopover: { app: "gauge", spot: "toolbar", size: { width: 180, height: 90 } },
+    });
+
+    const row = taskbar.querySelector("[data-taskbar-content]") as HTMLElement;
+    const group = row.querySelector("[data-toolbar-widgets]") as HTMLElement;
+    expect(group.previousElementSibling?.querySelector("[data-launcher-field]")).not.toBeNull();
+    expect(group.nextElementSibling?.hasAttribute("data-taskbar-entries")).toBe(true);
+    const slot = group.querySelector('[data-toolbar-widget="gauge"]') as HTMLElement;
+    expect([slot.style.width, slot.style.height]).toEqual(["120px", "28px"]);
+    expect(slot.getAttribute("data-popover-open")).toBe("true");
+    expect(group.querySelector('[data-widget-popover="gauge"] [data-widget-content]')).not.toBeNull();
+    expect(taskbar.querySelector('[data-tray-widget="gauge"]')).toBeNull();
   });
 });

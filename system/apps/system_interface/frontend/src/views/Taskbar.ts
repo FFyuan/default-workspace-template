@@ -1,7 +1,7 @@
 /**
- * The taskbar (plan section 4.10), left to right: the launcher field, one entry per window of
- * the active desktop in opening order, the system tray. Always visible on the desktop layout; a
- * phone draws its own bar instead.
+ * The taskbar (plan section 4.10), left to right: the launcher field, the app widgets this client
+ * put in the bar's row (``TrayWidgets.ts``), one entry per window of the active desktop in opening
+ * order, the system tray. Always visible on the desktop layout; a phone draws its own bar instead.
  */
 
 import m from "mithril";
@@ -11,8 +11,8 @@ import type { LauncherFieldAttrs } from "./LauncherField";
 import { SystemTray } from "./SystemTray";
 import type { SystemTrayAttrs } from "./SystemTray";
 import { TaskbarEntry } from "./TaskbarEntry";
-import { TrayWidgetPopover } from "./TrayWidgets";
-import type { TrayWidgetPopoverAttrs } from "./TrayWidgets";
+import { TrayWidgetPopover, TrayWidgetSlots } from "./TrayWidgets";
+import type { TrayWidget, TrayWidgetPopoverAttrs } from "./TrayWidgets";
 
 export interface TaskbarAttrs {
   readonly entries: readonly TaskbarEntryRecord[];
@@ -22,7 +22,9 @@ export interface TaskbarAttrs {
   readonly tray: SystemTrayAttrs;
   readonly onEntryClick: (windowId: string) => void;
   readonly onEntryContextMenu: (windowId: string, x: number, y: number, target: Element) => void;
-  /** The open popover of a widget in the tray, or null. */
+  /** The app widgets in the bar's row. */
+  readonly toolbarWidgets: readonly TrayWidget[];
+  /** The open popover of a widget in the taskbar, or null. */
   readonly widgetPopover: TrayWidgetPopoverAttrs | null;
   /** The host the tray widgets' frames live in was made, or is gone. */
   readonly onTrayFramesHostCreated: (host: HTMLElement) => void;
@@ -44,6 +46,25 @@ export const Taskbar: m.Component<TaskbarAttrs> = {
       // a radius, an inset, and the bar's box stays where the geometry expects it.
       m("div", { "data-taskbar-content": "", class: "taskbar-content flex h-full items-center gap-2 px-2" }, [
         m(LauncherField, attrs.launcher),
+        attrs.toolbarWidgets.length === 0
+          ? null
+          : m(
+              "div",
+              {
+                "data-toolbar-widgets": "",
+                // As tall as the bar, so a popover opened from here stands on the bar's top edge.
+                class: "toolbar-widgets relative flex shrink-0 items-center gap-2 self-stretch",
+              },
+              [
+                m(TrayWidgetSlots, {
+                  spot: "toolbar",
+                  widgets: attrs.toolbarWidgets,
+                  popoverApp: attrs.widgetPopover?.app ?? null,
+                  onContextMenu: attrs.tray.onWidgetContextMenu,
+                }),
+                attrs.widgetPopover?.spot === "toolbar" ? m(TrayWidgetPopover, attrs.widgetPopover) : null,
+              ],
+            ),
         m(
           "div",
           {
@@ -72,7 +93,7 @@ export const Taskbar: m.Component<TaskbarAttrs> = {
         ),
         m(SystemTray, attrs.tray),
       ]),
-      attrs.widgetPopover === null ? null : m(TrayWidgetPopover, attrs.widgetPopover),
+      attrs.widgetPopover?.spot === "tray" ? m(TrayWidgetPopover, attrs.widgetPopover) : null,
       // The tray widgets' frames' host, over the bar and its popover; its frames lie over their content boxes.
       m("div", {
         "data-tray-widget-frames": "",

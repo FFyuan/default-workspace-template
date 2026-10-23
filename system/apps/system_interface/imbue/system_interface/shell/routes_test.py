@@ -916,7 +916,9 @@ def _widget_shell(tmp_path: Path, broadcaster: WebSocketBroadcaster) -> Flask:
     widget is off by default, and an internal ``probe`` app declaring one."""
     registry_path = write_two_app_registry(
         tmp_path,
-        registry_row_toml("gauge", "http://localhost:7003", widget=("/widget", True), widget_tray=True),
+        registry_row_toml(
+            "gauge", "http://localhost:7003", widget=("/widget", True), widget_tray=True, widget_toolbar=True
+        ),
         registry_row_toml("meter", "http://localhost:7004", widget=("/widget", False)),
         registry_row_toml("probe", "http://localhost:7005", is_internal=True, widget=("/widget", True)),
     )
@@ -941,6 +943,7 @@ def test_the_widget_switches_default_from_the_manifests_are_written_for_everyone
         "path": "/widget",
         "default_enabled": True,
         "tray": True,
+        "toolbar": True,
     }
 
     hidden = client.post("/api/widgets/gauge", json={"is_enabled": False})
@@ -989,6 +992,9 @@ def test_a_clients_widget_presentation_is_written_and_announced_to_that_client_a
     tray = client.post("/api/clients/c1/widgets/gauge", json={"placement": "tray"})
     assert tray.get_json()["widgets"]["gauge"]["placement"] == "tray"
     assert client.post("/api/clients/c1/widgets/meter", json={"placement": "tray"}).status_code == 400
+    toolbar = client.post("/api/clients/c1/widgets/gauge", json={"placement": "toolbar"})
+    assert toolbar.get_json()["widgets"]["gauge"]["placement"] == "toolbar"
+    assert client.post("/api/clients/c1/widgets/meter", json={"placement": "toolbar"}).status_code == 400
     for name in ("files", "probe"):
         assert client.post(f"/api/clients/c1/widgets/{name}", json={}).status_code == 400
     assert client.post("/api/clients/c1/widgets/gauge", json={"position": {"x": 1.5, "y": 0.2}}).status_code == 400

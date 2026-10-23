@@ -26,64 +26,84 @@ function recordingChannel(): { channel: ChannelLike; sent: unknown[] } {
 
 afterEach(() => vi.unstubAllGlobals());
 
+const STORED = {
+  widget_variant: "rings",
+  widget_size: "medium",
+  widget_detail: "standard",
+  widget_tray: "rings",
+  widget_taskbar: "tray",
+  widget_toolbar: "chip",
+};
+const LOOK = { variant: "rings", size: "medium", detail: "standard", tray: "rings", taskbar: "tray", toolbar: "chip" };
+
 describe("the widget's look", () => {
   it("reads known choices from a query, a message, or the settings, each unknown one taking its default", () => {
-    expect(lookOverrides("?variant=bars&size=huge&detail=more&tray=stacked")).toEqual({
+    expect(lookOverrides("?variant=bars&size=huge&detail=more&tray=stacked&toolbar=meters")).toEqual({
       variant: "bars",
       detail: "more",
       tray: "stacked",
+      toolbar: "meters",
     });
-    expect(lookOverrides("")).toEqual({});
-    expect(asWidgetLook({ variant: "rings", size: "small", detail: "less", tray: "ring" })).toEqual({
-      variant: "rings",
+    expect(lookOverrides("?toolbar=sparkle")).toEqual({});
+    expect(asWidgetLook({ ...LOOK, size: "small", taskbar: "toolbar", toolbar: "inline" })).toEqual({
+      ...LOOK,
       size: "small",
-      detail: "less",
-      tray: "ring",
+      taskbar: "toolbar",
+      toolbar: "inline",
     });
+    expect(asWidgetLook({ ...LOOK, taskbar: "dock" })).toBeNull();
     expect(asWidgetLook({ variant: "rings", size: "small" })).toBeNull();
+    // An older file, from before the taskbar's row, reads whole with the defaults for the parts it lacks.
     expect(
-      lookOfSettings({ widget_variant: "bars", widget_size: "huge", widget_detail: "less", widget_tray: "sparkle" }),
-    ).toEqual({ variant: "bars", size: "medium", detail: "less", tray: "rings" });
+      lookOfSettings({
+        widget_variant: "bars",
+        widget_size: "huge",
+        widget_detail: "less",
+        widget_tray: "sparkle",
+      } as unknown as typeof STORED),
+    ).toEqual({ ...LOOK, variant: "bars", detail: "less" });
   });
 
   it("reads the stored look, and nothing when the settings cannot be read", async () => {
-    stubServer({ widget_variant: "bars", widget_size: "large", widget_detail: "more", widget_tray: "numbers" });
-    expect(await readWidgetLook()).toEqual({ variant: "bars", size: "large", detail: "more", tray: "numbers" });
+    stubServer({ ...STORED, widget_variant: "bars", widget_taskbar: "toolbar", widget_toolbar: "line" });
+    expect(await readWidgetLook()).toEqual({ ...LOOK, variant: "bars", taskbar: "toolbar", toolbar: "line" });
     stubServer({}, 503);
     expect(await readWidgetLook()).toBeNull();
   });
 
   it("saves a change to one part and announces the whole look, and puts the old one back when refused", async () => {
     const { channel, sent } = recordingChannel();
-    const placeInTray = vi.fn();
-    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeInTray });
-    const posted = stubServer({
-      widget_variant: "rings",
-      widget_size: "medium",
-      widget_detail: "standard",
-      widget_tray: "rings",
-    });
+    const placeInTaskbar = vi.fn();
+    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeInTaskbar });
+    const posted = stubServer(STORED);
     await picker.load();
-    expect(picker.look).toEqual({ variant: "rings", size: "medium", detail: "standard", tray: "rings" });
+    expect(picker.look).toEqual(LOOK);
 
     await picker.select({ size: "large" });
-    expect(picker.look).toEqual({ variant: "rings", size: "large", detail: "standard", tray: "rings" });
-    expect(posted).toEqual([
-      { widget_variant: "rings", widget_size: "large", widget_detail: "standard", widget_tray: "rings" },
-    ]);
-    expect(sent).toEqual([{ variant: "rings", size: "large", detail: "standard", tray: "rings" }]);
-    expect(placeInTray).not.toHaveBeenCalled();
-
-    // A tray design is seen only in the tray: picking one puts this client's widget there.
-    await picker.select({ tray: "stacked" });
-    expect(picker.look?.tray).toBe("stacked");
-    expect(placeInTray).toHaveBeenCalledTimes(1);
+    expect(picker.look).toEqual({ ...LOOK, size: "large" });
+    expect(posted).toEqual([{ ...STORED, widget_size: "large" }]);
+    expect(sent).toEqual([{ ...LOOK, size: "large" }]);
+    expect(placeInTaskbar).not.toHaveBeenCalled();
 
     stubServer({}, 500);
     await picker.select({ variant: "bars" });
     expect(picker.look?.variant).toBe("rings");
     expect(picker.errorMessage).toContain("Could not change the widget");
-    expect(sent).toHaveLength(2);
-    expect(placeInTray).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(1);
+    expect(placeInTaskbar).not.toHaveBeenCalled();
+  });
+
+  it("puts this client's widget where in the taskbar was picked, on a pick of the spot or of a design there", async () => {
+    const { channel } = recordingChannel();
+    const placeInTaskbar = vi.fn();
+    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeInTaskbar });
+    stubServer(STORED);
+    await picker.load();
+
+    await picker.select({ tray: "stacked" });
+    await picker.select({ taskbar: "toolbar" });
+    await picker.select({ toolbar: "meters" });
+    expect(picker.look).toEqual({ ...LOOK, tray: "stacked", taskbar: "toolbar", toolbar: "meters" });
+    expect(placeInTaskbar.mock.calls).toEqual([["tray"], ["toolbar"], ["toolbar"]]);
   });
 });

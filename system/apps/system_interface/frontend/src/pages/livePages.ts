@@ -676,11 +676,11 @@ export class LivePagesLayer implements PageDriver {
     void this.store.openLink(url, window.location.host, app);
   }
 
-  /** A page of an app asked to put the app's widget on the desktop or in the tray, for this client. */
+  /** A page of an app asked to put the app's widget on the desktop or in the taskbar, for this client. */
   private takeWidgetPlacement(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {
     const app = this.appOfFrame(frame);
     const { placement } = payload;
-    if (app === null || (placement !== "desktop" && placement !== "tray")) return;
+    if (app === null || (placement !== "desktop" && placement !== "tray" && placement !== "toolbar")) return;
     void this.store.placeWidgetFromApp(app, placement);
   }
 

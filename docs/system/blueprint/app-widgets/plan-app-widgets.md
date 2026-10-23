@@ -42,6 +42,7 @@ The set of apps with a widget is exactly the registered, non-internal apps whose
 | `path` | string | yes | | The widget page: a path under the app's origin obeying the launch-path rule (one leading slash, no query string, path characters only) |
 | `default_enabled` | bool | no | `true` | Whether the widget shows in a workspace that has made no choice about it |
 | `tray` | bool | no | `false` | Whether the page draws a tray form (mode `tray`), so a client may put the widget in the taskbar's tray (section 4.10) |
+| `toolbar` | bool | no | `false` | Whether the page draws a toolbar form (mode `toolbar`), so a client may put the widget in the taskbar's row, beside the launcher (section 4.10) |
 
 ### 3.2 Enabled, shared
 
@@ -51,7 +52,7 @@ A stored value naming an app that no longer declares a widget is kept (so a widg
 
 ### 3.3 Presentation, per client
 
-How one client shows a widget is three values on the client record, keyed by app: its position, its mode, and its placement (`desktop`, the default, or `tray`, section 4.10).
+How one client shows a widget is three values on the client record, keyed by app: its position, its mode, and its placement (`desktop`, the default, `tray` or `toolbar`, section 4.10).
 They are global to the client rather than per desktop, for the reason the pinned entries give: an always-on-top thing that jumped when the desktop switched would read as broken.
 A client with no presentation for an app, or one with no position, draws it in the default stack top right, `expanded`.
 
@@ -133,12 +134,12 @@ A widget stands for its app, not for one page of it, so from a widget that open 
 The rim's context menu (right click, or long press on touch):
 
 1. Collapse or Expand (on the desktop only)
-2. Move to taskbar, or Move to desktop from the tray (for a widget whose page draws a tray form, not on a phone)
+2. Move to desktop, Move to toolbar, Move to tray: each place it is not, that its page draws a form for (not on a phone)
 3. Open <display name>, as the page's own link does
 4. divider
 5. Hide widget, which disables it for the whole workspace, saying so: "Hide the <display name> widget for everyone on this workspace"
 
-A right-click anywhere on the widget's page opens the same menu (the page's contract sends `shell:widget-menu`, section 6), as does one on a tray slot.
+A right-click anywhere on the widget's page opens the same menu (the page's contract sends `shell:widget-menu`, section 6), as does one on a taskbar slot.
 
 A hidden widget is shown again from its app's shortcut menu and its launcher row's menu, which gain "Show widget" when the app declares a widget that is disabled, and "Hide widget" when it is enabled.
 
@@ -158,15 +159,15 @@ There is no rim, menu, or corner on a phone; each widget is the same panel, fill
 
 Touch mode uses long press on the rim for the menu, as elsewhere; the rim is wider (12 pixels) so a finger can press it, and the frame is fully opaque.
 
-### 4.10 The tray
+### 4.10 The taskbar: tray and toolbar
 
-A client may put a widget whose page draws a tray form in the taskbar's tray instead, beside the desktop switcher: always there, never covering a window, the closest thing to a menu-bar monitor. The trade is a smaller glance, and no reading of the detail without a click or a hover.
+A client may put a widget in the taskbar instead, in one of two places: the tray, beside the desktop switcher, for a page that draws a tray form; or the bar's row (the toolbar), right after the launcher and before the windows' entries, for a page that draws a toolbar form. Either way it is always there, never covering a window, the closest thing to a menu-bar monitor. The trade is a smaller glance, and no reading of the detail without a click or a hover. The tray form is small and sits with the system's own; the toolbar form is drawn to sit among the entries, as tall as one and in the bar's own text.
 
-- Its frame is moved to a host in the taskbar (it reloads once, on the move) and told mode `tray`; it is laid over a slot the size its page reports for that form, no taller than `--desk-widget-tray-height` and no wider than `--desk-widget-tray-max-width`.
-- A click on it is not the page's: the page's contract sends `shell:widget-press` and the shell opens its popover above the bar, the desktop widget's panel at the size the page reports expanded. The same frame is laid over the popover and told `expanded`, so opening it reloads nothing; the slot keeps its tray size meanwhile, as a placeholder.
+- Its frame is moved to a host in the taskbar (it reloads once, on the move from the desktop) and told mode `tray` or `toolbar`; it is laid over a slot the size its page reports for that form: in the tray no taller than `--desk-widget-tray-height` and no wider than `--desk-widget-tray-max-width`, in the row no taller than `--desk-taskbar-entry-size` and no wider than `--desk-widget-toolbar-max-width`, with an entry's hover and active tints.
+- A click on it is not the page's: the page's contract sends `shell:widget-press` and the shell opens its popover above the bar, over the slot's end of it (the tray's right end, or the row's start), the desktop widget's panel at the size the page reports expanded. The same frame is laid over the popover and told `expanded`, so opening it reloads nothing; the slot keeps its taskbar size meanwhile, as a placeholder.
 - The popover closes on a click on the slot again, a press anywhere else in the shell, Escape (in the shell, or on the page, whose contract sends `shell:widget-dismiss`), or the page opening its app.
-- Tooltips are shown as on the desktop. A tray widget does not move.
-- The phone layout has no tray: a widget placed there is drawn in the phone's strip like any other.
+- Tooltips are shown as on the desktop. A widget in the taskbar does not move.
+- The phone layout has no tray or toolbar: a widget placed there is drawn in the phone's strip like any other.
 
 ## 5. The shell backend
 
@@ -214,14 +215,14 @@ The app contract evolves by adding types (contracts section 7); nothing shipped 
 | Direction | Type | Payload |
 |---|---|---|
 | shell to page | `shell:handshake` | gains `surface`: `"window"` (the existing case; a handshake without it reads as a window) or `"widget"`; a widget's handshake carries `windowId: null` and the client's active desktop as `desktopId`, sent again when it changes |
-| shell to page | `shell:widget-mode` | `{"mode": "expanded" \| "collapsed" \| "tray"}`; to a widget page only, after every handshake and on every change; `tray` only to a page whose manifest says it draws a tray form (section 4.10) |
+| shell to page | `shell:widget-mode` | `{"mode": "expanded" \| "collapsed" \| "tray" \| "toolbar"}`; to a widget page only, after every handshake and on every change; `tray` (`toolbar`) only to a page whose manifest says it draws a tray (toolbar) form (section 4.10) |
 | page to shell | `shell:widget-size` | `{"width", "height"}`, CSS pixels of the page's content in its current mode; the shell clamps it (section 4.2) |
 | page to shell | `shell:widget-hidden` | `{"isHidden": bool}`; section 4.7 |
 | page to shell | `shell:widget-tooltip` | `{"text", "left", "top", "width", "height"}` (the element's place in the frame), or `{"text": null}`; section 7.5a |
 | page to shell | `shell:widget-menu` | `{"x", "y"}`, a right-click on the page in the frame's pixels: the widget's menu (section 4.6) |
-| page to shell | `shell:widget-press` | `{}`, from a widget in the tray: a click on it, which opens or closes its popover (section 4.10) |
+| page to shell | `shell:widget-press` | `{}`, from a widget in the taskbar (tray or toolbar): a click on it, which opens or closes its popover (section 4.10) |
 | page to shell | `shell:widget-dismiss` | `{}`, Escape on a widget's page: its popover closes if it is open |
-| page to shell | `shell:widget-placement` | `{"placement": "desktop" \| "tray"}`, from any page of an app declaring a widget (its window too): the shell places the app's widget so for this client, as Move to taskbar / Move to desktop does; the tray only for a widget whose page draws a tray form, never on a phone |
+| page to shell | `shell:widget-placement` | `{"placement": "desktop" \| "tray" \| "toolbar"}`, from any page of an app declaring a widget (its window too): the shell places the app's widget so for this client, as the menu's Move rows do; the tray or toolbar only for a widget whose page draws that form, never on a phone |
 | page to shell | `shell:widget-drag` | `{"phase": "start" \| "move" \| "end" \| "cancel", "screenX", "screenY"}`, and at the start `"pressX", "pressY"` (where in the frame the press began) and `"pressScreenX", "pressScreenY"`; section 4.4 |
 
 From a widget page the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open`, `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window, on the client's active desktop.
@@ -293,7 +294,7 @@ How the widget looks is the Usage app's own setting, not a flag and nothing the 
 | `standard` (default) | sections 7.4 and 7.5, and the bars as above |
 | `more` | in view rather than only in tooltips: each limit's reset time (expanded), the reading's time beside each heading (expanded rings), the weekly figure and the 5-hour reset beside a collapsed ring pair, and the weekly figure beside the collapsed bars |
 
-In the taskbar's tray (section 4.10) the widget draws the tray design the workspace picked (`widget_tray`, a fourth menu, "Taskbar", in the Usage page's header), whatever size was picked; detail still applies (less: the 5-hour limit alone). Picking a tray design also asks the shell to put this client's widget in the tray (`shell:widget-placement`, section 6), since a tray design is seen only there. A click opens the widget expanded in the popover.
+In the taskbar (section 4.10) the widget draws the design the workspace picked for where it is: in the tray the tray design (`widget_tray`), in the bar's row the toolbar design (`widget_toolbar`), whatever size was picked; detail still applies (less: the 5-hour limit alone). The Usage page's header picks them after its "Taskbar" label: a Toolbar / Tray choice (`widget_taskbar`, default `tray`), then the design menu for the one chosen. Picking either, or a design, also asks the shell to put this client's widget there (`shell:widget-placement`, section 6), since a taskbar design is seen only there. A click opens the widget expanded in the popover.
 
 | Tray design (`widget_tray`) | Per subscription |
 |---|---|
@@ -303,7 +304,14 @@ In the taskbar's tray (section 4.10) the widget draws the tray design the worksp
 | `numbers` | the name and the 5-hour figure as text (more: and the weekly one) |
 | `stacked` | the name beside the 5-hour figure over the weekly one, each with its colour's dot |
 
-A figure near its cap takes its level's colour in every tray design.
+| Toolbar design (`widget_toolbar`) | Per subscription, in the bar's 13-pixel text, as tall as an entry |
+|---|---|
+| `chip` (default) | like a window's entry: the ring pair as its icon, the name and the 5-hour figure as its title (more: and the weekly one) |
+| `meters` | upright 5-hour and weekly meters, 24 pixels tall, beside the name over the 5-hour figure |
+| `inline` | the names and 5-hour figures as one line of text, the subscriptions joined by a middle dot |
+| `line` | the name and the 5-hour figure over a thin line per window, filled to its share |
+
+A figure near its cap takes its level's colour in every tray and toolbar design.
 
 | Size (`widget_size`) | Text | Ring | Collapsed bars | Expanded width |
 |---|---|---|---|---|
@@ -315,17 +323,18 @@ A size is a set of `--w-*` lengths on the widget's root (`style.css`), and the w
 
 ## 8. Theme tokens and selectors
 
-Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-rim: 6px` (touch: `12px`), and, read by no behaviour, `--desk-widget-radius: 12px`, `--desk-widget-surface: rgb(255 255 255 / 0.94)`, `--desk-widget-edge: rgb(0 0 0 / 0.08)`, `--desk-widget-tray-height: 36px`, `--desk-widget-tray-max-width: 240px`, `--desk-phone-widget-height: 32px`.
+Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-rim: 6px` (touch: `12px`), and, read by no behaviour, `--desk-widget-radius: 12px`, `--desk-widget-surface: rgb(255 255 255 / 0.94)`, `--desk-widget-edge: rgb(0 0 0 / 0.08)`, `--desk-widget-tray-height: 36px`, `--desk-widget-tray-max-width: 240px`, `--desk-widget-toolbar-max-width: 320px`, `--desk-phone-widget-height: 32px`.
 
 | Attribute | On |
 |---|---|
 | `data-widgets` | the widget layer |
 | `data-widget="<app>"`, `data-widget-moved="true\|false"`, `data-widget-mode="expanded\|collapsed"` | each widget's frame |
 | `data-widget-grip="<app>"` | each widget's chrome too, whose rim is its handle |
-| `data-menu-row="widget-collapse\|widget-expand\|widget-to-tray\|widget-to-desktop\|widget-open\|widget-hide\|widget-show"` | the widget rows of the rim, shortcut, and launcher menus |
+| `data-menu-row="widget-collapse\|widget-expand\|widget-to-tray\|widget-to-toolbar\|widget-to-desktop\|widget-open\|widget-hide\|widget-show"` | the widget rows of the rim, shortcut, and launcher menus |
 | `data-tray-widget="<app>"`, `data-popover-open="true\|false"` | each tray widget's slot (which carries `data-widget="<app>"` too) |
-| `data-widget-popover="<app>"` | a tray widget's open popover |
-| `data-tray-widget-frames` | the tray widgets' frames' host, in the taskbar |
+| `data-toolbar-widgets`, `data-toolbar-widget="<app>"` | the box in the bar's row holding the toolbar widgets' slots (and a toolbar widget's popover), and each slot (which carries `data-widget="<app>"` and `data-popover-open` too) |
+| `data-widget-popover="<app>"` | a taskbar widget's open popover |
+| `data-tray-widget-frames` | the taskbar widgets' frames' host, in the taskbar |
 | `data-widget-frames`, `data-widget-frame="<app>"` | the widget frames' host, and each widget's iframe |
 | `data-phone-widgets`, `data-phone-widget="<app>"` | the strip above the phone's bar, and each widget in it |
 

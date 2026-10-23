@@ -11,3 +11,5 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 - Nothing in the widget changes under the pointer: hovering a ring, bar, row or name shows a tooltip with its limit, the share used and when it resets.
 
 - It says when usage is still being indexed, dims while reconnecting, hides itself when there is no usage yet, opens the Usage window when clicked, and can be dragged anywhere on the desktop by a press anywhere on it.
+
+- The widget can also sit in the taskbar's row among the window entries (the toolbar), in one of four designs drawn to match an entry: Chip (the rings as its icon, the name and figure as its title), Meters (upright 5-hour and weekly meters), Inline (one line of text) and Line (name and figure over thin lines). The Usage page's header picks Toolbar or Tray after "Taskbar", then the design for it; picking either moves the widget there.

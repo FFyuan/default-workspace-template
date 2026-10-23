@@ -113,7 +113,7 @@ import {
   isAppStoppable,
   isEmbedderMessageHandled,
   isLayoutDirty,
-  isInTray,
+  isInTaskbar,
   shownWidgets,
   openableApps,
   pinnedWindowOf,
@@ -1408,23 +1408,23 @@ export class DesktopStore {
     return this.setWidgetPresentation(app, { ...this.widgetPresentationOf(app), mode });
   }
 
-  /** Put a widget on the desktop or in the taskbar's tray; its popover, if open, closes. */
+  /** Put a widget on the desktop, in the taskbar's tray or in its row; its popover, if open, closes. */
   setWidgetPlacement(app: string, placement: WidgetPlacement): Promise<void> {
     if (this.state.trayPopoverApp === app) this.closeTrayPopover();
     return this.setWidgetPresentation(app, { ...this.widgetPresentationOf(app), placement });
   }
 
-  /** A page of ``app`` asked to put its widget on the desktop or in the tray: done when the app's widget is shown in
-   *  this client, not on a phone, and (for the tray) its page draws a tray form; else nothing. */
+  /** A page of ``app`` asked to put its widget on the desktop or in the taskbar: done when the app's widget is shown
+   *  in this client, not on a phone, and (in the taskbar) its page draws a form for there; else nothing. */
   async placeWidgetFromApp(app: string, placement: WidgetPlacement): Promise<void> {
     const shown = shownWidgets(this.state).find((widget) => widget.app.name === app);
     if (shown === undefined || this.isPhoneLayout()) return;
-    if (placement === "tray" && shown.app.widget?.tray !== true) return;
+    if (placement !== "desktop" && shown.app.widget?.[placement] !== true) return;
     if (shown.presentation.placement === placement) return;
     await this.setWidgetPlacement(app, placement);
   }
 
-  /** Open a tray widget's popover, or close it when it is the one open (app-widgets plan section 4.10). */
+  /** Open a taskbar widget's popover, or close it when it is the one open (app-widgets plan section 4.10). */
   toggleTrayPopover(app: string): void {
     this.dispatch({ type: "tray_popover_set", app: this.state.trayPopoverApp === app ? null : app });
   }
@@ -1445,7 +1445,7 @@ export class DesktopStore {
     }
   }
 
-  /** A widget's page reported the size of its content in its current mode; ``isTray`` for its tray form. */
+  /** A widget's page reported the size of its content in its current mode; ``isTray`` for its form in the taskbar. */
   reportWidgetSize(app: string, size: PixelSize, isTray = false): void {
     const report = this.state.widgetReports[app];
     const current = isTray ? report?.traySize : report?.size;
@@ -1472,7 +1472,7 @@ export class DesktopStore {
   widgetRects(): Map<string, PixelRect> {
     const placed: WidgetToPlace[] = [];
     for (const widget of shownWidgets(this.state)) {
-      if (isInTray(widget)) continue;
+      if (isInTaskbar(widget)) continue;
       const report = this.state.widgetReports[widget.app.name];
       if (report === undefined || report.size === null || report.isHidden) continue;
       placed.push({ app: widget.app.name, position: widget.presentation.position, size: report.size });

@@ -215,7 +215,7 @@ _MANIFEST_OWNED_KEYS = (
 # required. The row carries only what the manifest wrote, and the reader fills the defaults.
 _PIN_OPTIONAL_STRING_KEYS = ("style", "scope", "default_mode")
 # The optional keys of a manifest's ``[widget]`` table, each a boolean when present; ``path`` is required.
-_WIDGET_OPTIONAL_BOOL_KEYS = ("default_enabled", "tray")
+_WIDGET_OPTIONAL_BOOL_KEYS = ("default_enabled", "tray", "toolbar")
 # The optional string keys of a launch path entry, copied when the manifest wrote them; the reader fills the defaults.
 _LAUNCH_PATH_OPTIONAL_STRING_KEYS = ("method", "text_param", "draft_param")
 
@@ -688,7 +688,7 @@ def _copied_pin(pin: Any, path: Path) -> tuple[dict[str, object] | None, str | N
 
 def _copied_widget(widget: Any, path: Path) -> tuple[dict[str, object] | None, str | None]:
     """The manifest's ``[widget]`` table as the registry row carries it: ``path``, and ``default_enabled`` and
-    ``tray`` when the manifest wrote them. Returns ``(copied, None)``, or ``(None, error)`` when the value is not shaped as the
+    ``tray`` and ``toolbar`` when the manifest wrote them. Returns ``(copied, None)``, or ``(None, error)`` when the value is not shaped as the
     manifest requires."""
     if not (isinstance(widget, dict) and isinstance(widget.get("path"), str)):
         return None, f"manifest {str(path)!r}: widget must be a table with a string 'path'"

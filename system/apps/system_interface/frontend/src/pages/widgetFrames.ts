@@ -5,9 +5,10 @@
  * widget's content box once the chrome is drawn.
  *
  * A frame lives in one of two hosts: the backdrop's, for a widget on the desktop (and every widget on a phone), and
- * the taskbar's, for a widget this client put in the tray. A widget moved between them is framed anew in the other.
- * In the tray the page is told mode ``tray`` and laid over its slot; while its popover is open the same frame is
- * told ``expanded`` and laid over the popover's box instead, so opening it reloads nothing. A tray page's click
+ * the taskbar's, for a widget this client put in the taskbar's tray or its row. A widget moved between the hosts is
+ * framed anew in the other. In the taskbar the page is told mode ``tray`` or ``toolbar`` and laid over its slot;
+ * while its popover is open the same frame is told ``expanded`` and laid over the popover's box instead, so opening
+ * it reloads nothing. A taskbar page's click
  * (``shell:widget-press``) opens or closes its popover, and any widget page's right-click (``shell:widget-menu``)
  * asks for its menu through ``onMenu``.
  *
@@ -39,7 +40,7 @@ import { hideTooltipAtRect, showTooltipAtRect } from "@imbue/workspace-ui/src/co
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import { windowPageUrl } from "../model/pageUrl";
 import type { AppRecord } from "../model/records";
-import { isInTray, shownWidgets } from "../reducers/desktopState";
+import { isInTaskbar, shownWidgets, taskbarSpotOf } from "../reducers/desktopState";
 import type { ShownWidget } from "../reducers/desktopState";
 import { sendToChildFrame, setChildFrameMessageHandler } from "../relay";
 import type { DesktopStore } from "../store/DesktopStore";
@@ -182,9 +183,9 @@ export class WidgetFramesLayer {
     }
   }
 
-  /** The host a shown widget's frame lives in: the taskbar's for one in the tray, else the backdrop's. */
+  /** The host a shown widget's frame lives in: the taskbar's for one in the taskbar, else the backdrop's. */
   private hostFor(widget: ShownWidget): HTMLElement {
-    return isInTray(widget) && this.trayHost !== null && !this.store.isPhoneLayout() ? this.trayHost : this.host;
+    return isInTaskbar(widget) && this.trayHost !== null && !this.store.isPhoneLayout() ? this.trayHost : this.host;
   }
 
   private create(shown: ShownWidget): WidgetFrame | null {
@@ -286,12 +287,13 @@ export class WidgetFramesLayer {
     if (shown !== undefined) this.sendMode(widget, this.modeFor(shown));
   }
 
-  /** The mode a widget is drawn in: on a phone, which draws every widget collapsed, collapsed; in the tray, its tray
-   *  form, or expanded while its popover is open; else the client's. */
+  /** The mode a widget is drawn in: on a phone, which draws every widget collapsed, collapsed; in the taskbar, the
+   *  form for where it is there, or expanded while its popover is open; else the client's. */
   private modeFor(widget: ShownWidget): WidgetMode {
     if (this.store.isPhoneLayout()) return "collapsed";
-    if (this.hostFor(widget) === this.trayHost) {
-      return this.store.getState().trayPopoverApp === widget.app.name ? "expanded" : "tray";
+    const spot = taskbarSpotOf(widget);
+    if (spot !== null && this.hostFor(widget) === this.trayHost) {
+      return this.store.getState().trayPopoverApp === widget.app.name ? "expanded" : spot;
     }
     return widget.presentation.mode;
   }
@@ -306,10 +308,11 @@ export class WidgetFramesLayer {
     const { width, height } = payload;
     if (app === null || typeof width !== "number" || typeof height !== "number") return;
     if (!Number.isFinite(width) || !Number.isFinite(height)) return;
-    this.store.reportWidgetSize(app, { width, height }, this.frames.get(app)?.sentMode === "tray");
+    const sentMode = this.frames.get(app)?.sentMode;
+    this.store.reportWidgetSize(app, { width, height }, sentMode === "tray" || sentMode === "toolbar");
   }
 
-  /** A click on a tray widget's page: its popover opens, or closes when open. */
+  /** A click on a taskbar widget's page: its popover opens, or closes when open. */
   private takePress(frame: HTMLIFrameElement): void {
     const app = this.appOfFrame(frame);
     if (app === null || this.frames.get(app)?.host !== this.trayHost) return;

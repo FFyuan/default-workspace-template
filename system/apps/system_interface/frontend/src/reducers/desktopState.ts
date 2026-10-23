@@ -451,14 +451,25 @@ export function shownWidgets(state: DesktopState): ShownWidget[] {
   return shown;
 }
 
-/** Whether a shown widget is drawn in the taskbar's tray: placed there, by an app whose page draws a tray form. */
-export function isInTray(widget: ShownWidget): boolean {
-  return widget.presentation.placement === "tray" && (widget.app.widget?.tray ?? false);
+/** The two places in the taskbar a widget can be drawn: its tray, or its row among the windows' entries. */
+export type TaskbarSpot = "tray" | "toolbar";
+
+/** Where in the taskbar a shown widget is drawn: where it was placed, by an app whose page draws a form for there;
+ *  null on the desktop. */
+export function taskbarSpotOf(widget: ShownWidget): TaskbarSpot | null {
+  const { placement } = widget.presentation;
+  if (placement === "desktop") return null;
+  return widget.app.widget?.[placement] === true ? placement : null;
 }
 
-/** The shown widgets this client draws in the taskbar's tray, in the shell's order. */
-export function trayWidgets(state: DesktopState): ShownWidget[] {
-  return shownWidgets(state).filter(isInTray);
+/** Whether a shown widget is drawn in the taskbar, in its tray or its row. */
+export function isInTaskbar(widget: ShownWidget): boolean {
+  return taskbarSpotOf(widget) !== null;
+}
+
+/** The shown widgets this client draws at ``spot`` in the taskbar, in the shell's order. */
+export function taskbarWidgets(state: DesktopState, spot: TaskbarSpot): ShownWidget[] {
+  return shownWidgets(state).filter((widget) => taskbarSpotOf(widget) === spot);
 }
 
 /** Whether ``app`` declares a widget the workspace can show or hide, and whether it shows it now; null for an

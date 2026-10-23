@@ -3,7 +3,8 @@
  * system monitor: the whole widget is one link to the Usage page, opened in a window of its own
  * (``target="_blank"``, which the shell's link rule turns into raising the Usage window). It draws the look the
  * workspace picked: its style (``widgetRings.ts``, ``widgetBars.ts``), its size (the ``--w-*`` lengths ``style.css``
- * gives each size) and how much it shows, or in the taskbar's tray its tray design (``widgetTray.ts``). Whatever the look, while the collector indexes its first history the
+ * gives each size) and how much it shows; in the taskbar's tray its tray design (``widgetTray.ts``), and in the bar's
+ * row its toolbar design (``widgetToolbar.ts``). Whatever the look, while the collector indexes its first history the
  * widget says so rather than show partial totals, and while the stream is down it keeps the last figures, dimmed.
  * Nothing in it changes under the pointer; the detail is in tooltips the shell shows.
  */
@@ -14,9 +15,10 @@ import type { WidgetModel } from "../models/widget";
 import type { WidgetDetail, WidgetLook, WidgetVariant } from "../models/widgetLook";
 import { barsCollapsed, barsExpanded } from "./widgetBars";
 import { ringsCollapsed, ringsExpanded } from "./widgetRings";
+import { TOOLBAR_DESIGNS } from "./widgetToolbar";
 import { TRAY_DESIGNS } from "./widgetTray";
 
-type DesktopMode = Exclude<WidgetMode, "tray">;
+type DesktopMode = Exclude<WidgetMode, "tray" | "toolbar">;
 
 const STYLES: Record<WidgetVariant, Record<DesktopMode, (model: WidgetModel, detail: WidgetDetail) => m.Children>> = {
   rings: { expanded: ringsExpanded, collapsed: ringsCollapsed },
@@ -37,7 +39,9 @@ export const Widget: m.Component<WidgetAttrs> = {
       ? m("span", { class: "text-(--widget-muted)" }, isCollapsed ? "..." : "Indexing usage...")
       : mode === "tray"
         ? TRAY_DESIGNS[look.tray](model, look.detail)
-        : STYLES[look.variant][mode](model, look.detail);
+        : mode === "toolbar"
+          ? TOOLBAR_DESIGNS[look.toolbar](model, look.detail)
+          : STYLES[look.variant][mode](model, look.detail);
     return m(
       "a",
       {
@@ -49,14 +53,17 @@ export const Widget: m.Component<WidgetAttrs> = {
         "data-widget-size": look.size,
         "data-widget-detail": look.detail,
         "data-widget-tray": look.tray,
+        "data-widget-toolbar": look.toolbar,
         "data-live": model.isLive ? "true" : "false",
         class:
           "usage-widget inline-flex flex-col text-(--widget-text) no-underline " +
           (mode === "tray"
             ? "flex-row items-center gap-2.5 px-1 "
-            : isCollapsed
-              ? "gap-1 p-1 "
-              : "w-(--w-width) gap-2 p-1.5 ") +
+            : mode === "toolbar"
+              ? "flex-row items-center gap-3 px-2 "
+              : isCollapsed
+                ? "gap-1 p-1 "
+                : "w-(--w-width) gap-2 p-1.5 ") +
           (model.isLive ? "" : "opacity-60"),
       },
       [

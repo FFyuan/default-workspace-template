@@ -15,3 +15,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - A widget whose page draws a tray form can live in the taskbar's tray instead: "Move to taskbar" in its menu (and "Move to desktop" back), kept per client. In the tray a click opens a popover above the bar with the widget expanded; a click elsewhere, Escape, or opening the app closes it. A right-click anywhere on a widget, not only its edge, now opens its menu.
 
 - A page of an app can move the app's widget to the tray or back for its client (`shell:widget-placement`), so an app can offer that choice in its own settings.
+
+- A widget whose page draws a toolbar form can also sit in the taskbar's own row, right after the launcher and before the window entries, as tall as an entry and tinted like one; its popover opens above that end of the bar. The widget's menu offers each place it is not: "Move to desktop", "Move to toolbar", "Move to tray" (the last was "Move to taskbar").

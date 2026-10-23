@@ -88,6 +88,15 @@
   height: 0.8em;
 }
 
+/* In the taskbar's row the widget is as tall as a window's entry and its text the bar's own size. */
+.usage-widget[data-widget-mode="toolbar"] {
+  --w-font: 13px;
+  --w-ring: 22px;
+  --w-meter: 24px;
+  height: 36px;
+  line-height: 1.2;
+}
+
 /* The widget's page lets the shell's panel show through (base.css paints every page's body). */
 body.usage-widget-body {
   background-color: transparent;

@@ -34,7 +34,7 @@ const API_SPEND = totalsRow({ group: { provider: "anthropic", billing_mode: "API
 
 function rendered(
   limits: LimitReading[],
-  mode: "expanded" | "collapsed" | "tray",
+  mode: "expanded" | "collapsed" | "tray" | "toolbar",
   look: Partial<WidgetLook> = {},
   totals = [API_SPEND],
 ): HTMLElement {
@@ -242,5 +242,52 @@ describe("the other tray designs", () => {
     ]);
     const less = rendered(BOTH, "tray", { tray: "stacked", detail: "less" });
     expect(texts(less, "[data-widget-window] [data-widget-percent]")).toEqual(["80%"]);
+  });
+});
+
+describe("the toolbar designs", () => {
+  it("draws a chip like a window's entry: the ring pair as its icon, the name and the 5-hour figure as its title", () => {
+    const root = rendered(BOTH, "toolbar");
+    expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-mode")).toBe("toolbar");
+    expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-toolbar")).toBe("chip");
+    const pair = root.querySelector('[data-widget-rings="subscription:claude"]');
+    expect(pair?.querySelector('[data-ring="outer"]')).not.toBeNull();
+    expect(pair?.querySelector("[data-ring-figure]")).toBeNull();
+    expect(texts(pair, "[data-ring-name]")).toEqual(["Claude"]);
+    expect(texts(pair, "[data-widget-percent]")).toEqual(["80%"]);
+    // No spend in the bar.
+    expect(root.textContent).not.toContain("$9.50");
+    expect(texts(rendered(BOTH, "toolbar", { detail: "more" }), "[data-widget-percent]")).toEqual(["80%", "34%"]);
+    expect(rendered(BOTH, "toolbar", { detail: "less" }).querySelector('[data-ring="outer"]')).toBeNull();
+  });
+
+  it("draws upright meters filled to each window's share beside the name over the 5-hour figure", () => {
+    const pair = rendered(BOTH, "toolbar", { toolbar: "meters" }).querySelector("[data-widget-rings]");
+    const short = pair?.querySelector('[data-widget-meter="short"] > span') as HTMLElement;
+    expect(short.style.height).toBe("80%");
+    expect((pair?.querySelector('[data-widget-meter="long"] > span') as HTMLElement).style.height).toBe("34%");
+    expect(tooltips(pair, "[data-widget-meter]")).toEqual([
+      `5-hour limit: 80% used, resets ${SHORT_RESET}`,
+      `Weekly limit: 34% used, resets ${WEEKLY_RESET}`,
+    ]);
+    expect(texts(pair, "[data-ring-name]")).toEqual(["Claude"]);
+    const less = rendered(BOTH, "toolbar", { toolbar: "meters", detail: "less" });
+    expect(less.querySelector('[data-widget-meter="long"]')).toBeNull();
+  });
+
+  it("draws the names and 5-hour figures as one line of text", () => {
+    const root = rendered(BOTH, "toolbar", { toolbar: "inline" });
+    expect(root.querySelector("[data-widget-meter], [data-ring], [data-widget-bar]")).toBeNull();
+    expect(texts(root, "[data-ring-name]")).toEqual(["Claude"]);
+    expect(texts(root, "[data-widget-percent]")).toEqual(["80%"]);
+  });
+
+  it("draws the name and the 5-hour figure over a line per window, the weekly one dropped with less", () => {
+    const pair = rendered(BOTH, "toolbar", { toolbar: "line" }).querySelector("[data-widget-rings]");
+    expect(texts(pair, "[data-ring-name]")).toEqual(["Claude"]);
+    expect((pair?.querySelector('[data-widget-bar="short"]') as HTMLElement).style.width).toBe("80%");
+    expect((pair?.querySelector('[data-widget-bar="long"]') as HTMLElement).style.width).toBe("34%");
+    const less = rendered(BOTH, "toolbar", { toolbar: "line", detail: "less" });
+    expect(less.querySelector('[data-widget-bar="long"]')).toBeNull();
   });
 });
