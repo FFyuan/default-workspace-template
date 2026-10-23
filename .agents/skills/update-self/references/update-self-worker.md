@@ -496,7 +496,17 @@ Valid `name:` values:
     paths).
   - **Dockerfile split** (if it merged) -- each hunk live-applicable or
     image-level. Version pins live in `setup_system.sh`, so a pin bump is a
-    provisioner change, not a Dockerfile hunk.
+    provisioner change, not a Dockerfile hunk. Mark each image-level hunk by
+    whether a fresh image would give the user anything the applied workspace
+    lacks:
+    - **covered live** -- nothing: its effect already reaches the running
+      container another way (the merged tree the image only copies in, an
+      installer `setup_system.sh` runs from the repo on the apply's re-run, a
+      removed install that nothing in the merged tree runs any more), or it
+      only shapes the build itself (a layer-cache `COPY`). Say which.
+    - **pending recreate** -- something: a base `FROM` change, a package or
+      build-time path nothing outside the image build provides. Say what the
+      running workspace lacks, or still has, until a recreate.
   - **Provisioning changes** and **global-dependency bumps** (if any) -- per
     `references/worker-provisioning-changes.md`: each classified
     live-applicable (naming the in-branch mirror edits you made) or

@@ -41,7 +41,9 @@ Write it for a non-technical reader skimming top to bottom, in this order:
    unrelated. When the worker's rule ran none of them (the update touched
    nothing of theirs), say that the release arrived exactly as it was shipped
    and tested -- never that checks ran and passed.
-6. **Caveats** -- only if any: rebuild-only items, incomplete provisioning, a
+6. **Caveats** -- only if any: rebuild-only items the running workspace still
+   lacks until a recreate (never one the report marks covered live: a
+   recreate would land in the same state), incomplete provisioning, a
    missing backup, unfinished work from an earlier update attempt that Step 3b
    set aside, a deviation the worker disclosed that could not be closed.
 7. **Pre-existing issues** -- only if any, and only after verifying
@@ -58,10 +60,10 @@ since the unattended pass stands up no previews.
 ## Language rules
 
 Include only what the user is likely to care about or have an opinion on. A
-deferred item with no consequence they can see (a rebuild-only flag that
-changes nothing until the workspace is someday recreated) is one line at most,
-or nothing; a change to something they built, or a decision they might have
-made differently, always makes the cut.
+deferred item with no consequence they can see (a pending-recreate item whose
+difference they would not notice) is one line at most, or nothing; a change to
+something they built, or a decision they might have made differently, always
+makes the cut.
 
 Detail in the informational sections (2-5); plain language at the decision
 points -- the headline, any caveat that needs the user's action, and the
