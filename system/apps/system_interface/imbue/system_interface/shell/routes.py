@@ -21,6 +21,7 @@ from workspace_layout.ops import OpRequester
 from workspace_layout.ops import parse_op_body
 from workspace_layout.primitives import ClientActivityKind
 from workspace_layout.primitives import ClientId
+from workspace_layout.primitives import WidgetPlacement
 from workspace_layout.records import EntryPresentation
 from workspace_layout.records import WidgetPresentation
 from workspace_layout.shell_url import CLIENTS_ROUTE
@@ -296,13 +297,15 @@ def set_client_entry(client_id: str, app: str) -> ResponseReturnValue:
 
 
 def set_client_widget(client_id: str, app: str) -> ResponseReturnValue:
-    """How one client shows one widget (app-widgets plan section 5.3): its position and mode; the app must declare a
-    widget."""
+    """How one client shows one widget (app-widgets plan section 5.3): its position, mode and placement; the app must
+    declare a widget, and one whose page draws a tray form to be placed in the tray."""
     body = parse_request_body(WidgetPresentation)
     shell = _shell()
     entry = _entry_or_raise(app)
     if entry.row.widget is None or entry.row.internal:
         raise InvalidShellValueError(f"App {app!r} declares no widget")
+    if body.placement is WidgetPlacement.TRAY and not entry.row.widget.tray:
+        raise InvalidShellValueError(f"App {app!r}'s widget draws no tray form")
     record = shell.set_client_widget_presentation(ClientId(client_id), AppName(app), body)
     return model_response(client_view(record, str(record.id) in shell.broadcaster.connected_client_ids()))
 

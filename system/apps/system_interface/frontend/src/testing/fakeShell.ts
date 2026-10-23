@@ -452,7 +452,9 @@ export class FakeDesktopApi implements DesktopApi {
   async setWidgetPresentation(clientId: string, app: string, presentation: WidgetPresentation): Promise<ClientRecord> {
     const position =
       presentation.position === null ? "default" : `${presentation.position.x},${presentation.position.y}`;
-    this.calls.push(`setWidgetPresentation:${clientId}:${app}:${position}:${presentation.mode}`);
+    this.calls.push(
+      `setWidgetPresentation:${clientId}:${app}:${position}:${presentation.mode}:${presentation.placement}`,
+    );
     this.refuse();
     const existing = this.clients.find((client) => client.id === clientId) ?? clientRecord(clientId);
     const updated = { ...existing, widgets: { ...existing.widgets, [app]: presentation } };

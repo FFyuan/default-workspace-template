@@ -20,6 +20,8 @@ import {
   SHELL_SHOWN,
   SHELL_WIDGET_DRAG,
   SHELL_WIDGET_HIDDEN,
+  SHELL_WIDGET_MENU,
+  SHELL_WIDGET_PRESS,
   SHELL_WIDGET_TOOLTIP,
   SHELL_WIDGET_MODE,
   SHELL_WIDGET_SIZE,
@@ -286,6 +288,48 @@ describe("connectToShell", () => {
       hidden,
       shown,
       hidden,
+    ]);
+  });
+
+  it("hands a widget's right-click to the shell, and in the tray its click instead of the link and no drag", () => {
+    const parent = framed();
+    const onWidgetMode = vi.fn();
+    connection = connectToShell({ onWidgetMode });
+    deliver({ ...HANDSHAKE, windowId: null, surface: "widget", path: "/widget" }, parent);
+    const root = document.createElement("div");
+    root.innerHTML = '<a id="link" href="/" target="_blank">Usage</a>';
+    document.body.appendChild(root);
+    const link = root.querySelector("#link") as HTMLElement;
+    const click = (): void => {
+      link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    };
+    parent.postMessage.mockClear();
+
+    link.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 12, clientY: 7 }));
+    // On the desktop, a click is the page's: its link opens the app.
+    click();
+    deliver({ type: SHELL_WIDGET_MODE, mode: "tray" }, parent);
+    click();
+    const press = (x: number): void => {
+      const event = new MouseEvent(x === 0 ? "pointerdown" : "pointermove", {
+        bubbles: true,
+        button: 0,
+        screenX: x,
+        screenY: 0,
+      });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      Object.defineProperty(event, "isPrimary", { value: true });
+      link.dispatchEvent(event);
+    };
+    press(0);
+    press(40);
+    root.remove();
+
+    expect(onWidgetMode.mock.calls).toEqual([["tray"]]);
+    expect(parent.postMessage.mock.calls.map(([message]) => message)).toEqual([
+      { type: SHELL_WIDGET_MENU, x: 12, y: 7 },
+      { type: SHELL_OPEN, path: "/", ifPresent: "focus" },
+      { type: SHELL_WIDGET_PRESS },
     ]);
   });
 

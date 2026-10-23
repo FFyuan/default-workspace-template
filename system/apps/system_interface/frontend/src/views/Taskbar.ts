@@ -11,6 +11,8 @@ import type { LauncherFieldAttrs } from "./LauncherField";
 import { SystemTray } from "./SystemTray";
 import type { SystemTrayAttrs } from "./SystemTray";
 import { TaskbarEntry } from "./TaskbarEntry";
+import { TrayWidgetPopover } from "./TrayWidgets";
+import type { TrayWidgetPopoverAttrs } from "./TrayWidgets";
 
 export interface TaskbarAttrs {
   readonly entries: readonly TaskbarEntryRecord[];
@@ -20,6 +22,11 @@ export interface TaskbarAttrs {
   readonly tray: SystemTrayAttrs;
   readonly onEntryClick: (windowId: string) => void;
   readonly onEntryContextMenu: (windowId: string, x: number, y: number, target: Element) => void;
+  /** The open popover of a widget in the tray, or null. */
+  readonly widgetPopover: TrayWidgetPopoverAttrs | null;
+  /** The host the tray widgets' frames live in was made, or is gone. */
+  readonly onTrayFramesHostCreated: (host: HTMLElement) => void;
+  readonly onTrayFramesHostRemoved: (host: HTMLElement) => void;
 }
 
 export const Taskbar: m.Component<TaskbarAttrs> = {
@@ -65,6 +72,15 @@ export const Taskbar: m.Component<TaskbarAttrs> = {
         ),
         m(SystemTray, attrs.tray),
       ]),
+      attrs.widgetPopover === null ? null : m(TrayWidgetPopover, attrs.widgetPopover),
+      // The tray widgets' frames' host, over the bar and its popover; its frames lie over their content boxes.
+      m("div", {
+        "data-tray-widget-frames": "",
+        class: "tray-widget-frames pointer-events-none absolute inset-0 z-(--z-sticky) [&>*]:pointer-events-auto",
+        oncreate: (created: m.VnodeDOM) => attrs.onTrayFramesHostCreated(created.dom as HTMLElement),
+        onremove: (removed: m.VnodeDOM) => attrs.onTrayFramesHostRemoved(removed.dom as HTMLElement),
+        onbeforeupdate: () => false,
+      }),
     );
   },
 };

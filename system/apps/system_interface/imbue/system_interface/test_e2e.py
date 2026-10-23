@@ -2878,6 +2878,7 @@ _WIDGET_PATH = "/widget"
 # The stub widget page's content in each mode, in CSS pixels: what it reports, and the shell draws below the grip.
 _WIDGET_EXPANDED_SIZE = (150, 50)
 _WIDGET_COLLAPSED_SIZE = (60, 28)
+_WIDGET_TRAY_SIZE = (50, 20)
 # The rim a widget's box draws round its page, on each side.
 _WIDGET_RIM = 6
 
@@ -2887,7 +2888,7 @@ _WIDGET_PAGE_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8"><tit
 <a id="open" href="/" target="_blank">Open</a> <span id="mode"></span>
 <script type="module">
 import { connectToShell } from "__BASE_URL__/_static/app_contract.js";
-const sizes = { expanded: [__EXPANDED__], collapsed: [__COLLAPSED__] };
+const sizes = { expanded: [__EXPANDED__], collapsed: [__COLLAPSED__], tray: [__TRAY__] };
 window.__modes = [];
 const connection = connectToShell({
   onHandshake(handshake) { window.__handshake = handshake; },
@@ -2911,6 +2912,7 @@ def _widget_app(shell: dict[str, str]) -> Flask:
             _WIDGET_PAGE_TEMPLATE.replace("__BASE_URL__", shell["base_url"])
             .replace("__EXPANDED__", ", ".join(str(side) for side in _WIDGET_EXPANDED_SIZE))
             .replace("__COLLAPSED__", ", ".join(str(side) for side in _WIDGET_COLLAPSED_SIZE))
+            .replace("__TRAY__", ", ".join(str(side) for side in _WIDGET_TRAY_SIZE))
         )
         return Response(html, mimetype="text/html")
 
@@ -3079,6 +3081,68 @@ def test_a_widget_shows_top_right_collapses_moves_anywhere_opens_its_app_and_hid
             assert _get_json(f"{server.base_url}/api/widgets")["widgets"] == [
                 {"app": _WIDGET_APP_NAME, "is_enabled": False}
             ]
+
+
+@pytest.mark.timeout(120, func_only=False)
+def test_a_widget_moves_to_the_tray_from_its_menu_and_a_click_opens_its_popover_until_escape(
+    tmp_path: Path, page: Page
+) -> None:
+    """A right-click on a widget's page opens its menu; "Move to taskbar" puts a widget whose page draws a tray form in
+    the tray, told mode tray, at the size its page reports for that; a click on it opens its popover, the same page
+    told expanded, opening no window; Escape on the page closes it; and the tray's menu moves it back."""
+    shell: dict[str, str] = {}
+    with serve_app(_widget_app(shell)) as widget_served:
+        widget_row = registry_row_toml(
+            _WIDGET_APP_NAME,
+            widget_served.http_url,
+            display_name="Gauge",
+            widget=(_WIDGET_PATH, True),
+            widget_tray=True,
+        )
+        with _running_e2e_server(tmp_path, extra_rows=(widget_row,)) as server:
+            shell["base_url"] = server.base_url
+            _land(page, server)
+            client_id = _client_id(page)
+            on_desktop = page.locator(f'[data-widgets] [data-widget="{_WIDGET_APP_NAME}"]')
+            expect(on_desktop).to_be_visible(timeout=15000)
+
+            frame_box = _box(page.locator(f'iframe[data-widget-frame="{_WIDGET_APP_NAME}"]'))
+            page.mouse.click(frame_box["x"] + 20, frame_box["y"] + 10, button="right")
+            page.locator('[data-menu-row="widget-to-tray"]').click()
+            slot = page.locator(f'[data-tray-widget="{_WIDGET_APP_NAME}"]')
+            expect(slot).to_be_visible(timeout=10000)
+            expect(on_desktop).to_have_count(0)
+            wait_for(
+                lambda: _client_widgets(server.base_url, client_id)[_WIDGET_APP_NAME]["placement"] == "tray",
+                timeout=10.0,
+                poll_interval=0.1,
+                error_message="the move never wrote the placement",
+            )
+            # The page is framed anew in the taskbar's host and told its tray form.
+            frame = _widget_frame(page)
+            frame.wait_for_function("() => window.__modes.at(-1) === 'tray'", timeout=10000)
+            box = _box(slot)
+            _assert_close(box["width"], _WIDGET_TRAY_SIZE[0], "tray slot width")
+            _assert_close(box["height"], _WIDGET_TRAY_SIZE[1], "tray slot height")
+            taskbar = _box(page.locator("[data-taskbar]"))
+            assert taskbar["y"] <= box["y"] and box["y"] + box["height"] <= taskbar["y"] + taskbar["height"]
+
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            popover = page.locator(f'[data-widget-popover="{_WIDGET_APP_NAME}"]')
+            expect(popover).to_be_visible(timeout=10000)
+            frame.wait_for_function("() => window.__modes.at(-1) === 'expanded'", timeout=10000)
+            assert _box(popover)["y"] + _box(popover)["height"] <= taskbar["y"] + 1, "the popover is not above the bar"
+            page.wait_for_timeout(300)
+            assert _windows_of(server.base_url, _WIDGET_APP_NAME) == []
+
+            page.keyboard.press("Escape")
+            expect(popover).to_have_count(0, timeout=10000)
+            frame.wait_for_function("() => window.__modes.at(-1) === 'tray'", timeout=10000)
+
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
+            page.locator('[data-menu-row="widget-to-desktop"]').click()
+            expect(on_desktop).to_be_visible(timeout=10000)
+            expect(slot).to_have_count(0)
 
 
 @pytest.mark.timeout(120, func_only=False)

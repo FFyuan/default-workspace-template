@@ -798,6 +798,7 @@ default_mode = "floating"
 [widget]
 path = "/widget"
 default_enabled = false
+tray = true
 
 [[message_handlers]]
 type = "minds:focus-chat"
@@ -858,7 +859,7 @@ def test_manifest_registration_copies_every_field_onto_the_row(tmp_path: Path) -
         },
     ]
     assert row["pin"] == {"path": "/", "style": "avatar", "scope": "independent", "default_mode": "floating"}
-    assert row["widget"] == {"path": "/widget", "default_enabled": False}
+    assert row["widget"] == {"path": "/widget", "default_enabled": False, "tray": True}
     assert row["message_handlers"] == [
         {"type": "minds:focus-chat", "path": "/api/focus-chat"},
         {"type": "open:file", "show": "{path}?view", "showing": ["{path}", "{path}/"]},

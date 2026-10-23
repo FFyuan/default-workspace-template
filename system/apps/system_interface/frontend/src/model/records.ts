@@ -153,6 +153,8 @@ export interface AppWidget {
   readonly path: string;
   /** Whether the widget shows in a workspace that has made no choice about it. */
   readonly default_enabled: boolean;
+  /** Whether the page draws a tray form, so a client may put the widget in the taskbar's tray. */
+  readonly tray: boolean;
 }
 
 /** Where a client keeps a widget it has moved: the corner of the widget's box nearest the backdrop's corner of
@@ -165,15 +167,23 @@ export interface WidgetPosition {
 /** Whether one client draws a widget in full or as its one-line pill. */
 export type WidgetMode = "expanded" | "collapsed";
 
+/** Where one client draws a widget: on the desktop, or in the taskbar's tray (app-widgets plan section 4.10). */
+export type WidgetPlacement = "desktop" | "tray";
+
 /** How one client shows one widget (app-widgets plan section 3.3); global across desktops. */
 export interface WidgetPresentation {
-  /** Where it was moved to; null for the default, stacked top right. */
+  /** Where it was moved to on the desktop; null for the default, stacked top right. */
   readonly position: WidgetPosition | null;
   readonly mode: WidgetMode;
+  readonly placement: WidgetPlacement;
 }
 
 /** How a client with no presentation of a widget draws it. */
-export const DEFAULT_WIDGET_PRESENTATION: WidgetPresentation = { position: null, mode: "expanded" };
+export const DEFAULT_WIDGET_PRESENTATION: WidgetPresentation = {
+  position: null,
+  mode: "expanded",
+  placement: "desktop",
+};
 
 /** Whether the workspace shows one app's widget: the stored choice, else the manifest's default. */
 export interface WidgetSwitch {
@@ -530,6 +540,7 @@ function parseWidget(raw: unknown): AppWidget | null {
   return {
     path: asString(record.path, "widget.path"),
     default_enabled: asBoolean(record.default_enabled ?? true, "widget.default_enabled"),
+    tray: asBoolean(record.tray ?? false, "widget.tray"),
   };
 }
 
@@ -602,6 +613,11 @@ export function parseWidgetPresentation(raw: unknown): WidgetPresentation {
   return {
     position: parseFloatingPosition(record.position),
     mode: asOneOf(record.mode ?? DEFAULT_WIDGET_PRESENTATION.mode, ["expanded", "collapsed"], "widget.mode"),
+    placement: asOneOf(
+      record.placement ?? DEFAULT_WIDGET_PRESENTATION.placement,
+      ["desktop", "tray"],
+      "widget.placement",
+    ),
   };
 }
 

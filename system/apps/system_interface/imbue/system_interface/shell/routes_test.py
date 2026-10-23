@@ -916,7 +916,7 @@ def _widget_shell(tmp_path: Path, broadcaster: WebSocketBroadcaster) -> Flask:
     widget is off by default, and an internal ``probe`` app declaring one."""
     registry_path = write_two_app_registry(
         tmp_path,
-        registry_row_toml("gauge", "http://localhost:7003", widget=("/widget", True)),
+        registry_row_toml("gauge", "http://localhost:7003", widget=("/widget", True), widget_tray=True),
         registry_row_toml("meter", "http://localhost:7004", widget=("/widget", False)),
         registry_row_toml("probe", "http://localhost:7005", is_internal=True, widget=("/widget", True)),
     )
@@ -940,6 +940,7 @@ def test_the_widget_switches_default_from_the_manifests_are_written_for_everyone
     assert {row["name"]: row["widget"] for row in inventory["apps"]}["gauge"] == {
         "path": "/widget",
         "default_enabled": True,
+        "tray": True,
     }
 
     hidden = client.post("/api/widgets/gauge", json={"is_enabled": False})
@@ -968,12 +969,13 @@ def test_a_clients_widget_presentation_is_written_and_announced_to_that_client_a
         "/api/clients/c1/widgets/gauge", json={"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}
     )
     assert written.status_code == 200
-    assert written.get_json()["widgets"] == {"gauge": {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}}
+    stored = {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed", "placement": "desktop"}
+    assert written.get_json()["widgets"] == {"gauge": stored}
     assert drain_messages(first_queue) == [
         {
             "type": "client_widgets_changed",
             "client_id": "c1",
-            "widgets": {"gauge": {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}},
+            "widgets": {"gauge": stored},
         }
     ]
     assert drain_messages(second_queue) == []
@@ -982,7 +984,11 @@ def test_a_clients_widget_presentation_is_written_and_announced_to_that_client_a
     # An absent field takes the default; an app declaring no widget, an internal app, a position off the backdrop, an
     # unknown app, and an unknown client are refused.
     defaulted = client.post("/api/clients/c1/widgets/meter", json={})
-    assert defaulted.get_json()["widgets"]["meter"] == {"position": None, "mode": "expanded"}
+    assert defaulted.get_json()["widgets"]["meter"] == {"position": None, "mode": "expanded", "placement": "desktop"}
+    # Only a widget whose page draws a tray form goes in the tray.
+    tray = client.post("/api/clients/c1/widgets/gauge", json={"placement": "tray"})
+    assert tray.get_json()["widgets"]["gauge"]["placement"] == "tray"
+    assert client.post("/api/clients/c1/widgets/meter", json={"placement": "tray"}).status_code == 400
     for name in ("files", "probe"):
         assert client.post(f"/api/clients/c1/widgets/{name}", json={}).status_code == 400
     assert client.post("/api/clients/c1/widgets/gauge", json={"position": {"x": 1.5, "y": 0.2}}).status_code == 400

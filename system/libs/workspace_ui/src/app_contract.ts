@@ -48,6 +48,11 @@
  * bubble would be clipped by its small frame, so the page says which element the pointer entered, with its text and
  * where it is in the frame, as ``shell:widget-tooltip``, and the shell shows the workspace's tooltip there; leaving
  * every such element, or pressing, sends the same type with no text.
+ *
+ * A right-click on a widget's page asks the shell for the widget's menu (``shell:widget-menu``) rather than opening
+ * the browser's. In the tray (mode ``tray``) a widget does not move, and a click on it is not the page's: it asks the
+ * shell to open or close the widget's popover (``shell:widget-press``), and Escape on it asks the shell to close the
+ * popover (``shell:widget-dismiss``), since the page then holds the keyboard; a tray page needs no code for any.
  */
 
 /** Shell to app: sent after every `load` of the frame; says which window, desktop, path, and client this page is in. */
@@ -91,6 +96,14 @@ export const SHELL_WIDGET_DRAG = "shell:widget-drag";
 
 /** App to shell, from a widget only: the tooltip of the element the pointer is over, or none (see the module docs). */
 export const SHELL_WIDGET_TOOLTIP = "shell:widget-tooltip";
+/** App to shell, from a widget in the tray only: a click on the page, which opens or closes its popover. */
+export const SHELL_WIDGET_PRESS = "shell:widget-press";
+/** App to shell, from a widget only: a right-click on the page at ``x``, ``y`` (the frame's pixels), which opens the
+ *  shell's menu for the widget. */
+export const SHELL_WIDGET_MENU = "shell:widget-menu";
+/** App to shell, from a widget only: Escape was pressed on the page, which closes the widget's popover if it is
+ *  open. */
+export const SHELL_WIDGET_DISMISS = "shell:widget-dismiss";
 /** The attribute a widget page's element carries its tooltip's text in. */
 export const WIDGET_TOOLTIP_ATTRIBUTE = "data-widget-tooltip";
 
@@ -144,8 +157,9 @@ export function hasWorkspaceCoordinate(host: string): boolean {
 /** What frames the page: a window, or a widget on the desktop (app-widgets plan section 6). */
 export type ShellSurface = "window" | "widget";
 
-/** How the client draws a widget: in full, or as its one-line pill. */
-export type WidgetMode = "expanded" | "collapsed";
+/** How the client draws a widget: in full, as its one-line pill, or in the taskbar's tray (a page the manifest says
+ *  draws a tray form only; app-widgets plan section 4.10). */
+export type WidgetMode = "expanded" | "collapsed" | "tray";
 
 export interface ShellHandshake {
   clientId: string;
@@ -238,7 +252,7 @@ function readHandshake(data: Record<string, unknown>): ShellHandshake | null {
 }
 
 function readWidgetMode(value: unknown): WidgetMode | null {
-  return value === "expanded" || value === "collapsed" ? value : null;
+  return value === "expanded" || value === "collapsed" || value === "tray" ? value : null;
 }
 
 function checkedCapabilities(handlers: ShellConnectionHandlers): ShellCapabilities {
@@ -476,6 +490,34 @@ function widgetTooltipTracker(
 }
 
 /**
+ * Hand a widget page's right-click, and in the tray its click, to the shell (see the module docs). Returns the
+ * listeners to add to the page's window, each named by its event.
+ */
+function widgetPressTracker(
+  isWidget: () => boolean,
+  isInTray: () => boolean,
+  send: (type: string, payload: Record<string, unknown>) => void,
+): Readonly<Record<string, (event: Event) => void>> {
+  return {
+    contextmenu: (event) => {
+      if (!isWidget()) return;
+      event.preventDefault();
+      const mouse = event as MouseEvent;
+      send(SHELL_WIDGET_MENU, { x: mouse.clientX, y: mouse.clientY });
+    },
+    keydown: (event) => {
+      if (isWidget() && (event as KeyboardEvent).key === "Escape") send(SHELL_WIDGET_DISMISS, {});
+    },
+    click: (event) => {
+      if (!isInTray() || (event as MouseEvent).button !== PRIMARY_BUTTON) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      send(SHELL_WIDGET_PRESS, {});
+    },
+  };
+}
+
+/**
  * Connect this page to the shell that frames it. Safe to call on a top-level page: nothing
  * arrives, and every send is a no-op, so an app behaves the same visited directly. Once a
  * shell's handshake arrives, the page's link clicks and script popups follow the contract's rule
@@ -487,6 +529,7 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
   const isFramed = boundWindow.parent !== boundWindow;
   let hasShell = false;
   let surface: ShellSurface = "window";
+  let widgetMode: WidgetMode | null = null;
 
   function onMessage(event: MessageEvent): void {
     if (!isFramed || event.source !== boundWindow.parent) return;
@@ -504,7 +547,9 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
       }
       case SHELL_WIDGET_MODE: {
         const mode = readWidgetMode(message.mode);
-        if (mode !== null && surface === "widget") handlers.onWidgetMode?.(mode);
+        if (mode === null || surface !== "widget") return;
+        widgetMode = mode;
+        handlers.onWidgetMode?.(mode);
         return;
       }
       case SHELL_SHOWN:
@@ -546,16 +591,20 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
   });
 
   // In the capture phase, so a swallowed click never reaches the page's handlers or the link rule.
-  const dragListeners = widgetDragTracker(() => hasShell && surface === "widget", send);
-  const tooltipListeners = widgetTooltipTracker(() => hasShell && surface === "widget", send);
+  const isWidget = (): boolean => hasShell && surface === "widget";
+  const isInTray = (): boolean => isWidget() && widgetMode === "tray";
+  const dragListeners = widgetDragTracker(() => isWidget() && !isInTray(), send);
+  const tooltipListeners = widgetTooltipTracker(isWidget, send);
+  const pressListeners = widgetPressTracker(isWidget, isInTray, send);
 
   boundWindow.addEventListener("message", onMessage);
   if (isFramed) {
     boundWindow.addEventListener("click", onLinkClick);
     boundWindow.addEventListener("auxclick", onLinkClick);
     for (const [type, listener] of Object.entries(dragListeners)) boundWindow.addEventListener(type, listener, true);
-    for (const [type, listener] of Object.entries(tooltipListeners))
-      boundWindow.addEventListener(type, listener, true);
+    for (const listeners of [tooltipListeners, pressListeners]) {
+      for (const [type, listener] of Object.entries(listeners)) boundWindow.addEventListener(type, listener, true);
+    }
     boundWindow.open = routedOpen;
   }
   send(SHELL_CAPABILITIES, { navigation: capabilities.navigation, closeChord: capabilities.closeChord });
@@ -585,7 +634,7 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
       boundWindow.removeEventListener("message", onMessage);
       boundWindow.removeEventListener("click", onLinkClick);
       boundWindow.removeEventListener("auxclick", onLinkClick);
-      for (const listeners of [dragListeners, tooltipListeners]) {
+      for (const listeners of [dragListeners, tooltipListeners, pressListeners]) {
         for (const [type, listener] of Object.entries(listeners))
           boundWindow.removeEventListener(type, listener, true);
       }

@@ -9,6 +9,9 @@
  *   colour, its name, its figure); with less, the 5-hour window alone and no spend; with more, each row's reset time
  *   and the reading's time in view. Then the pay-as-you-go spend.
  *
+ * - In the taskbar's tray: per subscription a small ring pair beside its name in small capitals over the 5-hour
+ *   figure (and the weekly one with more), all within the tray's height.
+ *
  * The rest is in tooltips: the pair's says both windows, a row's its window, a heading the whole subscription.
  */
 
@@ -48,8 +51,9 @@ function ringView(window: LimitWindow, radius: number, role: WindowRole): m.Vnod
   return [track, arc];
 }
 
-/** A ring pair with the 5-hour figure in its middle; ``outer`` null draws the 5-hour ring alone. */
-function ringsView(inner: LimitWindow, outer: LimitWindow | null, label: string): m.Vnode {
+/** A ring pair with the 5-hour figure in its middle (unless ``hasFigure`` is false, as in the tray); ``outer`` null
+ *  draws the 5-hour ring alone. */
+function ringsView(inner: LimitWindow, outer: LimitWindow | null, label: string, hasFigure = true): m.Vnode {
   return m(
     "span",
     {
@@ -67,14 +71,17 @@ function ringsView(inner: LimitWindow, outer: LimitWindow | null, label: string)
         },
         [...(outer === null ? [] : ringView(outer, OUTER_RADIUS, "long")), ...ringView(inner, INNER_RADIUS, "short")],
       ),
-      m(
-        "span",
-        {
-          "data-ring-figure": "",
-          class: "relative text-(length:--w-ring-figure) leading-none font-semibold tabular-nums text-(--widget-text)",
-        },
-        percentText(inner),
-      ),
+      hasFigure
+        ? m(
+            "span",
+            {
+              "data-ring-figure": "",
+              class:
+                "relative text-(length:--w-ring-figure) leading-none font-semibold tabular-nums text-(--widget-text)",
+            },
+            percentText(inner),
+          )
+        : null,
     ],
   );
 }
@@ -169,4 +176,36 @@ export function ringsCollapsed(model: WidgetModel, detail: WidgetDetail): m.Chil
     );
   }
   return pillView(cards);
+}
+
+export function ringsTray(model: WidgetModel, detail: WidgetDetail): m.Children {
+  const cards = model.cards ?? [];
+  const rings = widgetRings(cards);
+  if (rings.length === 0) return pillView(cards);
+  return rings.map((pair) =>
+    m("span", { key: pair.key, "data-widget-rings": pair.key, class: "flex items-center gap-1" }, [
+      ringsView(pair.inner, detail === "less" ? null : pair.outer, pair.tooltip, false),
+      m("span", { class: "flex flex-col gap-px whitespace-nowrap tabular-nums leading-none" }, [
+        m("span", { "data-ring-name": "", class: `${NAME_CLASS} text-[0.7em]`, ...tooltip(pair.tooltip) }, pair.name),
+        m("span", { class: "flex items-baseline gap-1" }, [
+          m(
+            "span",
+            { "data-widget-percent": pair.inner.level, class: "font-semibold", ...tooltip(windowText(pair.inner)) },
+            percentText(pair.inner),
+          ),
+          detail === "more" && pair.outer !== null
+            ? m(
+                "span",
+                {
+                  "data-widget-percent": pair.outer.level,
+                  class: "text-[0.82em] text-(--widget-muted)",
+                  ...tooltip(windowText(pair.outer)),
+                },
+                percentText(pair.outer),
+              )
+            : null,
+        ]),
+      ]),
+    ]),
+  );
 }

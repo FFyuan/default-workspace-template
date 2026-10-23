@@ -145,7 +145,7 @@ def test_a_widget_presentation_is_kept_on_the_client_across_its_reports_and_arri
     arrived = store.record_arrival(ClientId("c1"), None, DesktopId("home"), TEST_NOW + timedelta(minutes=3))
     assert arrived.record.widgets == {"gauge": collapsed}
     assert client_view(arrived.record, False).model_dump(mode="json")["widgets"] == {
-        "gauge": {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}
+        "gauge": {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed", "placement": "desktop"}
     }
     with pytest.raises(ClientNotFoundError):
         store.set_widget_presentation(ClientId("nobody"), AppName("gauge"), collapsed, TEST_NOW)

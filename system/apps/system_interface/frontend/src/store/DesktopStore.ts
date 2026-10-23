@@ -61,6 +61,7 @@ import type {
   ShortcutMode,
   Wallpaper,
   WidgetMode,
+  WidgetPlacement,
   WidgetPresentation,
   WidgetSwitch,
   WindowRecord,
@@ -112,6 +113,7 @@ import {
   isAppStoppable,
   isEmbedderMessageHandled,
   isLayoutDirty,
+  isInTray,
   shownWidgets,
   openableApps,
   pinnedWindowOf,
@@ -1404,6 +1406,21 @@ export class DesktopStore {
     return this.setWidgetPresentation(app, { ...this.widgetPresentationOf(app), mode });
   }
 
+  /** Put a widget on the desktop or in the taskbar's tray; its popover, if open, closes. */
+  setWidgetPlacement(app: string, placement: WidgetPlacement): Promise<void> {
+    if (this.state.trayPopoverApp === app) this.closeTrayPopover();
+    return this.setWidgetPresentation(app, { ...this.widgetPresentationOf(app), placement });
+  }
+
+  /** Open a tray widget's popover, or close it when it is the one open (app-widgets plan section 4.10). */
+  toggleTrayPopover(app: string): void {
+    this.dispatch({ type: "tray_popover_set", app: this.state.trayPopoverApp === app ? null : app });
+  }
+
+  closeTrayPopover(): void {
+    this.dispatch({ type: "tray_popover_set", app: null });
+  }
+
   /** Show or hide one app's widget for everyone on the workspace; the shell's broadcast brings every window the
    *  new switches, this one included, and its answer is taken unless that broadcast landed first. */
   async setWidgetEnabled(app: string, isEnabled: boolean): Promise<void> {
@@ -1416,13 +1433,14 @@ export class DesktopStore {
     }
   }
 
-  /** A widget's page reported the size of its content in its current mode. */
-  reportWidgetSize(app: string, size: PixelSize): void {
-    const current = this.state.widgetReports[app]?.size;
+  /** A widget's page reported the size of its content in its current mode; ``isTray`` for its tray form. */
+  reportWidgetSize(app: string, size: PixelSize, isTray = false): void {
+    const report = this.state.widgetReports[app];
+    const current = isTray ? report?.traySize : report?.size;
     if (current !== undefined && current !== null && current.width === size.width && current.height === size.height) {
       return;
     }
-    this.dispatch({ type: "widget_size_reported", app, size });
+    this.dispatch({ type: "widget_size_reported", app, size, isTray });
   }
 
   /** A widget's page said it has nothing to show, or has again. */
@@ -1442,6 +1460,7 @@ export class DesktopStore {
   widgetRects(): Map<string, PixelRect> {
     const placed: WidgetToPlace[] = [];
     for (const widget of shownWidgets(this.state)) {
+      if (isInTray(widget)) continue;
       const report = this.state.widgetReports[widget.app.name];
       if (report === undefined || report.size === null || report.isHidden) continue;
       placed.push({ app: widget.app.name, position: widget.presentation.position, size: report.size });
@@ -1496,6 +1515,7 @@ export class DesktopStore {
    *  client used last on the active desktop, else the first on another desktop, switching to it), and a window is
    *  opened at ``path`` only when the app has none. With ``new`` a window is always opened. */
   async openPathFromApp(app: string, path: string, ifPresent: IfPresent): Promise<void> {
+    if (this.state.trayPopoverApp === app) this.closeTrayPopover();
     if (ifPresent === "new") {
       await this.openWindowAt(app, path, ifPresent);
       return;

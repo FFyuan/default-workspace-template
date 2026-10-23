@@ -73,6 +73,8 @@ export interface DesktopState {
   readonly widgets: Readonly<Record<string, WidgetPresentation>>;
   /** What each widget's page last said of itself since it loaded, by app name. */
   readonly widgetReports: Readonly<Record<string, WidgetReport>>;
+  /** The tray widget whose popover is open in this client, or null (app-widgets plan section 4.10). */
+  readonly trayPopoverApp: string | null;
   /** The avatar every window of the workspace draws (pinned-taskbar-entries plan section 4.6). */
   readonly avatar: AvatarState;
   /** The rollback point the last update-app careful-flow apply kept, until a person closes its notice. */
@@ -84,13 +86,15 @@ export interface DesktopState {
 }
 
 /** What a widget's page has said of itself since it loaded: the size of its content in its current mode (null
- *  until its first report, and the widget is not drawn until then), and whether it has nothing to show. */
+ *  until its first report, and the widget is not drawn until then), the size of its tray form, kept apart so a tray
+ *  widget's slot keeps its size while its popover shows it expanded, and whether it has nothing to show. */
 export interface WidgetReport {
   readonly size: PixelSize | null;
+  readonly traySize: PixelSize | null;
   readonly isHidden: boolean;
 }
 
-export const INITIAL_WIDGET_REPORT: WidgetReport = { size: null, isHidden: false };
+export const INITIAL_WIDGET_REPORT: WidgetReport = { size: null, traySize: null, isHidden: false };
 
 /** A widget this client draws: its app and the client's presentation of it. */
 export interface ShownWidget {
@@ -153,6 +157,7 @@ export function initialDesktopState(clientId: string, modes: RenderModes): Deskt
     widgetSwitches: [],
     widgets: {},
     widgetReports: {},
+    trayPopoverApp: null,
     avatar: INITIAL_AVATAR_STATE,
     updateNotice: null,
     workspaceName: "",
@@ -202,8 +207,10 @@ export type DesktopEvent =
   | { readonly type: "widget_switches_updated"; readonly switches: readonly WidgetSwitch[] }
   /** This client's widget presentations, as its record or a ``client_widgets_changed`` says. */
   | { readonly type: "widgets_updated"; readonly widgets: Readonly<Record<string, WidgetPresentation>> }
-  /** A widget's page reported its size in its current mode. */
-  | { readonly type: "widget_size_reported"; readonly app: string; readonly size: PixelSize }
+  /** A widget's page reported its size in its current mode; ``isTray`` for its tray form. */
+  | { readonly type: "widget_size_reported"; readonly app: string; readonly size: PixelSize; readonly isTray: boolean }
+  /** A tray widget's popover opened, or every one closed (null). */
+  | { readonly type: "tray_popover_set"; readonly app: string | null }
   /** A widget's page said it has nothing to show, or has again. */
   | { readonly type: "widget_hidden_reported"; readonly app: string; readonly isHidden: boolean }
   /** A widget's page (re)loaded or went away: it has said nothing yet. */
@@ -390,7 +397,9 @@ export function reduceDesktopState(state: DesktopState, event: DesktopEvent): De
     case "widgets_updated":
       return { ...state, widgets: event.widgets };
     case "widget_size_reported":
-      return withWidgetReport(state, event.app, { size: event.size });
+      return withWidgetReport(state, event.app, event.isTray ? { traySize: event.size } : { size: event.size });
+    case "tray_popover_set":
+      return state.trayPopoverApp === event.app ? state : { ...state, trayPopoverApp: event.app };
     case "widget_hidden_reported":
       return withWidgetReport(state, event.app, { isHidden: event.isHidden });
     case "widget_report_reset": {
@@ -440,6 +449,16 @@ export function shownWidgets(state: DesktopState): ShownWidget[] {
     shown.push({ app, presentation: state.widgets[app.name] ?? DEFAULT_WIDGET_PRESENTATION });
   }
   return shown;
+}
+
+/** Whether a shown widget is drawn in the taskbar's tray: placed there, by an app whose page draws a tray form. */
+export function isInTray(widget: ShownWidget): boolean {
+  return widget.presentation.placement === "tray" && (widget.app.widget?.tray ?? false);
+}
+
+/** The shown widgets this client draws in the taskbar's tray, in the shell's order. */
+export function trayWidgets(state: DesktopState): ShownWidget[] {
+  return shownWidgets(state).filter(isInTray);
 }
 
 /** Whether ``app`` declares a widget the workspace can show or hide, and whether it shows it now; null for an

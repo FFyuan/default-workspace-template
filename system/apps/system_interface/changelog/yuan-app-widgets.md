@@ -11,3 +11,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - On a phone, widgets are drawn collapsed in a strip above the bar.
 
 - An enabled widget keeps its app running, as an open window does, even when the app declares `stop_when_no_windows`.
+
+- A widget whose page draws a tray form can live in the taskbar's tray instead: "Move to taskbar" in its menu (and "Move to desktop" back), kept per client. In the tray a click opens a popover above the bar with the widget expanded; a click elsewhere, Escape, or opening the app closes it. A right-click anywhere on a widget, not only its edge, now opens its menu.

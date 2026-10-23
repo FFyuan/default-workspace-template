@@ -4,6 +4,13 @@
  * live pages are, a frame is never re-parented (that reloads it); the reconcile step lays each frame over its
  * widget's content box once the chrome is drawn.
  *
+ * A frame lives in one of two hosts: the backdrop's, for a widget on the desktop (and every widget on a phone), and
+ * the taskbar's, for a widget this client put in the tray. A widget moved between them is framed anew in the other.
+ * In the tray the page is told mode ``tray`` and laid over its slot; while its popover is open the same frame is
+ * told ``expanded`` and laid over the popover's box instead, so opening it reloads nothing. A tray page's click
+ * (``shell:widget-press``) opens or closes its popover, and any widget page's right-click (``shell:widget-menu``)
+ * asks for its menu through ``onMenu``.
+ *
  * A widget is not drawn until its page reports a size, so a frame the chrome has no box for yet is kept loaded
  * but out of sight, at the largest size a widget may take, where its page can lay itself out and measure.
  *
@@ -19,9 +26,12 @@
 
 import {
   SHELL_HANDSHAKE,
+  SHELL_WIDGET_DISMISS,
   SHELL_WIDGET_DRAG,
   SHELL_WIDGET_HIDDEN,
+  SHELL_WIDGET_MENU,
   SHELL_WIDGET_MODE,
+  SHELL_WIDGET_PRESS,
   SHELL_WIDGET_SIZE,
   SHELL_WIDGET_TOOLTIP,
 } from "@imbue/workspace-ui/src/app_contract";
@@ -29,7 +39,8 @@ import { hideTooltipAtRect, showTooltipAtRect } from "@imbue/workspace-ui/src/co
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import { windowPageUrl } from "../model/pageUrl";
 import type { AppRecord } from "../model/records";
-import { shownWidgets } from "../reducers/desktopState";
+import { isInTray, shownWidgets } from "../reducers/desktopState";
+import type { ShownWidget } from "../reducers/desktopState";
 import { sendToChildFrame, setChildFrameMessageHandler } from "../relay";
 import type { DesktopStore } from "../store/DesktopStore";
 import { PAGE_FRAME_ALLOW, PAGE_FRAME_SANDBOX } from "./livePages";
@@ -39,12 +50,16 @@ export const WIDGET_FRAME_ATTRIBUTE = "data-widget-frame";
 export const WIDGET_ATTRIBUTE = "data-widget";
 /** The element of a widget's chrome its page is laid over. */
 export const WIDGET_CONTENT_ATTRIBUTE = "data-widget-content";
+/** A tray widget's open popover, which carries its app; its page is laid over the content box under it. */
+export const WIDGET_POPOVER_ATTRIBUTE = "data-widget-popover";
 
 interface WidgetFrame {
   readonly app: string;
   readonly path: string;
   readonly wrapper: HTMLElement;
   readonly frame: HTMLIFrameElement;
+  /** The host the frame lives in: the backdrop's or the taskbar's. */
+  readonly host: HTMLElement;
   /** The desktop the page was last introduced to; null before its first load. */
   greetedDesktopId: string | null;
   /** The mode the page was last told; null until it has been told one since it loaded. */
@@ -69,6 +84,8 @@ export interface WidgetFramesOptions {
   readonly protocol: string;
   /** A step of a drag a widget's page reported, for the widget of ``app``. */
   readonly onDrag: (app: string, step: WidgetDragStep) => void;
+  /** A right-click on the widget of ``app``'s page, at ``point``; ``frame`` is the page's iframe. */
+  readonly onMenu: (app: string, point: ViewportPoint, frame: HTMLIFrameElement) => void;
 }
 
 /** Who a widget's tooltip belongs to, for the shared bubble. */
@@ -85,6 +102,8 @@ export class WidgetFramesLayer {
   private isGestureActive = false;
   /** For each widget its page is dragging: what turns a screen point into a viewport point. */
   private readonly dragOffsets = new Map<string, ViewportPoint>();
+  /** The taskbar's host for the tray's frames, while the desktop layout draws a taskbar. */
+  private trayHost: HTMLElement | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -98,6 +117,16 @@ export class WidgetFramesLayer {
     setChildFrameMessageHandler(SHELL_WIDGET_HIDDEN, (frame, payload) => this.takeHidden(frame, payload));
     setChildFrameMessageHandler(SHELL_WIDGET_DRAG, (frame, payload) => this.takeDrag(frame, payload));
     setChildFrameMessageHandler(SHELL_WIDGET_TOOLTIP, (frame, payload) => this.takeTooltip(frame, payload));
+    setChildFrameMessageHandler(SHELL_WIDGET_PRESS, (frame) => this.takePress(frame));
+    setChildFrameMessageHandler(SHELL_WIDGET_DISMISS, (frame) => this.takeDismiss(frame));
+    setChildFrameMessageHandler(SHELL_WIDGET_MENU, (frame, payload) => this.takeMenu(frame, payload));
+  }
+
+  /** The taskbar's host for the tray's frames, or null once the taskbar is gone; the tray's widgets move to it. */
+  setTrayHost(host: HTMLElement | null): void {
+    if (this.trayHost === host) return;
+    this.trayHost = host;
+    this.reconcile();
   }
 
   /** Stop: every frame goes, and what its page said with it. */
@@ -139,21 +168,29 @@ export class WidgetFramesLayer {
     const shown = new Map(shownWidgets(state).map((widget) => [widget.app.name, widget]));
     for (const widget of [...this.frames.values()]) {
       const wanted = shown.get(widget.app);
-      if (wanted === undefined || wanted.app.widget?.path !== widget.path) this.destroy(widget);
+      if (wanted === undefined || wanted.app.widget?.path !== widget.path || this.hostFor(wanted) !== widget.host) {
+        this.destroy(widget);
+      }
     }
-    for (const { app, presentation } of shown.values()) {
-      const widget = this.frames.get(app.name) ?? this.create(app);
+    for (const shownWidget of shown.values()) {
+      const widget = this.frames.get(shownWidget.app.name) ?? this.create(shownWidget);
       if (widget === null) continue;
       this.place(widget);
       if (widget.greetedDesktopId === null) continue;
       if (widget.greetedDesktopId !== (state.activeDesktopId ?? "")) this.greet(widget);
-      else if (widget.sentMode !== this.modeOf(presentation.mode))
-        this.sendMode(widget, this.modeOf(presentation.mode));
+      else if (widget.sentMode !== this.modeFor(shownWidget)) this.sendMode(widget, this.modeFor(shownWidget));
     }
   }
 
-  private create(app: AppRecord): WidgetFrame | null {
+  /** The host a shown widget's frame lives in: the taskbar's for one in the tray, else the backdrop's. */
+  private hostFor(widget: ShownWidget): HTMLElement {
+    return isInTray(widget) && this.trayHost !== null && !this.store.isPhoneLayout() ? this.trayHost : this.host;
+  }
+
+  private create(shown: ShownWidget): WidgetFrame | null {
+    const app: AppRecord = shown.app;
     if (app.widget === null) return null;
+    const host = this.hostFor(shown);
     const wrapper = document.createElement("div");
     wrapper.className = "widget-frame absolute overflow-hidden";
     const frame = document.createElement("iframe");
@@ -168,6 +205,7 @@ export class WidgetFramesLayer {
       path: app.widget.path,
       wrapper,
       frame,
+      host,
       greetedDesktopId: null,
       sentMode: null,
     };
@@ -178,7 +216,7 @@ export class WidgetFramesLayer {
       this.greet(widget);
     });
     this.frames.set(app.name, widget);
-    this.host.appendChild(wrapper);
+    host.appendChild(wrapper);
     frame.setAttribute("src", windowPageUrl(app, app.widget.path, this.options.host, this.options.protocol));
     return widget;
   }
@@ -195,7 +233,7 @@ export class WidgetFramesLayer {
    *  widget may take, so its page lays itself out and reports. */
   private place(widget: WidgetFrame): void {
     const style = widget.wrapper.style;
-    const box = this.contentBox(widget.app);
+    const box = this.contentBox(widget);
     if (box === null) {
       const metrics = this.store.getMetrics();
       Object.assign(style, {
@@ -218,14 +256,16 @@ export class WidgetFramesLayer {
     });
   }
 
-  private contentBox(app: string): { left: number; top: number; width: number; height: number } | null {
-    const content = this.host.parentElement?.querySelector<HTMLElement>(
-      `[${WIDGET_ATTRIBUTE}="${CSS.escape(app)}"] [${WIDGET_CONTENT_ATTRIBUTE}]`,
-    );
+  /** The box the widget's page is laid over, in its host's pixels: its open popover's, else its chrome's. */
+  private contentBox(widget: WidgetFrame): { left: number; top: number; width: number; height: number } | null {
+    const app = CSS.escape(widget.app);
+    const isPopoverOpen = this.store.getState().trayPopoverApp === widget.app && widget.host === this.trayHost;
+    const chrome = isPopoverOpen ? `[${WIDGET_POPOVER_ATTRIBUTE}="${app}"]` : `[${WIDGET_ATTRIBUTE}="${app}"]`;
+    const content = widget.host.parentElement?.querySelector<HTMLElement>(`${chrome} [${WIDGET_CONTENT_ATTRIBUTE}]`);
     if (content === undefined || content === null) return null;
     const box = content.getBoundingClientRect();
     if (box.width <= 0 || box.height <= 0) return null;
-    const origin = this.host.getBoundingClientRect();
+    const origin = widget.host.getBoundingClientRect();
     return { left: box.left - origin.left, top: box.top - origin.top, width: box.width, height: box.height };
   }
 
@@ -243,12 +283,17 @@ export class WidgetFramesLayer {
     });
     widget.greetedDesktopId = desktopId;
     const shown = shownWidgets(state).find((candidate) => candidate.app.name === widget.app);
-    if (shown !== undefined) this.sendMode(widget, this.modeOf(shown.presentation.mode));
+    if (shown !== undefined) this.sendMode(widget, this.modeFor(shown));
   }
 
-  /** The mode a widget is drawn in: the client's, except on a phone, which draws every widget collapsed. */
-  private modeOf(chosen: WidgetMode): WidgetMode {
-    return this.store.isPhoneLayout() ? "collapsed" : chosen;
+  /** The mode a widget is drawn in: on a phone, which draws every widget collapsed, collapsed; in the tray, its tray
+   *  form, or expanded while its popover is open; else the client's. */
+  private modeFor(widget: ShownWidget): WidgetMode {
+    if (this.store.isPhoneLayout()) return "collapsed";
+    if (this.hostFor(widget) === this.trayHost) {
+      return this.store.getState().trayPopoverApp === widget.app.name ? "expanded" : "tray";
+    }
+    return widget.presentation.mode;
   }
 
   private sendMode(widget: WidgetFrame, mode: WidgetMode): void {
@@ -261,7 +306,32 @@ export class WidgetFramesLayer {
     const { width, height } = payload;
     if (app === null || typeof width !== "number" || typeof height !== "number") return;
     if (!Number.isFinite(width) || !Number.isFinite(height)) return;
-    this.store.reportWidgetSize(app, { width, height });
+    this.store.reportWidgetSize(app, { width, height }, this.frames.get(app)?.sentMode === "tray");
+  }
+
+  /** A click on a tray widget's page: its popover opens, or closes when open. */
+  private takePress(frame: HTMLIFrameElement): void {
+    const app = this.appOfFrame(frame);
+    if (app === null || this.frames.get(app)?.host !== this.trayHost) return;
+    hideTooltipAtRect(tooltipSource(app));
+    this.store.toggleTrayPopover(app);
+  }
+
+  /** Escape on a widget's page: its popover closes, if it is the open one. */
+  private takeDismiss(frame: HTMLIFrameElement): void {
+    const app = this.appOfFrame(frame);
+    if (app !== null && this.store.getState().trayPopoverApp === app) this.store.closeTrayPopover();
+  }
+
+  /** A right-click on a widget's page: its menu, at the point in the shell's viewport. */
+  private takeMenu(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {
+    const app = this.appOfFrame(frame);
+    const x = finiteNumber(payload.x);
+    const y = finiteNumber(payload.y);
+    if (app === null || x === null || y === null) return;
+    hideTooltipAtRect(tooltipSource(app));
+    const box = frame.getBoundingClientRect();
+    this.options.onMenu(app, { x: box.left + x, y: box.top + y }, frame);
   }
 
   private takeTooltip(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {

@@ -52,7 +52,7 @@ def _full_manifest_data() -> dict[str, object]:
         "launch_paths": [_launch_path_data()],
         "launcher_rank": 20,
         "pin": {"path": "/", "style": "avatar", "scope": "independent", "default_mode": "floating"},
-        "widget": {"path": "/widget", "default_enabled": False},
+        "widget": {"path": "/widget", "default_enabled": False, "tray": True},
         "window_closed_path": "/api/window-closed",
     }
 
@@ -78,7 +78,7 @@ def test_full_manifest_round_trips_every_field() -> None:
     assert manifest.pin.scope is LocationScope.INDEPENDENT
     assert manifest.pin.default_mode is EntryMode.FLOATING
     assert manifest.widget is not None
-    assert (manifest.widget.path, manifest.widget.default_enabled) == ("/widget", False)
+    assert (manifest.widget.path, manifest.widget.default_enabled, manifest.widget.tray) == ("/widget", False, True)
     assert manifest.window_closed_path == "/api/window-closed"
     assert manifest.stop_when_no_windows is True
 
@@ -127,7 +127,7 @@ def test_a_widget_is_enabled_by_default_and_needs_only_a_path() -> None:
         {"name": "news", "display_name": "News", "icon": "icon.svg", "widget": {"path": "/widget"}}
     )
     assert manifest.widget is not None
-    assert (manifest.widget.path, manifest.widget.default_enabled) == ("/widget", True)
+    assert (manifest.widget.path, manifest.widget.default_enabled, manifest.widget.tray) == ("/widget", True, False)
     with pytest.raises(ValidationError, match="path"):
         AppManifest.model_validate({"name": "news", "display_name": "News", "icon": "icon.svg", "widget": {}})
 

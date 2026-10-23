@@ -21,10 +21,12 @@ launch = "open"
 mode = "focus"
 
 # A glance at the subscription limits and this month's spend on the desktop, shown by default; an enabled widget
-# keeps this app running, as an open window does.
+# keeps this app running, as an open window does. Its page draws a tray form too, so a client may put it in the
+# taskbar's tray instead, where a click opens it expanded above the bar.
 [widget]
 path = "/widget"
 default_enabled = true
+tray = true
 
 # A preview serves the pages on a free port over the live collector, which it only reads, and over a scratch copy
 # of its settings.

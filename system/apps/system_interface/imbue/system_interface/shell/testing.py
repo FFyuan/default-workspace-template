@@ -95,8 +95,9 @@ def registry_row_toml(
     launch_presets: Mapping[str, Mapping[str, str]] | None = None,
     # The ``[pin]`` table as ``(path, style, scope, default_mode)``.
     pin: tuple[str, str, str, str] | None = None,
-    # The ``[widget]`` table as ``(path, default_enabled)``.
+    # The ``[widget]`` table as ``(path, default_enabled)``; ``widget_tray`` says its page draws a tray form.
     widget: tuple[str, bool] | None = None,
+    widget_tray: bool = False,
     window_closed_path: str | None = None,
     stop_when_no_windows: bool = False,
     # Each message handler as ``(type, path)``.
@@ -131,7 +132,8 @@ def registry_row_toml(
     if widget is not None:
         widget_path, default_enabled = widget
         lines.append(
-            f'widget = {{ path = "{widget_path}", default_enabled = {"true" if default_enabled else "false"} }}'
+            f'widget = {{ path = "{widget_path}", default_enabled = {"true" if default_enabled else "false"}, '
+            f"tray = {'true' if widget_tray else 'false'} }}"
         )
     if window_closed_path is not None:
         lines.append(f'window_closed_path = "{window_closed_path}"')

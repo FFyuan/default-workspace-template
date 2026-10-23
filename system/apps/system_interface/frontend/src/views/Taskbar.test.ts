@@ -68,7 +68,13 @@ function render(overrides: Partial<TaskbarAttrs> = {}): HTMLElement {
       onSwitchDesktop: vi.fn(),
       onOpenDesktopsMenu: vi.fn(),
       onDesktopContextMenu: vi.fn(),
+      widgets: [],
+      widgetPopoverApp: null,
+      onWidgetContextMenu: vi.fn(),
     },
+    widgetPopover: null,
+    onTrayFramesHostCreated: vi.fn(),
+    onTrayFramesHostRemoved: vi.fn(),
     onEntryClick: vi.fn(),
     onEntryContextMenu: vi.fn(),
     ...overrides,
@@ -190,6 +196,9 @@ describe("Taskbar", () => {
         onSwitchDesktop,
         onOpenDesktopsMenu: vi.fn(),
         onDesktopContextMenu: vi.fn(),
+        widgets: [],
+        widgetPopoverApp: null,
+        onWidgetContextMenu: vi.fn(),
       },
     });
     expect(taskbar.querySelector("[data-launcher-field]")).not.toBeNull();
@@ -242,5 +251,35 @@ describe("Taskbar", () => {
     } finally {
       document.removeEventListener("keydown", onDocumentKeyDown);
     }
+  });
+});
+
+describe("the tray's widgets", () => {
+  const gauge = appRecord("gauge", { widget: { path: "/widget", default_enabled: true, tray: true } });
+
+  it("draws a slot per tray widget at its tray size, and the open one's popover above the bar", () => {
+    const tray = {
+      desktops: [desktopRecord("home")],
+      activeDesktopId: "home",
+      isDesktopsMenuOpen: false,
+      onSwitchDesktop: vi.fn(),
+      onOpenDesktopsMenu: vi.fn(),
+      onDesktopContextMenu: vi.fn(),
+      widgets: [{ app: gauge, size: { width: 64, height: 24 } }],
+      widgetPopoverApp: "gauge",
+      onWidgetContextMenu: vi.fn(),
+    };
+    const taskbar = render({ tray, widgetPopover: { app: "gauge", size: { width: 180, height: 90 } } });
+
+    const slot = taskbar.querySelector('[data-tray-widget="gauge"]') as HTMLElement;
+    expect([slot.style.width, slot.style.height]).toEqual(["64px", "24px"]);
+    expect(slot.getAttribute("data-popover-open")).toBe("true");
+    expect(slot.querySelector("[data-widget-content]")).not.toBeNull();
+    const content = taskbar.querySelector('[data-widget-popover="gauge"] [data-widget-content]') as HTMLElement;
+    expect([content.style.width, content.style.height]).toEqual(["180px", "90px"]);
+    expect(taskbar.querySelector("[data-tray-widget-frames]")).not.toBeNull();
+
+    const closed = render({ tray: { ...tray, widgetPopoverApp: null }, widgetPopover: null });
+    expect(closed.querySelector("[data-widget-popover]")).toBeNull();
   });
 });

@@ -25,6 +25,7 @@ from workspace_layout.primitives import UserId
 from workspace_layout.primitives import WallpaperKind
 from workspace_layout.primitives import WallpaperName
 from workspace_layout.primitives import WidgetMode
+from workspace_layout.primitives import WidgetPlacement
 from workspace_layout.primitives import WindowId
 from workspace_layout.primitives import WindowPath
 from workspace_layout.primitives import WindowState
@@ -211,6 +212,9 @@ class WidgetPresentation(FrozenModel):
         default=None, description="Where it was moved to; None for the default, stacked top right"
     )
     mode: WidgetMode = Field(default=WidgetMode.EXPANDED, description="In full, or as its one-line pill")
+    placement: WidgetPlacement = Field(
+        default=WidgetPlacement.DESKTOP, description="On the desktop, or in the taskbar's tray"
+    )
 
 
 class ClientRecord(FrozenModel):

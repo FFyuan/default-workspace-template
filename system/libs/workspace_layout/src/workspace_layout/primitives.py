@@ -1,5 +1,4 @@
 import re
-from enum import StrEnum
 from enum import auto
 from typing import Any
 from typing import Final
@@ -160,6 +159,13 @@ class WidgetMode(LowerCaseStrEnum):
 
     EXPANDED = auto()
     COLLAPSED = auto()
+
+
+class WidgetPlacement(LowerCaseStrEnum):
+    """Where one client draws a widget: on the desktop, or in the taskbar's tray (app-widgets plan section 4.10)."""
+
+    DESKTOP = auto()
+    TRAY = auto()
 
 
 class WindowState(UpperCaseStrEnum):

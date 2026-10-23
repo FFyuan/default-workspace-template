@@ -166,7 +166,7 @@ describe("ShellSocket", () => {
     });
     expect(handlers.onClientWidgetsChanged).toHaveBeenCalledWith({
       clientId: "client-1",
-      widgets: { gauge: { position: { x: 0.02, y: 0.9 }, mode: "collapsed" } },
+      widgets: { gauge: { position: { x: 0.02, y: 0.9 }, mode: "collapsed", placement: "desktop" } },
     });
     current().receive({ type: "widgets_updated", widgets: [{ app: "gauge", is_enabled: false }] });
     expect(handlers.onWidgetsUpdated).toHaveBeenCalledWith([{ app: "gauge", is_enabled: false }]);

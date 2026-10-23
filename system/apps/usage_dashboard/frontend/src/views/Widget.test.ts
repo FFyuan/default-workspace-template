@@ -34,7 +34,7 @@ const API_SPEND = totalsRow({ group: { provider: "anthropic", billing_mode: "API
 
 function rendered(
   limits: LimitReading[],
-  mode: "expanded" | "collapsed",
+  mode: "expanded" | "collapsed" | "tray",
   look: Partial<WidgetLook> = {},
   totals = [API_SPEND],
 ): HTMLElement {
@@ -184,5 +184,32 @@ describe("the widget's size", () => {
       const root = rendered(BOTH, "collapsed", { size });
       expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-size")).toBe(size);
     }
+  });
+});
+
+describe("the tray form", () => {
+  it("draws a small ring pair per subscription beside its name over the 5-hour figure, the weekly one with more", () => {
+    const root = rendered(BOTH, "tray");
+    const pair = root.querySelector('[data-widget-rings="subscription:claude"]');
+    expect(pair?.querySelector('[data-ring="outer"]')).not.toBeNull();
+    // The figure sits beside the ring, not in it.
+    expect(pair?.querySelector("[data-ring-figure]")).toBeNull();
+    expect(texts(pair, "[data-ring-name]")).toEqual(["Claude"]);
+    expect(texts(pair, "[data-widget-percent]")).toEqual(["80%"]);
+    expect(tooltips(pair, "[data-widget-percent]")).toEqual([`5-hour limit: 80% used, resets ${SHORT_RESET}`]);
+    // No spend in the tray.
+    expect(root.textContent).not.toContain("$9.50");
+
+    expect(texts(rendered(BOTH, "tray", { detail: "more" }), "[data-widget-percent]")).toEqual(["80%", "34%"]);
+    expect(rendered(BOTH, "tray", { detail: "less" }).querySelector('[data-ring="outer"]')).toBeNull();
+  });
+
+  it("draws the bars under the name beside the 5-hour figure in the bars style", () => {
+    const root = rendered(BOTH, "tray", { variant: "bars" });
+    const row = root.querySelector('[data-widget-row="subscription:claude"]');
+    expect(row?.textContent).toContain("Claude");
+    expect((row?.querySelector('[data-widget-bar="short"]') as HTMLElement).style.width).toBe("80%");
+    expect(row?.querySelector('[data-widget-bar="long"]')).not.toBeNull();
+    expect(texts(row, "[data-widget-percent]")).toEqual(["80%"]);
   });
 });

@@ -3,7 +3,8 @@
  * subscription with its name, the 5-hour limit's bar above the weekly one's thinner bar, and their shares used, the
  * 5-hour one in bold. How much it shows follows the workspace's pick: with less, the 5-hour bar alone and no spend;
  * with more, each bar's reset time in view (expanded) or the weekly figure too (collapsed). Collapsed, the rows sit
- * under the subscription's short name and carry the 5-hour figure. Nothing explains a bar in place: each bar's
+ * under the subscription's short name and carry the 5-hour figure; in the taskbar's tray, the name sits over the bars
+ * beside the 5-hour figure, within the tray's height. Nothing explains a bar in place: each bar's
  * tooltip says its window, the share used and when it resets, and the name's tooltip the whole subscription.
  */
 
@@ -23,7 +24,7 @@ function bar(window: LimitWindow, role: WindowRole): m.Vnode {
     "span",
     {
       "data-widget-bar-line": role,
-      class: "flex h-[1.1em] min-w-0 flex-1 items-center",
+      class: "flex h-[1.1em] min-w-0 flex-[1_1_auto] items-center",
       ...tooltip(windowText(window)),
     },
     m(
@@ -134,4 +135,31 @@ export function barsCollapsed(model: WidgetModel, detail: WidgetDetail): m.Child
     );
   }
   return pillView(cards);
+}
+
+export function barsTray(model: WidgetModel, detail: WidgetDetail): m.Children {
+  const cards = model.cards ?? [];
+  const limits = widgetRows(cards).filter((row): row is LimitRow => row.kind === "limit");
+  if (limits.length === 0) return pillView(cards);
+  return limits.map((row) => {
+    const secondary = detail === "less" ? null : row.secondary;
+    return m("div", { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-1" }, [
+      m("div", { class: "flex w-max min-w-(--w-bar) flex-col" }, [
+        m(
+          "span",
+          {
+            class:
+              "text-[0.7em] leading-none font-semibold tracking-wider whitespace-nowrap text-(--widget-muted) uppercase",
+            ...tooltip(row.tooltip),
+          },
+          row.name,
+        ),
+        bar(row.primary, "short"),
+        secondary === null ? null : bar(secondary, "long"),
+      ]),
+      detail === "more" && secondary !== null
+        ? m("div", { class: "flex flex-col" }, [figure(row.primary, "short"), figure(secondary, "long")])
+        : figure(row.primary, "short"),
+    ]);
+  });
 }

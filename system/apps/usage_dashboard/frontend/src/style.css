@@ -74,7 +74,28 @@
   --w-width: 284px;
 }
 
+/* In the taskbar's tray the widget takes the tray's own size, whatever size the workspace picked. */
+.usage-widget[data-widget-mode="tray"] {
+  --w-font: 11px;
+  --w-ring: 22px;
+  --w-bar: 30px;
+  --w-bar-short: 4px;
+  --w-bar-long: 3px;
+  line-height: 1.15;
+}
+/* The tray's bars sit closer together, so a name over two bars stays well within the tray's height. */
+.usage-widget[data-widget-mode="tray"] [data-widget-bar-line] {
+  height: 0.8em;
+}
+
 /* The widget's page lets the shell's panel show through (base.css paints every page's body). */
 body.usage-widget-body {
   background-color: transparent;
+}
+
+/* The widget is the root's flex item, not an inline box on a line of the page's own text, which would push a widget
+   shorter than that line (the tray form) down inside its frame. */
+body.usage-widget-body #app {
+  display: flex;
+  align-items: flex-start;
 }

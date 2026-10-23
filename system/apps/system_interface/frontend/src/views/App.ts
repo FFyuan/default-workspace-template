@@ -36,7 +36,9 @@ import {
   entryLook,
   floatingEntries,
   pinnedWindowOf,
+  isInTray,
   shownWidgets,
+  trayWidgets,
   widgetSwitchOf,
 } from "../reducers/desktopState";
 import {
@@ -54,6 +56,8 @@ import { LivePagesLayer, WINDOW_ID_ATTRIBUTE } from "../pages/livePages";
 import type { MountPolicy } from "../pages/livePages";
 import { WIDGET_ATTRIBUTE, WidgetFramesLayer } from "../pages/widgetFrames";
 import type { ViewportPoint, WidgetDragStep } from "../pages/widgetFrames";
+import { clampedWidgetSize } from "../geometry/widgets";
+import type { TrayWidget, TrayWidgetPopoverAttrs } from "./TrayWidgets";
 import type { DesktopStore } from "../store/DesktopStore";
 import { AVATAR_DESIGN_PROMPT, AvatarChooserDialog } from "./AvatarChooserDialog";
 import { Backdrop } from "./Backdrop";
@@ -167,6 +171,8 @@ export function App(): m.Component<AppAttrs> {
   let pages: LivePagesLayer | null = null;
   // The widgets' frames, while the desktop layout (whose backdrop holds their host) is drawn.
   let widgetFrames: WidgetFramesLayer | null = null;
+  // The taskbar's host for the tray widgets' frames, while the desktop layout draws a taskbar.
+  let trayFramesHost: HTMLElement | null = null;
   // The window the last redraw painted as dragged, for one more paint once the gesture is gone.
   let draggedWindowId: string | null = null;
   let backdropArea: HTMLElement | null = null;
@@ -252,6 +258,11 @@ export function App(): m.Component<AppAttrs> {
     // One layer per Escape: a dialog (the settings dialog, the avatar chooser) takes it through the
     // Modal's own listener, an open menu through the menu's own, and the layer under it stays.
     if (document.querySelector('.modal-overlay, [data-menu-part="menu"]') !== null) return;
+    if (store !== null && store.getState().trayPopoverApp !== null) {
+      store.closeTrayPopover();
+      m.redraw();
+      return;
+    }
     if (store?.isLauncherOpen() === true) {
       closeLauncher();
       m.redraw();
@@ -262,6 +273,14 @@ export function App(): m.Component<AppAttrs> {
   };
 
   const onDocumentPointerDown = (event: Event): void => {
+    // A tray widget's popover closes on a press anywhere but on it or its slot (whose own click toggles it).
+    if (store !== null && store.getState().trayPopoverApp !== null) {
+      const target = event.target;
+      if (!(target instanceof Element && target.closest("[data-widget-popover], [data-tray-widget]") !== null)) {
+        store.closeTrayPopover();
+        m.redraw();
+      }
+    }
     if (store?.isLauncherOpen() !== true) return;
     const target = event.target;
     if (
@@ -332,7 +351,15 @@ export function App(): m.Component<AppAttrs> {
       host: attrs.host,
       protocol: attrs.protocol,
       onDrag: (app, step) => followWidgetDrag(current, app, step),
+      onMenu: (app, point, frame) => {
+        openMenuAt(
+          { kind: "widget", app, referenceRows: referenceRowsFor(current, frame, point.x, point.y) },
+          anchorForPoint(point.x, point.y),
+        );
+        m.redraw();
+      },
     });
+    widgetFrames.setTrayHost(trayFramesHost);
     const layer = widgetFrames;
     pages?.setWidgetFrameResolver((frame) => layer.appOfFrame(frame));
     widgetFrames.start();
@@ -794,26 +821,61 @@ export function App(): m.Component<AppAttrs> {
     };
   }
 
-  /** A widget's grip menu: collapse or expand it, open its app, or hide it for the whole workspace. */
+  /** The widgets in the tray whose page has reported its tray form's size and has not asked to be hidden. */
+  function trayWidgetsOf(current: DesktopStore): TrayWidget[] {
+    const reports = current.getState().widgetReports;
+    return trayWidgets(current.getState()).flatMap(({ app }) => {
+      const report = reports[app.name];
+      if (report === undefined || report.traySize === null || report.isHidden) return [];
+      return [{ app, size: report.traySize }];
+    });
+  }
+
+  /** The open popover of a widget in the tray, once its page has reported its expanded size; null otherwise. */
+  function trayPopoverOf(current: DesktopStore): TrayWidgetPopoverAttrs | null {
+    const app = current.getState().trayPopoverApp;
+    if (app === null || !trayWidgetsOf(current).some((widget) => widget.app.name === app)) return null;
+    const size = current.getState().widgetReports[app]?.size ?? null;
+    return size === null ? null : { app, size: clampedWidgetSize(size, current.getMetrics()) };
+  }
+
+  /** The taskbar's host for the tray widgets' frames was made, or is gone. */
+  function setTrayFramesHost(host: HTMLElement | null): void {
+    trayFramesHost = host;
+    widgetFrames?.setTrayHost(host);
+  }
+
+  /** A widget's menu: collapse or expand it (on the desktop), move it to the tray or back (when its page draws a
+   *  tray form), open its app, or hide it for the whole workspace. */
   function rowsOfWidgetMenu(current: DesktopStore, appName: string): MenuRow[] | null {
     const state = current.getState();
     const shown = shownWidgets(state).find((widget) => widget.app.name === appName);
     if (shown === undefined) return null;
     const isCollapsed = shown.presentation.mode === "collapsed";
-    const rows: MenuRow[] = [
-      {
+    const inTray = isInTray(shown);
+    const rows: MenuRow[] = [];
+    if (!inTray) {
+      rows.push({
         kind: "action",
         key: isCollapsed ? "widget-expand" : "widget-collapse",
         label: isCollapsed ? "Expand" : "Collapse",
         onSelect: () => void current.setWidgetMode(appName, isCollapsed ? "expanded" : "collapsed"),
-      },
-      {
+      });
+    }
+    if (shown.app.widget?.tray === true && !current.isPhoneLayout()) {
+      rows.push({
         kind: "action",
-        key: "widget-open",
-        label: `Open ${shown.app.display_name}`,
-        onSelect: () => void current.openPathFromApp(appName, "/", "focus"),
-      },
-    ];
+        key: inTray ? "widget-to-desktop" : "widget-to-tray",
+        label: inTray ? "Move to desktop" : "Move to taskbar",
+        onSelect: () => void current.setWidgetPlacement(appName, inTray ? "desktop" : "tray"),
+      });
+    }
+    rows.push({
+      kind: "action",
+      key: "widget-open",
+      label: `Open ${shown.app.display_name}`,
+      onSelect: () => void current.openPathFromApp(appName, "/", "focus"),
+    });
     const hide = widgetSwitchRow(current, appName);
     if (hide !== null) rows.push({ kind: "divider" }, hide);
     return rows;
@@ -1302,6 +1364,14 @@ export function App(): m.Component<AppAttrs> {
               },
             },
             tray: {
+              widgets: trayWidgetsOf(current),
+              widgetPopoverApp: state.trayPopoverApp,
+              onWidgetContextMenu: (app, x, y, target) => {
+                openMenuAt(
+                  { kind: "widget", app, referenceRows: referenceRowsFor(current, target, x, y) },
+                  anchorForPoint(x, y),
+                );
+              },
               desktops: state.desktops,
               activeDesktopId: state.activeDesktopId,
               isDesktopsMenuOpen: openMenu?.kind === "desktops",
@@ -1316,6 +1386,11 @@ export function App(): m.Component<AppAttrs> {
                   anchorForPoint(x, y),
                 );
               },
+            },
+            widgetPopover: trayPopoverOf(current),
+            onTrayFramesHostCreated: (host) => setTrayFramesHost(host),
+            onTrayFramesHostRemoved: (host) => {
+              if (trayFramesHost === host) setTrayFramesHost(null);
             },
             onEntryClick,
             onEntryContextMenu,

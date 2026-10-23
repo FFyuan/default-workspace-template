@@ -12,12 +12,12 @@ import m from "mithril";
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import type { WidgetModel } from "../models/widget";
 import type { WidgetDetail, WidgetLook, WidgetVariant } from "../models/widgetLook";
-import { barsCollapsed, barsExpanded } from "./widgetBars";
-import { ringsCollapsed, ringsExpanded } from "./widgetRings";
+import { barsCollapsed, barsExpanded, barsTray } from "./widgetBars";
+import { ringsCollapsed, ringsExpanded, ringsTray } from "./widgetRings";
 
 const STYLES: Record<WidgetVariant, Record<WidgetMode, (model: WidgetModel, detail: WidgetDetail) => m.Children>> = {
-  rings: { expanded: ringsExpanded, collapsed: ringsCollapsed },
-  bars: { expanded: barsExpanded, collapsed: barsCollapsed },
+  rings: { expanded: ringsExpanded, collapsed: ringsCollapsed, tray: ringsTray },
+  bars: { expanded: barsExpanded, collapsed: barsCollapsed, tray: barsTray },
 };
 
 export interface WidgetAttrs {
@@ -29,7 +29,7 @@ export interface WidgetAttrs {
 export const Widget: m.Component<WidgetAttrs> = {
   view(vnode) {
     const { model, mode, look } = vnode.attrs;
-    const isCollapsed = mode === "collapsed";
+    const isCollapsed = mode !== "expanded";
     const content: m.Children = model.isCatchingUp
       ? m("span", { class: "text-(--widget-muted)" }, isCollapsed ? "..." : "Indexing usage...")
       : STYLES[look.variant][mode](model, look.detail);
@@ -46,7 +46,11 @@ export const Widget: m.Component<WidgetAttrs> = {
         "data-live": model.isLive ? "true" : "false",
         class:
           "usage-widget inline-flex flex-col text-(--widget-text) no-underline " +
-          (isCollapsed ? "gap-1 p-1 " : "w-(--w-width) gap-2 p-1.5 ") +
+          (mode === "tray"
+            ? "flex-row items-center gap-2.5 px-1 "
+            : isCollapsed
+              ? "gap-1 p-1 "
+              : "w-(--w-width) gap-2 p-1.5 ") +
           (model.isLive ? "" : "opacity-60"),
       },
       [

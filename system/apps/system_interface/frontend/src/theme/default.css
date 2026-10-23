@@ -78,6 +78,9 @@
   --desk-widget-radius: 12px;
   --desk-widget-surface: rgb(255 255 255 / 0.94);
   --desk-widget-edge: rgb(0 0 0 / 0.08);
+  /* The most a widget's tray form may take in the taskbar (app-widgets plan section 4.10). */
+  --desk-widget-tray-height: 36px;
+  --desk-widget-tray-max-width: 240px;
   --desk-resize-edge: 8px;
   --desk-resize-corner: 16px;
   --desk-resize-overhang: 3px;
