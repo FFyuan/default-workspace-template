@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from pathlib import Path
 
 from flask.testing import FlaskClient
 
@@ -81,6 +82,15 @@ def test_the_page_and_its_assets_are_served(client: FlaskClient) -> None:
     assert page.status_code == 200 and b"<title>Usage</title>" in page.data
     assert asset.status_code == 200 and "max-age" in asset.headers["Cache-Control"]
     assert client.get("/api/health").get_json() == {"status": "ok", "is_frontend_built": True}
+
+
+def test_the_widget_page_is_served_beside_the_page(client: FlaskClient, static_directory: Path) -> None:
+    widget = client.get("/widget")
+
+    assert widget.status_code == 200 and b"<title>Usage widget</title>" in widget.data
+    assert widget.headers["Cache-Control"] == "no-store"
+    (static_directory / "widget.html").unlink()
+    assert b"has not been built yet" in client.get("/widget").data
 
 
 def test_limits_pass_through(client: FlaskClient, ingestor: Ingestor) -> None:

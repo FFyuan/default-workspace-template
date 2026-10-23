@@ -20,6 +20,12 @@ priority = "usage-dashboard"
 launch = "open"
 mode = "focus"
 
+# A glance at the subscription limits and this month's spend in a corner of the desktop, shown by default; an
+# enabled widget keeps this app running, as an open window does.
+[widget]
+path = "/widget"
+default_enabled = true
+
 # A preview serves the pages on a free port over the live collector, which it only reads.
 [preview]
 env = {USAGE_DASHBOARD_PORT = "{port:main}", USAGE_DASHBOARD_HOST = "{host}"}

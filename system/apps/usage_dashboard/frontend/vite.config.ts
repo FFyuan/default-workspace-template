@@ -17,6 +17,14 @@ export default defineConfig({
     // Inside the Python package, where the app serves it from.
     outDir: path.resolve(__dirname, "../src/usage_dashboard/static"),
     emptyOutDir: true,
+    // Two pages: the Usage page, and the widget the workspace shell keeps in a corner of the desktop, a small
+    // bundle of its own rather than the whole page loaded in a frame a few rows high.
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        widget: path.resolve(__dirname, "widget.html"),
+      },
+    },
   },
   server: {
     proxy: {

@@ -1,0 +1,58 @@
+/**
+ * The Usage widget's root (app-widgets plan section 7): the page the workspace shell keeps in a corner of the
+ * desktop. Framed as a widget, it draws the mode the shell tells it, reports the size of what it drew after every
+ * change, and says it has nothing to show while no usage exists yet.
+ */
+
+import m from "mithril";
+import "./style.css";
+
+import { connectToShell } from "@imbue/workspace-ui/src/app_contract";
+import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
+
+import { WidgetModel } from "./models/widget";
+import { Widget } from "./views/Widget";
+
+function bootstrap(): void {
+  const root = document.getElementById("app");
+  if (root === null) return;
+  let mode: WidgetMode = "expanded";
+  let wasEmpty: boolean | null = null;
+  const connection = connectToShell({
+    onWidgetMode: (next) => {
+      mode = next;
+      m.redraw();
+    },
+  });
+  const model = new WidgetModel({
+    now: () => new Date(),
+    redraw: () => m.redraw(),
+    openStream: (url) => new EventSource(url),
+  });
+
+  const reportSize = (element: Element): void => {
+    const box = element.getBoundingClientRect();
+    connection.widgetSize(Math.ceil(box.width), Math.ceil(box.height));
+  };
+  const observer = new ResizeObserver((entries) => {
+    for (const entry of entries) reportSize(entry.target);
+  });
+  m.mount(root, {
+    view: () => m(Widget, { model, mode }),
+    oncreate: () => {
+      const widget = document.getElementById("usage-widget");
+      if (widget !== null) observer.observe(widget);
+    },
+    onupdate: () => {
+      const widget = document.getElementById("usage-widget");
+      if (widget !== null) reportSize(widget);
+      if (model.isEmpty !== wasEmpty) {
+        wasEmpty = model.isEmpty;
+        connection.widgetHidden(model.isEmpty);
+      }
+    },
+  });
+  model.start();
+}
+
+window.addEventListener("load", bootstrap);

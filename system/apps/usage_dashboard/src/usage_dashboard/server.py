@@ -62,6 +62,9 @@ STATIC_DIR: Final[Path] = Path(__file__).parent / "static"
 _HASHED_ASSET: Final[re.Pattern[str]] = re.compile(r"-[A-Za-z0-9_-]{8}\.(js|css)$")
 _A_YEAR_IN_SECONDS: Final[int] = 365 * 24 * 60 * 60
 PAGE_DOCUMENT_FILENAME: Final[str] = "index.html"
+# The widget the workspace shell keeps in a corner of the desktop: a page of its own, declared in the manifest.
+WIDGET_PATH: Final[str] = "/widget"
+WIDGET_DOCUMENT_FILENAME: Final[str] = "widget.html"
 HEALTH_PATH: Final[str] = "/api/health"
 # The collector routes the page reads, by the name it reads them under.
 FORWARDED_READS: Final[dict[str, str]] = {
@@ -87,6 +90,7 @@ _NOT_BUILT_PAGE: Final[str] = (
 
 ROUTE_TABLE: RouteTable = {
     ("GET", "/"): SchemalessRoute(reason="the Usage page"),
+    ("GET", WIDGET_PATH): SchemalessRoute(reason="the Usage widget, which the workspace shell frames in a corner"),
     ("GET", "/assets/{filename}"): SchemalessRoute(reason="one file of the page's built bundle"),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
     ("GET", "/api/apps"): RouteModels(response_model=AppNamesResponse),
@@ -111,15 +115,23 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
     attach_document_policy(app, None)
     static_directory = static_directory.resolve()
 
-    @app.get("/")
-    def page() -> ResponseReturnValue:
-        """The Usage page."""
-        document = static_directory / PAGE_DOCUMENT_FILENAME
+    def built_document(filename: str) -> ResponseReturnValue:
+        document = static_directory / filename
         if not document.is_file():
             return Response(_NOT_BUILT_PAGE, mimetype="text/html", headers={"Cache-Control": "no-store"})
         return Response(
             document.read_text(encoding="utf-8"), mimetype="text/html", headers={"Cache-Control": "no-store"}
         )
+
+    @app.get("/")
+    def page() -> ResponseReturnValue:
+        """The Usage page."""
+        return built_document(PAGE_DOCUMENT_FILENAME)
+
+    @app.get(WIDGET_PATH)
+    def widget() -> ResponseReturnValue:
+        """The Usage widget."""
+        return built_document(WIDGET_DOCUMENT_FILENAME)
 
     @app.get("/assets/<path:filename>")
     def asset(filename: str) -> ResponseReturnValue:
