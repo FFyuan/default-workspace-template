@@ -264,9 +264,9 @@ The widget comes in versions, and which one the workspace shows is the Usage app
 | Version | Expanded | Collapsed |
 |---|---|---|
 | `rings` (default) | sections 7.4 and 7.5 | section 7.5 |
-| `bars` | a row per subscription: its name, the 5-hour bar above a thinner weekly bar, and their shares used (the 5-hour one in bold); under the pointer each bar gives way, in its own place, to its window's short name and reset time (`5h · 7:00 PM`, `wk · Mon 9 AM`), so the widget never changes size; then the API spend | the short name, both bars, and the 5-hour share |
+| `bars` | a row per subscription: its name, the 5-hour bar above a thinner weekly bar, and their shares used (the 5-hour one in bold); under the pointer each bar gives way, in its own place, to its window's short name and reset time (`5h · 7:00 PM`, `wk · Mon 9 AM`), so the widget never changes size; then the API spend | the short name, both bars, and the 5-hour share; under the pointer the bars give way to the same detail, set smaller (`5h 7:00 PM`) |
 
-Nothing explains a bar at rest: no window names and no reset times, which the pointer shows.
+Nothing explains a bar at rest: no window names and no reset times, which the pointer shows. The detail is drawn in the page rather than left to a native `title` tooltip, which not every host of the desktop shows (Imbue Studio does not).
 
 ## 8. Theme tokens and selectors
 

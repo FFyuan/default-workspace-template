@@ -3,7 +3,9 @@
  * subscription with its name, two horizontal bars (the 5-hour limit above, the weekly one thinner below) and their
  * shares used, the 5-hour one in bold. Nothing explains them at rest; while the pointer is over the widget, each bar
  * gives way to its window's name and when it resets, in the bar's own place, so the widget never changes size. Then
- * the pay-as-you-go spend. Collapsed, the same rows without the weekly figure, under the subscription's short name.
+ * the pay-as-you-go spend. Collapsed, the same rows without the weekly figure, under the subscription's short name,
+ * the detail under the pointer set smaller to fit. The detail is drawn rather than left to a native ``title``
+ * tooltip, which not every host of the desktop shows.
  */
 
 import m from "mithril";
@@ -17,7 +19,7 @@ const SHORT_NAME: Record<WindowRole, string> = { short: "5h", long: "wk" };
 const BAR_HEIGHT: Record<WindowRole, string> = { short: "h-1.5", long: "h-1" };
 
 /** One window's line: its bar at rest, its name and reset time in the bar's place under the pointer. */
-function barLine(window: LimitWindow, role: WindowRole, isDetailShown: boolean): m.Vnode {
+function barLine(window: LimitWindow, role: WindowRole, isCompact: boolean): m.Vnode {
   const width = ringFraction(window) * 100;
   return m("span", { "data-widget-bar-line": role, class: "relative flex h-3.5 min-w-0 flex-1 items-center" }, [
     m(
@@ -25,7 +27,7 @@ function barLine(window: LimitWindow, role: WindowRole, isDetailShown: boolean):
       {
         class:
           `w-full overflow-hidden rounded-full bg-(--widget-track) ${BAR_HEIGHT[role]} transition-opacity ` +
-          (isDetailShown ? "group-hover:opacity-0" : ""),
+          "group-hover:opacity-0",
       },
       m("span", {
         "data-widget-bar": role,
@@ -34,18 +36,16 @@ function barLine(window: LimitWindow, role: WindowRole, isDetailShown: boolean):
         style: { width: `${width}%`, background: windowColour(window, role) },
       }),
     ),
-    isDetailShown
-      ? m(
-          "span",
-          {
-            "data-widget-bar-detail": role,
-            class:
-              "absolute inset-0 flex items-center truncate text-[10px] tabular-nums text-(--widget-muted) " +
-              "opacity-0 transition-opacity group-hover:opacity-100",
-          },
-          `${SHORT_NAME[role]} · ${resetText(window)}`,
-        )
-      : null,
+    m(
+      "span",
+      {
+        "data-widget-bar-detail": role,
+        class:
+          "absolute inset-0 flex items-center truncate whitespace-nowrap tabular-nums text-(--widget-muted) " +
+          `opacity-0 transition-opacity group-hover:opacity-100 ${isCompact ? "text-[9px]" : "text-[10px]"}`,
+      },
+      isCompact ? `${SHORT_NAME[role]} ${resetText(window)}` : `${SHORT_NAME[role]} · ${resetText(window)}`,
+    ),
   ]);
 }
 
@@ -67,13 +67,13 @@ function limitRowView(row: LimitRow): m.Vnode {
     m("span", { class: "w-12 shrink-0 truncate text-(--widget-text)" }, row.name),
     m("div", { class: "flex min-w-0 flex-1 flex-col" }, [
       m("div", { class: "flex items-center gap-2" }, [
-        barLine(row.primary, "short", true),
+        barLine(row.primary, "short", false),
         figure(row.primary, "short"),
       ]),
       row.secondary === null
         ? null
         : m("div", { class: "flex items-center gap-2" }, [
-            barLine(row.secondary, "long", true),
+            barLine(row.secondary, "long", false),
             figure(row.secondary, "long"),
           ]),
     ]),
@@ -90,9 +90,9 @@ function collapsedRowView(row: LimitRow): m.Vnode {
         { class: "w-12 shrink-0 truncate text-[9px] font-semibold tracking-wider text-(--widget-muted) uppercase" },
         row.name,
       ),
-      m("div", { class: "flex w-12 flex-col gap-0.5" }, [
-        barLine(row.primary, "short", false),
-        row.secondary === null ? null : barLine(row.secondary, "long", false),
+      m("div", { class: "grid w-16" }, [
+        barLine(row.primary, "short", true),
+        row.secondary === null ? null : barLine(row.secondary, "long", true),
       ]),
       figure(row.primary, "short"),
     ],

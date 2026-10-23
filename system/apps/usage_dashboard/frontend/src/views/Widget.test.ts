@@ -143,7 +143,7 @@ describe("the bars version of the Usage widget", () => {
     expect(row?.textContent).not.toContain("Weekly");
   });
 
-  it("collapses to the name, both bars and the 5-hour figure, and empties a reset window's bar", () => {
+  it("collapses to the name, both bars and the 5-hour figure, explained under the pointer, and empties a reset window's bar", () => {
     const root = rendered(
       [reading({ resets_at: "2026-10-22T19:00:00Z" }), reading({ ...WEEKLY, used_percentage: 34 })],
       "collapsed",
@@ -156,6 +156,12 @@ describe("the bars version of the Usage widget", () => {
     expect([...(row?.querySelectorAll("[data-widget-percent]") ?? [])].map((figure) => figure.textContent)).toEqual([
       "—",
     ]);
-    expect(row?.querySelector("[data-widget-bar-detail]")).toBeNull();
+    // Under the pointer each bar gives way to its window and reset time, set small to fit.
+    expect([...(row?.querySelectorAll("[data-widget-bar-detail]") ?? [])].map((detail) => detail.textContent)).toEqual(
+      [
+        "5h reset",
+        `wk ${new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" })}`,
+      ],
+    );
   });
 });
