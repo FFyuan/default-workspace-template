@@ -156,14 +156,14 @@ def _is_data_root(path: Path) -> bool:
     ).is_dir()
 
 
-def _remove_if_empty(data_root: Path, other_store: Path) -> None:
-    if not data_root.exists():
+def _remove_empty_library_or_refuse_to_move(library: Path, store_to_move: Path) -> None:
+    if not library.exists():
         return
-    if data_root.is_dir() and not any(data_root.iterdir()):
-        data_root.rmdir()
+    if library.is_dir() and not any(library.iterdir()):
+        library.rmdir()
         return
     raise DatalibLaunchError(
-        f"both {other_store} and the library {data_root} hold a store; "
+        f"both {store_to_move} and the library {library} hold a store; "
         "move one of them aside, then start the app again"
     )
 
@@ -230,10 +230,10 @@ def move_store_into_library(libraries_dir: Path, data_root: Path) -> bool:
         if not _is_data_root(libraries_dir):
             return False
         _require_unlocked(libraries_dir)
-        _remove_if_empty(data_root, libraries_dir)
+        _remove_empty_library_or_refuse_to_move(data_root, libraries_dir)
         libraries_dir.rename(staging)
     libraries_dir.mkdir(parents=True, exist_ok=True)
-    _remove_if_empty(data_root, staging)
+    _remove_empty_library_or_refuse_to_move(data_root, staging)
     staging.rename(data_root)
     _drop_data_root_line(data_root / CONFIG_FILE_NAME, libraries_dir)
     logger.info("Moved the store at %s into the library %s", libraries_dir, data_root)
