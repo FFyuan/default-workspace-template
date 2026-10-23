@@ -802,44 +802,49 @@ function lookMenu<T extends string>(
 /** The workspace's pick of how the widget looks -- its style, size and how much it shows on the desktop, where in the
  *  taskbar it goes (the bar's row, the toolbar, or the tray), and its design there -- saved by the Usage app and shown
  *  by its widget at once. Picking where in the taskbar, or a design for there, also puts this client's widget there,
- *  where it is seen. */
+ *  where it is seen. It sits at the foot of every page, on the left, out of the way of the figures: at the window's
+ *  bottom edge when the page is shorter than the window. */
 function widgetLookPicker(picker: WidgetLookPicker): m.Children {
   const look = picker.look;
   if (look === null) return null;
-  return m("div", { class: "widget-style ml-auto flex flex-wrap items-center gap-2" }, [
-    picker.errorMessage === null
-      ? null
-      : m("span", { class: "type-helper text-danger", role: "alert" }, picker.errorMessage),
-    m("span", { class: "type-helper text-secondary" }, "Widget"),
-    lookMenu(WIDGET_VARIANTS, WIDGET_VARIANT_LABELS, look.variant, "Widget style", (variant) => {
-      void picker.select({ variant });
-    }),
-    lookMenu(WIDGET_SIZES, WIDGET_SIZE_LABELS, look.size, "Widget size", (size) => void picker.select({ size })),
-    lookMenu(WIDGET_DETAILS, WIDGET_DETAIL_LABELS, look.detail, "How much the widget shows", (detail) => {
-      void picker.select({ detail });
-    }),
-    m("span", { class: "type-helper text-secondary" }, "Taskbar"),
-    m(SegmentedControl<WidgetTaskbarSpot>(), {
-      label: "Where the widget goes in the taskbar",
-      segments: WIDGET_TASKBAR_SPOTS.map((spot) => ({
-        value: spot,
-        label: WIDGET_TASKBAR_SPOT_LABELS[spot],
-        attrs: { "data-widget-taskbar": spot },
-      })),
-      value: look.taskbar,
-      onSelect: (taskbar) => void picker.select({ taskbar }),
-    }),
-    look.taskbar === "toolbar"
-      ? lookMenu(WIDGET_TOOLBARS, WIDGET_TOOLBAR_LABELS, look.toolbar, "Widget design in the toolbar", (toolbar) => {
-          void picker.select({ toolbar });
-        })
-      : lookMenu(WIDGET_TRAYS, WIDGET_TRAY_LABELS, look.tray, "Widget design in the tray", (tray) => {
-          void picker.select({ tray });
-        }),
-  ]);
+  return m(
+    "footer",
+    { class: "widget-style mt-auto flex flex-wrap items-center gap-2 border-t border-default pt-3" },
+    [
+      picker.errorMessage === null
+        ? null
+        : m("span", { class: "type-helper text-danger", role: "alert" }, picker.errorMessage),
+      m("span", { class: "type-helper text-secondary" }, "Widget"),
+      lookMenu(WIDGET_VARIANTS, WIDGET_VARIANT_LABELS, look.variant, "Widget style", (variant) => {
+        void picker.select({ variant });
+      }),
+      lookMenu(WIDGET_SIZES, WIDGET_SIZE_LABELS, look.size, "Widget size", (size) => void picker.select({ size })),
+      lookMenu(WIDGET_DETAILS, WIDGET_DETAIL_LABELS, look.detail, "How much the widget shows", (detail) => {
+        void picker.select({ detail });
+      }),
+      m("span", { class: "type-helper text-secondary" }, "Taskbar"),
+      m(SegmentedControl<WidgetTaskbarSpot>(), {
+        label: "Where the widget goes in the taskbar",
+        segments: WIDGET_TASKBAR_SPOTS.map((spot) => ({
+          value: spot,
+          label: WIDGET_TASKBAR_SPOT_LABELS[spot],
+          attrs: { "data-widget-taskbar": spot },
+        })),
+        value: look.taskbar,
+        onSelect: (taskbar) => void picker.select({ taskbar }),
+      }),
+      look.taskbar === "toolbar"
+        ? lookMenu(WIDGET_TOOLBARS, WIDGET_TOOLBAR_LABELS, look.toolbar, "Widget design in the toolbar", (toolbar) => {
+            void picker.select({ toolbar });
+          })
+        : lookMenu(WIDGET_TRAYS, WIDGET_TRAY_LABELS, look.tray, "Widget design in the tray", (tray) => {
+            void picker.select({ tray });
+          }),
+    ],
+  );
 }
 
-function pageHeader(model: DashboardModel, picker: WidgetLookPicker, back: boolean): m.Vnode {
+function pageHeader(model: DashboardModel, back: boolean): m.Vnode {
   return m("header", { class: "flex flex-wrap items-center gap-3" }, [
     back
       ? m(
@@ -853,16 +858,15 @@ function pageHeader(model: DashboardModel, picker: WidgetLookPicker, back: boole
       : null,
     m("h1", { class: "type-heading text-primary" }, "Usage"),
     liveIndicator(model),
-    widgetLookPicker(picker),
   ]);
 }
 
 /** The home page: one card per provider in use, then the Total row, which opens the first provider's details. */
-function homePage(model: DashboardModel, picker: WidgetLookPicker, now: Date): m.Children {
+function homePage(model: DashboardModel, now: Date): m.Children {
   const data = model.data;
   const firstProvider = model.providers?.[0];
   return [
-    pageHeader(model, picker, false),
+    pageHeader(model, false),
     banners(model),
     m("div", { class: model.isCollectorDown ? "opacity-60" : "" }, providerSection(model.providers, now)),
     m(
@@ -938,13 +942,7 @@ function navItems(model: DashboardModel): NavItem[] {
 }
 
 /** A detail page: the list of providers, and the chosen one's limits, figures and latest calls. */
-function detailPage(
-  model: DashboardModel,
-  picker: WidgetLookPicker,
-  route: Route,
-  now: Date,
-  colors: ChartColors,
-): m.Children {
+function detailPage(model: DashboardModel, route: Route, now: Date, colors: ChartColors): m.Children {
   const data = model.data;
   const selectedKey = route.page === "item" ? route.key : "all";
   const items = navItems(model);
@@ -963,7 +961,7 @@ function detailPage(
         })
       : [];
   return [
-    pageHeader(model, picker, true),
+    pageHeader(model, true),
     banners(model),
     m("div", { class: "detail-layout grid gap-4 md:grid-cols-[15rem_minmax(0,1fr)]" }, [
       m(
@@ -1038,13 +1036,10 @@ export function App(): m.Component<AppAttrs> {
       return m(
         "div",
         { class: "h-screen overflow-y-auto" },
-        m(
-          "main",
-          { class: "mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6" },
-          route.page === "home"
-            ? homePage(model, widgetStyle, current)
-            : detailPage(model, widgetStyle, route, current, colors),
-        ),
+        m("main", { class: "mx-auto flex min-h-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6" }, [
+          route.page === "home" ? homePage(model, current) : detailPage(model, route, current, colors),
+          widgetLookPicker(widgetStyle),
+        ]),
       );
     },
   };

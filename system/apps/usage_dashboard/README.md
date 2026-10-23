@@ -112,7 +112,7 @@ The manifest declares a `[widget]` at `/widget`, enabled by default
 Vite entry (`widget.html`, `src/widget.ts`) that reads the limits, this month's
 totals and the collector's health, and reuses the page's provider cards, so the
 two never disagree. How it looks is picked for the whole workspace from the menus
-beside "Widget" in the Usage page's header and kept in the app's settings: its
+beside "Widget" at the foot of the Usage page, on the left, and kept in the app's settings: its
 style (rings: concentric rings per subscription, weekly outside and 5-hour inside;
 bars: a row per subscription with a 5-hour bar above a thinner weekly one), its
 size (small, medium, large: `--w-*` lengths in `style.css`) and how much it shows
