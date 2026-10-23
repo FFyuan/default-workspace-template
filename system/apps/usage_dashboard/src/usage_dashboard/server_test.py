@@ -115,18 +115,26 @@ def test_the_detail_pages_serve_the_same_document(client: FlaskClient) -> None:
         assert response.status_code == 200 and b"<title>Usage</title>" in response.data, path
 
 
-def test_the_widget_variant_defaults_to_rings_and_is_kept_once_set(
+def test_the_widget_look_defaults_to_medium_standard_rings_and_is_kept_once_set(
     client: FlaskClient, settings_store: UsageSettingsStore
 ) -> None:
-    assert client.get("/api/settings").get_json() == {"widget_variant": "rings"}
+    assert client.get("/api/settings").get_json() == {
+        "widget_variant": "rings",
+        "widget_size": "medium",
+        "widget_detail": "standard",
+    }
 
-    written = client.post("/api/settings", json={"widget_variant": "bars"})
+    written = client.post(
+        "/api/settings", json={"widget_variant": "bars", "widget_size": "large", "widget_detail": "more"}
+    )
 
     assert written.status_code == 200
-    assert written.get_json() == {"widget_variant": "bars"}
-    assert client.get("/api/settings").get_json() == {"widget_variant": "bars"}
+    stored = {"widget_variant": "bars", "widget_size": "large", "widget_detail": "more"}
+    assert written.get_json() == stored
+    assert client.get("/api/settings").get_json() == stored
     assert settings_store.read().widget_variant is WidgetVariant.BARS
     assert client.post("/api/settings", json={"widget_variant": "dials"}).status_code == 400
+    assert client.post("/api/settings", json={"widget_size": "huge"}).status_code == 400
 
 
 def test_an_unreadable_settings_file_reads_as_the_defaults(
@@ -135,4 +143,8 @@ def test_an_unreadable_settings_file_reads_as_the_defaults(
     settings_store.path.parent.mkdir(parents=True)
     settings_store.path.write_text("{not json")
 
-    assert client.get("/api/settings").get_json() == {"widget_variant": "rings"}
+    assert client.get("/api/settings").get_json() == {
+        "widget_variant": "rings",
+        "widget_size": "medium",
+        "widget_detail": "standard",
+    }

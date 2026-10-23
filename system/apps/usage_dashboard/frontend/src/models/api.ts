@@ -140,9 +140,11 @@ export function isUnreachable(error: unknown): boolean {
   return error instanceof HttpError && error.status >= 502 && error.status <= 504;
 }
 
-/** The Usage app's own settings (``settings.py``): which version of the widget the workspace shows. */
+/** The Usage app's own settings (``settings.py``): how the workspace's widget looks. */
 export interface UsageSettings {
   widget_variant: string;
+  widget_size: string;
+  widget_detail: string;
 }
 
 export function fetchSettings(): Promise<UsageSettings> {

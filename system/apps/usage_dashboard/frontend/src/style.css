@@ -40,6 +40,40 @@
   --widget-spend: rgb(0 0 0 / 0.45);
 }
 
+/* The widget's sizes: its base text (which every other text is set against in em), the ring's side and the figure in
+   it, the collapsed bars' length and the two bars' thickness, and the expanded widget's width. */
+.usage-widget {
+  font-size: var(--w-font);
+  line-height: 1.35;
+}
+.usage-widget[data-widget-size="small"] {
+  --w-font: 11px;
+  --w-ring: 32px;
+  --w-ring-figure: 8px;
+  --w-bar: 44px;
+  --w-bar-short: 4px;
+  --w-bar-long: 3px;
+  --w-width: 212px;
+}
+.usage-widget[data-widget-size="medium"] {
+  --w-font: 12px;
+  --w-ring: 40px;
+  --w-ring-figure: 10px;
+  --w-bar: 60px;
+  --w-bar-short: 6px;
+  --w-bar-long: 4px;
+  --w-width: 224px;
+}
+.usage-widget[data-widget-size="large"] {
+  --w-font: 14px;
+  --w-ring: 56px;
+  --w-ring-figure: 14px;
+  --w-bar: 84px;
+  --w-bar-short: 8px;
+  --w-bar-long: 5px;
+  --w-width: 284px;
+}
+
 /* The widget's page lets the shell's panel show through (base.css paints every page's body). */
 body.usage-widget-body {
   background-color: transparent;

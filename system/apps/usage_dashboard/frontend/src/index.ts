@@ -14,7 +14,7 @@ import { installElementContextMenu } from "@imbue/workspace-ui/src/context_menu"
 
 import { DashboardModel } from "./models/dashboard";
 import { routeOf } from "./models/routing";
-import { WIDGET_VARIANT_CHANNEL, WidgetVariantPicker } from "./models/widgetVariant";
+import { WIDGET_LOOK_CHANNEL, WidgetLookPicker } from "./models/widgetLook";
 import { App } from "./views/App";
 
 function bootstrap(): void {
@@ -34,9 +34,9 @@ function bootstrap(): void {
     redraw: () => m.redraw(),
     openStream: (url) => new EventSource(url),
   });
-  const widgetStyle = new WidgetVariantPicker({
+  const widgetStyle = new WidgetLookPicker({
     redraw: () => m.redraw(),
-    openChannel: () => new BroadcastChannel(WIDGET_VARIANT_CHANNEL),
+    openChannel: () => new BroadcastChannel(WIDGET_LOOK_CHANNEL),
   });
   m.mount(root, { view: () => m(App, { model, widgetStyle, route, now }) });
   model.start();

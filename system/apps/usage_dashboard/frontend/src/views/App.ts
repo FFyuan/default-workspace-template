@@ -11,8 +11,15 @@ import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 
 import type { LatencyRow, StoredCall, TotalsRow } from "../models/api";
-import { WIDGET_VARIANTS, WIDGET_VARIANT_LABELS } from "../models/widgetVariant";
-import type { WidgetVariant, WidgetVariantPicker } from "../models/widgetVariant";
+import {
+  WIDGET_DETAILS,
+  WIDGET_DETAIL_LABELS,
+  WIDGET_SIZES,
+  WIDGET_SIZE_LABELS,
+  WIDGET_VARIANTS,
+  WIDGET_VARIANT_LABELS,
+} from "../models/widgetLook";
+import type { WidgetLookPicker } from "../models/widgetLook";
 import {
   BREAKDOWNS,
   type BreakdownId,
@@ -676,27 +683,46 @@ function windowPicker(model: DashboardModel): m.Children {
   });
 }
 
-/** The workspace's pick of widget version, saved by the Usage app and shown by its widget at once. */
-function widgetStylePicker(picker: WidgetVariantPicker): m.Children {
-  if (picker.variant === null) return null;
-  return m("div", { class: "widget-style ml-auto flex items-center gap-2" }, [
+/** One part of the widget's look, as a small menu. */
+function lookMenu<T extends string>(
+  choices: readonly T[],
+  labels: Record<T, string>,
+  value: T,
+  label: string,
+  onSelect: (value: T) => void,
+): m.Vnode {
+  return m("div", { class: "w-24" }, [
+    m(Dropdown<T>, {
+      options: choices.map((choice) => ({ value: choice, label: labels[choice] })),
+      value,
+      placeholder: labels[value],
+      "aria-label": label,
+      onSelect,
+    }),
+  ]);
+}
+
+/** The workspace's pick of how the widget looks -- its style, size and how much it shows -- saved by the Usage app
+ *  and shown by its widget at once. */
+function widgetLookPicker(picker: WidgetLookPicker): m.Children {
+  const look = picker.look;
+  if (look === null) return null;
+  return m("div", { class: "widget-style ml-auto flex flex-wrap items-center gap-2" }, [
     picker.errorMessage === null
       ? null
       : m("span", { class: "type-helper text-danger", role: "alert" }, picker.errorMessage),
     m("span", { class: "type-helper text-secondary" }, "Widget"),
-    m("div", { class: "w-24" }, [
-      m(Dropdown<WidgetVariant>, {
-        options: WIDGET_VARIANTS.map((variant) => ({ value: variant, label: WIDGET_VARIANT_LABELS[variant] })),
-        value: picker.variant,
-        placeholder: WIDGET_VARIANT_LABELS[picker.variant],
-        "aria-label": "Widget style",
-        onSelect: (variant: WidgetVariant) => void picker.select(variant),
-      }),
-    ]),
+    lookMenu(WIDGET_VARIANTS, WIDGET_VARIANT_LABELS, look.variant, "Widget style", (variant) => {
+      void picker.select({ variant });
+    }),
+    lookMenu(WIDGET_SIZES, WIDGET_SIZE_LABELS, look.size, "Widget size", (size) => void picker.select({ size })),
+    lookMenu(WIDGET_DETAILS, WIDGET_DETAIL_LABELS, look.detail, "How much the widget shows", (detail) => {
+      void picker.select({ detail });
+    }),
   ]);
 }
 
-function pageHeader(model: DashboardModel, picker: WidgetVariantPicker, back: boolean): m.Vnode {
+function pageHeader(model: DashboardModel, picker: WidgetLookPicker, back: boolean): m.Vnode {
   return m("header", { class: "flex flex-wrap items-center gap-3" }, [
     back
       ? m(
@@ -710,12 +736,12 @@ function pageHeader(model: DashboardModel, picker: WidgetVariantPicker, back: bo
       : null,
     m("h1", { class: "type-heading text-primary" }, "Usage"),
     liveIndicator(model),
-    widgetStylePicker(picker),
+    widgetLookPicker(picker),
   ]);
 }
 
 /** The home page: one card per provider in use, then the Total row, which opens all usage. */
-function homePage(model: DashboardModel, picker: WidgetVariantPicker, now: Date): m.Children {
+function homePage(model: DashboardModel, picker: WidgetLookPicker, now: Date): m.Children {
   const data = model.data;
   return [
     pageHeader(model, picker, false),
@@ -791,7 +817,7 @@ function navItems(model: DashboardModel): NavItem[] {
 /** A detail page: the list of providers, and the chosen one's limits, figures and latest calls. */
 function detailPage(
   model: DashboardModel,
-  picker: WidgetVariantPicker,
+  picker: WidgetLookPicker,
   route: Route,
   now: Date,
   colors: SeriesColors,
@@ -876,7 +902,7 @@ function detailPage(
 
 export interface AppAttrs {
   model: DashboardModel;
-  widgetStyle: WidgetVariantPicker;
+  widgetStyle: WidgetLookPicker;
   route: Route;
   now: () => Date;
 }

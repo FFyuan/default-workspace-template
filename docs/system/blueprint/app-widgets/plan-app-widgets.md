@@ -203,11 +203,12 @@ The app contract evolves by adding types (contracts section 7); nothing shipped 
 | shell to page | `shell:widget-mode` | `{"mode": "expanded" \| "collapsed"}`; to a widget page only, after every handshake and on every change |
 | page to shell | `shell:widget-size` | `{"width", "height"}`, CSS pixels of the page's content in its current mode; the shell clamps it (section 4.2) |
 | page to shell | `shell:widget-hidden` | `{"isHidden": bool}`; section 4.7 |
+| page to shell | `shell:widget-tooltip` | `{"text", "left", "top", "width", "height"}` (the element's place in the frame), or `{"text": null}`; section 7.5a |
 | page to shell | `shell:widget-drag` | `{"phase": "start" \| "move" \| "end" \| "cancel", "screenX", "screenY"}`, and at the start `"pressX", "pressY"` (where in the frame the press began) and `"pressScreenX", "pressScreenY"`; section 4.4 |
 
 From a widget page the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open`, `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window, on the client's active desktop.
 `connectToShell` gains `onWidgetMode(mode)` among its handlers and `widgetSize(width, height)` and `widgetHidden(isHidden)` on the connection, plus `surface()`, so one page module serves both a window and a widget.
-On a widget it also sends `shell:widget-drag` itself, with no code in the page: a primary press that travels `WIDGET_DRAG_THRESHOLD_PX` (4) is a drag, reported in screen pixels (which stay true while the shell moves the frame under the pointer) until it ends, and the click that ends it is swallowed before the page or the link rule sees it. A press on a control (a button, a field, an element marked `data-no-drag`) is never a drag, and the browser's own drag of a link is prevented.
+On a widget it also sends `shell:widget-tooltip` itself for any element marked `data-widget-tooltip` the pointer enters (and one with no text once it leaves every such element, or presses), which the shell shows with the workspace's own tooltip (`showTooltipAtRect` in `hoverTooltip.ts`) under the element's place, after the usual delay. It also sends `shell:widget-drag` itself, with no code in the page: a primary press that travels `WIDGET_DRAG_THRESHOLD_PX` (4) is a drag, reported in screen pixels (which stay true while the shell moves the frame under the pointer) until it ends, and the click that ends it is swallowed before the page or the link rule sees it. A press on a control (a button, a field, an element marked `data-no-drag`) is never a drag, and the browser's own drag of a link is prevented.
 
 ## 7. The Usage widget
 
@@ -230,18 +231,20 @@ The widget follows a Mac system monitor's panels (iStat Menus): the shell's ligh
 
 ### 7.4 Expanded
 
-About 224 pixels wide, a section per subscription in the dashboard's card order, then one section of pay-as-you-go spend:
+At the medium size about 224 pixels wide, a section per subscription in the dashboard's card order, then one section of pay-as-you-go spend:
 
-- A subscription: its name as the heading; beneath it, its ring pair (section 7.5) beside a row per window (the 5-hour and the weekly limit), each with its dot, its name, and the share used; while the pointer is over the widget, each row also shows when it resets (the clock for the 5-hour window, the weekday and hour for the weekly one).
+- A subscription: its name as the heading; beneath it, its ring pair (section 7.5) beside a row per window (the 5-hour and the weekly limit), each with its dot, its name, and the share used.
 - Pay-as-you-go: "API this month" as the heading, and a row per provider with this month's spend, with `~` when any of it is estimated.
 - A provider with no data is not drawn.
 
-Each section's `title` gives the detail a hover asks for (each window's reset time, the reading's "as of" time, the call count), as a native tooltip, since a drawn tooltip would be clipped by the frame.
-
 ### 7.5 Collapsed
 
-A pair of concentric rings per subscription, in the expanded order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside, with the 5-hour percentage in the middle and the subscription's short name in small capitals beside it, one alone as well. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock. While the pointer is over the widget, the name gives way, in its own place, to when each window resets (`5h 7:00 PM`, `wk Wed 10 AM`); the place is as large as the larger of the two at rest too, so the widget never changes size. The detail is drawn in the page, not left to the pair's `title`, which Imbue Studio does not show.
+A pair of concentric rings per subscription, in the expanded order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside, with the 5-hour percentage in the middle and the subscription's short name in small capitals beneath, one alone as well. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock.
 With no subscription, the collapsed widget is one figure of this month's total spend (`$165.21`).
+
+### 7.5a Tooltips
+
+Nothing in the widget changes under the pointer. The detail a hover asks for is a tooltip: a ring pair's says both windows (each one's share used and reset time) and the reading's time, a window's row or bar says its window ("5-hour limit: 61% used, resets 7:00 PM"; a weekly reset gives its weekday), a subscription's name the whole subscription, a spend row its call count. The page marks each with `data-widget-tooltip`, and its app contract hands it to the shell (`shell:widget-tooltip`, section 6), which shows the workspace's own tooltip under the element's place outside the widget's frame: a bubble drawn in the page would be clipped by the small frame, and a native `title` is not shown by every host of the desktop (Imbue Studio shows none).
 
 ### 7.6 States
 
@@ -257,16 +260,28 @@ With no subscription, the collapsed widget is one figure of this month's total s
 
 The whole widget is one link, `<a href="/" target="_blank">`, so a click raises the Usage window (section 4.5).
 
-### 7.8 Versions
+### 7.8 The look: style, size and detail
 
-The widget comes in versions, and which one the workspace shows is the Usage app's own setting, not a flag and nothing the shell knows of: `widget_variant` in `data/.apps/usage-dashboard/settings.json`, read and written through `GET` and `POST /api/settings`, and picked from a "Widget" menu in the Usage page's header. The widget reads it with its figures; a pick in the same browser reaches it at once over a `BroadcastChannel`, and one made elsewhere on its next read (within a minute). `?variant=` on the widget's URL overrides it for that page alone, to look at a version without changing anyone's widget. Every version reads the same `WidgetModel`, so adding one is a view and a name.
+How the widget looks is the Usage app's own setting, not a flag and nothing the shell knows of: three fields of `data/.apps/usage-dashboard/settings.json`, read and written through `GET` and `POST /api/settings`, and picked from three menus beside "Widget" in the Usage page's header. The widget reads them with its figures; a pick in the same browser reaches it at once over a `BroadcastChannel`, and one made elsewhere on its next read (within a minute). `?variant=`, `?size=` and `?detail=` on the widget's URL override them for that page alone, to look at a choice without changing anyone's widget. Every style reads the same `WidgetModel`, so adding one is a view and a name.
 
-| Version | Expanded | Collapsed |
+| Style (`widget_variant`) | Expanded | Collapsed |
 |---|---|---|
-| `rings` (default) | sections 7.4 and 7.5 | section 7.5 |
-| `bars` | a row per subscription: its name, the 5-hour bar above a thinner weekly bar, and their shares used (the 5-hour one in bold); under the pointer each bar gives way, in its own place, to its window's short name and reset time (`5h · 7:00 PM`, `wk · Mon 9 AM`), so the widget never changes size; then the API spend | the short name, both bars, and the 5-hour share; under the pointer the bars give way to the same detail, set smaller (`5h 7:00 PM`) |
+| `rings` (default) | section 7.4 | section 7.5 |
+| `bars` | a row per subscription: its name, the 5-hour bar above a thinner weekly bar, and their shares used (the 5-hour one in bold); then the API spend | the short name, both bars, and the 5-hour share |
 
-Nothing explains a bar at rest: no window names and no reset times, which the pointer shows. The detail is drawn in the page rather than left to a native `title` tooltip, which not every host of the desktop shows (Imbue Studio does not).
+| Detail (`widget_detail`) | What it adds or takes away |
+|---|---|
+| `less` | the 5-hour limit alone (one ring, one bar, one row), and no API spend |
+| `standard` (default) | sections 7.4 and 7.5, and the bars as above |
+| `more` | in view rather than only in tooltips: each limit's reset time (expanded), the reading's time beside each heading (expanded rings), the weekly figure and the 5-hour reset beside a collapsed ring pair, and the weekly figure beside the collapsed bars |
+
+| Size (`widget_size`) | Text | Ring | Collapsed bars | Expanded width |
+|---|---|---|---|---|
+| `small` | 11px | 32px | 44px | 212px |
+| `medium` (default) | 12px | 40px | 60px | 224px |
+| `large` | 14px | 56px | 84px | 284px |
+
+A size is a set of `--w-*` lengths on the widget's root (`style.css`), and the widget's text is set in `em` against its base, so everything in it scales together.
 
 ## 8. Theme tokens and selectors
 

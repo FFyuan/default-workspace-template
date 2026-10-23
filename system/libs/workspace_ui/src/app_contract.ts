@@ -43,6 +43,11 @@
  * then end or cancel), in screen coordinates, which stay true while the shell moves the frame under the pointer;
  * the click that would end it is swallowed. A press that never travels that far is the page's click, and a press
  * on a control (a button, a field, an element marked ``data-no-drag``) is never a drag.
+ *
+ * A widget's page gives an element a tooltip with ``data-widget-tooltip`` (``widgetTooltipTracker``): the page's own
+ * bubble would be clipped by its small frame, so the page says which element the pointer entered, with its text and
+ * where it is in the frame, as ``shell:widget-tooltip``, and the shell shows the workspace's tooltip there; leaving
+ * every such element, or pressing, sends the same type with no text.
  */
 
 /** Shell to app: sent after every `load` of the frame; says which window, desktop, path, and client this page is in. */
@@ -83,6 +88,11 @@ export const SHELL_WIDGET_SIZE = "shell:widget-size";
 export const SHELL_WIDGET_HIDDEN = "shell:widget-hidden";
 /** App to shell, from a widget only: a press on the page is dragging the widget (see the module docs). */
 export const SHELL_WIDGET_DRAG = "shell:widget-drag";
+
+/** App to shell, from a widget only: the tooltip of the element the pointer is over, or none (see the module docs). */
+export const SHELL_WIDGET_TOOLTIP = "shell:widget-tooltip";
+/** The attribute a widget page's element carries its tooltip's text in. */
+export const WIDGET_TOOLTIP_ATTRIBUTE = "data-widget-tooltip";
 
 /** How far a press on a widget's page travels before it is a drag rather than a click, in CSS pixels. */
 export const WIDGET_DRAG_THRESHOLD_PX = 4;
@@ -430,6 +440,42 @@ function widgetDragTracker(
 }
 
 /**
+ * Report the tooltip of the element under the pointer on a widget's page to the shell (see the module docs);
+ * ``isWidget`` says whether a shell frames the page as a widget now. Returns the listeners to add to the page's
+ * window, each named by its event.
+ */
+function widgetTooltipTracker(
+  isWidget: () => boolean,
+  send: (type: string, payload: Record<string, unknown>) => void,
+): Readonly<Record<string, (event: Event) => void>> {
+  let shown: Element | null = null;
+  const hide = (): void => {
+    if (shown === null) return;
+    shown = null;
+    send(SHELL_WIDGET_TOOLTIP, { text: null });
+  };
+  return {
+    mouseover: (event) => {
+      if (!isWidget()) return;
+      const trigger = event.target instanceof Element ? event.target.closest(`[${WIDGET_TOOLTIP_ATTRIBUTE}]`) : null;
+      const text = trigger?.getAttribute(WIDGET_TOOLTIP_ATTRIBUTE) ?? null;
+      if (trigger === null || text === null || text === "") {
+        hide();
+        return;
+      }
+      if (trigger === shown) return;
+      shown = trigger;
+      const box = trigger.getBoundingClientRect();
+      send(SHELL_WIDGET_TOOLTIP, { text, left: box.left, top: box.top, width: box.width, height: box.height });
+    },
+    mouseout: (event) => {
+      if ((event as MouseEvent).relatedTarget === null) hide();
+    },
+    pointerdown: () => hide(),
+  };
+}
+
+/**
  * Connect this page to the shell that frames it. Safe to call on a top-level page: nothing
  * arrives, and every send is a no-op, so an app behaves the same visited directly. Once a
  * shell's handshake arrives, the page's link clicks and script popups follow the contract's rule
@@ -501,12 +547,15 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
 
   // In the capture phase, so a swallowed click never reaches the page's handlers or the link rule.
   const dragListeners = widgetDragTracker(() => hasShell && surface === "widget", send);
+  const tooltipListeners = widgetTooltipTracker(() => hasShell && surface === "widget", send);
 
   boundWindow.addEventListener("message", onMessage);
   if (isFramed) {
     boundWindow.addEventListener("click", onLinkClick);
     boundWindow.addEventListener("auxclick", onLinkClick);
     for (const [type, listener] of Object.entries(dragListeners)) boundWindow.addEventListener(type, listener, true);
+    for (const [type, listener] of Object.entries(tooltipListeners))
+      boundWindow.addEventListener(type, listener, true);
     boundWindow.open = routedOpen;
   }
   send(SHELL_CAPABILITIES, { navigation: capabilities.navigation, closeChord: capabilities.closeChord });
@@ -536,8 +585,9 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
       boundWindow.removeEventListener("message", onMessage);
       boundWindow.removeEventListener("click", onLinkClick);
       boundWindow.removeEventListener("auxclick", onLinkClick);
-      for (const [type, listener] of Object.entries(dragListeners)) {
-        boundWindow.removeEventListener(type, listener, true);
+      for (const listeners of [dragListeners, tooltipListeners]) {
+        for (const [type, listener] of Object.entries(listeners))
+          boundWindow.removeEventListener(type, listener, true);
       }
       if (boundWindow.open === routedOpen) boundWindow.open = nativeOpen;
     },

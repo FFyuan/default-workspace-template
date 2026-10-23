@@ -1,4 +1,4 @@
-"""The Usage app's own settings: which version of the widget the workspace shows.
+"""The Usage app's own settings: how the workspace's Usage widget looks -- its style, size and how much it shows.
 
 One small JSON file in the app's data directory (``data/.apps/usage-dashboard/settings.json`` on a live workspace),
 read on every request so an edit from another process lands without a restart, and written whole. A missing or
@@ -33,10 +33,31 @@ class WidgetVariant(LowerCaseStrEnum):
     BARS = auto()
 
 
+class WidgetSize(LowerCaseStrEnum):
+    """How large the Usage widget is drawn."""
+
+    SMALL = auto()
+    MEDIUM = auto()
+    LARGE = auto()
+
+
+class WidgetDetail(LowerCaseStrEnum):
+    """How much the Usage widget shows."""
+
+    # The 5-hour limit alone, and no pay-as-you-go spend.
+    LESS = auto()
+    # Both limits and the spend; the rest is in tooltips.
+    STANDARD = auto()
+    # Also each limit's figure and reset time, always in view.
+    MORE = auto()
+
+
 class UsageSettings(FrozenModel):
     """What the settings file holds. Every field has a default, so an older file reads whole."""
 
-    widget_variant: WidgetVariant = Field(default=WidgetVariant.RINGS, description="The version of the widget shown")
+    widget_variant: WidgetVariant = Field(default=WidgetVariant.RINGS, description="The widget's style")
+    widget_size: WidgetSize = Field(default=WidgetSize.MEDIUM, description="How large the widget is drawn")
+    widget_detail: WidgetDetail = Field(default=WidgetDetail.STANDARD, description="How much the widget shows")
 
 
 class UsageSettingsStore(MutableModel):

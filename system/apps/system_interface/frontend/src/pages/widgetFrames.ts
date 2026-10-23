@@ -9,7 +9,8 @@
  *
  * The shell side of the app contract for a widget lives here: the handshake after every load and on a desktop
  * change (``surface: "widget"``, no window), the mode after every handshake and on every change, and the page's
- * own ``shell:widget-size``, ``shell:widget-hidden`` and ``shell:widget-drag``. A drag's points arrive in screen
+ * own ``shell:widget-size``, ``shell:widget-hidden``, ``shell:widget-drag`` and ``shell:widget-tooltip``, the last shown
+ * as the workspace's own tooltip under the element's place in the frame, where the small frame cannot clip it. A drag's points arrive in screen
  * pixels, which stay true while the frame moves under the pointer; the layer turns them into the shell's viewport
  * pixels by where the press was in the frame, and hands each step to ``onDrag``. The rest of what a widget's page may send (an open, a
  * message, a link) the live pages layer takes, asking ``appOfFrame`` whose frame it is. Messages cross through
@@ -22,7 +23,9 @@ import {
   SHELL_WIDGET_HIDDEN,
   SHELL_WIDGET_MODE,
   SHELL_WIDGET_SIZE,
+  SHELL_WIDGET_TOOLTIP,
 } from "@imbue/workspace-ui/src/app_contract";
+import { hideTooltipAtRect, showTooltipAtRect } from "@imbue/workspace-ui/src/components/hoverTooltip";
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import { windowPageUrl } from "../model/pageUrl";
 import type { AppRecord } from "../model/records";
@@ -68,6 +71,11 @@ export interface WidgetFramesOptions {
   readonly onDrag: (app: string, step: WidgetDragStep) => void;
 }
 
+/** Who a widget's tooltip belongs to, for the shared bubble. */
+function tooltipSource(app: string): string {
+  return `widget:${app}`;
+}
+
 function finiteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -89,6 +97,7 @@ export class WidgetFramesLayer {
     setChildFrameMessageHandler(SHELL_WIDGET_SIZE, (frame, payload) => this.takeSize(frame, payload));
     setChildFrameMessageHandler(SHELL_WIDGET_HIDDEN, (frame, payload) => this.takeHidden(frame, payload));
     setChildFrameMessageHandler(SHELL_WIDGET_DRAG, (frame, payload) => this.takeDrag(frame, payload));
+    setChildFrameMessageHandler(SHELL_WIDGET_TOOLTIP, (frame, payload) => this.takeTooltip(frame, payload));
   }
 
   /** Stop: every frame goes, and what its page said with it. */
@@ -176,6 +185,7 @@ export class WidgetFramesLayer {
 
   private destroy(widget: WidgetFrame): void {
     this.frames.delete(widget.app);
+    hideTooltipAtRect(tooltipSource(widget.app));
     if (this.dragOffsets.delete(widget.app)) this.options.onDrag(widget.app, { phase: "cancel" });
     widget.wrapper.remove();
     this.store.resetWidgetReport(widget.app);
@@ -254,9 +264,34 @@ export class WidgetFramesLayer {
     this.store.reportWidgetSize(app, { width, height });
   }
 
+  private takeTooltip(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {
+    const app = this.appOfFrame(frame);
+    if (app === null) return;
+    const { text } = payload;
+    const left = finiteNumber(payload.left);
+    const top = finiteNumber(payload.top);
+    const width = finiteNumber(payload.width);
+    const height = finiteNumber(payload.height);
+    if (
+      typeof text !== "string" ||
+      text === "" ||
+      left === null ||
+      top === null ||
+      width === null ||
+      height === null
+    ) {
+      hideTooltipAtRect(tooltipSource(app));
+      return;
+    }
+    const box = frame.getBoundingClientRect();
+    const anchor = { left: box.left + left, top: box.top + top, bottom: box.top + top + height, width };
+    showTooltipAtRect(tooltipSource(app), anchor, text);
+  }
+
   private takeDrag(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {
     const app = this.appOfFrame(frame);
     if (app === null) return;
+    if (payload.phase === "start") hideTooltipAtRect(tooltipSource(app));
     if (payload.phase === "cancel") {
       if (this.dragOffsets.delete(app)) this.options.onDrag(app, { phase: "cancel" });
       return;

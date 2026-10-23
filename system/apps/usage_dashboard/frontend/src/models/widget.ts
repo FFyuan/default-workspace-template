@@ -9,7 +9,7 @@
  * subscription, one pill of the month's total spend.
  *
  * The model reads only what those need (the limit readings, this month's totals, the collector's health, and which
- * version of the widget the workspace shows), again
+ * look the workspace picked for the widget), again
  * shortly after every new call on the collector's stream and every minute, since a reset time passing changes what a
  * row shows with no call at all.
  */
@@ -22,8 +22,8 @@ import { formatClock, formatDollars } from "./format";
 import { LIMITS_LOOKBACK_MS, providerCards, providerName } from "./providers";
 import type { LimitLevel, LimitWindow, ProviderCard } from "./providers";
 import { windowStart } from "./windows";
-import { DEFAULT_WIDGET_VARIANT, readWidgetVariant } from "./widgetVariant";
-import type { WidgetVariant } from "./widgetVariant";
+import { DEFAULT_WIDGET_LOOK, readWidgetLook } from "./widgetLook";
+import type { WidgetLook } from "./widgetLook";
 
 /** How often the widget reads again with no call to prompt it: a minute, so a passed reset shows within one. */
 export const WIDGET_REFRESH_MS = 60_000;
@@ -37,6 +37,8 @@ export interface LimitRow {
   readonly secondary: LimitWindow | null;
   /** The detail a hover asks for: each window's reset, and when the reading was taken. */
   readonly tooltip: string;
+  /** When the reading was taken ("as of 1:51 PM"). */
+  readonly asOf: string;
 }
 
 /** One pay-as-you-go provider's row: this month's spend. */
@@ -74,12 +76,14 @@ function subscriptionName(card: ProviderCard): string {
   return source.length === 0 ? card.title : source[0].toUpperCase() + source.slice(1);
 }
 
-function windowText(window: LimitWindow): string {
+/** What a window says in a tooltip: its name, the share used, and when it resets ("5-hour limit: 61% used, resets
+ *  5:00 PM"). */
+export function windowText(window: LimitWindow): string {
   if (window.isResetSinceReading) return `${window.label}: reset since the last reading`;
   const used = window.usedPercent === null ? "unknown" : `${Math.round(window.usedPercent)}% used`;
   return window.resetsAt === null
     ? `${window.label}: ${used}`
-    : `${window.label}: ${used}, resets ${formatClock(window.resetsAt)}`;
+    : `${window.label}: ${used}, resets ${resetText(window)}`;
 }
 
 /** When a window resets, as briefly as tells it apart: the clock for one of hours, the weekday and hour for a longer
@@ -120,7 +124,8 @@ export function widgetRows(cards: readonly ProviderCard[]): WidgetRow[] {
         name: subscriptionName(card),
         primary,
         secondary: last === primary ? null : last,
-        tooltip: [...card.windows.map(windowText), `as of ${formatClock(card.observedAt)}`].join("\n"),
+        tooltip: [...card.windows.map(windowText), `as of ${formatClock(card.observedAt)}`].join(" · "),
+        asOf: `as of ${formatClock(card.observedAt)}`,
       },
     ];
   });
@@ -146,7 +151,7 @@ export function widgetRings(cards: readonly ProviderCard[]): RingPair[] {
         name,
         inner,
         outer: last === inner ? null : last,
-        tooltip: [name, ...card.windows.map(windowText), `as of ${formatClock(card.observedAt)}`].join("\n"),
+        tooltip: [name, ...card.windows.map(windowText), `as of ${formatClock(card.observedAt)}`].join(" · "),
       },
     ];
   });
@@ -181,7 +186,7 @@ export function widgetPill(cards: readonly ProviderCard[]): WidgetPill | null {
     level: "ok",
     tooltip: spendCards
       .map((card) => `${providerName(card.key.replace(/^spend:/, ""))}: ${formatDollars(card.spend)}`)
-      .join("\n"),
+      .join(" · "),
   };
 }
 
@@ -197,8 +202,8 @@ export class WidgetModel {
   isLive = false;
   isCatchingUp = false;
   isCollectorDown = false;
-  /** The version of the widget the workspace shows, as last read; a pick on the Usage page sets it at once. */
-  variant: WidgetVariant = DEFAULT_WIDGET_VARIANT;
+  /** How the workspace's widget looks, as last read; a pick on the Usage page sets it at once. */
+  look: WidgetLook = DEFAULT_WIDGET_LOOK;
 
   private stream: StreamLike | null = null;
   private readonly streamBackoff = new ReconnectBackoff();
@@ -239,7 +244,7 @@ export class WidgetModel {
     } catch (error) {
       this.isCollectorDown = isUnreachable(error);
     }
-    this.variant = (await readWidgetVariant()) ?? this.variant;
+    this.look = (await readWidgetLook()) ?? this.look;
     this.deps.redraw();
   }
 

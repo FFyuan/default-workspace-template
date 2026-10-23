@@ -1,21 +1,21 @@
 /**
  * The Usage widget's view (app-widgets plan section 7), drawn on the shell's light widget panel in the manner of a
  * system monitor: the whole widget is one link to the Usage page, opened in a window of its own
- * (``target="_blank"``, which the shell's link rule turns into raising the Usage window). What it shows is the
- * version the workspace picked (``widgetRings.ts``, ``widgetBars.ts``). Whatever the version, while the collector
- * indexes its first history the widget says so rather than show partial totals, and while the stream is down it keeps
- * the last figures, dimmed. Hover detail is each row's ``title``: a drawn tooltip would be clipped by the widget's
- * small frame.
+ * (``target="_blank"``, which the shell's link rule turns into raising the Usage window). It draws the look the
+ * workspace picked: its style (``widgetRings.ts``, ``widgetBars.ts``), its size (the ``--w-*`` lengths ``style.css``
+ * gives each size) and how much it shows. Whatever the look, while the collector indexes its first history the
+ * widget says so rather than show partial totals, and while the stream is down it keeps the last figures, dimmed.
+ * Nothing in it changes under the pointer; the detail is in tooltips the shell shows.
  */
 
 import m from "mithril";
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import type { WidgetModel } from "../models/widget";
-import type { WidgetVariant } from "../models/widgetVariant";
+import type { WidgetDetail, WidgetLook, WidgetVariant } from "../models/widgetLook";
 import { barsCollapsed, barsExpanded } from "./widgetBars";
 import { ringsCollapsed, ringsExpanded } from "./widgetRings";
 
-const VERSIONS: Record<WidgetVariant, Record<WidgetMode, (model: WidgetModel) => m.Children>> = {
+const STYLES: Record<WidgetVariant, Record<WidgetMode, (model: WidgetModel, detail: WidgetDetail) => m.Children>> = {
   rings: { expanded: ringsExpanded, collapsed: ringsCollapsed },
   bars: { expanded: barsExpanded, collapsed: barsCollapsed },
 };
@@ -23,16 +23,16 @@ const VERSIONS: Record<WidgetVariant, Record<WidgetMode, (model: WidgetModel) =>
 export interface WidgetAttrs {
   readonly model: WidgetModel;
   readonly mode: WidgetMode;
-  readonly variant: WidgetVariant;
+  readonly look: WidgetLook;
 }
 
 export const Widget: m.Component<WidgetAttrs> = {
   view(vnode) {
-    const { model, mode, variant } = vnode.attrs;
+    const { model, mode, look } = vnode.attrs;
     const isCollapsed = mode === "collapsed";
     const content: m.Children = model.isCatchingUp
       ? m("span", { class: "text-(--widget-muted)" }, isCollapsed ? "..." : "Indexing usage...")
-      : VERSIONS[variant][mode](model);
+      : STYLES[look.variant][mode](model, look.detail);
     return m(
       "a",
       {
@@ -40,11 +40,13 @@ export const Widget: m.Component<WidgetAttrs> = {
         href: "/",
         target: "_blank",
         "data-widget-mode": mode,
-        "data-widget-variant": variant,
+        "data-widget-variant": look.variant,
+        "data-widget-size": look.size,
+        "data-widget-detail": look.detail,
         "data-live": model.isLive ? "true" : "false",
         class:
-          "usage-widget group inline-flex flex-col type-helper text-(--widget-text) no-underline " +
-          (isCollapsed ? "gap-1 p-1 " : "w-56 gap-2 p-1.5 ") +
+          "usage-widget inline-flex flex-col text-(--widget-text) no-underline " +
+          (isCollapsed ? "gap-1 p-1 " : "w-(--w-width) gap-2 p-1.5 ") +
           (model.isLive ? "" : "opacity-60"),
       },
       [

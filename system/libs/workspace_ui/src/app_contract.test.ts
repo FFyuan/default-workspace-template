@@ -20,6 +20,7 @@ import {
   SHELL_SHOWN,
   SHELL_WIDGET_DRAG,
   SHELL_WIDGET_HIDDEN,
+  SHELL_WIDGET_TOOLTIP,
   SHELL_WIDGET_MODE,
   SHELL_WIDGET_SIZE,
   ShellContractError,
@@ -242,6 +243,50 @@ describe("connectToShell", () => {
       pointer("pointerup", link, 60, 80);
       expect(parent.postMessage).not.toHaveBeenCalled();
     });
+  });
+
+  it("on a widget, reports the tooltip of the element the pointer enters, and none once it leaves or presses", () => {
+    const parent = framed();
+    connection = connectToShell({});
+    deliver({ ...HANDSHAKE, windowId: null, surface: "widget", path: "/widget" }, parent);
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<div id="bar" data-widget-tooltip="5-hour limit: 61% used"><span id="fill"></span></div><div id="plain"></div>';
+    document.body.appendChild(root);
+    const bar = root.querySelector("#bar") as HTMLElement;
+    bar.getBoundingClientRect = () => ({ left: 10, top: 20, width: 100, height: 8 }) as DOMRect;
+    parent.postMessage.mockClear();
+    const over = (target: Element, related: Element | null = null): void => {
+      target.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: related }));
+    };
+
+    over(root.querySelector("#fill") as Element);
+    // Moving within the same trigger says nothing more.
+    over(bar);
+    over(root.querySelector("#plain") as Element, bar);
+    over(bar);
+    bar.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    over(bar);
+    root.querySelector("#plain")?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: null }));
+    root.remove();
+
+    const shown = {
+      type: SHELL_WIDGET_TOOLTIP,
+      text: "5-hour limit: 61% used",
+      left: 10,
+      top: 20,
+      width: 100,
+      height: 8,
+    };
+    const hidden = { type: SHELL_WIDGET_TOOLTIP, text: null };
+    expect(parent.postMessage.mock.calls.map(([message]) => message)).toEqual([
+      shown,
+      hidden,
+      shown,
+      hidden,
+      shown,
+      hidden,
+    ]);
   });
 
   it("as a window, ignores a widget mode and sends no widget report", () => {

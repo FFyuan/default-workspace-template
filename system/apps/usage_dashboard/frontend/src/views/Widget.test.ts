@@ -7,8 +7,9 @@ import type { LimitReading } from "../models/api";
 import { formatClock } from "../models/format";
 import { providerCards } from "../models/providers";
 import type { WidgetModel } from "../models/widget";
+import { DEFAULT_WIDGET_LOOK } from "../models/widgetLook";
+import type { WidgetLook } from "../models/widgetLook";
 import { totalsRow } from "../testing/rows";
-import type { WidgetVariant } from "../models/widgetVariant";
 import { Widget } from "./Widget";
 
 const NOW = new Date("2026-10-22T20:00:00Z");
@@ -27,43 +28,83 @@ function reading(patch: Partial<LimitReading>): LimitReading {
 }
 
 const WEEKLY = { window: "seven_day", label: "7d", window_seconds: 604_800, resets_at: "2026-10-26T21:00:00Z" };
+const SHORT_RESET = formatClock(new Date("2026-10-22T22:30:00Z"));
+const WEEKLY_RESET = new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" });
+const API_SPEND = totalsRow({ group: { provider: "anthropic", billing_mode: "API_KEY" }, cost_usd: "9.5" });
 
 function rendered(
   limits: LimitReading[],
   mode: "expanded" | "collapsed",
-  variant: WidgetVariant = "rings",
+  look: Partial<WidgetLook> = {},
+  totals = [API_SPEND],
 ): HTMLElement {
-  const model = { cards: providerCards(limits, [], NOW), isLive: true, isCatchingUp: false } as WidgetModel;
+  const model = { cards: providerCards(limits, totals, NOW), isLive: true, isCatchingUp: false } as WidgetModel;
   const root = document.createElement("div");
-  m.render(root, m(Widget, { model, mode, variant }));
+  m.render(root, m(Widget, { model, mode, look: { ...DEFAULT_WIDGET_LOOK, ...look } }));
   return root;
 }
 
-describe("the collapsed Usage widget", () => {
-  it("draws a subscription's weekly limit as the outer ring and its 5-hour limit as the inner, at their levels", () => {
-    const root = rendered(
-      [reading({ used_percentage: 80 }), reading({ ...WEEKLY, used_percentage: 34 })],
-      "collapsed",
-    );
+function texts(root: Element | null | undefined, selector: string): (string | null)[] {
+  return [...(root?.querySelectorAll(selector) ?? [])].map((element) => element.textContent);
+}
+
+function tooltips(root: Element | null | undefined, selector: string): (string | null)[] {
+  return [...(root?.querySelectorAll(selector) ?? [])].map((element) => element.getAttribute("data-widget-tooltip"));
+}
+
+const BOTH = [reading({ used_percentage: 80 }), reading({ ...WEEKLY, used_percentage: 34 })];
+
+describe("the rings version", () => {
+  it("collapses to a pair of rings per subscription at their levels, named beneath, with the detail in a tooltip", () => {
+    const root = rendered(BOTH, "collapsed");
 
     const pair = root.querySelector('[data-widget-rings="subscription:claude"]');
-    expect(pair?.getAttribute("title")).toContain("5-hour limit: 80% used");
     const outer = pair?.querySelector('[data-ring="outer"]');
     const inner = pair?.querySelector('[data-ring="inner"]');
     expect([outer?.getAttribute("r"), outer?.getAttribute("stroke-dasharray")]).toEqual(["18", "34 100"]);
     expect([inner?.getAttribute("r"), inner?.getAttribute("stroke-dasharray")]).toEqual(["13.5", "80 100"]);
-    expect(inner?.getAttribute("data-ring-level")).toBe("high");
     // A comfortable ring keeps its window's hue; a high one takes the level's colour.
-    expect(outer?.getAttribute("stroke")).toBe("var(--widget-long)");
-    expect(inner?.getAttribute("stroke")).toBe("var(--widget-high)");
-    // The 5-hour figure sits in the middle, and the pair carries its provider's name, alone as beside another.
-    expect(pair?.querySelector("[data-ring-figure]")?.textContent).toBe("80%");
-    expect(pair?.querySelector("[data-ring-name]")?.textContent).toBe("Claude");
-    // Under the pointer the name gives way to when each window resets, drawn in the page rather than a tooltip.
-    expect([...(pair?.querySelectorAll("[data-ring-detail]") ?? [])].map((line) => line.textContent)).toEqual([
-      `5h ${formatClock(new Date("2026-10-22T22:30:00Z"))}`,
-      `wk ${new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" })}`,
+    expect([outer?.getAttribute("stroke"), inner?.getAttribute("stroke")]).toEqual([
+      "var(--widget-long)",
+      "var(--widget-high)",
     ]);
+    expect(texts(pair, "[data-ring-figure]")).toEqual(["80%"]);
+    expect(texts(pair, "[data-ring-name]")).toEqual(["Claude"]);
+    const [summary] = tooltips(pair, "[data-widget-tooltip]");
+    expect(summary).toContain(`5-hour limit: 80% used, resets ${SHORT_RESET}`);
+    expect(summary).toContain(`Weekly limit: 34% used, resets ${WEEKLY_RESET}`);
+    // Nothing waits for the pointer to show itself: no native title, nothing hidden.
+    expect(root.querySelector("[title]")).toBeNull();
+    expect(root.innerHTML).not.toContain("opacity-0");
+  });
+
+  it("draws the 5-hour ring alone with less, and the weekly figure and the 5-hour reset beside it with more", () => {
+    const less = rendered(BOTH, "collapsed", { detail: "less" });
+    expect(less.querySelector('[data-ring="outer"]')).toBeNull();
+    expect(less.querySelector('[data-ring="inner"]')).not.toBeNull();
+
+    const more = rendered(BOTH, "collapsed", { detail: "more" });
+    expect(texts(more, "[data-ring-more]")).toEqual(["wk 34%", `5h ${SHORT_RESET}`]);
+  });
+
+  it("expands to a row per window with a tooltip each, and shows the resets and the reading's time with more", () => {
+    const standard = rendered(BOTH, "expanded");
+    const section = standard.querySelector('[data-widget-row="subscription:claude"]');
+    expect(texts(section, "[data-widget-percent]")).toEqual(["80%", "34%"]);
+    expect(tooltips(section, "[data-widget-window]")).toEqual([
+      `5-hour limit: 80% used, resets ${SHORT_RESET}`,
+      `Weekly limit: 34% used, resets ${WEEKLY_RESET}`,
+    ]);
+    expect(section?.querySelector("[data-widget-reset]")).toBeNull();
+    expect(standard.textContent).toContain("$9.50");
+
+    const more = rendered(BOTH, "expanded", { detail: "more" });
+    expect(texts(more, "[data-widget-reset]")).toEqual([SHORT_RESET, WEEKLY_RESET]);
+    expect(more.textContent).toContain("as of");
+
+    const less = rendered(BOTH, "expanded", { detail: "less" });
+    expect(texts(less, "[data-widget-percent]")).toEqual(["80%"]);
+    expect(less.textContent).not.toContain("$9.50");
   });
 
   it("names each of several pairs, and leaves a reset window's ring as a bare track", () => {
@@ -79,94 +120,69 @@ describe("the collapsed Usage widget", () => {
     expect(pairs[0].querySelectorAll("circle")).toHaveLength(1);
   });
 
-  it("falls back to the month's spend with no subscription, and keeps the rows when expanded", () => {
-    const model = {
-      cards: providerCards(
-        [],
-        [totalsRow({ group: { provider: "anthropic", billing_mode: "API_KEY" }, cost_usd: "9.5" })],
-        NOW,
-      ),
-      isLive: true,
-      isCatchingUp: false,
-    } as WidgetModel;
-    const root = document.createElement("div");
-    m.render(root, m(Widget, { model, mode: "collapsed", variant: "rings" }));
+  it("falls back to the month's spend with no subscription", () => {
+    const root = rendered([], "collapsed");
     expect(root.querySelector("[data-widget-rings]")).toBeNull();
     expect(root.textContent).toContain("$9.50");
-    expect(rendered([reading({})], "expanded").querySelector("[data-widget-row]")).not.toBeNull();
   });
 });
 
-describe("the expanded Usage widget", () => {
-  it("heads a section per subscription, with a row per window giving when it resets and the share used", () => {
-    const root = rendered([reading({ used_percentage: 61 }), reading({ ...WEEKLY, used_percentage: 92 })], "expanded");
-
-    const section = root.querySelector('[data-widget-row="subscription:claude"]');
-    expect(section?.textContent).toContain("Claude");
-    const rows = [...(section?.querySelectorAll("[data-widget-window]") ?? [])];
-    expect(rows.map((row) => row.querySelector("span:nth-child(2)")?.textContent)).toEqual(["5-hour", "Weekly"]);
-    expect(rows.map((row) => row.querySelector("[data-widget-percent]")?.textContent)).toEqual(["61%", "92%"]);
-    expect(rows.map((row) => row.querySelector("[data-widget-percent]")?.getAttribute("data-widget-percent"))).toEqual(
-      ["ok", "critical"],
-    );
-    // The 5-hour window resets on the clock; the weekly one by its day and hour.
-    expect(rows.map((row) => row.querySelector("[data-widget-reset]")?.textContent)).toEqual([
-      formatClock(new Date("2026-10-22T22:30:00Z")),
-      new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" }),
-    ]);
-    expect(section?.querySelector('[data-ring="outer"]')?.getAttribute("stroke")).toBe("var(--widget-critical)");
-  });
-});
-
-describe("the bars version of the Usage widget", () => {
-  it("draws a row per subscription with the 5-hour bar above the weekly one, explained only under the pointer", () => {
+describe("the bars version", () => {
+  it("draws the 5-hour bar above the weekly one, each with its window in a tooltip and no label in place", () => {
     const root = rendered(
       [reading({ used_percentage: 61 }), reading({ ...WEEKLY, used_percentage: 92 })],
       "expanded",
-      "bars",
+      {
+        variant: "bars",
+      },
     );
 
     expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-variant")).toBe("bars");
     const row = root.querySelector('[data-widget-row="subscription:claude"]');
-    expect(row?.textContent).toContain("Claude");
     const short = row?.querySelector('[data-widget-bar="short"]') as HTMLElement;
     const long = row?.querySelector('[data-widget-bar="long"]') as HTMLElement;
     expect([short.style.width, short.style.background]).toEqual(["61%", "var(--widget-short)"]);
     expect([long.style.width, long.style.background]).toEqual(["92%", "var(--widget-critical)"]);
-    expect([...(row?.querySelectorAll("[data-widget-percent]") ?? [])].map((figure) => figure.textContent)).toEqual([
-      "61%",
-      "92%",
+    expect(texts(row, "[data-widget-percent]")).toEqual(["61%", "92%"]);
+    expect(tooltips(row, "[data-widget-bar-line]")).toEqual([
+      `5-hour limit: 61% used, resets ${SHORT_RESET}`,
+      `Weekly limit: 92% used, resets ${WEEKLY_RESET}`,
     ]);
-    // Which window a bar stands for, and when it resets, is hidden until the pointer is over the widget.
-    const details = [...(row?.querySelectorAll("[data-widget-bar-detail]") ?? [])];
-    expect(details.map((detail) => detail.textContent)).toEqual([
-      `5h · ${formatClock(new Date("2026-10-22T22:30:00Z"))}`,
-      `wk · ${new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" })}`,
-    ]);
-    expect(details.every((detail) => detail.className.includes("opacity-0"))).toBe(true);
     expect(row?.textContent).not.toContain("5-hour");
-    expect(row?.textContent).not.toContain("Weekly");
+    expect(row?.querySelector("[data-widget-reset]")).toBeNull();
+    expect(root.innerHTML).not.toContain("opacity-0");
   });
 
-  it("collapses to the name, both bars and the 5-hour figure, explained under the pointer, and empties a reset window's bar", () => {
+  it("shows each bar's reset with more, and the 5-hour bar alone with less", () => {
+    const more = rendered(BOTH, "expanded", { variant: "bars", detail: "more" });
+    expect(texts(more, "[data-widget-reset]")).toEqual([SHORT_RESET, WEEKLY_RESET]);
+
+    const less = rendered(BOTH, "expanded", { variant: "bars", detail: "less" });
+    expect(less.querySelector('[data-widget-bar="long"]')).toBeNull();
+    expect(less.textContent).not.toContain("$9.50");
+  });
+
+  it("collapses to the name, both bars and the 5-hour figure, the weekly figure too with more", () => {
     const root = rendered(
       [reading({ resets_at: "2026-10-22T19:00:00Z" }), reading({ ...WEEKLY, used_percentage: 34 })],
       "collapsed",
-      "bars",
+      { variant: "bars" },
     );
-
     const row = root.querySelector('[data-widget-row="subscription:claude"]');
     expect((row?.querySelector('[data-widget-bar="short"]') as HTMLElement).style.width).toBe("0%");
     expect((row?.querySelector('[data-widget-bar="long"]') as HTMLElement).style.width).toBe("34%");
-    expect([...(row?.querySelectorAll("[data-widget-percent]") ?? [])].map((figure) => figure.textContent)).toEqual([
-      "—",
-    ]);
-    // Under the pointer each bar gives way to its window and reset time, set small to fit.
-    expect([...(row?.querySelectorAll("[data-widget-bar-detail]") ?? [])].map((detail) => detail.textContent)).toEqual(
-      [
-        "5h reset",
-        `wk ${new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" })}`,
-      ],
-    );
+    expect(texts(row, "[data-widget-percent]")).toEqual(["—"]);
+
+    const more = rendered(BOTH, "collapsed", { variant: "bars", detail: "more" });
+    expect(texts(more, "[data-widget-percent]")).toEqual(["80%", "34%"]);
+  });
+});
+
+describe("the widget's size", () => {
+  it("names its size on its root, where the stylesheet gives each size its lengths", () => {
+    for (const size of ["small", "medium", "large"] as const) {
+      const root = rendered(BOTH, "collapsed", { size });
+      expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-size")).toBe(size);
+    }
   });
 });

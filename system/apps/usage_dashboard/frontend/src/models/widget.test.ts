@@ -125,15 +125,15 @@ describe("WidgetModel", () => {
     expect(widgetRows(widget.cards ?? []).map((row) => row.name)).toEqual(["Claude"]);
   });
 
-  it("reads the workspace's widget version with its figures, and keeps it when the settings cannot be read", async () => {
+  it("reads the workspace's widget look with its figures, and keeps it when the settings cannot be read", async () => {
     const widget = model();
-    expect(widget.variant).toBe("rings");
+    expect(widget.look.variant).toBe("rings");
     stubCollector([reading({})], false, null, "bars");
     await widget.refresh();
-    expect(widget.variant).toBe("bars");
+    expect(widget.look).toEqual({ variant: "bars", size: "medium", detail: "standard" });
     stubCollector([reading({})], false, 503);
     await widget.refresh();
-    expect(widget.variant).toBe("bars");
+    expect(widget.look.variant).toBe("bars");
   });
 
   it("keeps the last figures when the collector cannot be reached", async () => {
@@ -166,7 +166,7 @@ describe("widgetRings", () => {
       ["Codex", 82, null],
     ]);
     expect(rings[1].inner.level).toBe("high");
-    expect(rings[0].tooltip.split("\n")[0]).toBe("Claude");
+    expect(rings[0].tooltip.split(" · ")[0]).toBe("Claude");
     expect(rings[0].tooltip).toContain("Weekly limit: 34% used");
   });
 

@@ -1,52 +1,42 @@
 /**
  * The bars version of the Usage widget (app-widgets plan section 7.8), after a system monitor's meters: a row per
- * subscription with its name, two horizontal bars (the 5-hour limit above, the weekly one thinner below) and their
- * shares used, the 5-hour one in bold. Nothing explains them at rest; while the pointer is over the widget, each bar
- * gives way to its window's name and when it resets, in the bar's own place, so the widget never changes size. Then
- * the pay-as-you-go spend. Collapsed, the same rows without the weekly figure, under the subscription's short name,
- * the detail under the pointer set smaller to fit. The detail is drawn rather than left to a native ``title``
- * tooltip, which not every host of the desktop shows.
+ * subscription with its name, the 5-hour limit's bar above the weekly one's thinner bar, and their shares used, the
+ * 5-hour one in bold. How much it shows follows the workspace's pick: with less, the 5-hour bar alone and no spend;
+ * with more, each bar's reset time in view (expanded) or the weekly figure too (collapsed). Collapsed, the rows sit
+ * under the subscription's short name and carry the 5-hour figure. Nothing explains a bar in place: each bar's
+ * tooltip says its window, the share used and when it resets, and the name's tooltip the whole subscription.
  */
 
 import m from "mithril";
 import type { LimitWindow } from "../models/providers";
-import { ringFraction, resetText, widgetRows } from "../models/widget";
+import { resetText, ringFraction, widgetRows, windowText } from "../models/widget";
 import type { LimitRow, SpendRow, WidgetModel } from "../models/widget";
-import { percentText, pillView, spendSectionView, windowColour } from "./widgetParts";
+import type { WidgetDetail } from "../models/widgetLook";
+import { percentText, pillView, spendSectionView, tooltip, windowColour } from "./widgetParts";
 import type { WindowRole } from "./widgetParts";
 
-const SHORT_NAME: Record<WindowRole, string> = { short: "5h", long: "wk" };
-const BAR_HEIGHT: Record<WindowRole, string> = { short: "h-1.5", long: "h-1" };
+const BAR_HEIGHT: Record<WindowRole, string> = { short: "h-(--w-bar-short)", long: "h-(--w-bar-long)" };
 
-/** One window's line: its bar at rest, its name and reset time in the bar's place under the pointer. */
-function barLine(window: LimitWindow, role: WindowRole, isCompact: boolean): m.Vnode {
-  const width = ringFraction(window) * 100;
-  return m("span", { "data-widget-bar-line": role, class: "relative flex h-3.5 min-w-0 flex-1 items-center" }, [
+/** One window's bar over its faint track, on a line tall enough to point at. */
+function bar(window: LimitWindow, role: WindowRole): m.Vnode {
+  return m(
+    "span",
+    {
+      "data-widget-bar-line": role,
+      class: "flex h-[1.1em] min-w-0 flex-1 items-center",
+      ...tooltip(windowText(window)),
+    },
     m(
       "span",
-      {
-        class:
-          `w-full overflow-hidden rounded-full bg-(--widget-track) ${BAR_HEIGHT[role]} transition-opacity ` +
-          "group-hover:opacity-0",
-      },
+      { class: `w-full overflow-hidden rounded-full bg-(--widget-track) ${BAR_HEIGHT[role]}` },
       m("span", {
         "data-widget-bar": role,
         "data-widget-bar-level": window.level,
         class: "block h-full rounded-full",
-        style: { width: `${width}%`, background: windowColour(window, role) },
+        style: { width: `${ringFraction(window) * 100}%`, background: windowColour(window, role) },
       }),
     ),
-    m(
-      "span",
-      {
-        "data-widget-bar-detail": role,
-        class:
-          "absolute inset-0 flex items-center truncate whitespace-nowrap tabular-nums text-(--widget-muted) " +
-          `opacity-0 transition-opacity group-hover:opacity-100 ${isCompact ? "text-[9px]" : "text-[10px]"}`,
-      },
-      isCompact ? `${SHORT_NAME[role]} ${resetText(window)}` : `${SHORT_NAME[role]} · ${resetText(window)}`,
-    ),
-  ]);
+  );
 }
 
 function figure(window: LimitWindow, role: WindowRole): m.Vnode {
@@ -55,64 +45,93 @@ function figure(window: LimitWindow, role: WindowRole): m.Vnode {
     {
       "data-widget-percent": window.isResetSinceReading ? "reset" : window.level,
       class:
-        "w-8 shrink-0 text-right tabular-nums " +
-        (role === "short" ? "font-semibold text-(--widget-text)" : "text-[10px] text-(--widget-muted)"),
+        "w-[2.8em] shrink-0 text-right tabular-nums " +
+        (role === "short" ? "font-semibold text-(--widget-text)" : "text-[0.82em] text-(--widget-muted)"),
+      ...tooltip(windowText(window)),
     },
     percentText(window),
   );
 }
 
-function limitRowView(row: LimitRow): m.Vnode {
-  return m("div", { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-2", title: row.tooltip }, [
-    m("span", { class: "w-12 shrink-0 truncate text-(--widget-text)" }, row.name),
+/** An expanded window's line: its bar, its reset time with more, and its figure. */
+function windowLine(window: LimitWindow, role: WindowRole, detail: WidgetDetail): m.Vnode {
+  return m("div", { class: "flex items-center gap-2" }, [
+    bar(window, role),
+    detail === "more"
+      ? m(
+          "span",
+          {
+            "data-widget-reset": role,
+            class:
+              "w-[5.8em] shrink-0 truncate whitespace-nowrap text-right text-[0.82em] tabular-nums text-(--widget-faint)",
+          },
+          resetText(window),
+        )
+      : null,
+    figure(window, role),
+  ]);
+}
+
+function limitRowView(row: LimitRow, detail: WidgetDetail): m.Vnode {
+  const secondary = detail === "less" ? null : row.secondary;
+  return m("div", { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-2" }, [
+    m("span", { class: "w-[4em] shrink-0 truncate text-(--widget-text)", ...tooltip(row.tooltip) }, row.name),
     m("div", { class: "flex min-w-0 flex-1 flex-col" }, [
-      m("div", { class: "flex items-center gap-2" }, [
-        barLine(row.primary, "short", false),
-        figure(row.primary, "short"),
-      ]),
-      row.secondary === null
-        ? null
-        : m("div", { class: "flex items-center gap-2" }, [
-            barLine(row.secondary, "long", false),
-            figure(row.secondary, "long"),
-          ]),
+      windowLine(row.primary, "short", detail),
+      secondary === null ? null : windowLine(secondary, "long", detail),
     ]),
   ]);
 }
 
-function collapsedRowView(row: LimitRow): m.Vnode {
-  return m(
-    "div",
-    { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-1.5", title: row.tooltip },
-    [
-      m(
-        "span",
-        { class: "w-12 shrink-0 truncate text-[9px] font-semibold tracking-wider text-(--widget-muted) uppercase" },
-        row.name,
-      ),
-      m("div", { class: "grid w-16" }, [
-        barLine(row.primary, "short", true),
-        row.secondary === null ? null : barLine(row.secondary, "long", true),
-      ]),
-      figure(row.primary, "short"),
-    ],
-  );
+function collapsedRowView(row: LimitRow, detail: WidgetDetail): m.Vnode {
+  const secondary = detail === "less" ? null : row.secondary;
+  return m("div", { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-1.5" }, [
+    m(
+      "span",
+      {
+        class: "w-[5em] shrink-0 truncate text-[0.75em] font-semibold tracking-wider text-(--widget-muted) uppercase",
+        ...tooltip(row.tooltip),
+      },
+      row.name,
+    ),
+    m("div", { class: "flex w-(--w-bar) flex-col" }, [
+      bar(row.primary, "short"),
+      secondary === null ? null : bar(secondary, "long"),
+    ]),
+    detail === "more" && secondary !== null
+      ? m("div", { class: "flex flex-col" }, [figure(row.primary, "short"), figure(secondary, "long")])
+      : figure(row.primary, "short"),
+  ]);
 }
 
-export function barsExpanded(model: WidgetModel): m.Children {
+export function barsExpanded(model: WidgetModel, detail: WidgetDetail): m.Children {
   const rows = widgetRows(model.cards ?? []);
   const limits = rows.filter((row): row is LimitRow => row.kind === "limit");
   const spends = rows.filter((row): row is SpendRow => row.kind === "spend");
   const sections: m.Vnode[] =
-    limits.length === 0 ? [] : [m("div", { key: "limits", class: "flex flex-col gap-1.5" }, limits.map(limitRowView))];
-  const spend = spendSectionView(spends);
+    limits.length === 0
+      ? []
+      : [
+          m(
+            "div",
+            { key: "limits", class: "flex flex-col gap-1.5" },
+            limits.map((row) => limitRowView(row, detail)),
+          ),
+        ];
+  const spend = detail === "less" ? null : spendSectionView(spends);
   if (spend !== null) sections.push(spend);
   return m("div", { class: "flex flex-col gap-3" }, sections);
 }
 
-export function barsCollapsed(model: WidgetModel): m.Children {
+export function barsCollapsed(model: WidgetModel, detail: WidgetDetail): m.Children {
   const cards = model.cards ?? [];
   const limits = widgetRows(cards).filter((row): row is LimitRow => row.kind === "limit");
-  if (limits.length > 0) return m("div", { class: "flex flex-col gap-1" }, limits.map(collapsedRowView));
+  if (limits.length > 0) {
+    return m(
+      "div",
+      { class: "flex flex-col gap-1" },
+      limits.map((row) => collapsedRowView(row, detail)),
+    );
+  }
   return pillView(cards);
 }

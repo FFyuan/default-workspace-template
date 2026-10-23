@@ -1,14 +1,19 @@
 /**
  * What every version of the Usage widget draws alike (app-widgets plan section 7): the colour a window is shown in,
- * its figure, a section's heading, a pay-as-you-go row, and the one figure of the month's spend a collapsed widget
- * falls back to with no subscription.
+ * its figure, a tooltip, a section's heading, a pay-as-you-go row, and the one figure of the month's spend a collapsed
+ * widget falls back to with no subscription.
+ *
+ * A tooltip is a ``data-widget-tooltip`` attribute, which the page's app contract hands to the shell to show as the
+ * workspace's own tooltip outside the widget's small frame; nothing in the widget changes under the pointer. Sizes
+ * are the ``--w-*`` lengths the widget's root takes from its size (``style.css``), and text is set in ``em`` so it
+ * scales with them.
  */
 
 import m from "mithril";
-import type { LimitWindow } from "../models/providers";
+import { WIDGET_TOOLTIP_ATTRIBUTE } from "@imbue/workspace-ui/src/app_contract";
+import type { LimitWindow, ProviderCard } from "../models/providers";
 import { widgetPill } from "../models/widget";
 import type { SpendRow } from "../models/widget";
-import type { ProviderCard } from "../models/providers";
 
 /** Which of a subscription's windows a mark stands for: the shortest (5-hour) inside or above, the longest outside or
  *  below. */
@@ -27,10 +32,15 @@ export function percentText(window: LimitWindow): string {
   return window.isResetSinceReading || window.usedPercent === null ? "—" : `${Math.round(window.usedPercent)}%`;
 }
 
-export function sectionHeading(name: string): m.Vnode {
+/** The attribute an element's tooltip is carried in. */
+export function tooltip(text: string): Record<string, string> {
+  return { [WIDGET_TOOLTIP_ATTRIBUTE]: text };
+}
+
+export function sectionHeading(name: string, attrs: Record<string, string> = {}): m.Vnode {
   return m(
     "span",
-    { class: "text-[10px] leading-none font-semibold tracking-wider text-(--widget-heading) uppercase" },
+    { ...attrs, class: "text-[0.82em] leading-none font-semibold tracking-wider text-(--widget-heading) uppercase" },
     name,
   );
 }
@@ -38,7 +48,7 @@ export function sectionHeading(name: string): m.Vnode {
 export function spendRowView(row: SpendRow): m.Vnode {
   return m(
     "div",
-    { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-1.5", title: row.tooltip },
+    { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-1.5", ...tooltip(row.tooltip) },
     [
       m("span", { class: "inline-block size-1.5 shrink-0 rounded-full bg-(--widget-spend)" }),
       m("span", { class: "truncate text-(--widget-text)" }, row.name),
@@ -52,7 +62,7 @@ export function spendSectionView(spends: readonly SpendRow[]): m.Vnode | null {
   if (spends.length === 0) return null;
   return m("div", { key: "spend", class: "flex flex-col gap-1" }, [
     sectionHeading("API this month"),
-    ...spends.map(spendRowView),
+    m("div", { class: "flex flex-col gap-1" }, spends.map(spendRowView)),
   ]);
 }
 
@@ -64,7 +74,7 @@ export function pillView(cards: readonly ProviderCard[]): m.Vnode {
     {
       class: "font-semibold whitespace-nowrap tabular-nums text-(--widget-text)",
       "data-widget-pill": pill?.level ?? "",
-      title: pill?.tooltip,
+      ...(pill === null ? {} : tooltip(pill.tooltip)),
     },
     pill?.text ?? "",
   );

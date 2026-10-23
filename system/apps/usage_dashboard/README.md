@@ -2,8 +2,8 @@
 
 The Usage app: one window over the workspace's model usage. It is the user's view
 of the usage collector (`system/services/usage_collector`), which indexes every
-model call made in the workspace. All the app stores of its own is which version of
-its widget the workspace shows (`data/.apps/usage-dashboard/settings.json`).
+model call made in the workspace. All the app stores of its own is how its widget
+looks (`data/.apps/usage-dashboard/settings.json`).
 
 The app has three kinds of page, one document reading its path:
 
@@ -79,8 +79,8 @@ collector, which listens on 127.0.0.1:8795 only:
 | `GET /api/usage/stream` | the collector's server-sent events, relayed |
 | `GET /api/apps` | the display name of every registered app |
 | `GET /api/health` | whether the app is up and its page built |
-| `GET /widget` | the Usage widget, which the workspace shell keeps on the desktop; `?variant=rings\|bars` shows that version on this page alone |
-| `GET /api/settings`, `POST /api/settings` | the app's settings, `{"widget_variant": "rings" \| "bars"}`; a field left out takes its default |
+| `GET /widget` | the Usage widget, which the workspace shell keeps on the desktop; `?variant=rings\|bars`, `?size=small\|medium\|large` and `?detail=less\|standard\|more` show that look on this page alone |
+| `GET /api/settings`, `POST /api/settings` | the app's settings, `{"widget_variant", "widget_size", "widget_detail"}`; a field left out takes its default |
 
 Who sees usage is the workspace's sharing grants, as for any app: the share
 gateway admits a visitor with a workspace-wide grant or a grant on this app, and
@@ -100,13 +100,15 @@ The manifest declares a `[widget]` at `/widget`, enabled by default
 (`docs/system/blueprint/app-widgets/plan-app-widgets.md`, section 7): a second
 Vite entry (`widget.html`, `src/widget.ts`) that reads the limits, this month's
 totals and the collector's health, and reuses the page's provider cards, so the
-two never disagree. It comes in versions, picked for the whole workspace from
-the Widget menu in the Usage page's header and kept in the app's settings: rings
-(concentric rings per subscription, weekly outside and 5-hour inside) and bars
-(a row per subscription with a 5-hour bar above a thinner weekly one); each
-explains itself (which window, when it resets) only under the pointer. A pick in
-the same browser reaches the widget at once over a broadcast channel. Adding a
-version is a view in `views/` and a name in `models/widgetVariant.ts`. With no
+two never disagree. How it looks is picked for the whole workspace from the menus
+beside "Widget" in the Usage page's header and kept in the app's settings: its
+style (rings: concentric rings per subscription, weekly outside and 5-hour inside;
+bars: a row per subscription with a 5-hour bar above a thinner weekly one), its
+size (small, medium, large: `--w-*` lengths in `style.css`) and how much it shows
+(less, standard, more). Its detail is in tooltips (`data-widget-tooltip`), which
+the shell shows outside the widget's frame. A pick in the same browser reaches the
+widget at once over a broadcast channel. Adding a style is a view in `views/` and
+a name in `models/widgetLook.ts`. With no
 subscription, the collapsed widget is the month's spend. It reports its size to the
 shell after every change, hides itself while there is no usage, and opens the
 Usage window when clicked. While the widget is enabled the shell keeps this app
