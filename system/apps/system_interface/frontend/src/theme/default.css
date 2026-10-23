@@ -64,6 +64,16 @@
   --desk-floating-entry-size: 56px;
   --desk-floating-entry-inset-x: 16px;
   --desk-floating-entry-inset-y: 12px;
+  /* App widgets (app-widgets plan section 4): how far a corner's stack stands off the backdrop's edges, the
+     gap between widgets stacked in one corner, the most and least a widget's page may ask for, the grip's
+     height above its page, and how see-through a widget is when the pointer is elsewhere. */
+  --desk-widget-inset: 16px;
+  --desk-widget-gap: 8px;
+  --desk-widget-max-width: 320px;
+  --desk-widget-max-height: 240px;
+  --desk-widget-min-size: 24px;
+  --desk-widget-grip-size: 12px;
+  --desk-widget-rest-opacity: 0.72;
   --desk-resize-edge: 8px;
   --desk-resize-corner: 16px;
   --desk-resize-overhang: 3px;
@@ -117,4 +127,8 @@
   /* A finger needs the whole touch target, and the entry is the drawing as well as the target, so
      the tile grows to it rather than sitting in a box larger than itself. */
   --desk-taskbar-entry-size: var(--desk-touch-target);
+  /* A finger cannot hover, so a widget is never see-through, and its grip is a whole touch target (a length,
+     not a var(): the metrics read the token's own text). */
+  --desk-widget-grip-size: 44px;
+  --desk-widget-rest-opacity: 1;
 }

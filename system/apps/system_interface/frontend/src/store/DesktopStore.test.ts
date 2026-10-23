@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cascadeFrame } from "../geometry/frames";
 import { placementOf } from "../geometry/stack";
 import { getPresentUsers, resetPresenceForTesting } from "../model/Presence";
-import { activeFocusedWindowId, activePlacements, isLayoutDirty } from "../reducers/desktopState";
+import { activeFocusedWindowId, activePlacements, isLayoutDirty, shownWidgets } from "../reducers/desktopState";
 import { STILL_CONNECTING_NOTICE, resolveLaunchRun } from "../reducers/shortcuts";
 import { FakeDesktopApi, FakeDesktopSocket, PINNED_WINDOW_FRAME, offerApps, settle } from "../testing/fakeShell";
 import {
@@ -2699,5 +2699,85 @@ describe("the phone layout", () => {
     store.onVisibilityChange(false);
     socket.deliver().onConnected();
     expect(reloaded).toEqual(["win-1"]);
+  });
+});
+
+describe("widgets", () => {
+  const gauge = appRecord("gauge", { widget: { path: "/widget", default_enabled: true } });
+
+  async function widgetStore(): Promise<DesktopStore> {
+    api.apps = [appRecord("docs"), gauge];
+    api.widgetSwitches = [{ app: "gauge", is_enabled: true }];
+    api.clients = [clientRecord(CLIENT, { widgets: { gauge: { corner: "bottom-left", mode: "expanded" } } })];
+    return startedStore();
+  }
+
+  it("loads the switches and this client's presentations with the inventory, and takes the shell's pushes", async () => {
+    const store = await widgetStore();
+    expect(shownWidgets(store.getState()).map((widget) => [widget.app.name, widget.presentation])).toEqual([
+      ["gauge", { corner: "bottom-left", mode: "expanded" }],
+    ]);
+    socket.deliver().onClientWidgetsChanged({ clientId: "other", widgets: {} });
+    expect(store.getState().widgets.gauge.corner).toBe("bottom-left");
+    socket.deliver().onClientWidgetsChanged({ clientId: CLIENT, widgets: {} });
+    // A client with no presentation draws the default.
+    expect(shownWidgets(store.getState())[0].presentation).toEqual({ corner: "top-right", mode: "expanded" });
+    socket.deliver().onWidgetsUpdated([{ app: "gauge", is_enabled: false }]);
+    expect(shownWidgets(store.getState())).toEqual([]);
+  });
+
+  it("draws a widget only once its page has reported a size and while it has not asked to be hidden", async () => {
+    const store = await widgetStore();
+    expect(store.widgetRects().size).toBe(0);
+    store.reportWidgetSize("gauge", { width: 180, height: 64 });
+    expect(store.widgetRects().get("gauge")).toEqual({ x: 16, y: 800 - 16 - 76, width: 180, height: 76 });
+    store.reportWidgetHidden("gauge", true);
+    expect(store.widgetRects().size).toBe(0);
+    store.reportWidgetHidden("gauge", false);
+    store.resetWidgetReport("gauge");
+    expect(store.widgetRects().size).toBe(0);
+  });
+
+  it("writes a mode at once, and puts the old presentation back when the shell refuses", async () => {
+    const store = await widgetStore();
+    await store.setWidgetMode("gauge", "collapsed");
+    expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:bottom-left:collapsed");
+    expect(store.getState().widgets.gauge.mode).toBe("collapsed");
+    api.refusal = "no such client";
+    await store.setWidgetMode("gauge", "expanded");
+    expect(notices()).toEqual(["Could not change the widget: no such client"]);
+    expect(store.getState().widgets.gauge.mode).toBe("collapsed");
+  });
+
+  it("drags a widget by its grip and snaps it to the corner of the quadrant it is let go in", async () => {
+    const store = await widgetStore();
+    store.reportWidgetSize("gauge", { width: 180, height: 64 });
+    store.beginWidgetDrag("gauge", { x: 20, y: 712 }, { x: 4, y: 4 });
+    store.updateWidgetDrag({ x: 604, y: 104 });
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 600, y: 100, width: 180, height: 76 });
+    // Held inside the backdrop, as a floating entry is.
+    store.updateWidgetDrag({ x: 994, y: 104 });
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 820, y: 100, width: 180, height: 76 });
+    store.endWidgetDrag({ x: 994, y: 104 });
+    expect(store.getGesture()).toBeNull();
+    expect(store.getState().widgets.gauge.corner).toBe("top-right");
+    await settle();
+    expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:top-right:expanded");
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 1000 - 16 - 180, y: 16, width: 180, height: 76 });
+    // A drop in the quadrant it started in writes nothing.
+    const writes = api.calls.length;
+    store.beginWidgetDrag("gauge", { x: 900, y: 20 }, { x: 4, y: 4 });
+    store.endWidgetDrag({ x: 950, y: 30 });
+    await settle();
+    expect(api.calls).toHaveLength(writes);
+  });
+
+  it("shows or hides a widget for the whole workspace, and opens its app's page on the active desktop", async () => {
+    const store = await widgetStore();
+    await store.setWidgetEnabled("gauge", false);
+    expect(last(api.calls)).toBe("setWidgetEnabled:gauge:false");
+    expect(shownWidgets(store.getState())).toEqual([]);
+    await store.openPathFromApp("gauge", "/", "focus");
+    expect(api.calls.some((call) => call.startsWith("openWindow:home:gauge:/"))).toBe(true);
   });
 });

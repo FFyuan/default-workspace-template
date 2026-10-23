@@ -2869,3 +2869,165 @@ def test_files_answers_a_missing_path_with_its_own_page_naming_it_and_the_neares
             poll_interval=0.1,
             error_message="the not-found page's window was never titled after the missing name",
         )
+
+
+# App widgets (app-widgets plan section 10)
+
+_WIDGET_APP_NAME = "gauge"
+_WIDGET_PATH = "/widget"
+# The stub widget page's content in each mode, in CSS pixels: what it reports, and the shell draws below the grip.
+_WIDGET_EXPANDED_SIZE = (150, 50)
+_WIDGET_COLLAPSED_SIZE = (60, 28)
+_WIDGET_GRIP_HEIGHT = 12
+
+# A widget's page: it reports the size of its content for each mode the shell tells it, and its one link opens a
+# window of its own app (``target="_blank"``, which the contract's link rule turns into a focused open).
+_WIDGET_PAGE_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8"><title>Gauge</title></head><body>
+<a id="open" href="/" target="_blank">Open</a> <span id="mode"></span>
+<script type="module">
+import { connectToShell } from "__BASE_URL__/_static/app_contract.js";
+const sizes = { expanded: [__EXPANDED__], collapsed: [__COLLAPSED__] };
+window.__modes = [];
+const connection = connectToShell({
+  onHandshake(handshake) { window.__handshake = handshake; },
+  onWidgetMode(mode) {
+    window.__modes.push(mode);
+    document.getElementById("mode").textContent = mode;
+    connection.widgetSize(...sizes[mode]);
+  },
+});
+window.__hide = (isHidden) => connection.widgetHidden(isHidden);
+</script></body></html>"""
+
+
+def _widget_app(shell: dict[str, str]) -> Flask:
+    """An app declaring a widget: its widget page at ``_WIDGET_PATH`` and the ordinary stub page everywhere else.
+    ``shell["base_url"]`` names the shell, set once it runs (before any page is asked for)."""
+    app = Flask("widget-stub")
+
+    def _widget_page() -> Response:
+        html = (
+            _WIDGET_PAGE_TEMPLATE.replace("__BASE_URL__", shell["base_url"])
+            .replace("__EXPANDED__", ", ".join(str(side) for side in _WIDGET_EXPANDED_SIZE))
+            .replace("__COLLAPSED__", ", ".join(str(side) for side in _WIDGET_COLLAPSED_SIZE))
+        )
+        return Response(html, mimetype="text/html")
+
+    def _page(path: str = "") -> Response:
+        return Response(_stub_page_html(shell["base_url"], True), mimetype="text/html")
+
+    app.add_url_rule(_WIDGET_PATH, view_func=_widget_page, endpoint="widget_page", methods=["GET"])
+    app.add_url_rule("/", view_func=_page, endpoint="widget_app_root", methods=["GET"])
+    app.add_url_rule("/<path:path>", view_func=_page, endpoint="widget_app_page", methods=["GET"])
+    return app
+
+
+def _widget(page: Page) -> Locator:
+    return page.locator(f'[data-widget="{_WIDGET_APP_NAME}"]')
+
+
+def _widget_frame(page: Page) -> Frame:
+    handle = page.locator(f'iframe[data-widget-frame="{_WIDGET_APP_NAME}"]').element_handle(timeout=15000)
+    assert handle is not None
+    frame = handle.content_frame()
+    assert frame is not None
+    return frame
+
+
+def _client_widgets(base_url: str, client_id: str) -> dict[str, Any]:
+    clients = {client["id"]: client for client in _get_json(f"{base_url}/api/clients")["clients"]}
+    return clients[client_id]["widgets"]
+
+
+def _windows_of(base_url: str, app: str) -> list[dict[str, Any]]:
+    desktops = _get_json(f"{base_url}/api/desktops")["desktops"]
+    return [window for desktop in desktops for window in desktop["windows"] if window["app"] == app]
+
+
+@pytest.mark.timeout(120, func_only=False)
+def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_for_everyone(
+    tmp_path: Path, page: Page
+) -> None:
+    """An app declaring a widget is drawn top right once its page reports a size, over every window; the chevron
+    collapses it to the size the page reports for that mode; a drag of its grip snaps it to another corner, kept on
+    the client record across a reload; its link raises one window of its app however often it is clicked; and its
+    menu hides it for the whole workspace."""
+    shell: dict[str, str] = {}
+    with serve_app(_widget_app(shell)) as widget_served:
+        widget_row = registry_row_toml(
+            _WIDGET_APP_NAME, widget_served.http_url, display_name="Gauge", widget=(_WIDGET_PATH, True)
+        )
+        with _running_e2e_server(tmp_path, extra_rows=(widget_row,)) as server:
+            shell["base_url"] = server.base_url
+            _land(page, server)
+            client_id = _client_id(page)
+            widget = _widget(page)
+            expect(widget).to_be_visible(timeout=15000)
+            expect(widget).to_have_attribute("data-widget-corner", "top-right")
+            expect(widget).to_have_attribute("data-widget-mode", "expanded")
+            frame = _widget_frame(page)
+            handshake = frame.evaluate("() => window.__handshake")
+            assert handshake["surface"] == "widget"
+            assert handshake["windowId"] == ""
+            assert handshake["app"] == _WIDGET_APP_NAME
+
+            backdrop = _box(page.locator(f'[data-desktop-id="{_HOME_DESKTOP_ID}"]'))
+            box = _box(widget)
+            _assert_close(box["width"], _WIDGET_EXPANDED_SIZE[0], "expanded width")
+            _assert_close(box["height"], _WIDGET_EXPANDED_SIZE[1] + _WIDGET_GRIP_HEIGHT, "expanded height")
+            _assert_close(box["x"] + box["width"], backdrop["x"] + backdrop["width"] - 16, "top-right x")
+            _assert_close(box["y"], backdrop["y"] + 16, "top-right y")
+
+            widget.locator('[data-widget-control="collapse"]').click()
+            expect(widget).to_have_attribute("data-widget-mode", "collapsed")
+            wait_for(
+                lambda: abs(_box(widget)["height"] - (_WIDGET_COLLAPSED_SIZE[1] + _WIDGET_GRIP_HEIGHT)) <= 1,
+                timeout=10.0,
+                poll_interval=0.1,
+                error_message="the collapsed widget never took the size its page reported",
+            )
+            assert frame.evaluate("() => window.__modes") == ["expanded", "collapsed"]
+
+            grip = widget.locator("[data-widget-grip]")
+            grip_box = _box(grip)
+            _drag(
+                page,
+                (grip_box["x"] + 4, grip_box["y"] + 4),
+                (backdrop["x"] + 40, backdrop["y"] + backdrop["height"] - 40),
+            )
+            expect(widget).to_have_attribute("data-widget-corner", "bottom-left")
+            wait_for(
+                lambda: _client_widgets(server.base_url, client_id).get(_WIDGET_APP_NAME)
+                == {"corner": "bottom-left", "mode": "collapsed"},
+                timeout=10.0,
+                poll_interval=0.1,
+                error_message="the drag never wrote the corner",
+            )
+
+            page.reload()
+            expect(_widget(page)).to_have_attribute("data-widget-corner", "bottom-left", timeout=15000)
+            expect(_widget(page)).to_have_attribute("data-widget-mode", "collapsed")
+            moved = _box(_widget(page))
+            _assert_close(moved["x"], backdrop["x"] + 16, "bottom-left x")
+            _assert_close(moved["y"] + moved["height"], backdrop["y"] + backdrop["height"] - 16, "bottom-left y")
+
+            link = _widget_frame(page).locator("#open")
+            link.click()
+            wait_for(
+                lambda: len(_windows_of(server.base_url, _WIDGET_APP_NAME)) == 1,
+                timeout=10.0,
+                poll_interval=0.1,
+                error_message="the widget's link never opened its app",
+            )
+            link.click()
+            page.wait_for_timeout(500)
+            assert len(_windows_of(server.base_url, _WIDGET_APP_NAME)) == 1
+
+            _widget(page).locator("[data-widget-grip]").click(button="right")
+            menu = page.locator(".widget-menu")
+            expect(menu).to_be_visible(timeout=5000)
+            menu.locator('[data-menu-row="widget-hide"]').click()
+            expect(_widget(page)).to_have_count(0, timeout=10000)
+            assert _get_json(f"{server.base_url}/api/widgets")["widgets"] == [
+                {"app": _WIDGET_APP_NAME, "is_enabled": False}
+            ]

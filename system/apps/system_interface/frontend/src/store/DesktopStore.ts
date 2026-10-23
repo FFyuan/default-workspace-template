@@ -60,10 +60,13 @@ import type {
   PresentUser,
   ShortcutMode,
   Wallpaper,
+  WidgetMode,
+  WidgetPresentation,
+  WidgetSwitch,
   WindowRecord,
   WindowState,
 } from "../model/records";
-import { isSameCell, isSameWindowPaths, shortcutKey } from "../model/records";
+import { DEFAULT_WIDGET_PRESENTATION, isSameCell, isSameWindowPaths, shortcutKey } from "../model/records";
 import { ToastQueue } from "@imbue/workspace-ui/src/models/toasts";
 import { OwnIdMinter, PAGE_ID_PREFIX, REPORT_ID_PREFIX, SAVE_ID_PREFIX, mintHex } from "../model/ownIds";
 import { isPreviewShell } from "../model/PreviewShell";
@@ -82,6 +85,8 @@ import {
 } from "../geometry/frames";
 import type { PixelPoint, PixelRect, PixelSize, ResizeEdge } from "../geometry/frames";
 import { defaultFloatingPosition, floatingEntryRect, floatingPositionFromPixels } from "../geometry/floating";
+import { cornerAt, widgetRects } from "../geometry/widgets";
+import type { WidgetToPlace } from "../geometry/widgets";
 import {
   cellAtPoint,
   cellRect,
@@ -107,6 +112,7 @@ import {
   isAppStoppable,
   isEmbedderMessageHandled,
   isLayoutDirty,
+  shownWidgets,
   openableApps,
   pinnedWindowOf,
   reduceDesktopState,
@@ -180,6 +186,8 @@ export interface DesktopApi {
   recordShown(clientId: string, windowId: string | null): Promise<ClientRecord>;
   quitApp(appName: string): Promise<void>;
   setEntryPresentation(clientId: string, app: string, presentation: EntryPresentation): Promise<ClientRecord>;
+  setWidgetPresentation(clientId: string, app: string, presentation: WidgetPresentation): Promise<ClientRecord>;
+  setWidgetEnabled(app: string, isEnabled: boolean): Promise<WidgetSwitch[]>;
   fetchAvatars(): Promise<AvatarCatalog>;
   selectAvatar(design: string): Promise<void>;
   relayEmbedderMessage(
@@ -364,7 +372,16 @@ interface ShortcutCellUpdate {
   readonly cell: GridCell;
 }
 
-export type ActiveGesture = MoveGesture | ResizeGesture | ShortcutGesture | FloatingEntryGesture;
+/** A widget being dragged to another corner: its box follows the pointer less the grab offset, and the corner
+ *  is settled from where the pointer is let go. */
+export interface WidgetGesture {
+  readonly kind: "widget";
+  readonly app: string;
+  readonly grabOffset: PixelPoint;
+  readonly currentRect: PixelRect;
+}
+
+export type ActiveGesture = MoveGesture | ResizeGesture | ShortcutGesture | FloatingEntryGesture | WidgetGesture;
 
 /** A watched drag this shell ended on its own release, whose last word from the chrome may still be on its way. */
 interface ReleasedWatchedDrag {
@@ -411,6 +428,8 @@ export class DesktopStore {
   // push answers older than the push, and must not overwrite it.
   private avatarSelectionPushes = 0;
   private entryPushes = 0;
+  private widgetPushes = 0;
+  private widgetSwitchPushes = 0;
   // Resolved by the first app list to land: the bootstrap's inventory read, or the socket's ``apps_updated`` when
   // the socket is quicker; a deep link's open or launch waits for it.
   private readonly appsLoaded: Promise<void>;
@@ -817,6 +836,15 @@ export class DesktopStore {
       onPlacementsUpdated: (event) => this.takePlacementsUpdated(event),
       onActiveDesktopChanged: (event) => this.takeActiveDesktopChanged(event),
       onClientEntriesChanged: (event) => this.takeClientEntriesChanged(event),
+      onClientWidgetsChanged: (event) => {
+        if (event.clientId !== this.deps.clientId) return;
+        this.widgetPushes += 1;
+        this.dispatch({ type: "widgets_updated", widgets: event.widgets });
+      },
+      onWidgetsUpdated: (switches) => {
+        this.widgetSwitchPushes += 1;
+        this.dispatch({ type: "widget_switches_updated", switches });
+      },
       onAvatarStatus: (status) => this.dispatch({ type: "avatar_status_updated", status }),
       onAvatarSelectionChanged: (design) => {
         this.avatarSelectionPushes += 1;
@@ -829,6 +857,8 @@ export class DesktopStore {
     });
     void this.loadAvatarSelection();
     const entryPushesBefore = this.entryPushes;
+    const widgetPushesBefore = this.widgetPushes;
+    const widgetSwitchPushesBefore = this.widgetSwitchPushes;
     // The arrival comes first: it may seed a desktop for this user, which the inventory read then includes.
     let arrival: ClientArrival | null;
     try {
@@ -853,6 +883,10 @@ export class DesktopStore {
     this.replacedDesktop = replacedDesktopOf(arrival);
     const own = inventory.clients.find((client) => client.id === this.deps.clientId);
     this.takeFetchedEntries(own, entryPushesBefore);
+    this.takeFetchedWidgets(own, widgetPushesBefore);
+    if (this.widgetSwitchPushes === widgetSwitchPushesBefore) {
+      this.dispatch({ type: "widget_switches_updated", switches: inventory.widgets });
+    }
     if (own !== undefined) {
       this.takeShownHistory(own.shown_history);
       this.hearDesktopRevision(own.desktop_revision);
@@ -910,11 +944,13 @@ export class DesktopStore {
     let isRecordedNewer = false;
     let isResetUnderPage = false;
     const entryPushesBefore = this.entryPushes;
+    const widgetPushesBefore = this.widgetPushes;
     const heardBeforeRead = this.desktopRevisionHeard;
     try {
       const clients = await this.deps.api.fetchClients();
       const own = clients.find((client) => client.id === this.deps.clientId);
       this.takeFetchedEntries(own, entryPushesBefore);
+      this.takeFetchedWidgets(own, widgetPushesBefore);
       if (own !== undefined) this.takeShownHistory(own.shown_history);
       // The shell only ever raises a record's revision, so one below what this window had heard (or no record at
       // all) means the record was reset under the page, restored or pruned: the shell counts again from there.
@@ -1069,6 +1105,13 @@ export class DesktopStore {
   private takeFetchedEntries(own: ClientRecord | undefined, entryPushesBefore: number): void {
     if (own === undefined || this.entryPushes !== entryPushesBefore) return;
     this.dispatch({ type: "entries_updated", entries: own.entries });
+  }
+
+  /** This client's widget presentations as its fetched record carries them, unless a push landed while the records
+   *  were read. */
+  private takeFetchedWidgets(own: ClientRecord | undefined, widgetPushesBefore: number): void {
+    if (own === undefined || this.widgetPushes !== widgetPushesBefore) return;
+    this.dispatch({ type: "widgets_updated", widgets: own.widgets });
   }
 
   /** The workspace's design and the fallback, from the catalog; a read that fails leaves the initial ones, and
@@ -1331,6 +1374,128 @@ export class DesktopStore {
       this.backdrop,
       this.metrics,
     );
+  }
+
+  /** Write how this client shows one widget, drawing it so at once; a push that lands while the shell answers is
+   *  its newer word, and a refusal puts the widget's old presentation back, as for a pinned entry. */
+  async setWidgetPresentation(app: string, presentation: WidgetPresentation): Promise<void> {
+    const previous = this.state.widgets[app];
+    const widgetPushesBefore = this.widgetPushes;
+    this.dispatch({ type: "widgets_updated", widgets: { ...this.state.widgets, [app]: presentation } });
+    try {
+      const record = await this.deps.api.setWidgetPresentation(this.deps.clientId, app, presentation);
+      if (this.widgetPushes !== widgetPushesBefore) return;
+      this.dispatch({ type: "widgets_updated", widgets: record.widgets });
+    } catch (error) {
+      this.toast(`Could not change the widget: ${(error as Error).message}`);
+      if (this.widgetPushes !== widgetPushesBefore) return;
+      const others = Object.fromEntries(Object.entries(this.state.widgets).filter(([name]) => name !== app));
+      this.dispatch({
+        type: "widgets_updated",
+        widgets: previous === undefined ? others : { ...others, [app]: previous },
+      });
+    }
+  }
+
+  private widgetPresentationOf(app: string): WidgetPresentation {
+    return this.state.widgets[app] ?? DEFAULT_WIDGET_PRESENTATION;
+  }
+
+  setWidgetMode(app: string, mode: WidgetMode): Promise<void> {
+    return this.setWidgetPresentation(app, { ...this.widgetPresentationOf(app), mode });
+  }
+
+  /** Show or hide one app's widget for everyone on the workspace; the shell's broadcast brings every window the
+   *  new switches, this one included, and its answer is taken unless that broadcast landed first. */
+  async setWidgetEnabled(app: string, isEnabled: boolean): Promise<void> {
+    const switchPushesBefore = this.widgetSwitchPushes;
+    try {
+      const switches = await this.deps.api.setWidgetEnabled(app, isEnabled);
+      if (this.widgetSwitchPushes === switchPushesBefore) this.dispatch({ type: "widget_switches_updated", switches });
+    } catch (error) {
+      this.toast(`Could not ${isEnabled ? "show" : "hide"} the widget: ${(error as Error).message}`);
+    }
+  }
+
+  /** A widget's page reported the size of its content in its current mode. */
+  reportWidgetSize(app: string, size: PixelSize): void {
+    const current = this.state.widgetReports[app]?.size;
+    if (current !== undefined && current !== null && current.width === size.width && current.height === size.height) {
+      return;
+    }
+    this.dispatch({ type: "widget_size_reported", app, size });
+  }
+
+  /** A widget's page said it has nothing to show, or has again. */
+  reportWidgetHidden(app: string, isHidden: boolean): void {
+    if ((this.state.widgetReports[app]?.isHidden ?? false) === isHidden) return;
+    this.dispatch({ type: "widget_hidden_reported", app, isHidden });
+  }
+
+  /** A widget's page (re)loaded or went away: it is not drawn until it reports again. */
+  resetWidgetReport(app: string): void {
+    this.dispatch({ type: "widget_report_reset", app });
+  }
+
+  /** Every drawn widget's box in backdrop pixels (app-widgets plan sections 3.4 and 4.2): the enabled widgets whose
+   *  page has reported a size and has not asked to be hidden, stacked in their corners; the one a drag holds is
+   *  where the drag has it. */
+  widgetRects(): Map<string, PixelRect> {
+    const placed: WidgetToPlace[] = [];
+    for (const widget of shownWidgets(this.state)) {
+      const report = this.state.widgetReports[widget.app.name];
+      if (report === undefined || report.size === null || report.isHidden) continue;
+      placed.push({ app: widget.app.name, corner: widget.presentation.corner, size: report.size });
+    }
+    const rects = widgetRects(placed, this.backdrop, this.metrics);
+    const gesture = this.gesture;
+    if (gesture !== null && gesture.kind === "widget" && rects.has(gesture.app))
+      rects.set(gesture.app, gesture.currentRect);
+    return rects;
+  }
+
+  /** A widget's grip was lifted; ``grabOffset`` is where inside its box the pointer pressed. */
+  beginWidgetDrag(app: string, pointer: PixelPoint, grabOffset: PixelPoint): void {
+    const start = this.widgetRects().get(app);
+    if (start === undefined) return;
+    this.gesture = { kind: "widget", app, grabOffset, currentRect: start };
+    this.updateWidgetDrag(pointer);
+  }
+
+  /** The pointer moved during a widget drag; no redraw: the App paints the box straight onto the widget. */
+  updateWidgetDrag(pointer: PixelPoint): void {
+    const gesture = this.gesture;
+    if (gesture === null || gesture.kind !== "widget") return;
+    const rect = gesture.currentRect;
+    const x = Math.min(Math.max(pointer.x - gesture.grabOffset.x, 0), Math.max(0, this.backdrop.width - rect.width));
+    const y = Math.min(Math.max(pointer.y - gesture.grabOffset.y, 0), Math.max(0, this.backdrop.height - rect.height));
+    this.gesture = { ...gesture, currentRect: { ...rect, x, y } };
+  }
+
+  /** Where the desktop draws a widget now: the drag's box while one moves it, else its place in its corner. */
+  widgetRectOf(app: string): PixelRect | null {
+    return this.widgetRects().get(app) ?? null;
+  }
+
+  /** The drag ended: the widget snaps to the corner of the quadrant the pointer was let go in, written once. */
+  endWidgetDrag(pointer: PixelPoint): void {
+    const gesture = this.gesture;
+    if (gesture === null || gesture.kind !== "widget") return;
+    this.gesture = null;
+    const corner = cornerAt(pointer, this.backdrop);
+    const current = this.widgetPresentationOf(gesture.app);
+    if (corner === current.corner) {
+      this.notifyListeners();
+      return;
+    }
+    void this.setWidgetPresentation(gesture.app, { ...current, corner });
+  }
+
+  /** A page of ``app`` that is no window's (a widget's) asked to open a page of its own app: it opens on the
+   *  active desktop, raising the window already there with ``focus``. */
+  async openPathFromApp(app: string, path: string, ifPresent: IfPresent): Promise<void> {
+    if (ifPresent === "focus") await this.focusOrOpenWindowAt(app, path);
+    else await this.openWindowAt(app, path, ifPresent);
   }
 
   handleLayoutOp(event: LayoutOpEvent): void {
@@ -2328,7 +2493,14 @@ export class DesktopStore {
   /** The frame a placement renders at while a gesture moves or resizes it, else its own. */
   gestureRectFor(windowId: string): PixelRect | null {
     const gesture = this.gesture;
-    if (gesture === null || gesture.kind === "shortcut" || gesture.kind === "floating-entry") return null;
+    if (
+      gesture === null ||
+      gesture.kind === "shortcut" ||
+      gesture.kind === "floating-entry" ||
+      gesture.kind === "widget"
+    ) {
+      return null;
+    }
     if (gesture.windowId !== windowId) return null;
     return gesture.currentRect;
   }

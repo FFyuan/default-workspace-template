@@ -294,6 +294,7 @@ describe("the small helpers", () => {
       last_seen: "now",
       is_connected: true,
       entries: {},
+      widgets: {},
       shown_history: [],
       desktop_revision: 0,
     });

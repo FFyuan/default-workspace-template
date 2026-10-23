@@ -36,6 +36,8 @@ import {
   entryLook,
   floatingEntries,
   pinnedWindowOf,
+  shownWidgets,
+  widgetSwitchOf,
 } from "../reducers/desktopState";
 import {
   defaultHighlightIndex,
@@ -50,6 +52,7 @@ import { PINNED_ENTRY_ATTRIBUTE, SHORTCUT_ATTRIBUTE } from "../gestures/pointerG
 import type { GestureListener, GestureSource } from "../gestures/pointerGestures";
 import { LivePagesLayer, WINDOW_ID_ATTRIBUTE } from "../pages/livePages";
 import type { MountPolicy } from "../pages/livePages";
+import { WIDGET_ATTRIBUTE, WidgetFramesLayer } from "../pages/widgetFrames";
 import type { DesktopStore } from "../store/DesktopStore";
 import { AVATAR_DESIGN_PROMPT, AvatarChooserDialog } from "./AvatarChooserDialog";
 import { Backdrop } from "./Backdrop";
@@ -78,6 +81,7 @@ type OpenMenu =
   | { readonly kind: "entry"; readonly windowId: string; readonly referenceRows: readonly MenuRow[] }
   | { readonly kind: "shortcut"; readonly shortcut: DesktopShortcut; readonly referenceRows: readonly MenuRow[] }
   | { readonly kind: "app-shortcut"; readonly app: string; readonly referenceRows: readonly MenuRow[] }
+  | { readonly kind: "widget"; readonly app: string; readonly referenceRows: readonly MenuRow[] }
   | { readonly kind: "desktops" }
   | { readonly kind: "desktop"; readonly desktopId: string; readonly referenceRows: readonly MenuRow[] }
   | { readonly kind: "element"; readonly rows: readonly MenuRow[] };
@@ -160,6 +164,8 @@ export function App(): m.Component<AppAttrs> {
   let launcherFieldRise = 0;
   let selectedShortcutKey: string | null = null;
   let pages: LivePagesLayer | null = null;
+  // The widgets' frames, while the desktop layout (whose backdrop holds their host) is drawn.
+  let widgetFrames: WidgetFramesLayer | null = null;
   // The window the last redraw painted as dragged, for one more paint once the gesture is gone.
   let draggedWindowId: string | null = null;
   let backdropArea: HTMLElement | null = null;
@@ -317,6 +323,24 @@ export function App(): m.Component<AppAttrs> {
     pages.reconcile();
   }
 
+  /** Build the widget frames layer over ``host`` once the render that made it is over, and name its frames to the
+   *  live pages layer, which takes what a widget's page asks of the shell. */
+  function startWidgetFramesLayer(current: DesktopStore, host: HTMLElement, attrs: AppAttrs): void {
+    widgetFrames?.stop();
+    widgetFrames = new WidgetFramesLayer(host, current, { host: attrs.host, protocol: attrs.protocol });
+    const layer = widgetFrames;
+    pages?.setWidgetFrameResolver((frame) => layer.appOfFrame(frame));
+    widgetFrames.start();
+    widgetFrames.reconcile();
+  }
+
+  /** The backdrop that held the widget frames' host is gone (the phone layout took over): so are the frames. */
+  function stopWidgetFramesLayer(): void {
+    widgetFrames?.stop();
+    widgetFrames = null;
+    pages?.setWidgetFrameResolver(null);
+  }
+
   /** Which pages the layout mounts: the phone's shown page and the pages it keeps, else every page. */
   function mountPolicyOf(current: DesktopStore): MountPolicy {
     return current.isPhoneLayout() ? phoneMountPolicy(current) : { kind: "all" };
@@ -378,6 +402,15 @@ export function App(): m.Component<AppAttrs> {
     if (element !== undefined && element !== null) applyRectStyle(element, current.floatingEntryRectOf(app));
   }
 
+  /** Paint a widget as the store now has it, straight onto its box, and lay its page over it again: the per-move
+   *  step of its drag, and once more when the drag ends or is cancelled. */
+  function paintWidget(current: DesktopStore, app: string): void {
+    const element = backdropArea?.querySelector<HTMLElement>(`[${WIDGET_ATTRIBUTE}="${CSS.escape(app)}"]`);
+    const rect = current.widgetRectOf(app);
+    if (element !== undefined && element !== null && rect !== null) applyRectStyle(element, rect);
+    widgetFrames?.placeFrame(app);
+  }
+
   /** Paint a lifted shortcut's travel straight onto its icon: the per-move step of its drag, and once more
    *  when the drag ends or is cancelled, for the same reason ``paintWindow`` exists. With the drag over it
    *  settles the icon into the cell it landed in instead. */
@@ -421,10 +454,12 @@ export function App(): m.Component<AppAttrs> {
         // What the browser would have done with a press whose default the gesture source did not prevent.
         pages?.takeFocusFromOtherPages(pressedWindowId);
         pages?.setGestureActive(true);
+        widgetFrames?.setGestureActive(true);
         root.setAttribute(WINDOW_MOTION_ATTRIBUTE, "off");
       },
       onPressEnd: () => {
         pages?.setGestureActive(false);
+        widgetFrames?.setGestureActive(false);
         root.removeAttribute(WINDOW_MOTION_ATTRIBUTE);
       },
       onBegin: (binding, rootPoint, rootPress) => {
@@ -448,6 +483,9 @@ export function App(): m.Component<AppAttrs> {
               grabOffsetInside(binding.element, toBackdrop(rootPress)),
             );
             return;
+          case "widget":
+            current.beginWidgetDrag(binding.app, point, grabOffsetInside(binding.element, toBackdrop(rootPress)));
+            return;
           case "taskbar-entry":
             return;
         }
@@ -470,6 +508,10 @@ export function App(): m.Component<AppAttrs> {
           case "floating-entry":
             current.updateFloatingEntryDrag(point);
             paintFloatingEntry(current, binding.app);
+            return;
+          case "widget":
+            current.updateWidgetDrag(point);
+            paintWidget(current, binding.app);
             return;
           case "taskbar-entry":
             return;
@@ -496,6 +538,10 @@ export function App(): m.Component<AppAttrs> {
             current.endFloatingEntryDrag(point);
             paintFloatingEntry(current, binding.app);
             break;
+          case "widget":
+            current.endWidgetDrag(point);
+            paintWidget(current, binding.app);
+            break;
           case "taskbar-entry":
             break;
         }
@@ -506,6 +552,7 @@ export function App(): m.Component<AppAttrs> {
         current.cancelGesture();
         if (binding.kind === "window-move" || binding.kind === "window-resize") paintWindow(current, binding.windowId);
         if (binding.kind === "floating-entry") paintFloatingEntry(current, binding.app);
+        if (binding.kind === "widget") paintWidget(current, binding.app);
         if (binding.kind === "shortcut") paintShortcut(current, binding.app, binding.launch);
       },
       onLongPress: (binding, client) => {
@@ -533,6 +580,9 @@ export function App(): m.Component<AppAttrs> {
             if (windowId !== null) openMenuAt({ kind: "entry", windowId, referenceRows: referenceRows() }, anchor);
             break;
           }
+          case "widget":
+            openMenuAt({ kind: "widget", app: binding.app, referenceRows: referenceRows() }, anchor);
+            break;
         }
         m.redraw();
       },
@@ -643,16 +693,15 @@ export function App(): m.Component<AppAttrs> {
         },
       });
     }
-    rows.push(
-      {
-        kind: "action",
-        key: "change-mode",
-        label: otherMode === "new" ? "Always open a new window" : "Focus the last window instead",
-        onSelect: () => void current.setShortcut(desktop.id, { ...shortcut, mode: otherMode }),
-      },
-      { kind: "divider" },
-      removeFromDesktopRow(current, shortcut.target.app, shortcut.target.launch),
-    );
+    rows.push({
+      kind: "action",
+      key: "change-mode",
+      label: otherMode === "new" ? "Always open a new window" : "Focus the last window instead",
+      onSelect: () => void current.setShortcut(desktop.id, { ...shortcut, mode: otherMode }),
+    });
+    const widgetRow = widgetSwitchRow(current, shortcut.target.app);
+    if (widgetRow !== null) rows.push(widgetRow);
+    rows.push({ kind: "divider" }, removeFromDesktopRow(current, shortcut.target.app, shortcut.target.launch));
     return rows;
   }
 
@@ -685,8 +734,50 @@ export function App(): m.Component<AppAttrs> {
   }
 
   function rowsOfAppShortcutMenu(current: DesktopStore, appName: string): MenuRow[] | null {
-    const row = desktopShortcutRow(current, appName);
-    return row === null ? null : [row];
+    const rows = [desktopShortcutRow(current, appName), widgetSwitchRow(current, appName)].filter(
+      (row): row is MenuRow => row !== null,
+    );
+    return rows.length === 0 ? null : rows;
+  }
+
+  /** Show the app's widget to everyone on the workspace, or hide it (app-widgets plan section 4.6); null for an app
+   *  that declares no widget. */
+  function widgetSwitchRow(current: DesktopStore, appName: string): MenuRow | null {
+    const widgetSwitch = widgetSwitchOf(current.getState(), appName);
+    if (widgetSwitch === null) return null;
+    const isEnabled = widgetSwitch.is_enabled;
+    return {
+      kind: "action",
+      key: isEnabled ? "widget-hide" : "widget-show",
+      label: isEnabled ? "Hide widget" : "Show widget",
+      tooltip: `${isEnabled ? "Hide" : "Show"} it for everyone on this workspace`,
+      onSelect: () => void current.setWidgetEnabled(appName, !isEnabled),
+    };
+  }
+
+  /** A widget's grip menu: collapse or expand it, open its app, or hide it for the whole workspace. */
+  function rowsOfWidgetMenu(current: DesktopStore, appName: string): MenuRow[] | null {
+    const state = current.getState();
+    const shown = shownWidgets(state).find((widget) => widget.app.name === appName);
+    if (shown === undefined) return null;
+    const isCollapsed = shown.presentation.mode === "collapsed";
+    const rows: MenuRow[] = [
+      {
+        kind: "action",
+        key: isCollapsed ? "widget-expand" : "widget-collapse",
+        label: isCollapsed ? "Expand" : "Collapse",
+        onSelect: () => void current.setWidgetMode(appName, isCollapsed ? "expanded" : "collapsed"),
+      },
+      {
+        kind: "action",
+        key: "widget-open",
+        label: `Open ${shown.app.display_name}`,
+        onSelect: () => void current.openPathFromApp(appName, "/", "focus"),
+      },
+    ];
+    const hide = widgetSwitchRow(current, appName);
+    if (hide !== null) rows.push({ kind: "divider" }, hide);
+    return rows;
   }
 
   function rowsOfDesktopsMenu(current: DesktopStore): MenuRow[] {
@@ -757,6 +848,8 @@ export function App(): m.Component<AppAttrs> {
         return withReferenceRows(rowsOfShortcutMenu(current, open.shortcut), open.referenceRows);
       case "app-shortcut":
         return withReferenceRows(rowsOfAppShortcutMenu(current, open.app), open.referenceRows);
+      case "widget":
+        return withReferenceRows(rowsOfWidgetMenu(current, open.app), open.referenceRows);
       case "desktops":
         return rowsOfDesktopsMenu(current);
       case "desktop":
@@ -973,6 +1066,7 @@ export function App(): m.Component<AppAttrs> {
       draggedWindowId = movingWindowId;
       if (store !== null) pages?.setMountPolicy(mountPolicyOf(store));
       pages?.reconcile();
+      widgetFrames?.reconcile();
     },
     onremove() {
       document.removeEventListener("keydown", onDocumentKeyDown);
@@ -981,6 +1075,7 @@ export function App(): m.Component<AppAttrs> {
       menu.dispose();
       uninstallContextMenu?.();
       detachGestures?.();
+      stopWidgetFramesLayer();
       resizeObserver?.disconnect();
       if (travelFrame !== null) cancelAnimationFrame(travelFrame);
     },
@@ -1098,6 +1193,25 @@ export function App(): m.Component<AppAttrs> {
                     onHideWindowGhost: (windowId) => current.minimizeWindow(windowId),
                     onBringBackWindow: (windowId) => void current.reattachWindow(windowId, null),
                     onPagesHostCreated: (host) => startPagesLayer(current, host, vnode.attrs),
+                    widgets: shownWidgets(state),
+                    widgetRects: current.widgetRects(),
+                    openWidgetMenuApp: openMenu?.kind === "widget" ? openMenu.app : null,
+                    onWidgetToggleMode: (app) => {
+                      const shown = shownWidgets(current.getState()).find((widget) => widget.app.name === app);
+                      if (shown === undefined) return;
+                      void current.setWidgetMode(
+                        app,
+                        shown.presentation.mode === "collapsed" ? "expanded" : "collapsed",
+                      );
+                    },
+                    onWidgetContextMenu: (app, x, y, target) => {
+                      openMenuAt(
+                        { kind: "widget", app, referenceRows: referenceRowsFor(current, target, x, y) },
+                        anchorForPoint(x, y),
+                      );
+                    },
+                    onWidgetFramesHostCreated: (host) => startWidgetFramesLayer(current, host, vnode.attrs),
+                    onWidgetFramesHostRemoved: () => stopWidgetFramesLayer(),
                   }),
               isLauncherOpen
                 ? m(LauncherMenu, {
