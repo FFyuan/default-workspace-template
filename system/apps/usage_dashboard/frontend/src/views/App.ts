@@ -344,9 +344,15 @@ function activityCells(cells: ActivityCells, now: Date, columns: UsageColumns, l
 /**
  * The same row as two lines, for a screen too narrow for the table: what it was and what it used on the first
  * (its source, and its share of each limit or its cost), the rest muted on the second, its status only when a
- * call failed.
+ * call failed. A turn's call leads with its time instead: its source is the turn's, already on the line above.
  */
-function activityLines(cells: ActivityCells, now: Date, columns: UsageColumns, lead: m.Children): m.Children {
+function activityLines(
+  cells: ActivityCells,
+  now: Date,
+  columns: UsageColumns,
+  lead: m.Children,
+  heading: "source" | "time",
+): m.Children {
   const usage =
     columns.length === 0
       ? [m("span", { class: "activity-usage" }, cells.cost)]
@@ -358,8 +364,9 @@ function activityLines(cells: ActivityCells, now: Date, columns: UsageColumns, l
             `${share === null ? "–" : formatShare(share)} ${limitName(limit.scale)}`,
           );
         });
+  const time = formatCallTime(cells.endedAt, now);
   const details = [
-    formatCallTime(cells.endedAt, now),
+    ...(heading === "source" ? [time] : []),
     cells.model,
     ...(cells.calls === null ? [] : [`${formatCount(cells.calls)} ${cells.calls === 1 ? "call" : "calls"}`]),
     `${formatCount(cells.tokens)} tokens`,
@@ -368,14 +375,19 @@ function activityLines(cells: ActivityCells, now: Date, columns: UsageColumns, l
   return [
     m("div", { class: "flex items-baseline gap-2" }, [
       lead,
-      m("span", { class: "min-w-0 flex-1 truncate text-primary" }, cells.source),
+      m(
+        "span",
+        { class: "min-w-0 flex-1 truncate tabular-nums text-primary" },
+        heading === "source" ? cells.source : time,
+      ),
       m(
         "span",
         { class: "flex shrink-0 gap-2 tabular-nums text-secondary" },
         usage.flatMap((part, index) => (index === 0 ? [part] : [m("span", { class: "text-faint" }, "·"), part])),
       ),
     ]),
-    m("div", { class: "flex flex-wrap gap-x-2 pl-6 type-helper tabular-nums text-faint", title: cells.modelTitle }, [
+    // Under the first line's text: past the lead's w-6 and the gap-2 after it.
+    m("div", { class: "flex flex-wrap gap-x-2 pl-8 type-helper tabular-nums text-faint", title: cells.modelTitle }, [
       details.join(" · "),
       cells.status.isOk ? null : m("span", { class: "text-danger" }, cells.status.text),
     ]),
@@ -496,7 +508,13 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
             title: isOpen ? "Hide the raw event" : "Show the raw event",
             onclick: () => model.toggleCall(event.event_id),
           },
-          activityLines(callCells(call, model, columns), now, columns, m("span", { class: "inline-block w-6" })),
+          activityLines(
+            callCells(call, model, columns),
+            now,
+            columns,
+            m("span", { class: "inline-block w-6 shrink-0" }),
+            "time",
+          ),
         ),
         ...(isOpen
           ? [
@@ -538,6 +556,7 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
           now,
           columns,
           m("span", { class: "inline-block w-6 shrink-0 text-faint", "aria-hidden": "true" }, isOpen ? "▾" : "▸"),
+          "source",
         ),
       ),
       ...(isOpen ? callItems(turn) : []),
