@@ -7,9 +7,9 @@
   stored calls, newest first, optionally only those whose fields take one of the given values (also
   ``session_id``, ``run_id`` and ``turn_id``, e.g. ``?turn_id=<id>`` for one turn's calls), with the
   number of matching calls as ``total``.
-- ``GET /v1/turns?provider=...&limit=20[&offset=N]``: the turns of the calls the same filters keep (a call
-  with no turn id is a turn of its own), latest first, each summing only those calls, with the number of
-  turns as ``total``; ``/v1/calls?turn_id=<id>`` (or ``?event_id=<id>``) lists one turn's calls.
+- ``GET /v1/turns?provider=...&limit=20[&offset=N][&since=24h][&until=...]``: the turns of the calls the same
+  filters keep (a call with no turn id is a turn of its own), latest first, each summing only those calls, with
+  the number of turns as ``total``; ``since`` and ``until`` keep only calls that ended in that window; ``/v1/calls?turn_id=<id>`` (or ``?event_id=<id>``) lists one turn's calls.
 - ``GET /v1/limits?since=7d``: the freshest subscription limit reading of every window.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
 - ``GET /health``: whether the collector is up, and whether it is still reading the event files.
@@ -188,15 +188,20 @@ def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flas
             for dimension in CALL_FILTER_DIMENSIONS
             if dimension in request.args
         }
+        now = datetime.now(timezone.utc)
         try:
             limit = parse_int(request.args.get("limit"), "limit")
             offset = parse_int(request.args.get("offset"), "offset")
+            since = parse_time(request.args.get("since"), now, None)
+            until = parse_time(request.args.get("until"), now, None)
             turns = store.turns(
                 filters,
                 DEFAULT_CALLS_LIMIT if limit is None else limit,
                 offset=0 if offset is None else offset,
+                since=since,
+                until=until,
             )
-            total = store.count_turns(filters)
+            total = store.count_turns(filters, since, until)
         except (QueryParameterError, UsageStoreError) as e:
             return _error(str(e), 400)
         return jsonify(

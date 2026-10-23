@@ -181,3 +181,18 @@ def test_turns_answer_over_http_with_their_total(
     ]
     assert answer["total"] == 1
     assert client.get("/v1/turns", query_string={"limit": "0"}).status_code == 400
+
+
+def test_turns_over_http_count_only_the_window_since_asks_for(
+    client: FlaskClient, ingestor: Ingestor
+) -> None:
+    ingestor.ingest(model_call_payload(attribution={"turn_id": "t-1"}))
+    earlier = (NOW - timedelta(hours=1)).isoformat()
+    later = (NOW + timedelta(hours=1)).isoformat()
+
+    recent = client.get("/v1/turns", query_string={"since": earlier}).get_json()
+    none_yet = client.get("/v1/turns", query_string={"since": later}).get_json()
+
+    assert recent["total"] == 1
+    assert none_yet == {"turns": [], "total": 0}
+    assert client.get("/v1/turns", query_string={"since": "soon"}).status_code == 400

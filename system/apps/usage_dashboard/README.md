@@ -44,8 +44,8 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   subscription's calls add nothing to it. Calls whose cost or billing mode is unknown are counted beside
   the total rather than added as $0, and a total that includes a cost the
   collector estimated from tokens carries a "~".
-- **Tokens** (input, output, cache read and cache write), **calls** with the share
-  that failed or were rate-limited, and **latency** (p50 and p95 of each call's
+- **Tokens** (input, output, cache read and cache write), **calls** with how many
+  turns they were in and the share that failed or were rate-limited, and **latency** (p50 and p95 of each call's
   duration; calls with no duration are counted apart, and durations from Claude
   session logs are marked approximate).
 - A chart of spend or tokens over the window, stacked by source (the app, chat or

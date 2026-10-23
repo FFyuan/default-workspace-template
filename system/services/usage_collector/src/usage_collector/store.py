@@ -597,16 +597,19 @@ class UsageStore:
         filters: Mapping[str, Sequence[str]],
         limit: int = DEFAULT_CALLS_LIMIT,
         offset: int = 0,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> list[TurnRow]:
         """The turns of the calls ``filters`` keep, latest-ending first, each summing only those calls.
 
-        A call with no turn id is a turn of its own. ``offset`` skips that many of the latest turns.
+        A call with no turn id is a turn of its own. ``offset`` skips that many of the latest turns. ``since`` and
+        ``until`` keep only calls that ended in [since, until), so a turn is in a window when any of its calls is.
         """
         if not 1 <= limit <= MAX_CALLS_LIMIT:
             raise UsageStoreError(f"limit must be between 1 and {MAX_CALLS_LIMIT}")
         if offset < 0:
             raise UsageStoreError("offset must not be negative")
-        clauses, parameters = _call_filters(filters)
+        clauses, parameters = _turn_filters(filters, since, until)
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         billed = ", ".join(f"'{mode}'" for mode in BILLED_MODES)
         tokens = ", ".join(f"SUM(COALESCE({column}, 0))" for column in TOKEN_COLUMNS)
@@ -629,9 +632,14 @@ class UsageStore:
             ).fetchall()
         return [_turn_row(list(row)) for row in rows]
 
-    def count_turns(self, filters: Mapping[str, Sequence[str]]) -> int:
-        """How many turns ``turns`` would page through for ``filters``."""
-        clauses, parameters = _call_filters(filters)
+    def count_turns(
+        self,
+        filters: Mapping[str, Sequence[str]],
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> int:
+        """How many turns ``turns`` would page through for ``filters``, ``since`` and ``until``."""
+        clauses, parameters = _turn_filters(filters, since, until)
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         with self._lock:
             row = self._connection.execute(
@@ -697,6 +705,22 @@ def _call_filters(
             f"Cannot filter by {unknown}; choose from {list(CALL_FILTER_DIMENSIONS)}"
         )
     return _any_of(filters)
+
+
+def _turn_filters(
+    filters: Mapping[str, Sequence[str]],
+    since: datetime | None,
+    until: datetime | None,
+) -> tuple[list[str], list[object]]:
+    """``_call_filters``, plus a bound on when each kept call ended where ``since`` or ``until`` is given."""
+    clauses, parameters = _call_filters(filters)
+    if since is not None:
+        clauses.append("ended_at >= ?")
+        parameters.append(since.timestamp())
+    if until is not None:
+        clauses.append("ended_at < ?")
+        parameters.append(until.timestamp())
+    return clauses, parameters
 
 
 def _any_of(filters: Mapping[str, Sequence[str]]) -> tuple[list[str], list[object]]:

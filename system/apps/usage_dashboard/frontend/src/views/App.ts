@@ -40,6 +40,7 @@ import {
   formatDollars,
   formatDuration,
   formatPercent,
+  formatTurns,
 } from "../models/format";
 import {
   ROWS_PER_PAGE_CHOICES,
@@ -110,9 +111,12 @@ function callsTile(data: UsageFigures): m.Vnode {
   return tile(
     "Calls",
     formatCount(calls),
-    failed === 0
-      ? m("div", "None failed")
-      : m("div", { class: "text-danger" }, `${formatPercent(failed, calls)} failed or rate-limited`),
+    [
+      m("div", `in ${formatTurns(data.turns)}`),
+      failed === 0
+        ? m("div", "None failed")
+        : m("div", { class: "text-danger" }, `${formatPercent(failed, calls)} failed or rate-limited`),
+    ],
     { "data-tile": "calls" },
   );
 }
