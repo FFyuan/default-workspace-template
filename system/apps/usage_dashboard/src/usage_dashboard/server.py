@@ -2,7 +2,7 @@
 
 The collector (``system/services/usage_collector``) listens on 127.0.0.1 only, and the page lives on this app's
 own origin, so this server forwards the page's reads to it: ``/api/usage/totals``, ``/api/usage/latency``,
-``/api/usage/calls`` and ``/api/usage/limits`` answer what the collector's ``/v1/...`` routes answer, ``/api/usage/stream`` relays its
+``/api/usage/calls``, ``/api/usage/turns`` and ``/api/usage/limits`` answer what the collector's ``/v1/...`` routes answer, ``/api/usage/stream`` relays its
 server-sent events, and ``/api/usage/health`` its health. Who may read them is the share gateway's grants on this
 app, as for any app: the collector listens on 127.0.0.1 only, so this server is the one way to it from outside
 the workspace. A collector that cannot be reached is answered with 503, which the page shows as a banner over the
@@ -73,6 +73,7 @@ FORWARDED_READS: Final[dict[str, str]] = {
     "totals": "/v1/totals",
     "latency": "/v1/latency",
     "calls": "/v1/calls",
+    "turns": "/v1/turns",
     "limits": "/v1/limits",
     "health": "/health",
 }
@@ -102,7 +103,7 @@ ROUTE_TABLE: RouteTable = {
     ("GET", "/api/source-names"): RouteModels(response_model=SourceNamesResponse),
     ("GET", "/api/usage/stream"): SchemalessRoute(reason="the usage collector's stream of new calls, relayed"),
     ("GET", "/api/usage/{name}"): SchemalessRoute(
-        reason="the usage collector's answer for totals, latency, calls, limits or health, passed through unchanged"
+        reason="the usage collector's answer for totals, latency, calls, turns, limits or health, passed through unchanged"
     ),
 }
 

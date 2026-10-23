@@ -98,6 +98,29 @@ export function limitLevel(percent: number | null): LimitLevel {
   return percent < 90 ? "high" : "critical";
 }
 
+/** A card's windows outermost first: the longest window rings the others, and one of unknown length goes outside. */
+export function ringOrder(windows: readonly LimitWindow[]): LimitWindow[] {
+  const length = (window: LimitWindow): number => window.windowSeconds ?? Number.POSITIVE_INFINITY;
+  return [...windows].sort((a, b) => length(b) - length(a));
+}
+
+const LEVEL_WORDS: Record<Exclude<LimitLevel, "ok">, string> = { high: "Getting close", critical: "Almost out" };
+const A_WEEK_SECONDS = 7 * 24 * 3_600;
+
+/**
+ * The warning a card gives, from its fullest window that is getting close: "Almost out this week", "Getting close
+ * until 7:00 PM". Null when no window is.
+ */
+export function limitWarning(windows: readonly LimitWindow[], clock: (at: Date) => string): string | null {
+  const fullest = windows
+    .filter((window) => window.level !== "ok" && !window.isResetSinceReading)
+    .sort((a, b) => (b.usedPercent ?? 0) - (a.usedPercent ?? 0))[0];
+  if (fullest === undefined || fullest.level === "ok") return null;
+  const words = LEVEL_WORDS[fullest.level];
+  if ((fullest.windowSeconds ?? 0) >= A_WEEK_SECONDS) return `${words} this week`;
+  return fullest.resetsAt === null ? words : `${words} until ${clock(fullest.resetsAt)}`;
+}
+
 function subscriptionCards(
   limits: readonly LimitReading[],
   monthRows: readonly TotalsRow[],
