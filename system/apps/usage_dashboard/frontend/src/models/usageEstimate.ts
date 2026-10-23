@@ -7,6 +7,9 @@
  * them in proportion: the reading's share divided by the list price of the provider's subscription calls between
  * the window's start and the reading gives a share per dollar, and a call's estimated share is its list price
  * times that. It is an estimate: the providers do not publish how their limits are counted.
+ *
+ * Once a window resets its harness reports nothing for it until the next call, so the last reading's rate is kept:
+ * it is the account's rate, which a reset does not change, and the page says the estimate rests on it.
  */
 
 import type { LimitWindow } from "./providers";
@@ -16,13 +19,18 @@ export interface UsageScale {
   windowKey: string;
   label: string;
   percentPerDollar: number;
+  /** Whether the window has reset since the reading the rate comes from. */
+  isFromEarlierWindow: boolean;
+  /** When the reading's window started and reset, for marking on a chart. */
+  windowStart: Date;
+  resetsAt: Date;
 }
 
-/** The span a window's reading covers, from the window's start to the reading; none for a window that has reset. */
+/** The span a window's reading covers, from the window's start to the reading, whether or not it has reset since. */
 export function calibrationSpan(window: LimitWindow): { since: Date; until: Date } | null {
-  if (window.isResetSinceReading || window.resetsAt === null || window.windowSeconds === null) return null;
-  if (window.usedPercent === null || window.usedPercent <= 0) return null;
-  const since = new Date(window.resetsAt.getTime() - window.windowSeconds * 1000);
+  if (window.readingResetsAt === null || window.windowSeconds === null) return null;
+  if (window.readingPercent === null || window.readingPercent <= 0) return null;
+  const since = new Date(window.readingResetsAt.getTime() - window.windowSeconds * 1000);
   return since < window.observedAt ? { since, until: window.observedAt } : null;
 }
 

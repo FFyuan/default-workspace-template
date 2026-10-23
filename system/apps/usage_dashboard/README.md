@@ -49,8 +49,12 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   limit: a harness reports only each window's total share used, so the page
   prices the provider's subscription calls between the window's start and the
   reading at API rates (weighing an Opus token above a Haiku one, much as the
-  limits do) and spreads the reported share over them in proportion. The latest
-  calls show each subscription call's estimated share the same way.
+  limits do) and spreads the reported share over them in proportion. The
+  breakdown and the latest calls show each row's and each call's estimated share
+  the same way. Once a window resets its harness reports nothing for it until the
+  next call, so the estimate keeps the last reading's rate (the account's, which
+  a reset does not change) and says so; dashed lines mark where the chosen
+  window started and where it reset.
 - A breakdown by model, source (the app, chat or routine that made the calls) or
   billing mode. Clicking a row filters the whole page to it.
 - The latest calls, newest first, as they happen, each with its raw event.

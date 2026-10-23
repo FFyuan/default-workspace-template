@@ -48,12 +48,31 @@ export interface ChartAttrs {
   colors: SeriesColors;
   /** For the usage metric: the share of a limit a dollar of list price uses. */
   percentPerDollar?: number;
+  /** Moments to mark with a dashed line, such as a limit window starting or resetting. */
+  markers?: readonly ChartMarker[];
+}
+
+export interface ChartMarker {
+  at: Date;
+  label: string;
+}
+
+/** Where ``at`` falls across the bars, as a fraction of the chart's width; null outside them. */
+export function markerPosition(starts: readonly Date[], now: Date, at: Date): number | null {
+  const index = starts.findIndex((start, position) => {
+    const end = starts[position + 1] ?? now;
+    return at >= start && at < end;
+  });
+  if (index === -1) return null;
+  const start = starts[index].getTime();
+  const end = (starts[index + 1] ?? now).getTime();
+  return (index + (end > start ? (at.getTime() - start) / (end - start) : 0)) / starts.length;
 }
 
 export function UsageChart(): m.Component<ChartAttrs> {
   let hovered: number | null = null;
   return {
-    view({ attrs: { windowId, now, rows, metric, colors, percentPerDollar } }) {
+    view({ attrs: { windowId, now, rows, metric, colors, percentPerDollar, markers } }) {
       const value = valueOf(metric, percentPerDollar ?? 0);
       const totalsByModel = new Map<string, number>();
       for (const row of rows) {
@@ -100,6 +119,29 @@ export function UsageChart(): m.Component<ChartAttrs> {
             },
             formatMetric(metric, peak),
           ),
+          (markers ?? []).map((marker) => {
+            const position = markerPosition(starts, now, marker.at);
+            return position === null
+              ? null
+              : m(
+                  "div",
+                  {
+                    key: `${marker.label}:${marker.at.getTime()}`,
+                    class:
+                      "chart-marker pointer-events-none absolute top-5 bottom-0 border-l border-dashed border-(--color-faint)",
+                    style: { left: `${position * 100}%` },
+                    title: `${marker.label}, ${marker.at.toLocaleString()}`,
+                  },
+                  // A label near the right edge sits to the left of its line, so it stays inside the chart.
+                  m(
+                    "span",
+                    {
+                      class: `absolute top-0 ${position > 0.75 ? "right-1" : "left-1"} whitespace-nowrap type-tag text-faint`,
+                    },
+                    marker.label,
+                  ),
+                );
+          }),
           m(
             "svg",
             {

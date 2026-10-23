@@ -247,16 +247,23 @@ export class DashboardModel {
         keep(rows).filter((row) => inSection(row.group, spec));
       this.providers = cards;
       const scales: Record<string, UsageScale[]> = {};
-      calibrations.forEach(({ card, window }, index) => {
+      calibrations.forEach(({ card, window, span }, index) => {
         const provider = card.sectionKey.slice("subscription:".length);
         const listPrice = calibrationRows[index]
           .filter((row) => row.group.provider === provider && row.group.billing_mode === "SUBSCRIPTION")
           .reduce((sum, row) => sum + (row.cost_usd === null ? 0 : Number(row.cost_usd)), 0);
-        const rate = percentPerDollar(window.usedPercent ?? 0, listPrice);
-        if (rate === null) return;
+        const rate = percentPerDollar(window.readingPercent ?? 0, listPrice);
+        if (rate === null || window.readingResetsAt === null) return;
         scales[card.sectionKey] = [
           ...(scales[card.sectionKey] ?? []),
-          { windowKey: window.key, label: window.label, percentPerDollar: rate },
+          {
+            windowKey: window.key,
+            label: window.label,
+            percentPerDollar: rate,
+            isFromEarlierWindow: window.isResetSinceReading,
+            windowStart: span.since,
+            resetsAt: window.readingResetsAt,
+          },
         ];
       });
       this.usageScales = scales;

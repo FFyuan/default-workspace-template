@@ -35,9 +35,9 @@ import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
 import { type Route, pathOf } from "../models/routing";
 import { type SectionKind, sectionKeyOf } from "../models/sections";
-import { chosenScale, formatShare } from "../models/usageEstimate";
+import { type UsageScale, chosenScale, formatShare } from "../models/usageEstimate";
 import { WINDOWS, type WindowId } from "../models/windows";
-import { UsageChart } from "./chart";
+import { type ChartMarker, UsageChart } from "./chart";
 import { providerCard, providerSection } from "./providerCards";
 
 const CARD_CLASS = "rounded-lg border border-default bg-surface p-4";
@@ -140,7 +140,12 @@ function latencyTile(data: UsageFigures): m.Vnode {
   );
 }
 
-function breakdownSection(model: DashboardModel, breakdown: BreakdownId, section: SectionFigures): m.Vnode {
+function breakdownSection(
+  model: DashboardModel,
+  breakdown: BreakdownId,
+  section: SectionFigures,
+  scale?: UsageScale,
+): m.Vnode {
   const lines = breakdownLines(breakdown, section.breakdownRows, section.breakdownLatency, model.appNames);
   const totalTokensAll = lines.reduce((sum, line) => sum + line.tokens, 0);
   const activeKey = model.filter === null ? null : filterKey(model.filter);
@@ -165,6 +170,16 @@ function breakdownSection(model: DashboardModel, breakdown: BreakdownId, section
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Tokens"),
                 m("th", { class: "w-32 py-1.5 pr-3 font-normal" }, "Share"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Spend"),
+                scale === undefined
+                  ? null
+                  : m(
+                      "th",
+                      {
+                        class: "py-1.5 pr-3 text-right font-normal",
+                        title: `Estimated share of the ${limitName(scale)} limit`,
+                      },
+                      "Est. usage",
+                    ),
                 m("th", { class: "py-1.5 text-right font-normal" }, "p50"),
               ]),
             ]),
@@ -212,6 +227,16 @@ function breakdownSection(model: DashboardModel, breakdown: BreakdownId, section
                             `≈ ${formatDollars(line.listPrice)} subscription`,
                           ),
                     ]),
+                    scale === undefined
+                      ? null
+                      : m(
+                          "td",
+                          {
+                            class: "breakdown-usage py-2 pr-3 text-right tabular-nums text-secondary",
+                            title: `Estimated share of the ${limitName(scale)} limit, from the row's list price`,
+                          },
+                          line.listPrice === null ? "–" : formatShare(line.listPrice * scale.percentPerDollar),
+                        ),
                     m(
                       "td",
                       { class: "py-2 text-right tabular-nums text-secondary" },
@@ -244,6 +269,20 @@ function callTokens(call: StoredCall): number {
   return (tokens.input ?? 0) + (tokens.output ?? 0) + (tokens.cache_read ?? 0) + (tokens.cache_write ?? 0);
 }
 
+/** Where the scale's limit window started, and where it reset once that has happened. */
+function resetMarkers(scale: UsageScale, now: Date): ChartMarker[] {
+  const name = limitName(scale);
+  return [
+    { at: scale.windowStart, label: `${name} window starts` },
+    ...(scale.resetsAt <= now ? [{ at: scale.resetsAt, label: `${name} reset` }] : []),
+  ];
+}
+
+/** "5-hour", "weekly": the limit a usage scale is against. */
+function limitName(scale: UsageScale): string {
+  return scale.label.replace(" limit", "").toLowerCase();
+}
+
 /** A call's estimated share of its subscription's limit (the one its usage chart is against); null for none. */
 function callUsage(model: DashboardModel, call: StoredCall): { text: string; title: string } | null {
   const event = call.event;
@@ -251,10 +290,9 @@ function callUsage(model: DashboardModel, call: StoredCall): { text: string; tit
   const key = sectionKeyOf(callGroup(event));
   const scale = chosenScale(model.usageScales[key] ?? [], model.usageWindows[key]);
   if (scale === undefined) return null;
-  const limit = scale.label.replace(" limit", "").toLowerCase();
   return {
     text: formatShare(Number(event.cost_usd) * scale.percentPerDollar),
-    title: `Estimated share of the ${limit} limit, from the call's list price`,
+    title: `Estimated share of the ${limitName(scale)} limit, from the call's list price`,
   };
 }
 
@@ -522,16 +560,19 @@ function figuresView(
         metric,
         colors,
         percentPerDollar: scale?.percentPerDollar,
+        markers: scale === undefined ? [] : resetMarkers(scale, now),
       }),
-      metric === "usage"
+      metric === "usage" && scale !== undefined
         ? m(
             "p",
             { class: "usage-estimate-note type-helper text-faint" },
-            "Estimated: each model's tokens are priced at API rates, then scaled so the limit window adds up to its last reading.",
+            scale.isFromEarlierWindow
+              ? `Estimated at the rate of the ${limitName(scale)} window that reset at ${formatClock(scale.resetsAt)}: each model's tokens are priced at API rates, scaled so that window added up to its last reading. The limit reports nothing new until the next call.`
+              : "Estimated: each model's tokens are priced at API rates, then scaled so the limit window adds up to its last reading.",
           )
         : null,
     ]),
-    m("section", { class: CARD_CLASS }, breakdownSection(model, data.breakdown, figures)),
+    m("section", { class: CARD_CLASS }, breakdownSection(model, data.breakdown, figures, scale)),
   ];
 }
 

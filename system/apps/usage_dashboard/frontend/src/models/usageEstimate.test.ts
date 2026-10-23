@@ -13,6 +13,8 @@ function window(patch: Partial<LimitWindow>): LimitWindow {
     level: "ok",
     windowSeconds: 604_800,
     observedAt: new Date("2026-10-22T20:00:00Z"),
+    readingPercent: 34,
+    readingResetsAt: new Date("2026-10-27T00:00:00Z"),
     ...patch,
   };
 }
@@ -25,9 +27,14 @@ describe("calibrationSpan", () => {
     });
   });
 
-  it("has nothing to calibrate on for a reset, unused or open-ended window", () => {
-    expect(calibrationSpan(window({ isResetSinceReading: true, usedPercent: 0 }))).toBeNull();
-    expect(calibrationSpan(window({ usedPercent: 0 }))).toBeNull();
+  it("keeps the last reading's span once its window has reset", () => {
+    const reset = window({ isResetSinceReading: true, usedPercent: 0, resetsAt: null });
+
+    expect(calibrationSpan(reset)?.since).toEqual(new Date("2026-10-20T00:00:00Z"));
+  });
+
+  it("has nothing to calibrate on for an unused or open-ended window", () => {
+    expect(calibrationSpan(window({ readingPercent: 0 }))).toBeNull();
     expect(calibrationSpan(window({ windowSeconds: null }))).toBeNull();
   });
 });
@@ -40,9 +47,10 @@ describe("percentPerDollar", () => {
 });
 
 describe("chosenScale and formatShare", () => {
+  const at = { isFromEarlierWindow: false, windowStart: new Date(0), resetsAt: new Date(0) };
   const scales = [
-    { windowKey: "five_hour", label: "5-hour limit", percentPerDollar: 2 },
-    { windowKey: "seven_day", label: "Weekly limit", percentPerDollar: 0.4 },
+    { windowKey: "five_hour", label: "5-hour limit", percentPerDollar: 2, ...at },
+    { windowKey: "seven_day", label: "Weekly limit", percentPerDollar: 0.4, ...at },
   ];
 
   it("picks the viewer's window, else the first", () => {
