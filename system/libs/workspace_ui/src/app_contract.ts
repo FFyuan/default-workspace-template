@@ -72,6 +72,9 @@ export const SHELL_MESSAGE = "shell:message";
  *  ``<label>.localhost`` host or registered port it is, else the workspace's browser), the file in Files, an
  *  external link in the app registered for it or else outside the workspace, or says why it cannot. */
 export const SHELL_OPEN_LINK = "shell:open-link";
+export const SHELL_WIDGET_MODE = "shell:widget-mode";
+export const SHELL_WIDGET_SIZE = "shell:widget-size";
+export const SHELL_WIDGET_HIDDEN = "shell:widget-hidden";
 
 /** The bare host names of this machine (a ``*.localhost`` host is local too). */
 export const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -117,12 +120,20 @@ export function hasWorkspaceCoordinate(host: string): boolean {
  * the window belongs to, and the path the window is at (desktop-interface contracts.md section
  * 7). The client id is required; a field the shell does not send, a page reads as "".
  */
+/** What frames the page: a window, or a widget in a corner of the desktop (app-widgets plan section 6). */
+export type ShellSurface = "window" | "widget";
+
+/** How the client draws a widget: in full, or as its one-line pill. */
+export type WidgetMode = "expanded" | "collapsed";
+
 export interface ShellHandshake {
   clientId: string;
+  /** The window's id; empty for a widget, which has none. */
   windowId: string;
   desktopId: string;
   app: string;
   path: string;
+  surface: ShellSurface;
 }
 
 /**
@@ -146,6 +157,8 @@ export interface ShellConnectionHandlers {
   onHidden?: () => void;
   onCloseRequest?: () => void;
   onNavigate?: (path: string) => void;
+  /** A widget's mode, after every handshake and whenever the client changes it; never sent to a window. */
+  onWidgetMode?: (mode: WidgetMode) => void;
   capabilities?: ShellCapabilities;
 }
 
@@ -154,9 +167,11 @@ export interface ShellConnection {
   readonly isFramed: boolean;
   /** Whether a shell frames this page: its handshake has arrived. */
   hasShell(): boolean;
-  /** Tell the shell this page received focus. */
+  /** What frames this page, as the last handshake said; a window until one arrives. */
+  surface(): ShellSurface;
+  /** Tell the shell this page received focus; nothing from a widget. */
   focused(): void;
-  /** Report where this page is now (a path under the app's origin) and what it is called. */
+  /** Report where this page is now (a path under the app's origin) and what it is called; nothing from a widget. */
   location(path: string, title: string): void;
   /** Ask the shell to open a page of this app at a path beside this one. */
   openPath(path: string, ifPresent: OpenIfPresent): void;
@@ -171,6 +186,10 @@ export interface ShellConnection {
    *  URL in Files, or an external web, ``mailto:`` or ``tel:`` link in the app registered for it, else
    *  outside the workspace. */
   openLink(url: string): void;
+  /** Tell the shell how big a widget's content is in its current mode, in CSS pixels; nothing from a window. */
+  widgetSize(width: number, height: number): void;
+  /** Tell the shell a widget has nothing to show (true) or has again (false); nothing from a window. */
+  widgetHidden(isHidden: boolean): void;
   /** Stop listening to the shell. */
   disconnect(): void;
 }
@@ -185,7 +204,7 @@ function optionalString(value: unknown): string {
 }
 
 function readHandshake(data: Record<string, unknown>): ShellHandshake | null {
-  const { clientId, windowId, desktopId, app, path } = data;
+  const { clientId, windowId, desktopId, app, path, surface } = data;
   if (typeof clientId !== "string" || clientId === "") return null;
   return {
     clientId,
@@ -193,7 +212,12 @@ function readHandshake(data: Record<string, unknown>): ShellHandshake | null {
     desktopId: optionalString(desktopId),
     app: optionalString(app),
     path: optionalString(path),
+    surface: surface === "widget" ? "widget" : "window",
   };
+}
+
+function readWidgetMode(value: unknown): WidgetMode | null {
+  return value === "expanded" || value === "collapsed" ? value : null;
 }
 
 function checkedCapabilities(handlers: ShellConnectionHandlers): ShellCapabilities {
@@ -320,6 +344,7 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
   const boundWindow = window;
   const isFramed = boundWindow.parent !== boundWindow;
   let hasShell = false;
+  let surface: ShellSurface = "window";
 
   function onMessage(event: MessageEvent): void {
     if (!isFramed || event.source !== boundWindow.parent) return;
@@ -331,7 +356,13 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
         const handshake = readHandshake(message);
         if (handshake === null) return;
         hasShell = true;
+        surface = handshake.surface;
         handlers.onHandshake?.(handshake);
+        return;
+      }
+      case SHELL_WIDGET_MODE: {
+        const mode = readWidgetMode(message.mode);
+        if (mode !== null && surface === "widget") handlers.onWidgetMode?.(mode);
         return;
       }
       case SHELL_SHOWN:
@@ -382,14 +413,25 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
   return {
     isFramed,
     hasShell: () => hasShell,
-    focused: () => send(SHELL_FOCUSED, {}),
-    location: (path: string, title: string) => send(SHELL_LOCATION, { path, title }),
+    surface: () => surface,
+    focused: () => {
+      if (surface === "window") send(SHELL_FOCUSED, {});
+    },
+    location: (path: string, title: string) => {
+      if (surface === "window") send(SHELL_LOCATION, { path, title });
+    },
     openPath: (path: string, ifPresent: OpenIfPresent) => send(SHELL_OPEN, { path, ifPresent }),
     startWithText: (text: string) => send(SHELL_START_WITH_TEXT, { text }),
     draftText: (text: string) => send(SHELL_DRAFT_TEXT, { text }),
     sendMessage: (type: string, fields: Readonly<Record<string, unknown>>) =>
       send(SHELL_MESSAGE, { message: { ...fields, type } }),
     openLink: (url: string) => send(SHELL_OPEN_LINK, { url }),
+    widgetSize: (width: number, height: number) => {
+      if (surface === "widget") send(SHELL_WIDGET_SIZE, { width, height });
+    },
+    widgetHidden: (isHidden: boolean) => {
+      if (surface === "widget") send(SHELL_WIDGET_HIDDEN, { isHidden });
+    },
     disconnect: () => {
       boundWindow.removeEventListener("message", onMessage);
       boundWindow.removeEventListener("click", onLinkClick);

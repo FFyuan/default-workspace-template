@@ -18,6 +18,9 @@ import {
   SHELL_OPEN,
   SHELL_OPEN_LINK,
   SHELL_SHOWN,
+  SHELL_WIDGET_HIDDEN,
+  SHELL_WIDGET_MODE,
+  SHELL_WIDGET_SIZE,
   ShellContractError,
   connectToShell,
 } from "./app_contract";
@@ -89,6 +92,7 @@ describe("connectToShell", () => {
       desktopId: "home",
       app: "chat",
       path: "/?chat=agent-1",
+      surface: "window",
     });
     expect(handlers.onShown).toHaveBeenCalledTimes(1);
     expect(handlers.onHidden).toHaveBeenCalledTimes(1);
@@ -115,7 +119,47 @@ describe("connectToShell", () => {
       desktopId: "home",
       app: "",
       path: "",
+      surface: "window",
     });
+  });
+
+  it("as a widget, takes its mode, reports its size and hiddenness, and sends no location or focus", () => {
+    const parent = framed();
+    const onWidgetMode = vi.fn();
+    connection = connectToShell({ onWidgetMode });
+    // Before any handshake the page is a window: a widget's reports go nowhere.
+    connection.widgetSize(180, 64);
+    expect(connection.surface()).toBe("window");
+
+    deliver({ ...HANDSHAKE, windowId: null, surface: "widget", path: "/widget" }, parent);
+    deliver({ type: SHELL_WIDGET_MODE, mode: "collapsed" }, parent);
+    deliver({ type: SHELL_WIDGET_MODE, mode: "tiny" }, parent);
+    connection.widgetSize(180, 64);
+    connection.widgetHidden(true);
+    connection.location("/widget", "Usage");
+    connection.focused();
+
+    expect(connection.surface()).toBe("widget");
+    expect(onWidgetMode.mock.calls).toEqual([["collapsed"]]);
+    expect(sentAfterConnect(parent)).toEqual([
+      [{ type: SHELL_WIDGET_SIZE, width: 180, height: 64 }, "*"],
+      [{ type: SHELL_WIDGET_HIDDEN, isHidden: true }, "*"],
+    ]);
+  });
+
+  it("as a window, ignores a widget mode and sends no widget report", () => {
+    const parent = shellFramed();
+    const onWidgetMode = vi.fn();
+    connection?.disconnect();
+    connection = connectToShell({ onWidgetMode });
+    deliver(HANDSHAKE, parent);
+    deliver({ type: SHELL_WIDGET_MODE, mode: "expanded" }, parent);
+    parent.postMessage.mockClear();
+    connection.widgetSize(10, 10);
+    connection.widgetHidden(false);
+
+    expect(onWidgetMode).not.toHaveBeenCalled();
+    expect(parent.postMessage).not.toHaveBeenCalled();
   });
 
   it("announces its capabilities to the parent once, before anything else", () => {
