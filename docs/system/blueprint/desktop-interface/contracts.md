@@ -480,8 +480,8 @@ Both editors (`shell/desktop_document.py` and `frontend/src/geometry/`) implemen
 | `--desk-widget-min-size` | `24px` | | yes |
 | `--desk-widget-rim` | `6px` | `12px` | yes |
 | `--desk-widget-radius` | `12px` | | no |
-| `--desk-widget-surface` | `rgb(28 28 30 / 0.92)` | | no |
-| `--desk-widget-edge` | `rgb(255 255 255 / 0.1)` | | no |
+| `--desk-widget-surface` | `rgb(255 255 255 / 0.94)` | | no |
+| `--desk-widget-edge` | `rgb(0 0 0 / 0.08)` | | no |
 | `--desk-widget-rest-opacity` | `0.72` | `1` | no |
 | `--desk-resize-edge` | `8px` | | no |
 | `--desk-resize-corner` | `16px` | | no |

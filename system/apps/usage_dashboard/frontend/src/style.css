@@ -17,20 +17,20 @@
   --series-other: #a3a29c;
 }
 
-/* The widget (app-widgets plan section 7) draws on the shell's dark widget panel, in the manner of a system
-   monitor: light text, a faint track under each ring, and a hue per limit while it is comfortable (the 5-hour
-   limit cyan, the weekly one violet) that gives way to the level's colour as it nears the cap. */
+/* The widget (app-widgets plan section 7) draws on the shell's light widget panel, in the manner of a system
+   monitor: a faint track under each ring, and a hue per limit while it is comfortable (the 5-hour limit cyan, the
+   weekly one violet) that gives way to the level's colour as it nears the cap. */
 .usage-widget {
-  --widget-text: rgb(255 255 255 / 0.92);
-  --widget-muted: rgb(255 255 255 / 0.55);
-  --widget-faint: rgb(255 255 255 / 0.32);
-  --widget-track: rgb(255 255 255 / 0.12);
-  --widget-heading: #64d2ff;
-  --widget-short: #64d2ff;
-  --widget-long: #bf5af2;
-  --widget-high: #ff9f0a;
-  --widget-critical: #ff453a;
-  --widget-spend: rgb(255 255 255 / 0.7);
+  --widget-text: rgb(0 0 0 / 0.85);
+  --widget-muted: rgb(0 0 0 / 0.5);
+  --widget-faint: rgb(0 0 0 / 0.38);
+  --widget-track: rgb(0 0 0 / 0.08);
+  --widget-heading: #007aff;
+  --widget-short: #32ade6;
+  --widget-long: #af52de;
+  --widget-high: #ff9500;
+  --widget-critical: #ff3b30;
+  --widget-spend: rgb(0 0 0 / 0.45);
 }
 
 /* The widget's page lets the shell's panel show through (base.css paints every page's body). */

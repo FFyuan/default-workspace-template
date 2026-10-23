@@ -1,12 +1,13 @@
 /**
- * The Usage widget's view (app-widgets plan section 7), drawn on the shell's dark widget panel in the manner of a
+ * The Usage widget's view (app-widgets plan section 7), drawn on the shell's light widget panel in the manner of a
  * system monitor: the whole widget is one link to the Usage page, opened in a window of its own
  * (``target="_blank"``, which the shell's link rule turns into raising the Usage window).
  *
  * Collapsed, a pair of concentric rings per subscription (the weekly limit outside, the 5-hour limit inside, each
  * over a faint track) with the 5-hour figure in the middle and the subscription's name beneath, or with no
  * subscription one figure of the month's spend. Expanded, a section per subscription headed by its name: the ring
- * pair beside a row per window, each with a dot in its ring's colour, when it resets, and the share used; then a
+ * pair beside a row per window, each with a dot in its ring's colour and the share used, and, while the pointer
+ * is over the widget, when it resets; then a
  * row per pay-as-you-go provider's spend. A ring is its window's hue while comfortable and the level's colour as it
  * nears the cap. While the collector indexes its first history the widget says so rather than show partial totals,
  * and while the stream is down it keeps the last figures, dimmed. Hover detail is each section's and each ring
@@ -124,7 +125,12 @@ function windowRowView(window: LimitWindow, role: RingRole): m.Vnode {
     m("span", { class: "shrink-0 text-(--widget-text)" }, windowName(window)),
     m(
       "span",
-      { "data-widget-reset": "", class: "ml-auto min-w-0 truncate tabular-nums text-(--widget-faint)" },
+      {
+        "data-widget-reset": "",
+        class:
+          "ml-auto min-w-0 truncate tabular-nums text-(--widget-faint) opacity-0 transition-opacity " +
+          "group-hover:opacity-100",
+      },
       resetText(window),
     ),
     m(
@@ -218,7 +224,7 @@ export const Widget: m.Component<WidgetAttrs> = {
         "data-widget-mode": mode,
         "data-live": model.isLive ? "true" : "false",
         class:
-          "usage-widget inline-flex flex-col type-helper text-(--widget-text) no-underline " +
+          "usage-widget group inline-flex flex-col type-helper text-(--widget-text) no-underline " +
           (isCollapsed ? "gap-1 p-1 " : "w-56 gap-2 p-1.5 ") +
           (model.isLive ? "" : "opacity-60"),
       },

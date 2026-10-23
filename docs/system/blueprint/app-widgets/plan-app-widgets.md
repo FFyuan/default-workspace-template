@@ -102,7 +102,7 @@ Each corner's stack is inset from the backdrop's edges by the theme's widget ins
 
 ### 4.2 The frame
 
-A widget's frame is an iframe of the app's `url` plus the widget's `path`, with the shell's chrome around it: a dark panel (the theme's widget surface, edge, and radius, whatever the desktop's own theme, as a system monitor's panel is) with no bar, which the page fills but for a thin rim of the theme's rim width on every side. The rim is the widget's handle. The page draws light on a transparent background over the panel.
+A widget's frame is an iframe of the app's `url` plus the widget's `path`, with the shell's chrome around it: a light panel (the theme's widget surface, edge, and radius) with no bar, which the page fills but for a thin rim of the theme's rim width on every side. The rim is the widget's handle. The page draws on a transparent background over the panel.
 The frame is not drawn until its page first reports a size, so a page that is loading or fails to load leaves no empty box in the corner; a page that never reports is logged once and never drawn.
 The frame's size is the last size its page reported for the current mode, clamped to the theme's widget maximum (320 by 240) and minimum (24 by 24), plus the rim on each side.
 At rest the frame is drawn at the rest opacity; while the pointer is over it, or a menu of it is open, fully opaque.
@@ -146,7 +146,7 @@ The shell then draws nothing for it on that client and keeps the frame loaded, s
 The phone layout has no floating layer.
 In a strip just above its bar (the bar's two controls and pill already fill a phone's width), it draws each enabled widget not hidden by its page, always collapsed, no taller than the phone's widget height.
 A tap is the page's, as a click is on the desktop; its link opens the app's window, which the phone shows.
-There is no rim, menu, or corner on a phone; each widget is the same dark panel, filled by its page.
+There is no rim, menu, or corner on a phone; each widget is the same panel, filled by its page.
 
 ### 4.9 Touch
 
@@ -222,13 +222,13 @@ It reads what the dashboard reads, through the same server's `/api/usage/*` rela
 
 ### 7.3 The look
 
-The widget follows a Mac system monitor's panels (iStat Menus): light text on the shell's dark panel, small uppercase headings, figures in tabular numerals, and rings over faint tracks. A ring is drawn in its window's own hue while the window is comfortable (the 5-hour limit cyan, the weekly one violet) and in its level's colour as it nears the cap (orange at 75%, red at 90%, from the same `limitLevel()`); each row's dot is its ring's colour.
+The widget follows a Mac system monitor's panels (iStat Menus): the shell's light panel, small uppercase headings, figures in tabular numerals, and rings over faint tracks. A ring is drawn in its window's own hue while the window is comfortable (the 5-hour limit cyan, the weekly one violet) and in its level's colour as it nears the cap (orange at 75%, red at 90%, from the same `limitLevel()`); each row's dot is its ring's colour.
 
 ### 7.4 Expanded
 
 About 224 pixels wide, a section per subscription in the dashboard's card order, then one section of pay-as-you-go spend:
 
-- A subscription: its name as the heading; beneath it, its ring pair (section 7.5) beside a row per window (the 5-hour and the weekly limit), each with its dot, its name, when it resets (the clock for the 5-hour window, the weekday and hour for the weekly one), and the share used.
+- A subscription: its name as the heading; beneath it, its ring pair (section 7.5) beside a row per window (the 5-hour and the weekly limit), each with its dot, its name, and the share used; while the pointer is over the widget, each row also shows when it resets (the clock for the 5-hour window, the weekday and hour for the weekly one).
 - Pay-as-you-go: "API this month" as the heading, and a row per provider with this month's spend, with `~` when any of it is estimated.
 - A provider with no data is not drawn.
 
@@ -255,7 +255,7 @@ The whole widget is one link, `<a href="/" target="_blank">`, so a click raises 
 
 ## 8. Theme tokens and selectors
 
-Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-rim: 6px` (touch: `12px`), and, read by no behaviour, `--desk-widget-radius: 12px`, `--desk-widget-surface: rgb(28 28 30 / 0.92)`, `--desk-widget-edge: rgb(255 255 255 / 0.1)`, `--desk-phone-widget-height: 32px`.
+Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-rim: 6px` (touch: `12px`), and, read by no behaviour, `--desk-widget-radius: 12px`, `--desk-widget-surface: rgb(255 255 255 / 0.94)`, `--desk-widget-edge: rgb(0 0 0 / 0.08)`, `--desk-phone-widget-height: 32px`.
 
 | Attribute | On |
 |---|---|

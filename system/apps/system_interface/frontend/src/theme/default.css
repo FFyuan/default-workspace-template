@@ -67,8 +67,7 @@
   /* App widgets (app-widgets plan section 4): how far a corner's stack stands off the backdrop's edges, the
      gap between widgets stacked in one corner, the most and least a widget's page may ask for, the rim
      around its page (what a press drags it by), and how see-through a widget is when the pointer is
-     elsewhere. A widget is a dark panel whatever the desktop's theme, as a system monitor's is, so its page
-     draws light on a transparent background. */
+     elsewhere. A widget is a light panel its page draws on, through a transparent background. */
   --desk-widget-inset: 16px;
   --desk-widget-gap: 8px;
   --desk-widget-max-width: 320px;
@@ -77,8 +76,8 @@
   --desk-widget-rim: 6px;
   --desk-widget-rest-opacity: 0.72;
   --desk-widget-radius: 12px;
-  --desk-widget-surface: rgb(28 28 30 / 0.92);
-  --desk-widget-edge: rgb(255 255 255 / 0.1);
+  --desk-widget-surface: rgb(255 255 255 / 0.94);
+  --desk-widget-edge: rgb(0 0 0 / 0.08);
   --desk-resize-edge: 8px;
   --desk-resize-corner: 16px;
   --desk-resize-overhang: 3px;
