@@ -24,6 +24,9 @@ export interface LimitWindow {
   resetsAt: Date | null;
   isResetSinceReading: boolean;
   level: LimitLevel;
+  /** The window's length, when fixed, and when its reading was taken: what a usage estimate calibrates on. */
+  windowSeconds: number | null;
+  observedAt: Date;
 }
 
 export interface SubscriptionCard {
@@ -118,6 +121,8 @@ function subscriptionCards(
           resetsAt: isResetSinceReading ? null : resetsAt,
           isResetSinceReading,
           level: limitLevel(usedPercent),
+          windowSeconds: reading.window_seconds,
+          observedAt: new Date(reading.observed_at),
         };
       });
     const provider = SOURCE_PROVIDERS[source];

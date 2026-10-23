@@ -13,3 +13,5 @@ Below the cards, a Total row of tiles across every provider has the time window 
 It stores nothing of its own, reconnects to the collector's live stream after an outage, keeps its last numbers under a banner while the collector is down, and says when the collector is still indexing past usage.
 
 Who sees it follows the workspace's sharing grants, like any app: a visitor with a workspace-wide grant or a grant on Usage sees the same numbers as the owner. The Share tab lists it under System.
+
+A subscription's chart shows each model's estimated usage as a share of its 5-hour or weekly limit, and its latest calls show each call's estimated share: the calls are priced at API rates and the limit's last reported share is spread over them in proportion.

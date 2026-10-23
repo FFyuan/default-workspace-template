@@ -34,7 +34,8 @@ import {
 import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
 import { type Route, pathOf } from "../models/routing";
-import type { SectionKind } from "../models/sections";
+import { type SectionKind, sectionKeyOf } from "../models/sections";
+import { chosenScale, formatShare } from "../models/usageEstimate";
 import { WINDOWS, type WindowId } from "../models/windows";
 import { UsageChart } from "./chart";
 import { providerCard, providerSection } from "./providerCards";
@@ -243,7 +244,22 @@ function callTokens(call: StoredCall): number {
   return (tokens.input ?? 0) + (tokens.output ?? 0) + (tokens.cache_read ?? 0) + (tokens.cache_write ?? 0);
 }
 
+/** A call's estimated share of its subscription's limit (the one its usage chart is against); null for none. */
+function callUsage(model: DashboardModel, call: StoredCall): { text: string; title: string } | null {
+  const event = call.event;
+  if (event.billing_mode !== "SUBSCRIPTION" || event.cost_usd === null || event.cost_usd === undefined) return null;
+  const key = sectionKeyOf(callGroup(event));
+  const scale = chosenScale(model.usageScales[key] ?? [], model.usageWindows[key]);
+  if (scale === undefined) return null;
+  const limit = scale.label.replace(" limit", "").toLowerCase();
+  return {
+    text: formatShare(Number(event.cost_usd) * scale.percentPerDollar),
+    title: `Estimated share of the ${limit} limit, from the call's list price`,
+  };
+}
+
 function callsSection(model: DashboardModel, now: Date): m.Vnode {
+  const showsUsage = model.calls.some((call) => callUsage(model, call) !== null);
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
       m("h2", { class: "type-section text-primary" }, "Latest calls"),
@@ -260,6 +276,16 @@ function callsSection(model: DashboardModel, now: Date): m.Vnode {
                 m("th", { class: "py-1.5 pr-3 font-normal" }, "Model"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Tokens"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Cost"),
+                showsUsage
+                  ? m(
+                      "th",
+                      {
+                        class: "py-1.5 pr-3 text-right font-normal",
+                        title: "Estimated share of the subscription's limit",
+                      },
+                      "Est. usage",
+                    )
+                  : null,
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Duration"),
                 m("th", { class: "py-1.5 font-normal" }, "Status"),
               ]),
@@ -299,6 +325,16 @@ function callsSection(model: DashboardModel, now: Date): m.Vnode {
                         formatCount(callTokens(call)),
                       ),
                       m("td", { class: "py-1.5 pr-3 text-right tabular-nums text-secondary" }, callCost(call)),
+                      showsUsage
+                        ? m(
+                            "td",
+                            {
+                              class: "call-usage py-1.5 pr-3 text-right tabular-nums text-secondary",
+                              title: callUsage(model, call)?.title,
+                            },
+                            callUsage(model, call)?.text ?? "–",
+                          )
+                        : null,
                       m(
                         "td",
                         { class: "py-1.5 pr-3 text-right tabular-nums text-secondary" },
@@ -315,7 +351,7 @@ function callsSection(model: DashboardModel, now: Date): m.Vnode {
                 if (isExpanded) {
                   rows.push(
                     m("tr", { key: `${event.event_id}:raw`, class: "border-b border-subtle" }, [
-                      m("td", { colspan: 7, class: "py-2" }, [
+                      m("td", { colspan: showsUsage ? 8 : 7, class: "py-2" }, [
                         m(
                           "pre",
                           {
@@ -416,10 +452,33 @@ function figuresView(
   colors: SeriesColors,
 ): m.Children {
   const isSubscription = kind === "subscription";
-  // A subscription's calls are not billed per call, so its chart is always tokens.
-  const metric: ChartMetric = isSubscription
-    ? "tokens"
-    : (model.chartMetrics[chartKey] ?? (figures.summary.spend > 0 ? "spend" : "tokens"));
+  const scales = isSubscription ? (model.usageScales[chartKey] ?? []) : [];
+  const scale = chosenScale(scales, model.usageWindows[chartKey]);
+  // A subscription's calls are not billed per call, so its chart is tokens or their estimated share of a limit.
+  const choices: { value: ChartMetric; label: string }[] = isSubscription
+    ? [
+        ...(scale === undefined ? [] : [{ value: "usage" as const, label: "Usage" }]),
+        { value: "tokens", label: "Tokens" },
+      ]
+    : [
+        { value: "spend", label: "Spend" },
+        { value: "tokens", label: "Tokens" },
+      ];
+  const picked = model.chartMetrics[chartKey];
+  const metric: ChartMetric =
+    picked !== undefined && choices.some((choice) => choice.value === picked)
+      ? picked
+      : isSubscription
+        ? (choices[0]?.value ?? "tokens")
+        : figures.summary.spend > 0
+          ? "spend"
+          : "tokens";
+  const heading =
+    metric === "usage" && scale !== undefined
+      ? `Usage by model · estimated % of ${scale.label.replace(" limit", "").toLowerCase()} limit`
+      : metric === "spend"
+        ? "Spend by model"
+        : "Tokens by model";
   const tiles =
     kind === "all"
       ? [spendTile(figures), subscriptionTile(figures), tokensTile(figures), callsTile(figures), latencyTile(figures)]
@@ -433,24 +492,44 @@ function figuresView(
     m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3" }, tiles),
     m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
       m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-        m(
-          "h3",
-          { class: "type-tag uppercase tracking-wide text-faint" },
-          metric === "spend" ? "Spend by model" : "Tokens by model",
-        ),
-        isSubscription
-          ? null
-          : m(SegmentedControl<ChartMetric>(), {
-              label: "Chart",
-              segments: [
-                { value: "spend", label: "Spend" },
-                { value: "tokens", label: "Tokens" },
-              ],
-              value: metric,
-              onSelect: (choice) => model.selectChartMetric(chartKey, choice),
-            }),
+        m("h3", { class: "type-tag uppercase tracking-wide text-faint" }, heading),
+        m("div", { class: "flex flex-wrap items-center gap-2" }, [
+          metric === "usage" && scales.length > 1
+            ? m(SegmentedControl<string>(), {
+                label: "Limit",
+                segments: scales.map((candidate) => ({
+                  value: candidate.windowKey,
+                  label: candidate.label.replace(" limit", ""),
+                })),
+                value: scale?.windowKey ?? "",
+                onSelect: (windowKey) => model.selectUsageWindow(chartKey, windowKey),
+              })
+            : null,
+          choices.length > 1
+            ? m(SegmentedControl<ChartMetric>(), {
+                label: "Chart",
+                segments: choices,
+                value: metric,
+                onSelect: (choice) => model.selectChartMetric(chartKey, choice),
+              })
+            : null,
+        ]),
       ]),
-      m(UsageChart, { windowId: data.windowId, now, rows: figures.chartRows, metric, colors }),
+      m(UsageChart, {
+        windowId: data.windowId,
+        now,
+        rows: figures.chartRows,
+        metric,
+        colors,
+        percentPerDollar: scale?.percentPerDollar,
+      }),
+      metric === "usage"
+        ? m(
+            "p",
+            { class: "usage-estimate-note type-helper text-faint" },
+            "Estimated: each model's tokens are priced at API rates, then scaled so the limit window adds up to its last reading.",
+          )
+        : null,
     ]),
     m("section", { class: CARD_CLASS }, breakdownSection(model, data.breakdown, figures)),
   ];

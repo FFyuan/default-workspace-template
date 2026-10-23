@@ -36,6 +36,7 @@ import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./provider
 import { type Route, combinedFilters, inScope, scopeFilters } from "./routing";
 import { SECTION_FIELDS, type SectionSpec, detailSections, inSection } from "./sections";
 import { type Summary, failedShare, summarize } from "./summary";
+import { type UsageScale, calibrationSpan, percentPerDollar } from "./usageEstimate";
 import { type WindowId, windowSpec, windowStart } from "./windows";
 
 export const EVENT_DEBOUNCE_MS = 2_000;
@@ -45,7 +46,7 @@ export const CALLS_PAGE = 50;
 const MAX_CALLS_KEPT = 300;
 const GAP_FILL_LIMIT = 500;
 
-export type ChartMetric = "spend" | "tokens";
+export type ChartMetric = "spend" | "tokens" | "usage";
 
 /** The tiles' numbers for some set of calls: the Total row's, or one provider section's. */
 export interface UsageFigures {
@@ -97,6 +98,10 @@ export class DashboardModel {
   filter: Filter | null = null;
   /** The chart each section shows, once its viewer picked one; a section otherwise shows its default. */
   chartMetrics: Record<string, ChartMetric> = {};
+  /** Each subscription's usage scales, by its section key: one per limit window that can be estimated. */
+  usageScales: Record<string, UsageScale[]> = {};
+  /** The limit window each subscription's usage chart is against, once its viewer picked one. */
+  usageWindows: Record<string, string> = {};
   /** The cards at the top, which answer for now and this month whatever the Details window or filter. */
   providers: ProviderCard[] | null = null;
   data: DashboardData | null = null;
@@ -151,6 +156,11 @@ export class DashboardModel {
   selectBreakdown(breakdown: BreakdownId): void {
     this.breakdown = breakdown;
     void this.refresh();
+  }
+
+  selectUsageWindow(sectionKey: string, windowKey: string): void {
+    this.usageWindows = { ...this.usageWindows, [sectionKey]: windowKey };
+    this.deps.redraw();
   }
 
   selectChartMetric(sectionKey: string, metric: ChartMetric): void {
@@ -210,16 +220,46 @@ export class DashboardModel {
       const keep = <T extends { group: Record<string, string | null> }>(rows: T[]): T[] =>
         rows.filter((row) => matchesFilter(row.group, filter));
       const specs = detailSections(keep(summaryRows));
-      const sectionLatency = await Promise.all(
-        specs.map((spec) => {
-          const only = { provider: [spec.provider], billing_mode: spec.billingModes };
-          return Promise.all([fetchLatency(filterFields, since, only), fetchLatency(breakdownFields, since, only)]);
-        }),
+      const cards = providerCards(limits, monthRows, now);
+      const calibrations = cards.flatMap((card) =>
+        card.kind !== "subscription"
+          ? []
+          : card.windows.flatMap((window) => {
+              const span = calibrationSpan(window);
+              return span === null ? [] : [{ card, window, span }];
+            }),
       );
+      const [sectionLatency, calibrationRows] = await Promise.all([
+        Promise.all(
+          specs.map((spec) => {
+            const only = { provider: [spec.provider], billing_mode: spec.billingModes };
+            return Promise.all([fetchLatency(filterFields, since, only), fetchLatency(breakdownFields, since, only)]);
+          }),
+        ),
+        Promise.all(
+          calibrations.map(({ span }) =>
+            fetchTotals({ groupBy: ["provider", "billing_mode"], since: span.since, until: span.until }),
+          ),
+        ),
+      ]);
       if (generation !== this.generation) return;
       const within = <T extends { group: Record<string, string | null> }>(rows: T[], spec: SectionSpec): T[] =>
         keep(rows).filter((row) => inSection(row.group, spec));
-      this.providers = providerCards(limits, monthRows, now);
+      this.providers = cards;
+      const scales: Record<string, UsageScale[]> = {};
+      calibrations.forEach(({ card, window }, index) => {
+        const provider = card.sectionKey.slice("subscription:".length);
+        const listPrice = calibrationRows[index]
+          .filter((row) => row.group.provider === provider && row.group.billing_mode === "SUBSCRIPTION")
+          .reduce((sum, row) => sum + (row.cost_usd === null ? 0 : Number(row.cost_usd)), 0);
+        const rate = percentPerDollar(window.usedPercent ?? 0, listPrice);
+        if (rate === null) return;
+        scales[card.sectionKey] = [
+          ...(scales[card.sectionKey] ?? []),
+          { windowKey: window.key, label: window.label, percentPerDollar: rate },
+        ];
+      });
+      this.usageScales = scales;
       this.data = {
         total: {
           summary: summarize(keep(summaryRows)),

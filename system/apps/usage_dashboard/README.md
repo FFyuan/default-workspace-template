@@ -44,7 +44,13 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   that failed or were rate-limited, and **latency** (p50 and p95 of each call's
   duration; calls with no duration are counted apart, and durations from Claude
   session logs are marked approximate).
-- A chart of spend or tokens over the window, stacked by model.
+- A chart of spend or tokens over the window, stacked by model. A subscription's
+  chart shows its **estimated usage** instead, as a share of its 5-hour or weekly
+  limit: a harness reports only each window's total share used, so the page
+  prices the provider's subscription calls between the window's start and the
+  reading at API rates (weighing an Opus token above a Haiku one, much as the
+  limits do) and spreads the reported share over them in proportion. The latest
+  calls show each subscription call's estimated share the same way.
 - A breakdown by model, source (the app, chat or routine that made the calls) or
   billing mode. Clicking a row filters the whole page to it.
 - The latest calls, newest first, as they happen, each with its raw event.

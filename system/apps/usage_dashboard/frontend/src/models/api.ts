@@ -77,11 +77,13 @@ export interface CollectorHealth {
 export interface TotalsQuery {
   groupBy: readonly string[];
   since: Date;
+  until?: Date;
   bucket?: "minute" | "hour";
 }
 
 function totalsParams(query: TotalsQuery): URLSearchParams {
   const params = new URLSearchParams({ group_by: query.groupBy.join(","), since: query.since.toISOString() });
+  if (query.until !== undefined) params.set("until", query.until.toISOString());
   if (query.bucket !== undefined) params.set("bucket", query.bucket);
   return params;
 }

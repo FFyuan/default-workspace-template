@@ -19,8 +19,12 @@ const VIEW_HEIGHT = 180;
 const SEGMENT_GAP = 2;
 const BAR_RADIUS = 4;
 
-function valueOf(metric: ChartMetric): (row: TotalsRow) => number {
+function valueOf(metric: ChartMetric, percentPerDollar: number): (row: TotalsRow) => number {
   if (metric === "tokens") return (row) => totalTokens(row.tokens);
+  if (metric === "usage") {
+    return (row) =>
+      row.group.billing_mode === "SUBSCRIPTION" && row.cost_usd !== null ? Number(row.cost_usd) * percentPerDollar : 0;
+  }
   return (row) =>
     (BILLED_MODES as readonly string[]).includes(row.group.billing_mode ?? "") && row.cost_usd !== null
       ? Number(row.cost_usd)
@@ -28,6 +32,7 @@ function valueOf(metric: ChartMetric): (row: TotalsRow) => number {
 }
 
 export function formatMetric(metric: ChartMetric, value: number): string {
+  if (metric === "usage") return `${value.toFixed(value < 10 ? 1 : 0)}%`;
   return metric === "spend" ? formatDollars(value) : formatCount(value);
 }
 
@@ -41,13 +46,15 @@ export interface ChartAttrs {
   rows: readonly TotalsRow[];
   metric: ChartMetric;
   colors: SeriesColors;
+  /** For the usage metric: the share of a limit a dollar of list price uses. */
+  percentPerDollar?: number;
 }
 
 export function UsageChart(): m.Component<ChartAttrs> {
   let hovered: number | null = null;
   return {
-    view({ attrs: { windowId, now, rows, metric, colors } }) {
-      const value = valueOf(metric);
+    view({ attrs: { windowId, now, rows, metric, colors, percentPerDollar } }) {
+      const value = valueOf(metric, percentPerDollar ?? 0);
       const totalsByModel = new Map<string, number>();
       for (const row of rows) {
         const model = modelLabel(row.group.model ?? null);
@@ -94,7 +101,7 @@ export function UsageChart(): m.Component<ChartAttrs> {
               preserveAspectRatio: "none",
               class: "block h-44 w-full",
               role: "img",
-              "aria-label": `${metric === "spend" ? "Spend" : "Tokens"} over the window, by model`,
+              "aria-label": `${{ spend: "Spend", tokens: "Tokens", usage: "Estimated limit usage" }[metric]} over the window, by model`,
               onmouseleave: () => (hovered = null),
             },
             [
