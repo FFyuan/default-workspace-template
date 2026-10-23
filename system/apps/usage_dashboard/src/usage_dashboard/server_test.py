@@ -7,6 +7,8 @@ from flask.testing import FlaskClient
 from usage_collector.ingest import Ingestor
 from usage_collector.testing import NOW
 from usage_collector.testing import model_call_payload
+from usage_dashboard.settings import UsageSettingsStore
+from usage_dashboard.settings import WidgetVariant
 
 _VISITOR = json.dumps({"owner": False, "user_id": "u-2"})
 
@@ -111,3 +113,26 @@ def test_the_detail_pages_serve_the_same_document(client: FlaskClient) -> None:
     for path in ("/all", "/p/subscription:anthropic"):
         response = client.get(path)
         assert response.status_code == 200 and b"<title>Usage</title>" in response.data, path
+
+
+def test_the_widget_variant_defaults_to_rings_and_is_kept_once_set(
+    client: FlaskClient, settings_store: UsageSettingsStore
+) -> None:
+    assert client.get("/api/settings").get_json() == {"widget_variant": "rings"}
+
+    written = client.post("/api/settings", json={"widget_variant": "bars"})
+
+    assert written.status_code == 200
+    assert written.get_json() == {"widget_variant": "bars"}
+    assert client.get("/api/settings").get_json() == {"widget_variant": "bars"}
+    assert settings_store.read().widget_variant is WidgetVariant.BARS
+    assert client.post("/api/settings", json={"widget_variant": "dials"}).status_code == 400
+
+
+def test_an_unreadable_settings_file_reads_as_the_defaults(
+    client: FlaskClient, settings_store: UsageSettingsStore
+) -> None:
+    settings_store.path.parent.mkdir(parents=True)
+    settings_store.path.write_text("{not json")
+
+    assert client.get("/api/settings").get_json() == {"widget_variant": "rings"}

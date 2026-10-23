@@ -8,7 +8,8 @@
  * it is a pair of concentric rings per subscription, the longest window outside and the shortest inside; with no
  * subscription, one pill of the month's total spend.
  *
- * The model reads only what those need (the limit readings, this month's totals, and the collector's health), again
+ * The model reads only what those need (the limit readings, this month's totals, the collector's health, and which
+ * version of the widget the workspace shows), again
  * shortly after every new call on the collector's stream and every minute, since a reset time passing changes what a
  * row shows with no call at all.
  */
@@ -21,6 +22,8 @@ import { formatClock, formatDollars } from "./format";
 import { LIMITS_LOOKBACK_MS, providerCards, providerName } from "./providers";
 import type { LimitLevel, LimitWindow, ProviderCard } from "./providers";
 import { windowStart } from "./windows";
+import { DEFAULT_WIDGET_VARIANT, readWidgetVariant } from "./widgetVariant";
+import type { WidgetVariant } from "./widgetVariant";
 
 /** How often the widget reads again with no call to prompt it: a minute, so a passed reset shows within one. */
 export const WIDGET_REFRESH_MS = 60_000;
@@ -194,6 +197,8 @@ export class WidgetModel {
   isLive = false;
   isCatchingUp = false;
   isCollectorDown = false;
+  /** The version of the widget the workspace shows, as last read; a pick on the Usage page sets it at once. */
+  variant: WidgetVariant = DEFAULT_WIDGET_VARIANT;
 
   private stream: StreamLike | null = null;
   private readonly streamBackoff = new ReconnectBackoff();
@@ -234,6 +239,7 @@ export class WidgetModel {
     } catch (error) {
       this.isCollectorDown = isUnreachable(error);
     }
+    this.variant = (await readWidgetVariant()) ?? this.variant;
     this.deps.redraw();
   }
 

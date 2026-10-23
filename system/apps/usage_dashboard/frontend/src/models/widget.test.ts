@@ -82,14 +82,21 @@ describe("widgetPill", () => {
 
 describe("WidgetModel", () => {
   /** A collector that answers ``limits``, no totals, and ``health``; ``status`` for every read when it is set. */
-  function stubCollector(limits: LimitReading[], isCatchingUp: boolean, status: number | null = null): void {
+  function stubCollector(
+    limits: LimitReading[],
+    isCatchingUp: boolean,
+    status: number | null = null,
+    variant = "rings",
+  ): void {
     vi.stubGlobal("fetch", async (url: string) => {
       if (status !== null) return new Response(JSON.stringify({ detail: "down" }), { status });
       const answer = url.includes("/limits")
         ? { limits }
         : url.includes("/totals")
           ? { rows: [] }
-          : { status: "ok", catching_up: isCatchingUp };
+          : url.includes("/settings")
+            ? { widget_variant: variant }
+            : { status: "ok", catching_up: isCatchingUp };
       return new Response(JSON.stringify(answer), { status: 200 });
     });
   }
@@ -116,6 +123,17 @@ describe("WidgetModel", () => {
     await widget.refresh();
     expect(widget.isEmpty).toBe(false);
     expect(widgetRows(widget.cards ?? []).map((row) => row.name)).toEqual(["Claude"]);
+  });
+
+  it("reads the workspace's widget version with its figures, and keeps it when the settings cannot be read", async () => {
+    const widget = model();
+    expect(widget.variant).toBe("rings");
+    stubCollector([reading({})], false, null, "bars");
+    await widget.refresh();
+    expect(widget.variant).toBe("bars");
+    stubCollector([reading({})], false, 503);
+    await widget.refresh();
+    expect(widget.variant).toBe("bars");
   });
 
   it("keeps the last figures when the collector cannot be reached", async () => {

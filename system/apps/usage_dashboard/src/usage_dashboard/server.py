@@ -8,12 +8,14 @@ app, as for any app: the collector listens on 127.0.0.1 only, so this server is 
 the workspace. A collector that cannot be reached is answered with 503, which the page shows as a banner over the
 last numbers it had.
 
-The app stores nothing. Besides the collector it reads only the app registry, for the display names the page
-shows an app's usage under.
+Besides the collector it reads the app registry, for the display names the page shows an app's usage under, and
+keeps one small settings file of its own (``settings.py``): which version of the widget the workspace shows,
+which ``/api/settings`` reads and sets.
 
 - Listen address: bind ``HOST`` and ``PORT``, which default to the loopback address and this app's assigned port
   but honor ``USAGE_DASHBOARD_HOST`` and ``USAGE_DASHBOARD_PORT``, so a preview can boot on a spare port beside
-  the live one. ``USAGE_DASHBOARD_COLLECTOR_URL`` points it at another collector.
+  the live one. ``USAGE_DASHBOARD_COLLECTOR_URL`` points it at another collector, and ``USAGE_DASHBOARD_DATA_DIR``
+  at another settings directory (a preview's scratch copy).
 
 This is a synchronous Flask app served by the threaded Werkzeug server; each open page holds one thread for its
 stream.
@@ -45,13 +47,18 @@ from app_schema.api_schema import SchemalessRoute
 from app_schema.api_schema import register_api_schema_route
 from app_schema.routes import error_response
 from app_schema.routes import model_response
+from app_schema.routes import parse_request_body
 from imbue.imbue_common.logging import setup_logging
 from usage_dashboard.data_types import AppNamesResponse
 from usage_dashboard.data_types import HealthResponse
+from usage_dashboard.settings import SETTINGS_FILENAME
+from usage_dashboard.settings import UsageSettings
+from usage_dashboard.settings import UsageSettingsStore
 
 HOST: Final[str] = os.environ.get("USAGE_DASHBOARD_HOST", "127.0.0.1")
 PORT: Final[int] = int(os.environ.get("USAGE_DASHBOARD_PORT", "8060"))
 COLLECTOR_URL: Final[str] = os.environ.get("USAGE_DASHBOARD_COLLECTOR_URL", "http://127.0.0.1:8795")
+DATA_DIR: Final[Path] = Path(os.environ.get("USAGE_DASHBOARD_DATA_DIR", "data/.apps/usage-dashboard"))
 
 APP_DISPLAY_NAME: Final[str] = "Usage"
 APP_DESCRIPTION: Final[str] = (
@@ -98,6 +105,8 @@ ROUTE_TABLE: RouteTable = {
     ("GET", "/assets/{filename}"): SchemalessRoute(reason="one file of the page's built bundle"),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
     ("GET", "/api/apps"): RouteModels(response_model=AppNamesResponse),
+    ("GET", "/api/settings"): RouteModels(response_model=UsageSettings),
+    ("POST", "/api/settings"): RouteModels(request_model=UsageSettings, response_model=UsageSettings),
     ("GET", "/api/usage/stream"): SchemalessRoute(reason="the usage collector's stream of new calls, relayed"),
     ("GET", "/api/usage/{name}"): SchemalessRoute(
         reason="the usage collector's answer for totals, latency, calls, limits or health, passed through unchanged"
@@ -110,8 +119,11 @@ def _collector_unreachable(e: httpx.HTTPError) -> ResponseReturnValue:
     return error_response("The usage collector isn't responding.", HTTP_SERVICE_UNAVAILABLE)
 
 
-def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path) -> Flask:
-    """The app, reading the collector through ``collector`` (its base URL set) and display names from ``apps_file``."""
+def create_app(
+    static_directory: Path, collector: httpx.Client, apps_file: Path, settings: UsageSettingsStore
+) -> Flask:
+    """The app, reading the collector through ``collector`` (its base URL set) and display names from ``apps_file``,
+    and keeping its settings in ``settings``."""
     app = Flask("usage_dashboard", static_folder=None)
     register_api_schema_route(
         app, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION, route_table=ROUTE_TABLE
@@ -168,6 +180,18 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
         names = {str(row.name): str(row.display_name) for row in rows if row.display_name is not None}
         return model_response(AppNamesResponse(display_names=names))
 
+    @app.get("/api/settings")
+    def read_settings() -> ResponseReturnValue:
+        """The app's settings: which version of the widget the workspace shows."""
+        return model_response(settings.read())
+
+    @app.post("/api/settings")
+    def write_settings() -> ResponseReturnValue:
+        """Replace the app's settings (a field left out takes its default); answers them as stored."""
+        body = parse_request_body(UsageSettings)
+        settings.write(body)
+        return model_response(settings.read())
+
     @app.get("/api/usage/stream")
     def stream() -> ResponseReturnValue:
         """The collector's server-sent events, relayed as they arrive."""
@@ -218,7 +242,7 @@ def create_app(static_directory: Path, collector: httpx.Client, apps_file: Path)
 def main() -> None:
     setup_logging(level=os.environ.get("USAGE_DASHBOARD_LOG_LEVEL", "INFO"))
     collector = httpx.Client(base_url=COLLECTOR_URL)
-    app = create_app(STATIC_DIR, collector, registry_path())
+    app = create_app(STATIC_DIR, collector, registry_path(), UsageSettingsStore(path=DATA_DIR / SETTINGS_FILENAME))
     logger.info("Serving the Usage app at http://{}:{}/ over the collector at {}", HOST, PORT, COLLECTOR_URL)
     run_simple(HOST, PORT, app, threaded=True, use_reloader=False, use_debugger=False)
 

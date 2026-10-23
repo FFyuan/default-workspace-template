@@ -257,6 +257,17 @@ With no subscription, the collapsed widget is one figure of this month's total s
 
 The whole widget is one link, `<a href="/" target="_blank">`, so a click raises the Usage window (section 4.5).
 
+### 7.8 Versions
+
+The widget comes in versions, and which one the workspace shows is the Usage app's own setting, not a flag and nothing the shell knows of: `widget_variant` in `data/.apps/usage-dashboard/settings.json`, read and written through `GET` and `POST /api/settings`, and picked from a "Widget" menu in the Usage page's header. The widget reads it with its figures; a pick in the same browser reaches it at once over a `BroadcastChannel`, and one made elsewhere on its next read (within a minute). `?variant=` on the widget's URL overrides it for that page alone, to look at a version without changing anyone's widget. Every version reads the same `WidgetModel`, so adding one is a view and a name.
+
+| Version | Expanded | Collapsed |
+|---|---|---|
+| `rings` (default) | sections 7.4 and 7.5 | section 7.5 |
+| `bars` | a row per subscription: its name, the 5-hour bar above a thinner weekly bar, and their shares used (the 5-hour one in bold); under the pointer each bar gives way, in its own place, to its window's short name and reset time (`5h · 7:00 PM`, `wk · Mon 9 AM`), so the widget never changes size; then the API spend | the short name, both bars, and the 5-hour share |
+
+Nothing explains a bar at rest: no window names and no reset times, which the pointer shows.
+
 ## 8. Theme tokens and selectors
 
 Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-rim: 6px` (touch: `12px`), and, read by no behaviour, `--desk-widget-radius: 12px`, `--desk-widget-surface: rgb(255 255 255 / 0.94)`, `--desk-widget-edge: rgb(0 0 0 / 0.08)`, `--desk-phone-widget-height: 32px`.

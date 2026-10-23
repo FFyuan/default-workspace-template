@@ -1,8 +1,8 @@
 # The Usage app: the workspace's model usage -- spend, tokens, calls and latency over the last 30 minutes, 24
-# hours, 7 days and this month, by model, source and billing mode, with the latest calls as they happen. It
-# stores nothing of its own: everything it shows is the usage collector's (system/services/usage_collector),
-# which it reads through its own server, since the page lives on this app's origin and the collector on
-# 127.0.0.1 only.
+# hours, 7 days and this month, by model, source and billing mode, with the latest calls as they happen.
+# Everything it shows is the usage collector's (system/services/usage_collector), which it reads through its own
+# server, since the page lives on this app's origin and the collector on 127.0.0.1 only. All it stores of its own
+# is which version of its widget the workspace shows (data/.apps/usage-dashboard/settings.json).
 name = "usage-dashboard"
 display_name = "Usage"
 description = "The workspace's model usage: spend, tokens, calls and latency by model, source and billing mode."
@@ -20,13 +20,15 @@ priority = "usage-dashboard"
 launch = "open"
 mode = "focus"
 
-# A glance at the subscription limits and this month's spend in a corner of the desktop, shown by default; an
-# enabled widget keeps this app running, as an open window does.
+# A glance at the subscription limits and this month's spend on the desktop, shown by default; an enabled widget
+# keeps this app running, as an open window does.
 [widget]
 path = "/widget"
 default_enabled = true
 
-# A preview serves the pages on a free port over the live collector, which it only reads.
+# A preview serves the pages on a free port over the live collector, which it only reads, and over a scratch copy
+# of its settings.
 [preview]
-env = {USAGE_DASHBOARD_PORT = "{port:main}", USAGE_DASHBOARD_HOST = "{host}"}
+env = {USAGE_DASHBOARD_PORT = "{port:main}", USAGE_DASHBOARD_HOST = "{host}", USAGE_DASHBOARD_DATA_DIR = "{copy:data}"}
+copies = {data = "data/.apps/usage-dashboard"}
 health_path = "/api/health"

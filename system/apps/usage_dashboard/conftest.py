@@ -11,6 +11,7 @@ from usage_collector.server import create_app as create_collector_app
 from usage_collector.status import IngestStatus
 from usage_collector.store import UsageStore
 from usage_dashboard.server import create_app
+from usage_dashboard.settings import UsageSettingsStore
 
 
 @pytest.fixture
@@ -53,16 +54,25 @@ def apps_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def client(static_directory: Path, collector: httpx.Client, apps_file: Path) -> FlaskClient:
-    return create_app(static_directory, collector, apps_file).test_client()
+def settings_store(tmp_path: Path) -> UsageSettingsStore:
+    return UsageSettingsStore(path=tmp_path / "data" / "settings.json")
 
 
 @pytest.fixture
-def unreachable_client(static_directory: Path, apps_file: Path) -> Iterator[FlaskClient]:
+def client(
+    static_directory: Path, collector: httpx.Client, apps_file: Path, settings_store: UsageSettingsStore
+) -> FlaskClient:
+    return create_app(static_directory, collector, apps_file, settings_store).test_client()
+
+
+@pytest.fixture
+def unreachable_client(
+    static_directory: Path, apps_file: Path, settings_store: UsageSettingsStore
+) -> Iterator[FlaskClient]:
     """The app over a collector that refuses every connection."""
 
     def refuse(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused", request=request)
 
     with httpx.Client(transport=httpx.MockTransport(refuse), base_url="http://collector") as collector:
-        yield create_app(static_directory, collector, apps_file).test_client()
+        yield create_app(static_directory, collector, apps_file, settings_store).test_client()

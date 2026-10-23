@@ -1,7 +1,9 @@
 /**
  * The Usage widget's root (app-widgets plan section 7): the page the workspace shell keeps on the
- * desktop. Framed as a widget, it draws the mode the shell tells it, reports the size of what it drew after every
- * change, and says it has nothing to show while no usage exists yet.
+ * desktop. Framed as a widget, it draws the mode the shell tells it in the version the workspace picked (or the
+ * one its URL's ``?variant=`` names), reports the size of what it drew after every change, and says it has nothing
+ * to show while no usage exists yet. A pick on the Usage page in this browser reaches it at once over the variant
+ * channel; one made elsewhere on its next read.
  */
 
 import m from "mithril";
@@ -11,6 +13,7 @@ import { connectToShell } from "@imbue/workspace-ui/src/app_contract";
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 
 import { WidgetModel } from "./models/widget";
+import { WIDGET_VARIANT_CHANNEL, asWidgetVariant, variantFromQuery } from "./models/widgetVariant";
 import { Widget } from "./views/Widget";
 
 function bootstrap(): void {
@@ -30,6 +33,15 @@ function bootstrap(): void {
     openStream: (url) => new EventSource(url),
   });
 
+  const variantOverride = variantFromQuery(window.location.search);
+  const channel = new BroadcastChannel(WIDGET_VARIANT_CHANNEL);
+  channel.onmessage = (event: MessageEvent) => {
+    const variant = asWidgetVariant((event.data as { variant?: unknown } | null)?.variant);
+    if (variant === null) return;
+    model.variant = variant;
+    m.redraw();
+  };
+
   const reportSize = (element: Element): void => {
     const box = element.getBoundingClientRect();
     connection.widgetSize(Math.ceil(box.width), Math.ceil(box.height));
@@ -38,7 +50,7 @@ function bootstrap(): void {
     for (const entry of entries) reportSize(entry.target);
   });
   m.mount(root, {
-    view: () => m(Widget, { model, mode }),
+    view: () => m(Widget, { model, mode, variant: variantOverride ?? model.variant }),
     oncreate: () => {
       const widget = document.getElementById("usage-widget");
       if (widget !== null) observer.observe(widget);

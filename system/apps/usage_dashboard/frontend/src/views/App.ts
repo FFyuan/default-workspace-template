@@ -11,6 +11,8 @@ import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 
 import type { LatencyRow, StoredCall, TotalsRow } from "../models/api";
+import { WIDGET_VARIANTS, WIDGET_VARIANT_LABELS } from "../models/widgetVariant";
+import type { WidgetVariant, WidgetVariantPicker } from "../models/widgetVariant";
 import {
   BREAKDOWNS,
   type BreakdownId,
@@ -674,7 +676,27 @@ function windowPicker(model: DashboardModel): m.Children {
   });
 }
 
-function pageHeader(model: DashboardModel, back: boolean): m.Vnode {
+/** The workspace's pick of widget version, saved by the Usage app and shown by its widget at once. */
+function widgetStylePicker(picker: WidgetVariantPicker): m.Children {
+  if (picker.variant === null) return null;
+  return m("div", { class: "widget-style ml-auto flex items-center gap-2" }, [
+    picker.errorMessage === null
+      ? null
+      : m("span", { class: "type-helper text-danger", role: "alert" }, picker.errorMessage),
+    m("span", { class: "type-helper text-secondary" }, "Widget"),
+    m("div", { class: "w-24" }, [
+      m(Dropdown<WidgetVariant>, {
+        options: WIDGET_VARIANTS.map((variant) => ({ value: variant, label: WIDGET_VARIANT_LABELS[variant] })),
+        value: picker.variant,
+        placeholder: WIDGET_VARIANT_LABELS[picker.variant],
+        "aria-label": "Widget style",
+        onSelect: (variant: WidgetVariant) => void picker.select(variant),
+      }),
+    ]),
+  ]);
+}
+
+function pageHeader(model: DashboardModel, picker: WidgetVariantPicker, back: boolean): m.Vnode {
   return m("header", { class: "flex flex-wrap items-center gap-3" }, [
     back
       ? m(
@@ -688,14 +710,15 @@ function pageHeader(model: DashboardModel, back: boolean): m.Vnode {
       : null,
     m("h1", { class: "type-heading text-primary" }, "Usage"),
     liveIndicator(model),
+    widgetStylePicker(picker),
   ]);
 }
 
 /** The home page: one card per provider in use, then the Total row, which opens all usage. */
-function homePage(model: DashboardModel, now: Date): m.Children {
+function homePage(model: DashboardModel, picker: WidgetVariantPicker, now: Date): m.Children {
   const data = model.data;
   return [
-    pageHeader(model, false),
+    pageHeader(model, picker, false),
     banners(model),
     m("div", { class: model.isCollectorDown ? "opacity-60" : "" }, providerSection(model.providers, now)),
     m(
@@ -766,7 +789,13 @@ function navItems(model: DashboardModel): NavItem[] {
 }
 
 /** A detail page: the list of providers, and the chosen one's limits, figures and latest calls. */
-function detailPage(model: DashboardModel, route: Route, now: Date, colors: SeriesColors): m.Children {
+function detailPage(
+  model: DashboardModel,
+  picker: WidgetVariantPicker,
+  route: Route,
+  now: Date,
+  colors: SeriesColors,
+): m.Children {
   const data = model.data;
   const selectedKey = route.page === "item" ? route.key : "all";
   const items = navItems(model);
@@ -785,7 +814,7 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Seri
         })
       : [];
   return [
-    pageHeader(model, true),
+    pageHeader(model, picker, true),
     banners(model),
     m("div", { class: "detail-layout grid gap-4 md:grid-cols-[15rem_minmax(0,1fr)]" }, [
       m(
@@ -847,6 +876,7 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Seri
 
 export interface AppAttrs {
   model: DashboardModel;
+  widgetStyle: WidgetVariantPicker;
   route: Route;
   now: () => Date;
 }
@@ -854,7 +884,7 @@ export interface AppAttrs {
 export function App(): m.Component<AppAttrs> {
   const colors = new SeriesColors();
   return {
-    view({ attrs: { model, route, now } }) {
+    view({ attrs: { model, widgetStyle, route, now } }) {
       const current = now();
       return m(
         "div",
@@ -862,7 +892,9 @@ export function App(): m.Component<AppAttrs> {
         m(
           "main",
           { class: "mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6" },
-          route.page === "home" ? homePage(model, current) : detailPage(model, route, current, colors),
+          route.page === "home"
+            ? homePage(model, widgetStyle, current)
+            : detailPage(model, widgetStyle, route, current, colors),
         ),
       );
     },

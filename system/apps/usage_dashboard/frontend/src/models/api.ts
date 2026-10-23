@@ -1,9 +1,9 @@
 /**
  * The Usage app's API (system/apps/usage_dashboard/src/usage_dashboard/server.py): the usage collector's answers,
- * passed through, plus the registry's app display names.
+ * passed through, plus the registry's app display names and the app's own settings.
  */
 
-import { HttpError, requestJson } from "@imbue/workspace-ui/src/models/http";
+import { HttpError, postJson, requestJson } from "@imbue/workspace-ui/src/models/http";
 
 /** A totals group's or a call's dimension values; null for "not known". */
 export type Group = Record<string, string | null>;
@@ -138,4 +138,17 @@ export async function fetchAppNames(): Promise<Record<string, string>> {
 /** Whether a refusal says the collector is down (the app answers 503), not that the request was wrong. */
 export function isUnreachable(error: unknown): boolean {
   return error instanceof HttpError && error.status >= 502 && error.status <= 504;
+}
+
+/** The Usage app's own settings (``settings.py``): which version of the widget the workspace shows. */
+export interface UsageSettings {
+  widget_variant: string;
+}
+
+export function fetchSettings(): Promise<UsageSettings> {
+  return requestJson<UsageSettings>("GET", "/api/settings");
+}
+
+export function saveSettings(settings: UsageSettings): Promise<UsageSettings> {
+  return postJson<UsageSettings>("/api/settings", settings);
 }

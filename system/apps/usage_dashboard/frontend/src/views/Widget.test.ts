@@ -8,6 +8,7 @@ import { formatClock } from "../models/format";
 import { providerCards } from "../models/providers";
 import type { WidgetModel } from "../models/widget";
 import { totalsRow } from "../testing/rows";
+import type { WidgetVariant } from "../models/widgetVariant";
 import { Widget } from "./Widget";
 
 const NOW = new Date("2026-10-22T20:00:00Z");
@@ -27,10 +28,14 @@ function reading(patch: Partial<LimitReading>): LimitReading {
 
 const WEEKLY = { window: "seven_day", label: "7d", window_seconds: 604_800, resets_at: "2026-10-26T21:00:00Z" };
 
-function rendered(limits: LimitReading[], mode: "expanded" | "collapsed"): HTMLElement {
+function rendered(
+  limits: LimitReading[],
+  mode: "expanded" | "collapsed",
+  variant: WidgetVariant = "rings",
+): HTMLElement {
   const model = { cards: providerCards(limits, [], NOW), isLive: true, isCatchingUp: false } as WidgetModel;
   const root = document.createElement("div");
-  m.render(root, m(Widget, { model, mode }));
+  m.render(root, m(Widget, { model, mode, variant }));
   return root;
 }
 
@@ -80,7 +85,7 @@ describe("the collapsed Usage widget", () => {
       isCatchingUp: false,
     } as WidgetModel;
     const root = document.createElement("div");
-    m.render(root, m(Widget, { model, mode: "collapsed" }));
+    m.render(root, m(Widget, { model, mode: "collapsed", variant: "rings" }));
     expect(root.querySelector("[data-widget-rings]")).toBeNull();
     expect(root.textContent).toContain("$9.50");
     expect(rendered([reading({})], "expanded").querySelector("[data-widget-row]")).not.toBeNull();
@@ -105,5 +110,52 @@ describe("the expanded Usage widget", () => {
       new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" }),
     ]);
     expect(section?.querySelector('[data-ring="outer"]')?.getAttribute("stroke")).toBe("var(--widget-critical)");
+  });
+});
+
+describe("the bars version of the Usage widget", () => {
+  it("draws a row per subscription with the 5-hour bar above the weekly one, explained only under the pointer", () => {
+    const root = rendered(
+      [reading({ used_percentage: 61 }), reading({ ...WEEKLY, used_percentage: 92 })],
+      "expanded",
+      "bars",
+    );
+
+    expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-variant")).toBe("bars");
+    const row = root.querySelector('[data-widget-row="subscription:claude"]');
+    expect(row?.textContent).toContain("Claude");
+    const short = row?.querySelector('[data-widget-bar="short"]') as HTMLElement;
+    const long = row?.querySelector('[data-widget-bar="long"]') as HTMLElement;
+    expect([short.style.width, short.style.background]).toEqual(["61%", "var(--widget-short)"]);
+    expect([long.style.width, long.style.background]).toEqual(["92%", "var(--widget-critical)"]);
+    expect([...(row?.querySelectorAll("[data-widget-percent]") ?? [])].map((figure) => figure.textContent)).toEqual([
+      "61%",
+      "92%",
+    ]);
+    // Which window a bar stands for, and when it resets, is hidden until the pointer is over the widget.
+    const details = [...(row?.querySelectorAll("[data-widget-bar-detail]") ?? [])];
+    expect(details.map((detail) => detail.textContent)).toEqual([
+      `5h · ${formatClock(new Date("2026-10-22T22:30:00Z"))}`,
+      `wk · ${new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" })}`,
+    ]);
+    expect(details.every((detail) => detail.className.includes("opacity-0"))).toBe(true);
+    expect(row?.textContent).not.toContain("5-hour");
+    expect(row?.textContent).not.toContain("Weekly");
+  });
+
+  it("collapses to the name, both bars and the 5-hour figure, and empties a reset window's bar", () => {
+    const root = rendered(
+      [reading({ resets_at: "2026-10-22T19:00:00Z" }), reading({ ...WEEKLY, used_percentage: 34 })],
+      "collapsed",
+      "bars",
+    );
+
+    const row = root.querySelector('[data-widget-row="subscription:claude"]');
+    expect((row?.querySelector('[data-widget-bar="short"]') as HTMLElement).style.width).toBe("0%");
+    expect((row?.querySelector('[data-widget-bar="long"]') as HTMLElement).style.width).toBe("34%");
+    expect([...(row?.querySelectorAll("[data-widget-percent]") ?? [])].map((figure) => figure.textContent)).toEqual([
+      "—",
+    ]);
+    expect(row?.querySelector("[data-widget-bar-detail]")).toBeNull();
   });
 });
