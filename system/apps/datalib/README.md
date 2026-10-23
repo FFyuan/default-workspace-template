@@ -140,5 +140,5 @@ into the default library, and the registered manifest copy;
 `test_datalib_app.py` runs the launcher as a process, through
 the real `forward_port.py` and around a fake `datalib-http`
 (`datalib_launcher_testing.py`); `test_datalib_pin.py` holds the skill to the
-version the install script installs, and keeps the program out of
-`system/supervisord.conf.d/`.
+version the install script installs and to the data root the app serves, and
+keeps the program out of `system/supervisord.conf.d/`.
