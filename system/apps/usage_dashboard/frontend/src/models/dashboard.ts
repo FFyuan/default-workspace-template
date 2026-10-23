@@ -1,9 +1,9 @@
 /**
  * The page's state: the chosen window, breakdown and filter, what the collector last answered for them, the
- * latest calls, and the live stream that keeps them current.
+ * latest turns, and the live stream that keeps them current.
  *
  * The page never adds up streamed calls itself: a new call schedules a refetch of the totals shortly after
- * (debounced, so a burst costs one), and the calls list takes the call as it arrives. The live windows refetch on
+ * (debounced, so a burst costs one), and of the first page of turns too. The live windows refetch on
  * every new call; the long ones at most every SLOW_REFRESH_MS. A timer refetches every PERIODIC_REFRESH_MS too,
  * so a rolling window keeps moving with no calls at all.
  */
@@ -14,15 +14,19 @@ import {
   type LatencyRow,
   type ModelCall,
   type StoredCall,
+  type TurnRow,
   type TotalsRow,
   fetchAppNames,
   fetchChatAndRoutineTitles,
   fetchCalls,
+  fetchTurns,
   fetchCollectorHealth,
   fetchLatency,
   fetchLimits,
   fetchTotals,
   isUnreachable,
+  turnFilter,
+  turnKey,
 } from "./api";
 import {
   type BreakdownId,
@@ -46,6 +50,8 @@ import { type WindowId, windowSpec, windowStart } from "./windows";
 export const EVENT_DEBOUNCE_MS = 2_000;
 export const SLOW_REFRESH_MS = 30_000;
 export const PERIODIC_REFRESH_MS = 60_000;
+// More calls than one turn makes in practice; the collector answers up to 500.
+const TURN_CALLS_LIMIT = 500;
 
 export type ChartMetric = "spend" | "tokens" | "usage";
 
@@ -109,12 +115,15 @@ export class DashboardModel {
   /** The cards at the top, which answer for now and this month whatever the Details window or filter. */
   providers: ProviderCard[] | null = null;
   data: DashboardData | null = null;
-  calls: StoredCall[] = [];
-  /** How many calls match the page's item and filter, over every page. */
-  callsTotal = 0;
-  /** The page of calls shown, from 1. */
-  callsPage = 1;
-  callsPerPage: RowsPerPage = DEFAULT_ROWS_PER_PAGE;
+  turns: TurnRow[] = [];
+  /** How many turns the page's item and filter have, over every page. */
+  turnsTotal = 0;
+  /** The page of turns shown, from 1. */
+  turnsPage = 1;
+  turnsPerPage: RowsPerPage = DEFAULT_ROWS_PER_PAGE;
+  /** The turn opened to its calls, by its key, and those calls once loaded. */
+  expandedTurnKey: string | null = null;
+  expandedTurnCalls: StoredCall[] | null = null;
   sourceNames: SourceNames = NO_SOURCE_NAMES;
   isLoading = false;
   isCollectorDown = false;
@@ -124,7 +133,8 @@ export class DashboardModel {
   expandedCallId: string | null = null;
 
   private generation = 0;
-  private callsGeneration = 0;
+  private turnsGeneration = 0;
+  private turnsReload: ReturnType<typeof setTimeout> | null = null;
   private lastRefreshAt = 0;
   private stream: StreamLike | null = null;
   private wasDisconnected = false;
@@ -139,7 +149,7 @@ export class DashboardModel {
   start(): void {
     void this.loadSourceNames();
     void this.refresh();
-    void this.loadCalls();
+    void this.loadTurns();
     this.connectStream();
     this.periodic = setInterval(() => {
       void this.refresh();
@@ -161,7 +171,7 @@ export class DashboardModel {
   stop(): void {
     this.stream?.close();
     this.stream = null;
-    for (const timer of [this.eventRefresh, this.retry]) if (timer !== null) clearTimeout(timer);
+    for (const timer of [this.eventRefresh, this.retry, this.turnsReload]) if (timer !== null) clearTimeout(timer);
     if (this.periodic !== null) clearInterval(this.periodic);
   }
 
@@ -190,7 +200,7 @@ export class DashboardModel {
     this.filter =
       filter !== null && this.filter !== null && filterKey(filter) === filterKey(this.filter) ? null : filter;
     void this.refresh();
-    this.showCallsPage(1);
+    this.showTurnsPage(1);
   }
 
   toggleCall(eventId: string): void {
@@ -340,50 +350,86 @@ export class DashboardModel {
     }
   }
 
-  /** Load the page of calls shown, for the current filter. */
-  async loadCalls(): Promise<void> {
-    const generation = ++this.callsGeneration;
+  /** Load the page of turns shown, for the current filter, and the opened turn's calls if it is still there. */
+  async loadTurns(): Promise<void> {
+    const generation = ++this.turnsGeneration;
     try {
-      const answer = await fetchCalls({
+      const answer = await fetchTurns({
         filters: this.callFilters(this.filter),
-        limit: this.callsPerPage,
-        offset: pageOffset(this.callsPage, this.callsPerPage),
+        limit: this.turnsPerPage,
+        offset: pageOffset(this.turnsPage, this.turnsPerPage),
       });
-      if (generation !== this.callsGeneration) return;
-      this.calls = answer.calls;
-      this.callsTotal = answer.total;
-      // Calls can leave between asks only through a rebuilt index, which can leave the page past the last one.
-      const count = pageCount(answer.total, this.callsPerPage);
-      if (this.callsPage > count) {
-        this.showCallsPage(count);
+      if (generation !== this.turnsGeneration) return;
+      this.turns = answer.turns;
+      this.turnsTotal = answer.total;
+      // Turns can leave between asks only through a rebuilt index, which can leave the page past the last one.
+      const count = pageCount(answer.total, this.turnsPerPage);
+      if (this.turnsPage > count) {
+        this.showTurnsPage(count);
         return;
       }
+      const expanded = this.turns.find((turn) => turnKey(turn) === this.expandedTurnKey);
+      if (expanded !== undefined) void this.loadTurnCalls(expanded);
     } catch (error) {
-      this.noteFailure(error, () => void this.loadCalls());
+      this.noteFailure(error, () => void this.loadTurns());
     }
     this.deps.redraw();
   }
 
-  /** Show ``perPage`` calls to a page, on the page holding the first call shown before. */
-  selectCallsPerPage(perPage: RowsPerPage): void {
-    const page = pageHolding(pageOffset(this.callsPage, this.callsPerPage), perPage);
-    this.callsPerPage = perPage;
-    this.showCallsPage(page);
+  /** Show ``perPage`` turns to a page, on the page holding the first turn shown before. */
+  selectTurnsPerPage(perPage: RowsPerPage): void {
+    const page = pageHolding(pageOffset(this.turnsPage, this.turnsPerPage), perPage);
+    this.turnsPerPage = perPage;
+    this.showTurnsPage(page);
   }
 
-  showCallsPage(page: number): void {
-    this.callsPage = page;
+  showTurnsPage(page: number): void {
+    this.turnsPage = page;
+    this.collapseTurn();
+    void this.loadTurns();
+  }
+
+  /** Open a turn to its calls, or close it when it is the one open. */
+  toggleTurn(turn: TurnRow): void {
+    if (this.expandedTurnKey === turnKey(turn)) {
+      this.collapseTurn();
+    } else {
+      this.expandedTurnKey = turnKey(turn);
+      this.expandedTurnCalls = null;
+      this.expandedCallId = null;
+      void this.loadTurnCalls(turn);
+    }
+    this.deps.redraw();
+  }
+
+  private collapseTurn(): void {
+    this.expandedTurnKey = null;
+    this.expandedTurnCalls = null;
     this.expandedCallId = null;
-    void this.loadCalls();
   }
 
-  /** Take one streamed call: show it if it matches the filter, and schedule a refetch of the totals. */
+  /** One turn's calls within the page's scope, newest first. */
+  private async loadTurnCalls(turn: TurnRow): Promise<void> {
+    const key = turnKey(turn);
+    try {
+      const answer = await fetchCalls({
+        filters: { ...this.callFilters(this.filter), ...turnFilter(turn) },
+        limit: TURN_CALLS_LIMIT,
+      });
+      if (this.expandedTurnKey !== key) return;
+      this.expandedTurnCalls = answer.calls;
+    } catch (error) {
+      this.noteFailure(error, () => undefined);
+    }
+    this.deps.redraw();
+  }
+
+  /** Take one streamed call: schedule a refetch of the first page of turns if it belongs there, and of the totals. */
   receiveCall(call: ModelCall): void {
     const group = callGroup(call);
-    if (matchesFilter(group, this.filter) && inScope(group, this.deps.route)) {
-      this.callsTotal += 1;
-      // Only the first page takes new calls in; a later one keeps the rows being read.
-      if (this.callsPage === 1) this.addNewestCall({ sequence: 0, event: call });
+    // Only the first page takes new turns in; a later one keeps the rows being read.
+    if (matchesFilter(group, this.filter) && inScope(group, this.deps.route) && this.turnsPage === 1) {
+      this.scheduleTurnsReload();
     }
     this.scheduleEventRefresh();
     this.deps.redraw();
@@ -409,12 +455,13 @@ export class DashboardModel {
     this.errorMessage = error instanceof Error ? error.message : String(error);
   }
 
-  /** Put a new call at the top of the first page, keeping the page to its length. */
-  private addNewestCall(call: StoredCall): void {
-    if (this.calls.some((known) => known.event.event_id === call.event.event_id)) return;
-    this.calls = [call, ...this.calls]
-      .sort((a, b) => Date.parse(b.event.ended_at) - Date.parse(a.event.ended_at))
-      .slice(0, this.callsPerPage);
+  /** Reload the turns shortly, so a burst of calls (one turn's, typically) costs one reload. */
+  private scheduleTurnsReload(): void {
+    if (this.turnsReload !== null) return;
+    this.turnsReload = setTimeout(() => {
+      this.turnsReload = null;
+      void this.loadTurns();
+    }, EVENT_DEBOUNCE_MS);
   }
 
   private scheduleEventRefresh(): void {
@@ -455,9 +502,9 @@ export class DashboardModel {
     };
   }
 
-  /** After a reconnect: the page of calls again, with any stored while the stream was down, then fresh totals. */
+  /** After a reconnect: the page of turns again, with any calls stored while the stream was down, then fresh totals. */
   private fillGap(): void {
-    void this.loadCalls();
+    void this.loadTurns();
     void this.refresh();
   }
 }

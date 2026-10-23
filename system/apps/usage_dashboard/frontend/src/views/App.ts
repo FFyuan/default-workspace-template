@@ -10,7 +10,7 @@ import { inputClass } from "@imbue/workspace-ui/src/components/Input";
 import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 
-import type { LatencyRow, StoredCall, TotalsRow } from "../models/api";
+import { type LatencyRow, type StoredCall, type TotalsRow, type TurnRow, turnKey } from "../models/api";
 import {
   BREAKDOWNS,
   type BreakdownId,
@@ -289,109 +289,185 @@ function callShare(call: StoredCall, scale: UsageScale): number | null {
   return Number(cost) * scale.percentPerDollar;
 }
 
-function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): m.Vnode {
+/** What one row of the latest turns shows, for a turn or one of its calls. */
+interface ActivityCells {
+  endedAt: Date;
+  source: string;
+  model: string;
+  modelTitle?: string;
+  calls: number | null;
+  tokens: number;
+  cost: string;
+  /** The row's estimated share of each limit column, in the columns' order; null where it has none. */
+  shares: (number | null)[];
+  durationMs: number;
+  status: { text: string; isOk: boolean };
+}
+
+function activityCells(cells: ActivityCells, now: Date, columns: UsageColumns, lead: m.Children): m.Children {
+  const cell = "py-1.5 pr-3 text-right tabular-nums text-secondary";
+  return [
+    m("td", { class: "whitespace-nowrap py-1.5 pr-3 tabular-nums text-secondary" }, [
+      lead,
+      formatCallTime(cells.endedAt, now),
+    ]),
+    m("td", { class: "max-w-48 truncate py-1.5 pr-3 text-primary" }, cells.source),
+    m("td", { class: "max-w-48 truncate py-1.5 pr-3 text-secondary", title: cells.modelTitle }, cells.model),
+    m("td", { class: cell }, cells.calls === null ? "" : formatCount(cells.calls)),
+    m("td", { class: cell }, formatCount(cells.tokens)),
+    columns.length === 0 ? m("td", { class: cell }, cells.cost) : null,
+    columns.map((limit, index) => {
+      const share = cells.shares[index] ?? null;
+      return m(
+        "td",
+        { key: limit.scale.windowKey, class: `call-usage ${cell}`, "data-limit": limit.scale.windowKey },
+        share === null ? "–" : formatShare(share),
+      );
+    }),
+    m("td", { class: cell }, cells.durationMs > 0 ? formatDuration(cells.durationMs) : "–"),
+    m("td", { class: `py-1.5 ${cells.status.isOk ? "text-faint" : "text-danger"}` }, cells.status.text),
+  ];
+}
+
+function turnCells(turn: TurnRow, model: DashboardModel, columns: UsageColumns): ActivityCells {
+  const subscription = turn.subscription_cost_usd === null ? null : Number(turn.subscription_cost_usd);
+  const [first, ...rest] = turn.models;
+  return {
+    endedAt: new Date(turn.ended_at),
+    source: sourceLabel(turn.origin_kind, turn.origin_id, model.sourceNames),
+    model: first === undefined ? "Unknown model" : `${modelLabel(first)}${rest.length > 0 ? ` +${rest.length}` : ""}`,
+    modelTitle: turn.models.map(modelLabel).join(", "),
+    calls: turn.calls,
+    tokens: totalTokens(turn.tokens),
+    cost:
+      turn.billed_cost_usd !== null
+        ? `${turn.is_billed_cost_estimated ? "~" : ""}${formatDollars(Number(turn.billed_cost_usd))}`
+        : turn.unknown_cost_calls > 0
+          ? "unknown"
+          : "Subscription",
+    shares: columns.map((limit) => (subscription === null ? null : subscription * limit.scale.percentPerDollar)),
+    durationMs: Date.parse(turn.ended_at) - Date.parse(turn.started_at),
+    status:
+      turn.failed_calls === 0
+        ? { text: "ok", isOk: true }
+        : { text: `${formatCount(turn.failed_calls)} failed`, isOk: false },
+  };
+}
+
+function callCells(call: StoredCall, model: DashboardModel, columns: UsageColumns): ActivityCells {
+  const event = call.event;
+  const group = callGroup(event);
+  return {
+    endedAt: new Date(event.ended_at),
+    source: sourceLabel(group.origin_kind, group.origin_id, model.sourceNames),
+    model: modelLabel(event.model),
+    calls: null,
+    tokens: callTokens(call),
+    cost: callCost(call),
+    shares: columns.map((limit) => callShare(call, limit.scale)),
+    durationMs: Date.parse(event.ended_at) - Date.parse(event.started_at),
+    status: { text: event.status.toLowerCase().replace("_", " "), isOk: event.status === "OK" },
+  };
+}
+
+/**
+ * The latest turns: one row per turn (a user message and every call it led to, or a call no writer gave a turn),
+ * newest first, each opening to its calls, and each call to its raw event.
+ */
+function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): m.Vnode {
   const showsMoney = columns.length === 0;
-  const columnCount = 6 + (showsMoney ? 1 : columns.length);
+  const columnCount = 7 + (showsMoney ? 1 : columns.length);
+  const callRows = (turn: TurnRow): m.Vnode[] => {
+    const calls = model.expandedTurnCalls;
+    if (calls === null) {
+      return [
+        m("tr", { key: `${turnKey(turn)}:loading`, class: "border-b border-subtle bg-surface-secondary" }, [
+          m("td", { colspan: columnCount, class: "py-2 pl-6 type-helper text-faint" }, "Loading calls…"),
+        ]),
+      ];
+    }
+    return calls.flatMap((call) => {
+      const event = call.event;
+      const isOpen = model.expandedCallId === event.event_id;
+      const rows = [
+        m(
+          "tr",
+          {
+            key: event.event_id,
+            class: "call-row cursor-pointer border-b border-subtle bg-surface-secondary hover:bg-fill-hover",
+            "data-call": event.event_id,
+            title: isOpen ? "Hide the raw event" : "Show the raw event",
+            onclick: () => model.toggleCall(event.event_id),
+          },
+          activityCells(callCells(call, model, columns), now, columns, m("span", { class: "inline-block w-6" })),
+        ),
+      ];
+      if (isOpen) {
+        rows.push(
+          m("tr", { key: `${event.event_id}:raw`, class: "border-b border-subtle bg-surface-secondary" }, [
+            m("td", { colspan: columnCount, class: "py-2 pl-6" }, [
+              m(
+                "pre",
+                {
+                  class:
+                    "call-raw max-h-80 overflow-auto rounded-md bg-surface p-3 font-mono type-helper text-secondary",
+                },
+                JSON.stringify(event, null, 2),
+              ),
+            ]),
+          ]),
+        );
+      }
+      return rows;
+    });
+  };
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
-      m("h2", { class: "type-section text-primary" }, "Latest calls"),
+      m("h2", { class: "type-section text-primary" }, "Latest turns"),
       m("span", { class: "type-helper text-faint" }, model.filter === null ? "All usage" : "Filtered"),
     ]),
-    model.calls.length === 0
-      ? m("div", { class: "type-helper text-faint" }, "No calls yet.")
+    model.turns.length === 0
+      ? m("div", { class: "type-helper text-faint" }, "No turns yet.")
       : m("div", { class: "overflow-x-auto" }, [
-          m("table", { class: "calls-table w-full border-collapse type-body" }, [
+          m("table", { class: "turns-table w-full border-collapse type-body" }, [
             m("thead", [
               m("tr", { class: "border-b border-default text-left type-tag uppercase tracking-wide text-faint" }, [
-                m("th", { class: "py-1.5 pr-3 font-normal" }, "Time"),
+                m("th", { class: "py-1.5 pr-3 pl-6 font-normal" }, "Time"),
                 m("th", { class: "py-1.5 pr-3 font-normal" }, "Source"),
                 m("th", { class: "py-1.5 pr-3 font-normal" }, "Model"),
+                m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Calls"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Tokens"),
                 showsMoney ? m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Cost") : null,
-                columns.map((limit) => limitHeader(limit, "from the call's list price")),
+                columns.map((limit) => limitHeader(limit, "from the list price of its calls")),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Duration"),
                 m("th", { class: "py-1.5 font-normal" }, "Status"),
               ]),
             ]),
             m(
               "tbody",
-              model.calls.flatMap((call) => {
-                const event = call.event;
-                const group = callGroup(event);
-                const duration = Date.parse(event.ended_at) - Date.parse(event.started_at);
-                const isExpanded = model.expandedCallId === event.event_id;
-                const rows = [
+              model.turns.flatMap((turn) => {
+                const key = turnKey(turn);
+                const isOpen = model.expandedTurnKey === key;
+                return [
                   m(
                     "tr",
                     {
-                      key: event.event_id,
-                      class: "call-row cursor-pointer border-b border-subtle hover:bg-fill-hover",
-                      "data-call": event.event_id,
-                      title: isExpanded ? "Hide the raw event" : "Show the raw event",
-                      onclick: () => model.toggleCall(event.event_id),
+                      key,
+                      class: "turn-row cursor-pointer border-b border-subtle hover:bg-fill-hover",
+                      "data-turn": key,
+                      "aria-expanded": isOpen ? "true" : "false",
+                      title: isOpen ? "Hide its calls" : "Show its calls",
+                      onclick: () => model.toggleTurn(turn),
                     },
-                    [
-                      m(
-                        "td",
-                        { class: "whitespace-nowrap py-1.5 pr-3 tabular-nums text-secondary" },
-                        formatCallTime(new Date(event.ended_at), now),
-                      ),
-                      m(
-                        "td",
-                        { class: "max-w-48 truncate py-1.5 pr-3 text-primary" },
-                        sourceLabel(group.origin_kind, group.origin_id, model.sourceNames),
-                      ),
-                      m("td", { class: "max-w-48 truncate py-1.5 pr-3 text-secondary" }, modelLabel(event.model)),
-                      m(
-                        "td",
-                        { class: "py-1.5 pr-3 text-right tabular-nums text-secondary" },
-                        formatCount(callTokens(call)),
-                      ),
-                      showsMoney
-                        ? m("td", { class: "py-1.5 pr-3 text-right tabular-nums text-secondary" }, callCost(call))
-                        : null,
-                      columns.map((limit) => {
-                        const share = callShare(call, limit.scale);
-                        return m(
-                          "td",
-                          {
-                            key: limit.scale.windowKey,
-                            class: "call-usage py-1.5 pr-3 text-right tabular-nums text-secondary",
-                            "data-limit": limit.scale.windowKey,
-                          },
-                          share === null ? "–" : formatShare(share),
-                        );
-                      }),
-                      m(
-                        "td",
-                        { class: "py-1.5 pr-3 text-right tabular-nums text-secondary" },
-                        duration > 0 ? formatDuration(duration) : "–",
-                      ),
-                      m(
-                        "td",
-                        { class: `py-1.5 ${event.status === "OK" ? "text-faint" : "text-danger"}` },
-                        event.status.toLowerCase().replace("_", " "),
-                      ),
-                    ],
+                    activityCells(
+                      turnCells(turn, model, columns),
+                      now,
+                      columns,
+                      m("span", { class: "inline-block w-6 text-faint", "aria-hidden": "true" }, isOpen ? "▾" : "▸"),
+                    ),
                   ),
+                  ...(isOpen ? callRows(turn) : []),
                 ];
-                if (isExpanded) {
-                  rows.push(
-                    m("tr", { key: `${event.event_id}:raw`, class: "border-b border-subtle" }, [
-                      m("td", { colspan: columnCount, class: "py-2" }, [
-                        m(
-                          "pre",
-                          {
-                            class:
-                              "call-raw max-h-80 overflow-auto rounded-md bg-surface-secondary p-3 font-mono type-helper text-secondary",
-                          },
-                          JSON.stringify(event, null, 2),
-                        ),
-                      ]),
-                    ]),
-                  );
-                }
-                return rows;
               }),
             ),
           ]),
@@ -401,23 +477,23 @@ function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
 }
 
 /**
- * The latest calls' pager, laid out as data tables usually are: the calls shown on the left; on the right the
+ * The latest turns' pager, laid out as data tables usually are: the calls shown on the left; on the right the
  * page numbers, how many rows to a page, and a box to jump to a page. Nothing while every call fits on the
  * smallest page.
  */
 function callPager(model: DashboardModel): m.Vnode | null {
-  const perPage = model.callsPerPage;
-  if (model.callsTotal <= ROWS_PER_PAGE_CHOICES[0]) return null;
-  const count = pageCount(model.callsTotal, perPage);
-  const current = model.callsPage;
-  const [first, last] = pageRange(current, perPage, model.callsTotal);
+  const perPage = model.turnsPerPage;
+  if (model.turnsTotal <= ROWS_PER_PAGE_CHOICES[0]) return null;
+  const count = pageCount(model.turnsTotal, perPage);
+  const current = model.turnsPage;
+  const [first, last] = pageRange(current, perPage, model.turnsTotal);
   const pageButton = (page: number, label: string, attrs: Record<string, unknown>): m.Vnode =>
     m(
       Button,
       {
         variant: "ghost",
         extra: "min-w-[34px] px-2 tabular-nums",
-        onclick: () => model.showCallsPage(page),
+        onclick: () => model.showTurnsPage(page),
         ...attrs,
       },
       label,
@@ -428,7 +504,7 @@ function callPager(model: DashboardModel): m.Vnode | null {
     m(
       "span",
       { class: "calls-range type-helper tabular-nums text-secondary" },
-      `${first.toLocaleString()}–${last.toLocaleString()} of ${model.callsTotal.toLocaleString()} calls`,
+      `${first.toLocaleString()}–${last.toLocaleString()} of ${model.turnsTotal.toLocaleString()} turns`,
     ),
     m("div", { class: "flex flex-wrap items-center justify-end gap-x-4 gap-y-2" }, [
       count === 1
@@ -454,7 +530,7 @@ function callPager(model: DashboardModel): m.Vnode | null {
           value: String(perPage),
           placeholder: `${perPage} / page`,
           "aria-label": "Rows per page",
-          onSelect: (value: string) => model.selectCallsPerPage(Number(value) as RowsPerPage),
+          onSelect: (value: string) => model.selectTurnsPerPage(Number(value) as RowsPerPage),
         }),
       ]),
       count === 1
@@ -472,7 +548,7 @@ function callPager(model: DashboardModel): m.Vnode | null {
                   const field = event.target as HTMLInputElement;
                   const page = typedPage(field.value, count);
                   field.value = "";
-                  if (page !== null) model.showCallsPage(page);
+                  if (page !== null) model.showTurnsPage(page);
                 },
               }),
             ]),
@@ -841,7 +917,7 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
                   : "No calls in this window. Try 7 days or this month.",
               )
             : figuresView(model, data, figures, kind, selectedKey, now, colors, columns),
-        callsSection(model, now, columns),
+        turnsSection(model, now, columns),
       ]),
     ]),
   ];

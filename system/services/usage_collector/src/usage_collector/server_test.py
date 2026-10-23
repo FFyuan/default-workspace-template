@@ -166,3 +166,18 @@ def test_one_turns_calls_and_totals_by_turn_answer_over_http(
     assert sorted(
         (row["group"]["turn_id"] or "", row["calls"]) for row in totals["rows"]
     ) == [("", 1), ("request-1", 1)]
+
+
+def test_turns_answer_over_http_with_their_total(
+    client: FlaskClient, ingestor: Ingestor
+) -> None:
+    ingestor.ingest(model_call_payload(attribution={"turn_id": "t-1"}))
+    ingestor.ingest(model_call_payload(attribution={"turn_id": "t-1"}))
+
+    answer = client.get("/v1/turns", query_string={"origin_id": "files"}).get_json()
+
+    assert [(turn["turn_id"], turn["calls"]) for turn in answer["turns"]] == [
+        ("t-1", 2)
+    ]
+    assert answer["total"] == 1
+    assert client.get("/v1/turns", query_string={"limit": "0"}).status_code == 400

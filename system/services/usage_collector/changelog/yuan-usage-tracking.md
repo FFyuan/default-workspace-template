@@ -17,3 +17,5 @@ It also answers the questions the Usage app asks:
 - The collector keeps the id of every event it has counted, past the 90 days it keeps raw events, so a file read again from its start (a destroyed agent's preserved copy, a restored backup) never counts an old call twice.
 
 The usage collector stores each call's `turn_id` (a new, indexed column; an existing database gains it when the collector starts). Totals can be grouped by `turn_id` (`/v1/totals?group_by=turn_id`), and `/v1/calls` filters by `turn_id`, `session_id` and `run_id` as well as the rollup dimensions, e.g. `?turn_id=<id>` for one turn's calls.
+
+`GET /v1/turns` lists the turns of the calls its filters keep (a call with no turn id is a turn of its own), latest first and paged by `offset`, each with its calls, failures, tokens, billed cost, subscription list price, models and source, and how many turns there are; `/v1/calls` also filters by `event_id`, so a turn of one call can be opened.

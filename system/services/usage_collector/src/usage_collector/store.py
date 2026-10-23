@@ -57,15 +57,20 @@ GROUPABLE_DIMENSIONS: Final[tuple[str, ...]] = (
     "workspace_id",
     "cost_provenance",
 )
-# The filters a calls query takes: the rollup dimensions a dashboard groups by, the provider, and the
-# session, run and turn a call belongs to.
+# The filters a calls query takes: the rollup dimensions a dashboard groups by, the provider, the
+# session, run and turn a call belongs to, and the call itself (a turn of one call with no turn id).
 CALL_FILTER_DIMENSIONS: Final[tuple[str, ...]] = (
     *ROLLUP_DIMENSIONS,
     "provider",
     "session_id",
     "run_id",
     "turn_id",
+    "event_id",
 )
+# The billing modes whose cost is spend; a subscription's calls are priced at list price instead.
+BILLED_MODES: Final[tuple[str, ...]] = ("IMBUE_KEY", "API_KEY")
+# What a turn is grouped by: its turn id, or, for a call no writer gave one, the call alone.
+_TURN_KEY: Final[str] = "COALESCE(turn_id, 'call:' || event_id)"
 DEFAULT_CALLS_LIMIT: Final[int] = 50
 MAX_CALLS_LIMIT: Final[int] = 500
 # Harnesses whose start time is read off a log line, not measured, so their durations are approximate.
@@ -194,6 +199,39 @@ class LatencyRow(FrozenModel):
     p95_ms: float | None = Field(
         description="95th percentile duration; None with no timed calls"
     )
+
+
+class TurnRow(FrozenModel):
+    """One turn's calls, among those a turns query's filters keep: one user message's, or one call's alone."""
+
+    turn_id: str | None = Field(
+        description="The turn's id; None for a call no writer gave one"
+    )
+    event_id: str | None = Field(
+        description="For a turn with no turn id, its one call's event id; None otherwise"
+    )
+    started_at: datetime = Field(description="When the turn's first call started")
+    ended_at: datetime = Field(description="When the turn's last call ended")
+    calls: int
+    failed_calls: int = Field(description="Calls that did not end OK")
+    unknown_cost_calls: int = Field(
+        description="Calls whose spend is not known: billed with no cost, or of no known billing mode"
+    )
+    tokens: dict[str, int]
+    billed_cost_usd: Decimal | None = Field(
+        description="What the Imbue key and API key calls cost; None when there were none priced"
+    )
+    is_billed_cost_estimated: bool = Field(
+        description="Whether any billed cost was estimated from tokens rather than reported"
+    )
+    subscription_cost_usd: Decimal | None = Field(
+        description="The subscription calls at list price, which nothing bills; None when there were none priced"
+    )
+    models: list[str] = Field(description="The models the turn's calls used")
+    origin_kind: str = Field(
+        description="What made the turn's calls: a chat, an app, a routine, ..."
+    )
+    origin_id: str | None
 
 
 class StoredCall(FrozenModel):
@@ -554,6 +592,53 @@ class UsageStore:
             for row in rows
         ]
 
+    def turns(
+        self,
+        filters: Mapping[str, Sequence[str]],
+        limit: int = DEFAULT_CALLS_LIMIT,
+        offset: int = 0,
+    ) -> list[TurnRow]:
+        """The turns of the calls ``filters`` keep, latest-ending first, each summing only those calls.
+
+        A call with no turn id is a turn of its own. ``offset`` skips that many of the latest turns.
+        """
+        if not 1 <= limit <= MAX_CALLS_LIMIT:
+            raise UsageStoreError(f"limit must be between 1 and {MAX_CALLS_LIMIT}")
+        if offset < 0:
+            raise UsageStoreError("offset must not be negative")
+        clauses, parameters = _call_filters(filters)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        billed = ", ".join(f"'{mode}'" for mode in BILLED_MODES)
+        tokens = ", ".join(f"SUM(COALESCE({column}, 0))" for column in TOKEN_COLUMNS)
+        query = (
+            f"SELECT MIN(turn_id), CASE WHEN COUNT(turn_id) = 0 THEN MIN(event_id) END, "
+            "MIN(started_at), MAX(ended_at), COUNT(*), SUM(status != 'OK'), "
+            f"SUM(CASE WHEN billing_mode IN ({billed}) THEN cost_usd IS NULL "
+            "WHEN billing_mode = 'SUBSCRIPTION' THEN 0 ELSE 1 END), "
+            f"{tokens}, "
+            f"SUM(CASE WHEN billing_mode IN ({billed}) THEN cost_usd END), "
+            f"MAX(billing_mode IN ({billed}) AND cost_usd > 0 AND cost_provenance = 'ESTIMATED'), "
+            "SUM(CASE WHEN billing_mode = 'SUBSCRIPTION' THEN cost_usd END), "
+            "GROUP_CONCAT(DISTINCT model), MIN(origin_kind), MIN(origin_id) "
+            f"FROM model_call{where} GROUP BY {_TURN_KEY} "
+            f"ORDER BY MAX(ended_at) DESC, {_TURN_KEY} LIMIT ? OFFSET ?"
+        )
+        with self._lock:
+            rows = self._connection.execute(
+                query, (*parameters, limit, offset)
+            ).fetchall()
+        return [_turn_row(list(row)) for row in rows]
+
+    def count_turns(self, filters: Mapping[str, Sequence[str]]) -> int:
+        """How many turns ``turns`` would page through for ``filters``."""
+        clauses, parameters = _call_filters(filters)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._lock:
+            row = self._connection.execute(
+                f"SELECT COUNT(DISTINCT {_TURN_KEY}) FROM model_call{where}", parameters
+            ).fetchone()
+        return int(row[0])
+
     def count_calls(self, filters: Mapping[str, Sequence[str]]) -> int:
         """How many stored calls ``calls`` would page through for ``filters``."""
         clauses, parameters = _call_filters(filters)
@@ -644,6 +729,34 @@ def _percentile(values: list[float], percent: int) -> float | None:
     ordered = sorted(values)
     rank = max(1, math.ceil(percent / 100 * len(ordered)))
     return ordered[rank - 1]
+
+
+def _turn_row(values: list[object]) -> TurnRow:
+    turn_id, event_id, started_at, ended_at, calls, failed, unknown = values[:7]
+    token_sums = values[7 : 7 + len(TOKEN_COLUMNS)]
+    billed, estimated, subscription, models, origin_kind, origin_id = values[
+        7 + len(TOKEN_COLUMNS) :
+    ]
+    return TurnRow(
+        turn_id=_optional_str(turn_id),
+        event_id=_optional_str(event_id),
+        started_at=datetime.fromtimestamp(float(str(started_at)), tz=timezone.utc),
+        ended_at=datetime.fromtimestamp(float(str(ended_at)), tz=timezone.utc),
+        calls=int(str(calls)),
+        failed_calls=int(str(failed)),
+        unknown_cost_calls=int(str(unknown)),
+        tokens={
+            column: int(str(total)) for column, total in zip(TOKEN_COLUMNS, token_sums)
+        },
+        billed_cost_usd=None if billed is None else _summed_cost(float(str(billed))),
+        is_billed_cost_estimated=bool(estimated),
+        subscription_cost_usd=(
+            None if subscription is None else _summed_cost(float(str(subscription)))
+        ),
+        models=[] if models is None else sorted(str(models).split(",")),
+        origin_kind=str(origin_kind),
+        origin_id=_optional_str(origin_id),
+    )
 
 
 def _optional_str(value: object | None) -> str | None:

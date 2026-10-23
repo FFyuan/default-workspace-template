@@ -26,7 +26,7 @@ The app has three kinds of page, one document reading its path:
 - **`/p/<item>`, a provider's detail page**, where the item is a section key
   (`subscription:anthropic`, `spend:openai`): a list of every provider (with its
   limits or spend) on the left, and on the right the provider's card, the window
-  picker, its tiles, its chart, its breakdown and its latest calls, in numbered pages
+  picker, its tiles, its chart, its breakdown and its latest turns, in numbered pages
   of 10, 20, 50 or 100 rows with a box to jump to a page.
   A provider's subscription use and its use without one are separate items.
   The home page's "See details" link opens the first provider's page.
@@ -37,7 +37,7 @@ data shows. The window is the last 30 minutes, 24 hours, 7 days or this month
 (the billing period, which starts at local midnight on the 1st). Every detail
 query is grouped by provider and billing mode as well, so a provider's figures
 are picked out of the same answers the Total row adds up; a provider's latency
-and its latest calls are asked for on their own, filtered to its provider and
+and its latest turns are asked for on their own, filtered to its provider and
 billing modes, since percentiles do not add up. What the tiles, charts and breakdowns show:
 
 - **Spend**: what was billed, with Imbue key and API key spend apart; a
@@ -57,7 +57,7 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   limits do) and spreads the reported share over them in proportion. The
   breakdown shows each row's estimated share of each limit within that limit's
   most recent window (so a 5-hour column adds up to the 5-hour reading, whatever
-  the time window); the latest calls show each call's estimated share of each
+  the time window); the latest turns show each turn's and each call's estimated share of each
   limit. A subscription's page shows these limit columns in both tables in place
   of spend and cost; any other page shows spend and cost instead. Once a window resets its harness reports nothing for it until the
   next call, so the estimate keeps the last reading's rate (the account's, which
@@ -69,7 +69,11 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   shows a short id.
 - A breakdown by model, source (the app, chat or routine that made the calls) or
   billing mode. Clicking a row filters the whole page to it.
-- The latest calls, newest first, as they happen, each with its raw event.
+- The latest turns, newest first, as they happen: one row per turn (a user
+  message and every call it led to, by the calls' `turn_id`; a call without
+  one is a turn of its own), with its calls, tokens, cost or limit shares,
+  how long it took and how many calls failed. A turn opens to its calls, and a
+  call to its raw event.
 
 Day views ask the collector for hourly buckets and add them up into local days in
 the browser, because the collector's own day buckets start at UTC midnight.
