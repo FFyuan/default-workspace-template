@@ -34,7 +34,8 @@ The app has three kinds of page, one document reading its path:
   "Usage". There the latest turns (and a turn's calls) are two-line rows rather
   than a table: the source and its share of each limit (or its cost) on the first
   line, the time, model, calls, tokens and duration on the second, and its status
-  only when a call failed.
+  only when a call failed; a turn's call leads with its time, its source being
+  the turn's.
   The home page's "See details" link opens the first provider's page.
 - **`/all`**: the same for every provider at once, for a link made by hand.
 
