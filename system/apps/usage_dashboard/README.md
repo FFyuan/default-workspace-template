@@ -49,8 +49,8 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   that failed or were rate-limited, and **latency** (p50 and p95 of each call's
   duration; calls with no duration are counted apart, and durations from Claude
   session logs are marked approximate).
-- Two charts of spend or tokens over the window, side by side: one stacked by
-  source (the app, chat or routine that made the calls), then one by model. A subscription's
+- A chart of spend or tokens over the window, stacked by source (the app, chat or
+  routine that made the calls), or by model when picked beside it. A subscription's
   chart shows its **estimated usage** instead, as a share of its 5-hour or weekly
   limit: a harness reports only each window's total share used, so the page
   prices the provider's subscription calls between the window's start and the
@@ -68,8 +68,8 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   the app registry), a chat by its title (from the chat app's chat list) and a
   routine by its title (from its definition file); one the lookup cannot name
   shows a short id.
-- A breakdown by model, source (the app, chat or routine that made the calls) or
-  billing mode. Clicking a row filters the whole page to it.
+- A breakdown by source (the app, chat or routine that made the calls), model or
+  billing mode, opening on source. Clicking a row filters the whole page to it.
 - The latest turns, newest first, as they happen: one row per turn (a user
   message and every call it led to, by the calls' `turn_id`; a call without
   one is a turn of its own), with its calls, tokens, cost or limit shares,
