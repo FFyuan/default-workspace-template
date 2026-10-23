@@ -1,0 +1,1 @@
+The app contract gains a widget surface: a handshake says whether it frames a window or a widget, and a widget page takes `shell:widget-mode` and sends `shell:widget-size` and `shell:widget-hidden` (`onWidgetMode`, `widgetSize`, `widgetHidden`, `surface()`). A widget sends no location or focus report.

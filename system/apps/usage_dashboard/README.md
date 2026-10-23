@@ -57,6 +57,7 @@ collector, which listens on 127.0.0.1:8795 only:
 | `GET /api/usage/stream` | the collector's server-sent events, relayed |
 | `GET /api/apps` | the display name of every registered app |
 | `GET /api/health` | whether the app is up and its page built |
+| `GET /widget` | the Usage widget, which the workspace shell keeps in a corner of the desktop |
 
 Who sees usage is the workspace's sharing grants, as for any app: the share
 gateway admits a visitor with a workspace-wide grant or a grant on this app, and
@@ -71,3 +72,14 @@ numbers under a banner and retries.
 `frontend/` is a Vite, TypeScript and Mithril build in the `system/package.json`
 npm workspace, using `@imbue/workspace-ui`. `npm run build` in `system/` writes it
 to `src/usage_dashboard/static/`. Charts are plain SVG.
+
+The manifest declares a `[widget]` at `/widget`, enabled by default
+(`docs/system/blueprint/app-widgets/plan-app-widgets.md`, section 7): a second
+Vite entry (`widget.html`, `src/widget.ts`) that reads the limits, this month's
+totals and the collector's health, and reuses the page's provider cards, so the
+two never disagree. Expanded, it is a row per provider (a subscription's
+5-hour bar and weekly figure, an API's spend this month); collapsed, the most
+used subscription window, else the month's spend. It reports its size to the
+shell after every change, hides itself while there is no usage, and opens the
+Usage window when clicked. While the widget is enabled the shell keeps this app
+running, though it declares `stop_when_no_windows`.

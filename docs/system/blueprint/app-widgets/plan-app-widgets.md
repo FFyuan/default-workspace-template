@@ -58,8 +58,9 @@ A client with no presentation for an app draws it `top-right`, `expanded`.
 
 ### 3.4 Stacking
 
-Widgets sharing a corner stack away from it (downward from a top corner, upward from a bottom one) in registry `priority` order, then by app name, separated by the theme's widget gap.
+Widgets sharing a corner stack away from it (downward from a top corner, upward from a bottom one) in registry order, separated by the theme's widget gap.
 The first is nearest the corner. Nothing overlaps; a stack taller than the backdrop is clipped, which with the size cap of section 4.2 needs five widgets in one corner.
+A top corner's stack starts a window title bar's height below the inset, so a maximized window's minimize, maximize, and close controls stay clear of it.
 
 ### 3.5 Lifecycle
 
@@ -101,7 +102,7 @@ Each corner's stack is inset from the backdrop's edges by the theme's widget ins
 
 ### 4.2 The frame
 
-A widget's frame is an iframe of the app's `url` plus the widget's `path`, with the shell's chrome around it: a grip strip along the edge facing away from the corner, shown on hover, and a collapse/expand chevron on it.
+A widget's frame is an iframe of the app's `url` plus the widget's `path`, with the shell's chrome around it: a grip strip of the theme's grip size along its top, which carries the collapse/expand chevron.
 The frame is not drawn until its page first reports a size, so a page that is loading or fails to load leaves no empty box in the corner; a page that never reports is logged once and never drawn.
 The frame's size is the last size its page reported for the current mode, clamped to the theme's widget maximum (320 by 240) and minimum (24 by 24).
 At rest the frame is drawn at the rest opacity; while the pointer is over it, or a menu of it is open, fully opaque.
@@ -142,7 +143,7 @@ The shell then draws nothing for it on that client and keeps the frame loaded, s
 ### 4.8 Phone
 
 The phone layout has no floating layer.
-In its bar, beside the pill, it draws each enabled widget not hidden by its page, always collapsed, clamped to the phone's widget height.
+In a strip just above its bar (the bar's two controls and pill already fill a phone's width), it draws each enabled widget not hidden by its page, always collapsed, no taller than the phone's widget height.
 A tap is the page's, as a click is on the desktop; its link opens the app's window, which the phone shows.
 There is no grip, menu, or corner on a phone.
 
@@ -176,7 +177,7 @@ New socket messages:
 
 | Type | Payload | When |
 |---|---|---|
-| `widgets_updated` | `{"widgets": [{"app", "is_enabled"}]}` | on connect, and after `widgets.json` is written or the registry's widget declarations change |
+| `widgets_updated` | `{"widgets": [{"app", "is_enabled"}]}` | on connect, after `widgets.json` is written, and after a registry read that changed the rows |
 | `client_widgets_changed` | `{"client_id", "widgets"}` | to that client's windows, after its widget presentation was written |
 
 ### 5.4 The lifecycle rule
@@ -186,7 +187,7 @@ The reader reads `widgets.json` and the registry once per sweep pass, and only w
 
 ### 5.5 Agent ops
 
-None in this version: no op enables, disables, or moves a widget, and `desktops`/`list` do not list them.
+None in this version: no op enables, disables, or moves a widget. `desktops` and `list` answer the inventory document, so they list the switches with it.
 Whether a widget is on is the user's choice and the manifest's default.
 
 ## 6. The app contract
@@ -230,7 +231,7 @@ Each row's `title` gives the detail a hover asks for (each window's reset time, 
 
 ### 7.4 Collapsed
 
-One pill: the highest percentage among the subscription windows not reset since their reading, coloured by its level, with its provider's initial (`C 61%`); with no subscription windows, this month's total spend (`$165`).
+One pill: the highest percentage among the subscription windows not reset since their reading, coloured by its level, with its subscription's short name (`Codex 82%`; an initial would not tell Claude from Codex); with no subscription windows, this month's total spend (`$165.21`).
 
 ### 7.5 States
 
@@ -248,15 +249,16 @@ The whole widget is one link, `<a href="/" target="_blank">`, so a click raises 
 
 ## 8. Theme tokens and selectors
 
-Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72`, `--desk-widget-grip-size: 12px` (touch: the touch target), `--desk-phone-widget-height: 32px`.
+Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-grip-size: 12px` (touch: `44px`, the touch target), `--desk-phone-widget-height: 32px`.
 
 | Attribute | On |
 |---|---|
 | `data-widgets` | the widget layer |
 | `data-widget="<app>"`, `data-widget-corner="top-left\|top-right\|bottom-left\|bottom-right"`, `data-widget-mode="expanded\|collapsed"` | each widget's frame |
 | `data-widget-grip`, `data-widget-control="collapse\|expand"` | the grip and its chevron |
-| `data-menu-item="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the grip, shortcut, and launcher menus |
-| `data-phone-widget="<app>"` | each widget in the phone's bar |
+| `data-menu-row="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the grip, shortcut, and launcher menus |
+| `data-widget-frames`, `data-widget-frame="<app>"` | the widget frames' host, and each widget's iframe |
+| `data-phone-widgets`, `data-phone-widget="<app>"` | the strip above the phone's bar, and each widget in it |
 
 ## 9. Amendments to other documents
 
@@ -268,7 +270,7 @@ Landed with this plan:
 Landed with the implementation:
 
 - plan-pinned-taskbar-entries.md 4.2: the floating layer has a sibling widget layer at the same level.
-- plan-phone-interface.md: the bar draws collapsed widgets.
+- plan-phone-interface.md: a strip above the bar draws collapsed widgets.
 - The `build-app` skill's manifest notes: the `[widget]` table, and that an app declaring one must answer its page cheaply, since it is loaded by every client.
 - The Usage app's README: the widget page.
 
@@ -276,25 +278,19 @@ Landed with the implementation:
 
 Unit tests, beside the code:
 
-- The manifest table and its refusals; the registry copy; the inventory field.
-- `widgets.json`: defaults, a stored value, a withdrawn widget's value kept and ignored.
-- The lifecycle rule: an enabled widget clears the idle mark; a disabled one does not; an internal app's widget is never drawn.
-- The client record's `widgets` and its route.
-- Reducers: corner stacks and their order, size clamping, the effective presentation, the hidden-by-page state.
-- `app_contract.ts`: the `surface` field, the three new types, and that a widget's `shell:location` is not sent.
-- Usage widget models: rows from fixture limits and totals, the collapsed choice, each state of 7.5.
+- The manifest table and its refusals; the registry copy (`forward_port.py`); the inventory field.
+- `widgets.json`: defaults, a stored value, an unusable file; the switch routes and their refusals; the client record's `widgets` and its route.
+- The lifecycle rule: an enabled widget clears the idle mark until it is hidden; an internal app's widget holds nothing up.
+- `app_contract.ts`: the `surface` field, the three new types, and that a widget sends no location or focus.
+- Geometry: corner stacks and their order, the title-bar offset of a top corner, size clamping, the corner a drop snaps to.
+- The store: switches and presentations from the inventory and the pushes, drawing only after a size report, the optimistic mode write and its undo, the drag to a corner, show and hide.
+- Usage widget models: rows and the pill from fixture readings and totals, an empty read, a collector still indexing or unreachable.
 
-End to end, in `test_e2e.py`, with a stub app declaring a widget whose page reports a size:
+End to end, with a stub app declaring a widget whose page reports a size per mode:
 
-- The widget appears top-right; it is not drawn before its page reports; a maximized window goes under it.
-- Collapse changes the frame to the collapsed size; the mode survives a reload.
-- A drag to the bottom-left snaps there and survives a reload; a second stub widget in that corner stacks.
-- A click on its `_blank` link raises the stub app's window, and a second click opens no second window.
-- Hide widget removes it from a second client too; Show widget from the shortcut menu brings it back.
-- A phone viewport draws it in the bar.
-- The stub app, with `stop_when_no_windows`, is not stopped with its widget enabled and no window, and is stopped once it is disabled.
-
-A browser test in the Usage app drives `/widget` against a fixture collector.
+- `test_e2e.py`: the widget appears top right below a title bar's height, at the size its page reported; collapse changes it to the collapsed size; a drag of the grip snaps it to the bottom-left corner, written to the client record and kept across a reload; a click on its `_blank` link raises one window of its app however often it is clicked; Hide widget removes it and turns the switch off.
+- `test_e2e.py`, phone viewport: the widget is drawn collapsed in the strip above the bar, and a tap on its link opens its app's window, which the phone shows.
+- `test_app_lifecycle_system.py`: an app declaring `stop_when_no_windows` is not stopped with its widget enabled and no window, and is stopped once the widget is hidden.
 
 ## 11. Delivery
 

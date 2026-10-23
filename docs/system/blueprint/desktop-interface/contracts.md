@@ -301,7 +301,7 @@ Outbound:
 | `layout_op` | `{"op", "args", "requester", "target_client_id"}` | the transient ops `refresh` and `reload_system_interface`, and, to the target client, every `show` (`{"window", "is_detached"}`), every placed `open` and every `focus` on a window not popped out (`{"window"}`) (section 8): a phone shows that window, and a desktop's page, and the solo page (section 9) of that very window, raise the desktop window of a `show` whose window is pulled out |
 | `client_entries_changed` | `{"client_id", "entries"}` | to that client's windows, after its entry presentations were written |
 | `client_widgets_changed` | `{"client_id", "widgets"}` | to that client's windows, after its widget presentation was written |
-| `widgets_updated` | `{"widgets": [{"app", "is_enabled"}, ...]}` | on connect, after `widgets.json` is written, and when a registry change adds or withdraws a widget |
+| `widgets_updated` | `{"widgets": [{"app", "is_enabled"}, ...]}` | on connect (after `presence_updated`), after `widgets.json` is written, and after a registry read that changed the rows |
 | `avatar_status` | `{"mood": "idle" \| "working", "is_stale"}` | on connect, and when either changes |
 | `avatar_selection_changed` | `{"design"}` | after the selection is written |
 | `update_notice_changed` | `{"notice": notice \| null}` | on connect (after `avatar_status`), and whenever `data/.state/update-apply/last-good.json` is written or removed and reads differently: an apply kept it, a rollback's progress and outcome, a confirm cleared it; `notice` is the document `GET /api/updates/pending` answers (section 5.1) |
@@ -344,6 +344,8 @@ A page no shell has handed a handshake -- an unframed page, or one framed by som
 | page to shell | `shell:open-link` | `{"url"}`; a link the link rule above hands on, which only the shell can open (it alone knows which app serves a local URL's port), handled as `minds:open-link` (section 5.6): a `file:` URL on this machine it delivers as `open:file`; an external link it delivers as `open:web`, `open:mailto` or `open:tel` to the app registered for it, else opens outside the workspace; an address of one of this workspace's apps it opens as that app's window at the address's path and query (raising one already there), and another workspace's address, or one no app is at, it refuses with a notice; a local URL it opens as the window of the app on whose `<label>.localhost` (or `<name>.localhost`) host, or else at whose registered port, it is, else delivers as `open:url`; each delivered with the posting frame's app as its sender |
 | page to shell | `shell:widget-size` | `{"width", "height"}`; from a widget only: the CSS pixel size of its content in its current mode, which the shell clamps to the widget minimum and maximum (section 11) and sizes the frame to; a widget is not drawn until its first one |
 | page to shell | `shell:widget-hidden` | `{"isHidden"}`; from a widget only: with `true` the shell draws nothing for it on this client and keeps its frame loaded; with `false` it is drawn again |
+
+A widget is drawn in its client's corner, stacked with the corner's other widgets in registry order, inset by `--desk-widget-inset` and, in a top corner, a title bar's height more, so a maximized window's controls stay clear of it; on a phone, collapsed in a strip above the bar.
 
 From a widget the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open` (opening on the client's active desktop), `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window.
 
@@ -487,7 +489,7 @@ Both editors (`shell/desktop_document.py` and `frontend/src/geometry/`) implemen
 | `--desk-launcher-menu-width` | `22rem` | | no |
 
 The phone breakpoint is `PHONE_MAX_SHORT_SIDE_PX = 500` and `PHONE_MAX_LONG_SIDE_PX = 1000` in `theme/metrics.ts`, applied to the viewport whichever way round as `matchMedia("(max-width: 500px) and (max-height: 1000px), (max-height: 500px) and (max-width: 1000px)")`, which sets `data-phone`; touch is `matchMedia("(pointer: coarse)")`.
-The phone layout's own tokens (`--desk-phone-*`, and `--desk-toast-gap` and `--desk-toast-radius` for the toasts both layouts draw) are declared on `:root` and read by no behaviour: the bar's controls (`64px` by `42px`), its `48px` pill, a widget in it at most `32px` high (`--desk-phone-widget-height`), and `12px` of padding (above and beside the controls; below them, only the safe-area inset), the sheets' radius and top, the rows and the home grid's tiles.
+The phone layout's own tokens (`--desk-phone-*`, and `--desk-toast-gap` and `--desk-toast-radius` for the toasts both layouts draw) are declared on `:root` and read by no behaviour: the bar's controls (`64px` by `42px`), its `48px` pill, a widget in the strip above it at most `32px` high (`--desk-phone-widget-height`), and `12px` of padding (above and beside the controls; below them, only the safe-area inset), the sheets' radius and top, the rows and the home grid's tiles.
 The resize handles are strips of `--desk-resize-edge` overhanging the window's border by `--desk-resize-overhang` (so a press just outside the frame still grabs an edge), inset from the corners by `--desk-resize-edge-inset`; the corners are `--desk-resize-corner` squares over the same overhang.
 `--desk-window-move` and `--desk-window-move-ease` time a window's travel to a rectangle the pointer did not move it to (a snap, a `place`, an `open` with `beside`): the window's root transitions over them, a press turns the transition off for its whole length through `data-window-motion="off"` on the desktop's root, and and the transition is declared inside `prefers-reduced-motion: no-preference`, so a platform that does not say motion is welcome gets the arrangement without the travel.
 Colours, type roles, radii, and elevation come from `base.css` and are not repeated here.
@@ -518,19 +520,20 @@ Data attributes, never classes, so restyling cannot break a test:
 | `data-pinned-entry="<app>"`, `data-entry-mode="bar\|floating"`, `data-entry-style="plain\|avatar"` | each pinned entry, in the bar or floating |
 | `data-floating-entries` | the floating layer |
 | `data-widgets` | the widget layer |
-| `data-widget="<app>"`, `data-widget-corner="top-left\|top-right\|bottom-left\|bottom-right"`, `data-widget-mode="expanded\|collapsed"`, `data-widget-hidden="true"` | each widget's frame; `data-widget-hidden` only while its page says it has nothing to show |
+| `data-widget="<app>"`, `data-widget-corner="top-left\|top-right\|bottom-left\|bottom-right"`, `data-widget-mode="expanded\|collapsed"` | each drawn widget's chrome; a widget whose page has not reported a size, or says it has nothing to show, is not drawn |
+| `data-widget-frames`, `data-widget-frame="<app>"` | the widget frames' host, and each widget's iframe |
 | `data-widget-grip`, `data-widget-control="collapse\|expand"` | each widget's grip and its chevron |
 | `data-mood="working\|idle"`, `data-stale="true\|false"` | each avatar image's button |
 | `data-avatar-chooser`, `data-avatar-design="<id>"` | the chooser and its cells |
 | `data-menu-item="float\|move-to-taskbar\|style-plain\|style-avatar\|change-avatar"` | the pinned entry's menu rows |
-| `data-menu-item="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the grip, shortcut, and launcher menus |
+| `data-menu-row="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the grip, shortcut, and launcher menus |
 | `data-phone-bar`, `data-phone-home`, `data-phone-pill="<window-id>" \| "home"`, `data-phone-count`, `data-phone-new` | the phone's bar, its home button, the pill (naming what it shows), the pill's window count, and plus |
 | `data-phone-sheet="windows" \| "start"`, `data-phone-sheet-scrim` | the phone's sheets, and the scrim under each |
 | `data-phone-window-row="<id>"`, `data-phone-window-close="<id>"`, `data-phone-window-menu="<id>"`, `data-phone-close-all`, `data-phone-window-search` | the windows sheet's rows, their X and kebab, Close all, and the field shown past six windows |
 | `data-phone-start-field` | the start sheet's field |
 | `data-phone-app="<app>"`, `data-phone-home-grid` | the home grid's tiles, and the grid |
 | `data-phone-page-host="<window-id>"` | the area the shown window's page is laid over |
-| `data-phone-widget="<app>"` | each widget in the phone's bar |
+| `data-phone-widgets`, `data-phone-widget="<app>"` | the strip above the phone's bar, and each widget in it |
 | `data-toast` | each toast, on both layouts |
 
 ## 13. Where data lives

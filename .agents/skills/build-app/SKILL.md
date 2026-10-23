@@ -769,7 +769,7 @@ Flags:
 - `--manifest`: the app's `app.toml`. Its `name` (validated like
   `--name` below), the icon file it names (validated like `--icon-file`),
   and its static fields (`display_name`, `critical`, `priority`, `program`,
-  `internal`, `launcher_rank`, `default_shortcut`, `launch_paths`, `pin`) are
+  `internal`, `launcher_rank`, `default_shortcut`, `launch_paths`, `pin`, `widget`) are
   copied onto the registry row on every
   call, so a changed manifest updates the row on the next start. This is
   the form every app with a directory uses. A `[pin]` table (`path`, and
@@ -778,7 +778,13 @@ Flags:
   on every desktop that is never closed and whose taskbar entry each client
   may draw in the bar or floating above the windows; almost no app wants
   one (the chat's root window is the case it exists for), so leave it out
-  unless the user asked for an always-present window. `--name` may accompany it and
+  unless the user asked for an always-present window. A `[widget]` table
+  (`path`, and optionally `default_enabled = true | false`) has the shell keep
+  that page of the app in a corner of every client's desktop, above the
+  windows (`docs/system/blueprint/app-widgets/plan-app-widgets.md`); the page
+  reports its size through the app contract's `widgetSize` and is loaded by
+  every client and kept up while enabled (it holds the app running as a
+  window does), so it must be small and cheap to answer. `--name` may accompany it and
   must then equal the manifest's name; `--icon-file`, `--program`,
   `--internal` and `--no-icon` are for registrations with no app directory
   (previews, isolated test servers) and cannot be combined with it.
