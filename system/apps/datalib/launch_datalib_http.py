@@ -55,8 +55,9 @@ DATA_ROOT: Final[Path] = LIBRARIES_DIR / DEFAULT_LIBRARY_NAME
 CONFIG_FILE_NAME: Final[str] = "config.toml"
 SYSTEM_DIRECTORY_NAME: Final[str] = "system"
 
-# The files datalib-http (``lock``) and datalib-dag (``runner-lock``) hold a flock(2) on under
-# system/ while they run; the kernel releases it when the holder exits.
+# The files under system/ that a datalib process holds a flock(2) on while it runs: datalib-http
+# holds both for its life, and datalib-dag holds ``runner-lock`` while it syncs. The kernel
+# releases a lock when its holder exits.
 LOCK_FILE_NAMES: Final[tuple[str, ...]] = ("lock", "runner-lock")
 
 # A config's top-level ``data_root`` key, which datalib-dag uses as written in place of the
