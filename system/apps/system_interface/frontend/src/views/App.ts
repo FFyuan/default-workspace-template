@@ -334,9 +334,11 @@ export function App(): m.Component<AppAttrs> {
     widgetFrames.reconcile();
   }
 
-  /** The backdrop that held the widget frames' host is gone (the phone layout took over): so are the frames. */
-  function stopWidgetFramesLayer(): void {
-    widgetFrames?.stop();
+  /** The layout that held the widget frames' host is gone (the phone layout took over from the desktop's, or back):
+   *  so are its frames, unless a layer over the next layout's host has already started. */
+  function stopWidgetFramesLayer(host: HTMLElement | null): void {
+    if (widgetFrames === null || (host !== null && !widgetFrames.isOver(host))) return;
+    widgetFrames.stop();
     widgetFrames = null;
     pages?.setWidgetFrameResolver(null);
   }
@@ -1075,7 +1077,7 @@ export function App(): m.Component<AppAttrs> {
       menu.dispose();
       uninstallContextMenu?.();
       detachGestures?.();
-      stopWidgetFramesLayer();
+      stopWidgetFramesLayer(null);
       resizeObserver?.disconnect();
       if (travelFrame !== null) cancelAnimationFrame(travelFrame);
     },
@@ -1104,6 +1106,8 @@ export function App(): m.Component<AppAttrs> {
       if (current.isPhoneLayout()) {
         return m(PhoneLayout, {
           store: current,
+          onWidgetFramesHostCreated: (host) => startWidgetFramesLayer(current, host, vnode.attrs),
+          onWidgetFramesHostRemoved: (host) => stopWidgetFramesLayer(host),
           onPagesHostCreated: (host) => {
             startPagesLayer(current, host, vnode.attrs);
             // The host shrinks under a soft keyboard and turns with the phone; the shown page follows it.
@@ -1211,7 +1215,7 @@ export function App(): m.Component<AppAttrs> {
                       );
                     },
                     onWidgetFramesHostCreated: (host) => startWidgetFramesLayer(current, host, vnode.attrs),
-                    onWidgetFramesHostRemoved: () => stopWidgetFramesLayer(),
+                    onWidgetFramesHostRemoved: (host) => stopWidgetFramesLayer(host),
                   }),
               isLauncherOpen
                 ? m(LauncherMenu, {

@@ -3031,3 +3031,36 @@ def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_fo
             assert _get_json(f"{server.base_url}/api/widgets")["widgets"] == [
                 {"app": _WIDGET_APP_NAME, "is_enabled": False}
             ]
+
+
+@pytest.mark.timeout(120, func_only=False)
+def test_a_phone_draws_each_widget_collapsed_above_its_bar_and_a_tap_shows_its_app(tmp_path: Path, page: Page) -> None:
+    """A phone has no floating layer: the widget is drawn in the strip above the bar, told it is collapsed whatever the
+    client chose, at the size its page reports for that; a tap on its link opens its app's window, which the phone
+    shows."""
+    shell: dict[str, str] = {}
+    with serve_app(_widget_app(shell)) as widget_served:
+        widget_row = registry_row_toml(
+            _WIDGET_APP_NAME, widget_served.http_url, display_name="Gauge", widget=(_WIDGET_PATH, True)
+        )
+        with _running_e2e_server(tmp_path, extra_rows=(widget_row,)) as server:
+            shell["base_url"] = server.base_url
+            with _phone_client(page, server) as phone:
+                widget = phone.locator(f'[data-phone-widget="{_WIDGET_APP_NAME}"]')
+                expect(widget).to_be_visible(timeout=15000)
+                frame = _widget_frame(phone)
+                assert frame.evaluate("() => window.__modes") == ["collapsed"]
+                box = _box(widget)
+                _assert_close(box["width"], _WIDGET_COLLAPSED_SIZE[0], "phone widget width")
+                _assert_close(box["height"], _WIDGET_COLLAPSED_SIZE[1], "phone widget height")
+                bar = _box(phone.locator("[data-phone-bar]"))
+                assert box["y"] + box["height"] <= bar["y"] + 1, "the widget is not above the bar"
+
+                frame.locator("#open").tap()
+                wait_for(
+                    lambda: len(_windows_of(server.base_url, _WIDGET_APP_NAME)) == 1,
+                    timeout=10.0,
+                    poll_interval=0.1,
+                    error_message="the widget's link never opened its app",
+                )
+                _phone_shows(phone, _windows_of(server.base_url, _WIDGET_APP_NAME)[0]["id"])

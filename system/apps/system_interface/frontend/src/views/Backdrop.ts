@@ -59,7 +59,7 @@ export interface BackdropAttrs {
   readonly onWidgetContextMenu: (app: string, x: number, y: number, target: Element) => void;
   /** The element the widgets' frames are appended to, created once and never re-rendered, and its removal. */
   readonly onWidgetFramesHostCreated: (host: HTMLElement) => void;
-  readonly onWidgetFramesHostRemoved: () => void;
+  readonly onWidgetFramesHostRemoved: (host: HTMLElement) => void;
 }
 
 export function Backdrop(): m.Component<BackdropAttrs> {
@@ -195,9 +195,9 @@ export function Backdrop(): m.Component<BackdropAttrs> {
           // The widgets' frames' host, over their chrome at the same level; its frames lie over the content boxes.
           m("div", {
             "data-widget-frames": "",
-            class: "widget-frames pointer-events-none absolute inset-0 z-(--z-sticky)",
+            class: "widget-frames pointer-events-none absolute inset-0 z-(--z-sticky) [&>*]:pointer-events-auto",
             oncreate: (created: m.VnodeDOM) => attrs.onWidgetFramesHostCreated(created.dom as HTMLElement),
-            onremove: () => attrs.onWidgetFramesHostRemoved(),
+            onremove: (removed: m.VnodeDOM) => attrs.onWidgetFramesHostRemoved(removed.dom as HTMLElement),
             onbeforeupdate: () => false,
           }),
           m(SnapPreview, { rect: snapRect }),

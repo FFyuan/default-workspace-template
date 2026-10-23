@@ -96,6 +96,8 @@
   --desk-phone-pill-height: 48px;
   --desk-phone-pill-max-width: 210px;
   --desk-phone-pill-icon: 32px;
+  /* The tallest a widget is drawn in the strip above the phone's bar. */
+  --desk-phone-widget-height: 32px;
   /* The bar's height above its bottom padding, which is --desk-phone-safe-bottom. */
   --desk-phone-bar-height: calc(var(--desk-phone-pill-height) + var(--desk-phone-bar-padding));
   /* Only the inset: in a browser tab the page ends at the toolbar, which already sets the bar off

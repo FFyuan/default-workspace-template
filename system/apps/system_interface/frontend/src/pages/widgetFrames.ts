@@ -72,6 +72,11 @@ export class WidgetFramesLayer {
     for (const widget of [...this.frames.values()]) this.destroy(widget);
   }
 
+  /** Whether this layer's frames live in ``host``. */
+  isOver(host: HTMLElement): boolean {
+    return this.host === host;
+  }
+
   /** The app whose widget ``frame`` shows, or null for a frame that is no widget's. */
   appOfFrame(frame: HTMLIFrameElement): string | null {
     const app = frame.getAttribute(WIDGET_FRAME_ATTRIBUTE);
@@ -109,7 +114,8 @@ export class WidgetFramesLayer {
       this.place(widget);
       if (widget.greetedDesktopId === null) continue;
       if (widget.greetedDesktopId !== (state.activeDesktopId ?? "")) this.greet(widget);
-      else if (widget.sentMode !== presentation.mode) this.sendMode(widget, presentation.mode);
+      else if (widget.sentMode !== this.modeOf(presentation.mode))
+        this.sendMode(widget, this.modeOf(presentation.mode));
     }
   }
 
@@ -202,7 +208,12 @@ export class WidgetFramesLayer {
     });
     widget.greetedDesktopId = desktopId;
     const shown = shownWidgets(state).find((candidate) => candidate.app.name === widget.app);
-    if (shown !== undefined) this.sendMode(widget, shown.presentation.mode);
+    if (shown !== undefined) this.sendMode(widget, this.modeOf(shown.presentation.mode));
+  }
+
+  /** The mode a widget is drawn in: the client's, except on a phone, which draws every widget collapsed. */
+  private modeOf(chosen: WidgetMode): WidgetMode {
+    return this.store.isPhoneLayout() ? "collapsed" : chosen;
   }
 
   private sendMode(widget: WidgetFrame, mode: WidgetMode): void {
