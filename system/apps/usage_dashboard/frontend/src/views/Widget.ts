@@ -1,16 +1,18 @@
 /**
  * The Usage widget's view (app-widgets plan section 7): the whole widget is one link to the Usage page, opened in a
  * window of its own (``target="_blank"``, which the shell's link rule turns into raising the Usage window). Expanded,
- * a row per provider; collapsed, one pill. While the collector indexes its first history the widget says so rather
+ * a row per provider; collapsed, a pair of concentric hairline rings per subscription (the weekly limit outside, the
+ * 5-hour limit inside, each drawn in its level's colour over a faint track), or with no subscription one pill of
+ * the month's spend. While the collector indexes its first history the widget says so rather
  * than show partial totals, and while the stream is down it keeps the last figures, dimmed. Hover detail is each
- * row's ``title``: a drawn tooltip would be clipped by the widget's small frame.
+ * row's and each ring pair's ``title``: a drawn tooltip would be clipped by the widget's small frame.
  */
 
 import m from "mithril";
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import type { LimitLevel, LimitWindow } from "../models/providers";
-import { widgetPill, widgetRows } from "../models/widget";
-import type { WidgetModel, WidgetRow } from "../models/widget";
+import { ringFraction, widgetPill, widgetRings, widgetRows } from "../models/widget";
+import type { RingPair, WidgetModel, WidgetRow } from "../models/widget";
 
 const LEVEL_FILL: Record<LimitLevel, string> = {
   ok: "bg-(--color-accent)",
@@ -18,6 +20,55 @@ const LEVEL_FILL: Record<LimitLevel, string> = {
   critical: "bg-(--color-danger)",
 };
 const LEVEL_TEXT: Record<LimitLevel, string> = { ok: "text-primary", high: "text-warning", critical: "text-danger" };
+const LEVEL_STROKE: Record<LimitLevel, string> = {
+  ok: "stroke-(--color-accent)",
+  high: "stroke-(--color-warning)",
+  critical: "stroke-(--color-danger)",
+};
+
+// The rings' drawing, in the units of its own view box: two circles about one centre, a hairline apart.
+const RING_BOX = 28;
+const RING_CENTRE = RING_BOX / 2;
+const OUTER_RADIUS = 12.5;
+const INNER_RADIUS = 8.5;
+const RING_STROKE = 2;
+
+/** One ring: a faint full track, and over it, from twelve o'clock clockwise, the arc of the share used. */
+function ringView(window: LimitWindow, radius: number, role: "inner" | "outer"): m.Vnode[] {
+  const fraction = ringFraction(window);
+  const circle = { cx: RING_CENTRE, cy: RING_CENTRE, r: radius, fill: "none", "stroke-width": RING_STROKE };
+  const track = m("circle", { ...circle, class: "stroke-fill-hover" });
+  if (fraction === 0) return [track];
+  const arc = m("circle", {
+    ...circle,
+    "data-ring": role,
+    "data-ring-level": window.level,
+    class: LEVEL_STROKE[window.level],
+    pathLength: 100,
+    "stroke-dasharray": `${fraction * 100} 100`,
+    "stroke-linecap": "round",
+    transform: `rotate(-90 ${RING_CENTRE} ${RING_CENTRE})`,
+  });
+  return [track, arc];
+}
+
+function ringPairView(pair: RingPair, isLabelled: boolean): m.Vnode {
+  return m(
+    "span",
+    { key: pair.key, "data-widget-rings": pair.key, class: "flex items-center gap-1", title: pair.tooltip },
+    [
+      m(
+        "svg",
+        { viewBox: `0 0 ${RING_BOX} ${RING_BOX}`, class: "size-7 shrink-0", "aria-label": pair.tooltip, role: "img" },
+        [
+          ...(pair.outer === null ? [] : ringView(pair.outer, OUTER_RADIUS, "outer")),
+          ...ringView(pair.inner, INNER_RADIUS, "inner"),
+        ],
+      ),
+      isLabelled ? m("span", { class: "text-secondary" }, pair.name) : null,
+    ],
+  );
+}
 
 function percentText(window: LimitWindow): string {
   return window.isResetSinceReading || window.usedPercent === null ? "—" : `${Math.round(window.usedPercent)}%`;
@@ -64,18 +115,26 @@ export const Widget: m.Component<WidgetAttrs> = {
     const isCollapsed = mode === "collapsed";
     const cards = model.cards ?? [];
     const pill = widgetPill(cards);
+    const rings = widgetRings(cards);
     const content: m.Children = model.isCatchingUp
       ? m("span", { class: "text-secondary" }, isCollapsed ? "..." : "Indexing usage...")
-      : isCollapsed
-        ? m(
+      : isCollapsed && rings.length > 0
+        ? // One pair alone needs no name: the hover gives it; beside another pair, each says whose it is.
+          m(
             "span",
-            {
-              class: `font-medium whitespace-nowrap tabular-nums ${pill === null ? "" : LEVEL_TEXT[pill.level]}`,
-              title: pill?.tooltip,
-            },
-            pill?.text ?? "",
+            { class: "flex items-center gap-2" },
+            rings.map((pair) => ringPairView(pair, rings.length > 1)),
           )
-        : widgetRows(cards).map(rowView);
+        : isCollapsed
+          ? m(
+              "span",
+              {
+                class: `font-medium whitespace-nowrap tabular-nums ${pill === null ? "" : LEVEL_TEXT[pill.level]}`,
+                title: pill?.tooltip,
+              },
+              pill?.text ?? "",
+            )
+          : widgetRows(cards).map(rowView);
     return m(
       "a",
       {

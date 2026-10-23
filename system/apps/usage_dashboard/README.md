@@ -84,8 +84,9 @@ The manifest declares a `[widget]` at `/widget`, enabled by default
 Vite entry (`widget.html`, `src/widget.ts`) that reads the limits, this month's
 totals and the collector's health, and reuses the page's provider cards, so the
 two never disagree. Expanded, it is a row per provider (a subscription's
-5-hour bar and weekly figure, an API's spend this month); collapsed, the most
-used subscription window, else the month's spend. It reports its size to the
+5-hour bar and weekly figure, an API's spend this month); collapsed, a pair of
+concentric hairline rings per subscription (weekly outside, 5-hour inside, in
+the level colours, with the detail on hover), else the month's spend. It reports its size to the
 shell after every change, hides itself while there is no usage, and opens the
 Usage window when clicked. While the widget is enabled the shell keeps this app
 running, though it declares `stop_when_no_windows`.

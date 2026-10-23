@@ -232,13 +232,14 @@ Each row's `title` gives the detail a hover asks for (each window's reset time, 
 
 ### 7.4 Collapsed
 
-One pill: the highest percentage among the subscription windows not reset since their reading, coloured by its level, with its subscription's short name (`Codex 82%`; an initial would not tell Claude from Codex); with no subscription windows, this month's total spend (`$165.21`).
+A pair of concentric hairline rings per subscription, in the expanded rows' order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock in its level's colour (75% high, 90% critical, as the page draws them). A pair beside another carries its subscription's short name; one alone carries none. The figures, resets, and reading time are the pair's `title`.
+With no subscription, the collapsed widget is one pill of this month's total spend (`$165.21`).
 
 ### 7.5 States
 
 | State | Expanded | Collapsed |
 |---|---|---|
-| A window reset since its reading | `—` and a faint "reset" in place of its percentage | the window is left out of the highest |
+| A window reset since its reading | `—` in place of its percentage | its ring is a bare track |
 | An old reading not yet reset | drawn as usual; the time is in the tooltip | as usual |
 | Stream disconnected | every row dimmed, last values kept, a small "Reconnecting" dot | the pill dimmed |
 | Collector catching up | one row, "Indexing usage..." | `...` |

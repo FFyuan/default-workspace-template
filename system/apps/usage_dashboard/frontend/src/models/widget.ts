@@ -5,8 +5,8 @@
  *
  * Expanded, the widget is one row per provider with data: a subscription's shortest window (the 5-hour limit) as a
  * bar and its longest (the weekly one) as a figure beside it; a pay-as-you-go provider's spend this month. Collapsed,
- * it is one pill: the most used subscription window not reset since its reading, with its subscription's name,
- * else the month's total spend.
+ * it is a pair of concentric rings per subscription, the longest window outside and the shortest inside; with no
+ * subscription, one pill of the month's total spend.
  *
  * The model reads only what those need (the limit readings, this month's totals, and the collector's health), again
  * shortly after every new call on the collector's stream and every minute, since a reset time passing changes what a
@@ -46,6 +46,17 @@ export interface SpendRow {
 }
 
 export type WidgetRow = LimitRow | SpendRow;
+
+/** One subscription's rings in the collapsed widget: its shortest window (the 5-hour limit) inside, its longest (the
+ *  weekly one) outside when it has more than one. */
+export interface RingPair {
+  readonly key: string;
+  readonly name: string;
+  readonly inner: LimitWindow;
+  readonly outer: LimitWindow | null;
+  /** The detail a hover asks for: the subscription, each window's use and reset, and the reading's time. */
+  readonly tooltip: string;
+}
 
 /** The collapsed widget's one figure, and the level it is drawn at. */
 export interface WidgetPill {
@@ -93,6 +104,32 @@ export function widgetRows(cards: readonly ProviderCard[]): WidgetRow[] {
         primary,
         secondary: last === primary ? null : last,
         tooltip: [...card.windows.map(windowText), `as of ${formatClock(card.observedAt)}`].join("\n"),
+      },
+    ];
+  });
+}
+
+/** How much of a ring is drawn, 0 to 1: none for a window reset since its reading or of unknown use. */
+export function ringFraction(window: LimitWindow): number {
+  if (window.isResetSinceReading || window.usedPercent === null) return 0;
+  return Math.min(1, Math.max(0, window.usedPercent / 100));
+}
+
+/** The collapsed widget's rings, one pair per subscription, in the page's card order. */
+export function widgetRings(cards: readonly ProviderCard[]): RingPair[] {
+  return cards.flatMap((card): RingPair[] => {
+    if (card.kind !== "subscription") return [];
+    const inner = card.windows[0];
+    if (inner === undefined) return [];
+    const last = card.windows[card.windows.length - 1];
+    const name = subscriptionName(card);
+    return [
+      {
+        key: card.key,
+        name,
+        inner,
+        outer: last === inner ? null : last,
+        tooltip: [name, ...card.windows.map(windowText), `as of ${formatClock(card.observedAt)}`].join("\n"),
       },
     ];
   });

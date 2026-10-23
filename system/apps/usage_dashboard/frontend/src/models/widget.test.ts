@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LimitReading } from "./api";
 import { totalsRow } from "../testing/rows";
 import { providerCards } from "./providers";
-import { WidgetModel, widgetPill, widgetRows } from "./widget";
+import { WidgetModel, ringFraction, widgetPill, widgetRings, widgetRows } from "./widget";
 
 const NOW = new Date("2026-10-22T20:00:00Z");
 
@@ -126,5 +126,39 @@ describe("WidgetModel", () => {
     await widget.refresh();
     expect(widget.isCollectorDown).toBe(true);
     expect(widget.cards).toHaveLength(1);
+  });
+});
+
+describe("widgetRings", () => {
+  it("gives each subscription its shortest window inside and its longest outside, with the detail to hover", () => {
+    const cards = providerCards(
+      [
+        reading({}),
+        reading({ ...WEEKLY, used_percentage: 34 }),
+        reading({ source: "codex", used_percentage: 82, resets_at: "2026-10-22T21:00:00Z" }),
+      ],
+      [API_SPEND],
+      NOW,
+    );
+
+    const rings = widgetRings(cards);
+
+    expect(rings.map((pair) => [pair.name, pair.inner.usedPercent, pair.outer?.usedPercent ?? null])).toEqual([
+      ["Claude", 61, 34],
+      ["Codex", 82, null],
+    ]);
+    expect(rings[1].inner.level).toBe("high");
+    expect(rings[0].tooltip.split("\n")[0]).toBe("Claude");
+    expect(rings[0].tooltip).toContain("Weekly limit: 34% used");
+  });
+
+  it("draws no arc for a window reset since its reading, and clamps the rest to a whole ring", () => {
+    const [pair] = widgetRings(
+      providerCards([reading({ used_percentage: 96, resets_at: "2026-10-22T19:00:00Z" })], [], NOW),
+    );
+    expect(ringFraction(pair.inner)).toBe(0);
+    const [full] = widgetRings(providerCards([reading({ used_percentage: 130 })], [], NOW));
+    expect(ringFraction(full.inner)).toBe(1);
+    expect(widgetRings(providerCards([], [API_SPEND], NOW))).toEqual([]);
   });
 });
