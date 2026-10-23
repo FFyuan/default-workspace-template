@@ -42,6 +42,15 @@ ORIGIN_KIND_APP: Final[str] = "APP"
 ORIGIN_KIND_ROUTINE: Final[str] = "ROUTINE"
 ORIGIN_KIND_SYSTEM: Final[str] = "SYSTEM"
 ORIGIN_KIND_UNKNOWN: Final[str] = "UNKNOWN"
+ORIGIN_KINDS: Final[frozenset[str]] = frozenset(
+    {
+        ORIGIN_KIND_CHAT,
+        ORIGIN_KIND_APP,
+        ORIGIN_KIND_ROUTINE,
+        ORIGIN_KIND_SYSTEM,
+        ORIGIN_KIND_UNKNOWN,
+    }
+)
 
 
 class UsageContextError(ValueError):
@@ -58,23 +67,28 @@ def format_usage_context(context: Mapping[str, str]) -> str:
 
 
 def parse_usage_context(value: str) -> dict[str, str]:
-    """Parse an ``IMBUE_USAGE_CONTEXT`` value. Raises UsageContextError for a malformed one."""
+    """Parse an ``IMBUE_USAGE_CONTEXT`` value. Raises UsageContextError for a malformed one.
+
+    A context from a newer starter still reads: a key this reader does not
+    know is ignored, and an origin kind it does not know reads as ``UNKNOWN``.
+    """
     context: dict[str, str] = {}
     for pair in value.split(","):
         if not pair.strip():
             continue
         key, separator, raw_value = pair.partition("=")
-        key = key.strip()
-        if not separator or key not in CONTEXT_KEYS:
+        if not separator:
             raise UsageContextError(
-                f"{USAGE_CONTEXT_ENV_VAR} entry {pair!r} is not one of {CONTEXT_KEYS} as key=value"
+                f"{USAGE_CONTEXT_ENV_VAR} entry {pair!r} is not key=value"
             )
-        if parsed_value := unquote(raw_value.strip()):
-            context[key] = parsed_value
+        if key.strip() in CONTEXT_KEYS and (parsed_value := unquote(raw_value.strip())):
+            context[key.strip()] = parsed_value
     if ORIGIN_KIND not in context:
         raise UsageContextError(
             f"{USAGE_CONTEXT_ENV_VAR} value {value!r} has no {ORIGIN_KIND}"
         )
+    if context[ORIGIN_KIND] not in ORIGIN_KINDS:
+        return {**context, ORIGIN_KIND: ORIGIN_KIND_UNKNOWN}
     return context
 
 
