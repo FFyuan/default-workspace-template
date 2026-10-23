@@ -102,22 +102,22 @@ Each corner's stack is inset from the backdrop's edges by the theme's widget ins
 
 ### 4.2 The frame
 
-A widget's frame is an iframe of the app's `url` plus the widget's `path`, with the shell's chrome around it: a grip strip of the theme's grip size along its top, which carries the collapse/expand chevron.
+A widget's frame is an iframe of the app's `url` plus the widget's `path`, with the shell's chrome around it: a dark panel (the theme's widget surface, edge, and radius, whatever the desktop's own theme, as a system monitor's panel is) with no bar, which the page fills but for a thin rim of the theme's rim width on every side. The rim is the widget's handle. The page draws light on a transparent background over the panel.
 The frame is not drawn until its page first reports a size, so a page that is loading or fails to load leaves no empty box in the corner; a page that never reports is logged once and never drawn.
-The frame's size is the last size its page reported for the current mode, clamped to the theme's widget maximum (320 by 240) and minimum (24 by 24).
+The frame's size is the last size its page reported for the current mode, clamped to the theme's widget maximum (320 by 240) and minimum (24 by 24), plus the rim on each side.
 At rest the frame is drawn at the rest opacity; while the pointer is over it, or a menu of it is open, fully opaque.
 
 ### 4.3 Collapse and expand
 
-The chevron toggles the client's mode for that widget and writes it to the client record.
+A double-click on the rim, or Collapse or Expand in its menu, toggles the client's mode for that widget and writes it to the client record.
 The shell tells the page its mode after every handshake and on every change; the page draws the matching form and reports its size again.
 The page decides what each form shows; the shell never draws a pill of its own.
 
 ### 4.4 Moving between corners
 
-Dragging the grip moves the widget, with the gesture layer's threshold, pointer capture, and click suppression, as a floating entry drags.
+Dragging the rim moves the widget, with the gesture layer's threshold, pointer capture, and click suppression, as a floating entry drags.
 During the drag the frame follows the pointer; on release it snaps to the corner of the backdrop quadrant the pointer is in, and the corner is written to the client record once.
-A press that never travels the threshold is a click on the grip, which does nothing.
+A press that never travels the threshold is a click on the rim, which does nothing.
 
 ### 4.5 Clicking
 
@@ -127,7 +127,7 @@ A widget stands for its app, not for one page of it, so from a widget that open 
 
 ### 4.6 Menus
 
-The grip's context menu (right click, or long press on touch):
+The rim's context menu (right click, or long press on touch):
 
 1. Collapse or Expand
 2. Open <display name>, as the page's own link does
@@ -146,11 +146,11 @@ The shell then draws nothing for it on that client and keeps the frame loaded, s
 The phone layout has no floating layer.
 In a strip just above its bar (the bar's two controls and pill already fill a phone's width), it draws each enabled widget not hidden by its page, always collapsed, no taller than the phone's widget height.
 A tap is the page's, as a click is on the desktop; its link opens the app's window, which the phone shows.
-There is no grip, menu, or corner on a phone.
+There is no rim, menu, or corner on a phone; each widget is the same dark panel, filled by its page.
 
 ### 4.9 Touch
 
-Touch mode uses long press on the grip for the menu, as elsewhere; the grip and chevron have the theme's touch target size at minimum, and the frame is fully opaque while touched.
+Touch mode uses long press on the rim for the menu, as elsewhere; the rim is wider (12 pixels) so a finger can press it, and the frame is fully opaque.
 
 ## 5. The shell backend
 
@@ -220,22 +220,26 @@ default_enabled = true
 `/widget` is a second Vite entry of the Usage app (`frontend/widget.html`, `src/widget.ts`), a small bundle beside the dashboard's, served by the Flask server like the dashboard's page.
 It reads what the dashboard reads, through the same server's `/api/usage/*` relay and its stream, and reuses the dashboard's models (`models/api.ts`, `models/providers.ts`, `models/format.ts`) so the two can never disagree: limit levels come from the same `limitLevel()` (75% high, 90% critical) and a window reset since its reading is recognised by the same rule.
 
-### 7.3 Expanded
+### 7.3 The look
 
-One row per provider with data, in the dashboard's card order, about 180 pixels wide:
+The widget follows a Mac system monitor's panels (iStat Menus): light text on the shell's dark panel, small uppercase headings, figures in tabular numerals, and rings over faint tracks. A ring is drawn in its window's own hue while the window is comfortable (the 5-hour limit cyan, the weekly one violet) and in its level's colour as it nears the cap (orange at 75%, red at 90%, from the same `limitLevel()`); each row's dot is its ring's colour.
 
-- A subscription provider: its name, a bar for its shortest window (the 5-hour limit) coloured by level, that window's percentage, and its longest window's (weekly) percentage after a dot.
-- A pay-as-you-go provider: its name and this month's spend, with `~` when any of it is estimated.
+### 7.4 Expanded
+
+About 224 pixels wide, a section per subscription in the dashboard's card order, then one section of pay-as-you-go spend:
+
+- A subscription: its name as the heading; beneath it, its ring pair (section 7.5) beside a row per window (the 5-hour and the weekly limit), each with its dot, its name, when it resets (the clock for the 5-hour window, the weekday and hour for the weekly one), and the share used.
+- Pay-as-you-go: "API this month" as the heading, and a row per provider with this month's spend, with `~` when any of it is estimated.
 - A provider with no data is not drawn.
 
-Each row's `title` gives the detail a hover asks for (each window's reset time, the reading's "as of" time, the call count), as a native tooltip, since a drawn tooltip would be clipped by the frame.
+Each section's `title` gives the detail a hover asks for (each window's reset time, the reading's "as of" time, the call count), as a native tooltip, since a drawn tooltip would be clipped by the frame.
 
-### 7.4 Collapsed
+### 7.5 Collapsed
 
-A pair of concentric hairline rings per subscription, in the expanded rows' order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock in its level's colour (75% high, 90% critical, as the page draws them). Each pair carries its subscription's short name beside it, one alone as well. The figures, resets, and reading time are the pair's `title`.
-With no subscription, the collapsed widget is one pill of this month's total spend (`$165.21`).
+A pair of concentric rings per subscription, in the expanded order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside, with the 5-hour percentage in the middle and the subscription's short name in small capitals beneath, one alone as well. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock. The figures, resets, and reading time are the pair's `title`.
+With no subscription, the collapsed widget is one figure of this month's total spend (`$165.21`).
 
-### 7.5 States
+### 7.6 States
 
 | State | Expanded | Collapsed |
 |---|---|---|
@@ -245,20 +249,20 @@ With no subscription, the collapsed widget is one pill of this month's total spe
 | Collector catching up | one row, "Indexing usage..." | `...` |
 | No usage data at all | `shell:widget-hidden {isHidden: true}`, sent again with `false` on the first event | the same |
 
-### 7.6 Opening the dashboard
+### 7.7 Opening the dashboard
 
 The whole widget is one link, `<a href="/" target="_blank">`, so a click raises the Usage window (section 4.5).
 
 ## 8. Theme tokens and selectors
 
-Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-grip-size: 12px` (touch: `44px`, the touch target), `--desk-phone-widget-height: 32px`.
+Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px`, `--desk-widget-gap: 8px`, `--desk-widget-max-width: 320px`, `--desk-widget-max-height: 240px`, `--desk-widget-min-size: 24px`, `--desk-widget-rest-opacity: 0.72` (touch: `1`), `--desk-widget-rim: 6px` (touch: `12px`), and, read by no behaviour, `--desk-widget-radius: 12px`, `--desk-widget-surface: rgb(28 28 30 / 0.92)`, `--desk-widget-edge: rgb(255 255 255 / 0.1)`, `--desk-phone-widget-height: 32px`.
 
 | Attribute | On |
 |---|---|
 | `data-widgets` | the widget layer |
 | `data-widget="<app>"`, `data-widget-corner="top-left\|top-right\|bottom-left\|bottom-right"`, `data-widget-mode="expanded\|collapsed"` | each widget's frame |
-| `data-widget-grip`, `data-widget-control="collapse\|expand"` | the grip and its chevron |
-| `data-menu-row="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the grip, shortcut, and launcher menus |
+| `data-widget-grip="<app>"` | each widget's chrome too, whose rim is its handle |
+| `data-menu-row="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the rim, shortcut, and launcher menus |
 | `data-widget-frames`, `data-widget-frame="<app>"` | the widget frames' host, and each widget's iframe |
 | `data-phone-widgets`, `data-phone-widget="<app>"` | the strip above the phone's bar, and each widget in it |
 
@@ -290,7 +294,7 @@ Unit tests, beside the code:
 
 End to end, with a stub app declaring a widget whose page reports a size per mode:
 
-- `test_e2e.py`: the widget appears top right below a title bar's height, at the size its page reported; collapse changes it to the collapsed size; a drag of the grip snaps it to the bottom-left corner, written to the client record and kept across a reload; a click on its `_blank` link raises one window of its app however often it is clicked; Hide widget removes it and turns the switch off.
+- `test_e2e.py`: the widget appears top right below a title bar's height, at the size its page reported; a double-click on its rim changes it to the collapsed size; a drag of the rim snaps it to the bottom-left corner, written to the client record and kept across a reload; a click on its `_blank` link raises one window of its app however often it is clicked; Hide widget removes it and turns the switch off.
 - `test_e2e.py`, phone viewport: the widget is drawn collapsed in the strip above the bar, and a tap on its link opens its app's window, which the phone shows.
 - `test_app_lifecycle_system.py`: an app declaring `stop_when_no_windows` is not stopped with its widget enabled and no window, and is stopped once the widget is hidden.
 

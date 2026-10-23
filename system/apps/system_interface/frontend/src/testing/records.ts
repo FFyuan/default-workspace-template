@@ -250,7 +250,7 @@ export function themeMetricsRecord(overrides: Partial<ThemeMetrics> = {}): Theme
     widgetMaxWidth: 320,
     widgetMaxHeight: 240,
     widgetMinSize: 24,
-    widgetGripSize: 12,
+    widgetRim: 6,
     ...overrides,
   };
 }

@@ -21,7 +21,7 @@ export const SHORTCUT_ATTRIBUTE = "data-shortcut";
 export const TASKBAR_ENTRY_ATTRIBUTE = "data-taskbar-entry";
 /** A pinned entry, in the bar or floating; only the floating one (which is no taskbar entry) drags. */
 export const PINNED_ENTRY_ATTRIBUTE = "data-pinned-entry";
-/** A widget's grip (app-widgets plan section 4.4): a drag moves the widget to another corner. */
+/** A widget's box, whose rim is its grip (app-widgets plan section 4.4): a drag moves the widget to another corner. */
 export const WIDGET_GRIP_ATTRIBUTE = "data-widget-grip";
 /** Marks an element (a menu button) whose press must not start a drag. */
 export const NO_DRAG_ATTRIBUTE = "data-no-drag";
@@ -78,8 +78,7 @@ export function bindingForTarget(target: Element): GestureBinding | null {
   const grip = target.closest<HTMLElement>(`[${WIDGET_GRIP_ATTRIBUTE}]`);
   if (grip !== null) {
     const app = grip.getAttribute(WIDGET_GRIP_ATTRIBUTE) ?? "";
-    const widget = grip.parentElement;
-    return app === "" || widget === null ? null : { kind: "widget", app, element: widget };
+    return app === "" ? null : { kind: "widget", app, element: grip };
   }
   const floating = target.closest<HTMLElement>(`[${PINNED_ENTRY_ATTRIBUTE}]`);
   if (floating !== null) {

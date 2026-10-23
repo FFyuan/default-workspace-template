@@ -68,8 +68,8 @@ beforeEach(() => {
     '<div data-shortcut="docs:new" id="shortcut"><span id="icon"></span></div>' +
     '<button data-taskbar-entry="win-1" data-pinned-entry="docs" id="entry">E</button>' +
     '<button data-pinned-entry="docs" data-entry-mode="floating" id="floating"><span id="creature"></span></button>' +
-    '<div data-widget="gauge" id="widget"><div data-widget-grip="gauge" id="grip">' +
-    '<button data-no-drag id="chevron">v</button></div><div data-widget-content id="widget-content"></div></div>';
+    '<div data-widget="gauge" data-widget-grip="gauge" id="widget">' +
+    '<div data-widget-content data-no-drag id="widget-content"></div></div>';
   root.getBoundingClientRect = () => ({ left: 10, top: 20, width: 1000, height: 800 }) as DOMRect;
   root.setPointerCapture = () => undefined;
   document.body.appendChild(root);
@@ -108,19 +108,18 @@ describe("bindingForTarget", () => {
     });
   });
 
-  it("names a widget by its grip, with the widget's box, and nothing for its chevron or its page", () => {
-    const binding = bindingForTarget(root.querySelector("#grip") as Element);
+  it("names a widget by its rim, with the widget's box, and nothing for the box its page is laid on", () => {
+    const binding = bindingForTarget(root.querySelector("#widget") as Element);
     expect(binding).toMatchObject({ kind: "widget", app: "gauge" });
     expect(binding !== null && binding.kind === "widget" ? binding.element.id : null).toBe("widget");
-    expect(bindingForTarget(root.querySelector("#chevron") as Element)).toBeNull();
     expect(bindingForTarget(root.querySelector("#widget-content") as Element)).toBeNull();
   });
 
-  it("drags a widget by its grip past the threshold and asks for its menu on a long press", () => {
+  it("drags a widget by its rim past the threshold and asks for its menu on a long press", () => {
     vi.useFakeTimers();
     try {
       detach = new PointerGestureSource().attach(root, listener());
-      const grip = root.querySelector("#grip") as Element;
+      const grip = root.querySelector("#widget") as Element;
       pointer("pointerdown", grip, 110, 70);
       pointer("pointermove", grip, 150, 90);
       pointer("pointerup", grip, 150, 90);

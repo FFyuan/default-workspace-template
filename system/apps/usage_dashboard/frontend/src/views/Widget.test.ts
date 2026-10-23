@@ -4,6 +4,7 @@ import m from "mithril";
 import { describe, expect, it } from "vitest";
 
 import type { LimitReading } from "../models/api";
+import { formatClock } from "../models/format";
 import { providerCards } from "../models/providers";
 import type { WidgetModel } from "../models/widget";
 import { totalsRow } from "../testing/rows";
@@ -44,11 +45,15 @@ describe("the collapsed Usage widget", () => {
     expect(pair?.getAttribute("title")).toContain("5-hour limit: 80% used");
     const outer = pair?.querySelector('[data-ring="outer"]');
     const inner = pair?.querySelector('[data-ring="inner"]');
-    expect([outer?.getAttribute("r"), outer?.getAttribute("stroke-dasharray")]).toEqual(["12.5", "34 100"]);
-    expect([inner?.getAttribute("r"), inner?.getAttribute("stroke-dasharray")]).toEqual(["8.5", "80 100"]);
+    expect([outer?.getAttribute("r"), outer?.getAttribute("stroke-dasharray")]).toEqual(["18", "34 100"]);
+    expect([inner?.getAttribute("r"), inner?.getAttribute("stroke-dasharray")]).toEqual(["13.5", "80 100"]);
     expect(inner?.getAttribute("data-ring-level")).toBe("high");
-    // A pair carries its provider's name, alone as beside another.
-    expect(pair?.textContent).toBe("Claude");
+    // A comfortable ring keeps its window's hue; a high one takes the level's colour.
+    expect(outer?.getAttribute("stroke")).toBe("var(--widget-long)");
+    expect(inner?.getAttribute("stroke")).toBe("var(--widget-high)");
+    // The 5-hour figure sits in the middle, and the pair carries its provider's name, alone as beside another.
+    expect(pair?.querySelector("[data-ring-figure]")?.textContent).toBe("80%");
+    expect(pair?.querySelector("[data-ring-name]")?.textContent).toBe("Claude");
   });
 
   it("names each of several pairs, and leaves a reset window's ring as a bare track", () => {
@@ -58,7 +63,8 @@ describe("the collapsed Usage widget", () => {
     );
 
     const pairs = [...root.querySelectorAll("[data-widget-rings]")];
-    expect(pairs.map((pair) => pair.textContent)).toEqual(["Claude", "Codex"]);
+    expect(pairs.map((pair) => pair.querySelector("[data-ring-name]")?.textContent)).toEqual(["Claude", "Codex"]);
+    expect(pairs.map((pair) => pair.querySelector("[data-ring-figure]")?.textContent)).toEqual(["—", "18%"]);
     expect(pairs[0].querySelector("[data-ring]")).toBeNull();
     expect(pairs[0].querySelectorAll("circle")).toHaveLength(1);
   });
@@ -78,5 +84,26 @@ describe("the collapsed Usage widget", () => {
     expect(root.querySelector("[data-widget-rings]")).toBeNull();
     expect(root.textContent).toContain("$9.50");
     expect(rendered([reading({})], "expanded").querySelector("[data-widget-row]")).not.toBeNull();
+  });
+});
+
+describe("the expanded Usage widget", () => {
+  it("heads a section per subscription, with a row per window giving when it resets and the share used", () => {
+    const root = rendered([reading({ used_percentage: 61 }), reading({ ...WEEKLY, used_percentage: 92 })], "expanded");
+
+    const section = root.querySelector('[data-widget-row="subscription:claude"]');
+    expect(section?.textContent).toContain("Claude");
+    const rows = [...(section?.querySelectorAll("[data-widget-window]") ?? [])];
+    expect(rows.map((row) => row.querySelector("span:nth-child(2)")?.textContent)).toEqual(["5-hour", "Weekly"]);
+    expect(rows.map((row) => row.querySelector("[data-widget-percent]")?.textContent)).toEqual(["61%", "92%"]);
+    expect(rows.map((row) => row.querySelector("[data-widget-percent]")?.getAttribute("data-widget-percent"))).toEqual(
+      ["ok", "critical"],
+    );
+    // The 5-hour window resets on the clock; the weekly one by its day and hour.
+    expect(rows.map((row) => row.querySelector("[data-widget-reset]")?.textContent)).toEqual([
+      formatClock(new Date("2026-10-22T22:30:00Z")),
+      new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" }),
+    ]);
+    expect(section?.querySelector('[data-ring="outer"]')?.getAttribute("stroke")).toBe("var(--widget-critical)");
   });
 });

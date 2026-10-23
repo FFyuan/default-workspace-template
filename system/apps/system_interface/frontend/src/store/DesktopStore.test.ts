@@ -2730,7 +2730,7 @@ describe("widgets", () => {
     const store = await widgetStore();
     expect(store.widgetRects().size).toBe(0);
     store.reportWidgetSize("gauge", { width: 180, height: 64 });
-    expect(store.widgetRects().get("gauge")).toEqual({ x: 16, y: 800 - 16 - 76, width: 180, height: 76 });
+    expect(store.widgetRects().get("gauge")).toEqual({ x: 16, y: 800 - 16 - 76, width: 192, height: 76 });
     store.reportWidgetHidden("gauge", true);
     expect(store.widgetRects().size).toBe(0);
     store.reportWidgetHidden("gauge", false);
@@ -2749,21 +2749,21 @@ describe("widgets", () => {
     expect(store.getState().widgets.gauge.mode).toBe("collapsed");
   });
 
-  it("drags a widget by its grip and snaps it to the corner of the quadrant it is let go in", async () => {
+  it("drags a widget by its rim and snaps it to the corner of the quadrant it is let go in", async () => {
     const store = await widgetStore();
     store.reportWidgetSize("gauge", { width: 180, height: 64 });
     store.beginWidgetDrag("gauge", { x: 20, y: 712 }, { x: 4, y: 4 });
     store.updateWidgetDrag({ x: 604, y: 104 });
-    expect(store.widgetRectOf("gauge")).toEqual({ x: 600, y: 100, width: 180, height: 76 });
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 600, y: 100, width: 192, height: 76 });
     // Held inside the backdrop, as a floating entry is.
     store.updateWidgetDrag({ x: 994, y: 104 });
-    expect(store.widgetRectOf("gauge")).toEqual({ x: 820, y: 100, width: 180, height: 76 });
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 808, y: 100, width: 192, height: 76 });
     store.endWidgetDrag({ x: 994, y: 104 });
     expect(store.getGesture()).toBeNull();
     expect(store.getState().widgets.gauge.corner).toBe("top-right");
     await settle();
     expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:top-right:expanded");
-    expect(store.widgetRectOf("gauge")).toEqual({ x: 1000 - 16 - 180, y: 36 + 16, width: 180, height: 76 });
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 1000 - 16 - 192, y: 36 + 16, width: 192, height: 76 });
     // A drop in the quadrant it started in writes nothing.
     const writes = api.calls.length;
     store.beginWidgetDrag("gauge", { x: 900, y: 20 }, { x: 4, y: 4 });

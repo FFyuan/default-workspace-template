@@ -2878,7 +2878,8 @@ _WIDGET_PATH = "/widget"
 # The stub widget page's content in each mode, in CSS pixels: what it reports, and the shell draws below the grip.
 _WIDGET_EXPANDED_SIZE = (150, 50)
 _WIDGET_COLLAPSED_SIZE = (60, 28)
-_WIDGET_GRIP_HEIGHT = 12
+# The rim a widget's box draws round its page, on each side.
+_WIDGET_RIM = 6
 
 # A widget's page: it reports the size of its content for each mode the shell tells it, and its one link opens a
 # window of its own app (``target="_blank"``, which the contract's link rule turns into a focused open).
@@ -2948,8 +2949,8 @@ def _windows_of(base_url: str, app: str) -> list[dict[str, Any]]:
 def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_for_everyone(
     tmp_path: Path, page: Page
 ) -> None:
-    """An app declaring a widget is drawn top right once its page reports a size, over every window; the chevron
-    collapses it to the size the page reports for that mode; a drag of its grip snaps it to another corner, kept on
+    """An app declaring a widget is drawn top right once its page reports a size, over every window; a double-click on
+    its rim collapses it to the size the page reports for that mode; a drag of its rim snaps it to another corner, kept on
     the client record across a reload; its link raises one window of its app however often it is clicked; and its
     menu hides it for the whole workspace."""
     shell: dict[str, str] = {}
@@ -2973,27 +2974,26 @@ def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_fo
 
             backdrop = _box(page.locator(f'[data-desktop-id="{_HOME_DESKTOP_ID}"]'))
             box = _box(widget)
-            _assert_close(box["width"], _WIDGET_EXPANDED_SIZE[0], "expanded width")
-            _assert_close(box["height"], _WIDGET_EXPANDED_SIZE[1] + _WIDGET_GRIP_HEIGHT, "expanded height")
+            _assert_close(box["width"], _WIDGET_EXPANDED_SIZE[0] + 2 * _WIDGET_RIM, "expanded width")
+            _assert_close(box["height"], _WIDGET_EXPANDED_SIZE[1] + 2 * _WIDGET_RIM, "expanded height")
             _assert_close(box["x"] + box["width"], backdrop["x"] + backdrop["width"] - 16, "top-right x")
             # Below a title bar's height too, so a maximized window's controls stay clear of it.
             _assert_close(box["y"], backdrop["y"] + 36 + 16, "top-right y")
 
-            widget.locator('[data-widget-control="collapse"]').click()
+            widget.dblclick(position={"x": 30, "y": 2})
             expect(widget).to_have_attribute("data-widget-mode", "collapsed")
             wait_for(
-                lambda: abs(_box(widget)["height"] - (_WIDGET_COLLAPSED_SIZE[1] + _WIDGET_GRIP_HEIGHT)) <= 1,
+                lambda: abs(_box(widget)["height"] - (_WIDGET_COLLAPSED_SIZE[1] + 2 * _WIDGET_RIM)) <= 1,
                 timeout=10.0,
                 poll_interval=0.1,
                 error_message="the collapsed widget never took the size its page reported",
             )
             assert frame.evaluate("() => window.__modes") == ["expanded", "collapsed"]
 
-            grip = widget.locator("[data-widget-grip]")
-            grip_box = _box(grip)
+            rim = _box(widget)
             _drag(
                 page,
-                (grip_box["x"] + 4, grip_box["y"] + 4),
+                (rim["x"] + 30, rim["y"] + 2),
                 (backdrop["x"] + 40, backdrop["y"] + backdrop["height"] - 40),
             )
             expect(widget).to_have_attribute("data-widget-corner", "bottom-left")
@@ -3039,7 +3039,7 @@ def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_fo
             page.wait_for_timeout(500)
             assert [window["path"] for window in _windows_of(server.base_url, _WIDGET_APP_NAME)] == ["/detail"]
 
-            _widget(page).locator("[data-widget-grip]").click(button="right")
+            _widget(page).click(button="right", position={"x": 30, "y": 2})
             menu = page.locator(".widget-menu")
             expect(menu).to_be_visible(timeout=5000)
             menu.locator('[data-menu-row="widget-hide"]').click()

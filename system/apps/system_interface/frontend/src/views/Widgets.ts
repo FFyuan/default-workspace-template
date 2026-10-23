@@ -1,18 +1,18 @@
 /**
  * The widgets' chrome (app-widgets plan section 4): a layer above every window and live page, beside the floating
- * entries' at the theme's sticky level, drawing for each widget its page reported a size for a box at its place in
- * its corner: a grip along its top, which drags it to another corner and carries the collapse/expand chevron and
- * the menu, over the content box the widget frames layer lays the page on. At rest a widget is see-through; under
- * the pointer, or with its menu open, it is not. The layer is inert; only each widget's box takes a press. Nothing
+ * entries' at the theme's sticky level, drawing for each widget its page reported a size for a dark panel at its
+ * place in its corner, with no bar: the content box the widget frames layer lays the page on fills it but for a
+ * thin rim, and the rim is the handle. A press on it drags the widget to another corner, a right-click or long
+ * press opens its menu, and a double-click collapses or expands it. At rest a widget is see-through; under the
+ * pointer, or with its menu open, it is not. The layer is inert; only each widget's box takes a press. Nothing
  * here measures the DOM or listens for gestures.
  */
 
 import m from "mithril";
-import { icon } from "@imbue/workspace-ui/src/components/icons";
 import { targetElementOf } from "@imbue/workspace-ui/src/context_menu_rows";
 import type { PixelRect } from "../geometry/frames";
 import type { ShownWidget } from "../reducers/desktopState";
-import { WIDGET_GRIP_ATTRIBUTE } from "../gestures/pointerGestures";
+import { NO_DRAG_ATTRIBUTE, WIDGET_GRIP_ATTRIBUTE } from "../gestures/pointerGestures";
 import { WIDGET_ATTRIBUTE, WIDGET_CONTENT_ATTRIBUTE } from "../pages/widgetFrames";
 import { rectStyle } from "./pixelStyle";
 
@@ -34,56 +34,34 @@ export const Widgets: m.Component<WidgetsAttrs> = {
       attrs.widgets.flatMap(({ app, presentation }): m.Children[] => {
         const rect = attrs.rects.get(app.name);
         if (rect === undefined) return [];
-        const isCollapsed = presentation.mode === "collapsed";
         const isMenuOpen = attrs.openMenuApp === app.name;
-        const toggleLabel = `${isCollapsed ? "Expand" : "Collapse"} the ${app.display_name} widget`;
         return [
           m(
             "div",
             {
               key: app.name,
               [WIDGET_ATTRIBUTE]: app.name,
+              [WIDGET_GRIP_ATTRIBUTE]: app.name,
+              "aria-label": `${app.display_name} widget: drag its edge to move it, double-click to resize it`,
               "data-widget-corner": presentation.corner,
               "data-widget-mode": presentation.mode,
               class:
-                "widget pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg border border-default " +
-                "bg-surface shadow-raised transition-opacity hover:opacity-100 " +
+                "widget pointer-events-auto absolute flex cursor-grab touch-none select-none overflow-hidden " +
+                "rounded-(--desk-widget-radius) border border-(--desk-widget-edge) bg-(--desk-widget-surface) " +
+                "p-(--desk-widget-rim) shadow-raised backdrop-blur-xl transition-opacity hover:opacity-100 " +
                 (isMenuOpen ? "opacity-100 ring-2 ring-accent" : "opacity-(--desk-widget-rest-opacity)"),
               style: rectStyle(rect),
+              ondblclick: () => attrs.onToggleMode(app.name),
               oncontextmenu: (event: MouseEvent) => {
                 event.preventDefault();
                 attrs.onContextMenu(app.name, event.clientX, event.clientY, targetElementOf(event));
               },
             },
-            [
-              m(
-                "div",
-                {
-                  [WIDGET_GRIP_ATTRIBUTE]: app.name,
-                  "aria-label": `Move the ${app.display_name} widget`,
-                  class:
-                    "widget-grip flex h-(--desk-widget-grip-size) shrink-0 cursor-grab touch-none select-none " +
-                    "items-center justify-end bg-hover px-1 text-secondary",
-                },
-                m(
-                  "button",
-                  {
-                    type: "button",
-                    "data-widget-control": isCollapsed ? "expand" : "collapse",
-                    "data-no-drag": "",
-                    "aria-label": toggleLabel,
-                    title: toggleLabel,
-                    class:
-                      "flex h-full cursor-pointer items-center border-0 bg-transparent p-0 text-secondary " +
-                      "hover:text-primary [&>svg]:h-full [&>svg]:w-auto " +
-                      (isCollapsed ? "" : "[&>svg]:rotate-180"),
-                    onclick: () => attrs.onToggleMode(app.name),
-                  },
-                  m.trust(icon("chevron-down")),
-                ),
-              ),
-              m("div", { [WIDGET_CONTENT_ATTRIBUTE]: "", class: "widget-content min-h-0 flex-1" }),
-            ],
+            m("div", {
+              [WIDGET_CONTENT_ATTRIBUTE]: "",
+              [NO_DRAG_ATTRIBUTE]: "",
+              class: "widget-content min-h-0 min-w-0 flex-1",
+            }),
           ),
         ];
       }),

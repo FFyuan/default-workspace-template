@@ -49,7 +49,7 @@ const CONTRACT_TOKENS: Record<string, string> = {
   "--desk-widget-max-width": "320px",
   "--desk-widget-max-height": "240px",
   "--desk-widget-min-size": "24px",
-  "--desk-widget-grip-size": "12px",
+  "--desk-widget-rim": "6px",
 };
 
 describe("the theme file", () => {

@@ -478,7 +478,10 @@ Both editors (`shell/desktop_document.py` and `frontend/src/geometry/`) implemen
 | `--desk-widget-max-width` | `320px` | | yes |
 | `--desk-widget-max-height` | `240px` | | yes |
 | `--desk-widget-min-size` | `24px` | | yes |
-| `--desk-widget-grip-size` | `12px` | `44px` | yes |
+| `--desk-widget-rim` | `6px` | `12px` | yes |
+| `--desk-widget-radius` | `12px` | | no |
+| `--desk-widget-surface` | `rgb(28 28 30 / 0.92)` | | no |
+| `--desk-widget-edge` | `rgb(255 255 255 / 0.1)` | | no |
 | `--desk-widget-rest-opacity` | `0.72` | `1` | no |
 | `--desk-resize-edge` | `8px` | | no |
 | `--desk-resize-corner` | `16px` | | no |
@@ -522,11 +525,11 @@ Data attributes, never classes, so restyling cannot break a test:
 | `data-widgets` | the widget layer |
 | `data-widget="<app>"`, `data-widget-corner="top-left\|top-right\|bottom-left\|bottom-right"`, `data-widget-mode="expanded\|collapsed"` | each drawn widget's chrome; a widget whose page has not reported a size, or says it has nothing to show, is not drawn |
 | `data-widget-frames`, `data-widget-frame="<app>"` | the widget frames' host, and each widget's iframe |
-| `data-widget-grip`, `data-widget-control="collapse\|expand"` | each widget's grip and its chevron |
+| `data-widget-grip="<app>"` | each drawn widget's chrome too, whose rim is its handle |
 | `data-mood="working\|idle"`, `data-stale="true\|false"` | each avatar image's button |
 | `data-avatar-chooser`, `data-avatar-design="<id>"` | the chooser and its cells |
 | `data-menu-item="float\|move-to-taskbar\|style-plain\|style-avatar\|change-avatar"` | the pinned entry's menu rows |
-| `data-menu-row="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the grip, shortcut, and launcher menus |
+| `data-menu-row="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the rim, shortcut, and launcher menus |
 | `data-phone-bar`, `data-phone-home`, `data-phone-pill="<window-id>" \| "home"`, `data-phone-count`, `data-phone-new` | the phone's bar, its home button, the pill (naming what it shows), the pill's window count, and plus |
 | `data-phone-sheet="windows" \| "start"`, `data-phone-sheet-scrim` | the phone's sheets, and the scrim under each |
 | `data-phone-window-row="<id>"`, `data-phone-window-close="<id>"`, `data-phone-window-menu="<id>"`, `data-phone-close-all`, `data-phone-window-search` | the windows sheet's rows, their X and kebab, Close all, and the field shown past six windows |

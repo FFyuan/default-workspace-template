@@ -12,7 +12,7 @@ describe("widget geometry", () => {
     expect(clampedWidgetSize({ width: 0, height: 5 }, METRICS)).toEqual({ width: 24, height: 24 });
   });
 
-  it("stacks each corner's widgets away from it, grip above the page, inset and gapped, a top one below a title bar", () => {
+  it("stacks each corner's widgets away from it, a rim round the page, inset and gapped, a top one below a title bar", () => {
     const rects = widgetRects(
       [
         { app: "gauge", corner: "top-right", size: { width: 180, height: 64 } },
@@ -24,11 +24,11 @@ describe("widget geometry", () => {
       METRICS,
     );
 
-    expect(rects.get("gauge")).toEqual({ x: 1200 - 16 - 180, y: 36 + 16, width: 180, height: 76 });
-    expect(rects.get("meter")).toEqual({ x: 1200 - 16 - 100, y: 36 + 16 + 76 + 8, width: 100, height: 52 });
-    expect(rects.get("clock")).toEqual({ x: 16, y: 800 - 16 - 42, width: 120, height: 42 });
+    expect(rects.get("gauge")).toEqual({ x: 1200 - 16 - 192, y: 36 + 16, width: 192, height: 76 });
+    expect(rects.get("meter")).toEqual({ x: 1200 - 16 - 112, y: 36 + 16 + 76 + 8, width: 112, height: 52 });
+    expect(rects.get("clock")).toEqual({ x: 16, y: 800 - 16 - 42, width: 132, height: 42 });
     // Below the minimum, a page's report is raised to it.
-    expect(rects.get("dial")).toEqual({ x: 16, y: 800 - 16 - 42 - 8 - 36, width: 60, height: 36 });
+    expect(rects.get("dial")).toEqual({ x: 16, y: 800 - 16 - 42 - 8 - 36, width: 72, height: 36 });
   });
 
   it("snaps a drop to the corner of the quadrant it lands in", () => {

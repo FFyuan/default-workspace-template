@@ -34,7 +34,7 @@ export interface ThemeMetrics {
   readonly widgetMaxWidth: number;
   readonly widgetMaxHeight: number;
   readonly widgetMinSize: number;
-  readonly widgetGripSize: number;
+  readonly widgetRim: number;
 }
 
 const TOKEN_BY_METRIC: Readonly<Record<keyof ThemeMetrics, string>> = {
@@ -58,7 +58,7 @@ const TOKEN_BY_METRIC: Readonly<Record<keyof ThemeMetrics, string>> = {
   widgetMaxWidth: "--desk-widget-max-width",
   widgetMaxHeight: "--desk-widget-max-height",
   widgetMinSize: "--desk-widget-min-size",
-  widgetGripSize: "--desk-widget-grip-size",
+  widgetRim: "--desk-widget-rim",
 };
 
 /** Raised when a token the metrics need is missing from the computed style or is not a pixel length. */

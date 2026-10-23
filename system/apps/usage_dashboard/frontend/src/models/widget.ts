@@ -79,6 +79,20 @@ function windowText(window: LimitWindow): string {
     : `${window.label}: ${used}, resets ${formatClock(window.resetsAt)}`;
 }
 
+/** When a window resets, as briefly as tells it apart: the clock for one of hours, the weekday and hour for a longer
+ *  one ("Mon 9 AM"). */
+export function resetText(window: LimitWindow): string {
+  if (window.isResetSinceReading) return "reset";
+  if (window.resetsAt === null) return "";
+  if (/-hour limit$/.test(window.label)) return formatClock(window.resetsAt);
+  return window.resetsAt.toLocaleString(undefined, { weekday: "short", hour: "numeric" });
+}
+
+/** A window's name in a row: its label without the trailing "limit" ("5-hour", "Weekly"). */
+export function windowName(window: LimitWindow): string {
+  return window.label.replace(/ limit$/, "");
+}
+
 /** The rows the expanded widget draws, in the page's card order. */
 export function widgetRows(cards: readonly ProviderCard[]): WidgetRow[] {
   return cards.flatMap((card): WidgetRow[] => {

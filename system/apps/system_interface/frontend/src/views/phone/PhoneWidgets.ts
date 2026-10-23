@@ -43,8 +43,8 @@ export const PhoneWidgets: m.Component<PhoneWidgetsAttrs> = {
             [WIDGET_ATTRIBUTE]: app.name,
             "data-phone-widget": app.name,
             class:
-              "phone-widget flex max-h-(--desk-phone-widget-height) shrink-0 overflow-hidden rounded-lg border " +
-              "border-default bg-surface",
+              "phone-widget flex max-h-(--desk-phone-widget-height) shrink-0 overflow-hidden " +
+              "rounded-(--desk-widget-radius) border border-(--desk-widget-edge) bg-(--desk-widget-surface)",
             style: { width: `${size.width}px`, height: `${size.height}px` },
           },
           m("div", { [WIDGET_CONTENT_ATTRIBUTE]: "", class: "phone-widget-content min-w-0 flex-1" }),
