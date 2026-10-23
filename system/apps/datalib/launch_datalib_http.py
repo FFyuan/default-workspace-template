@@ -350,10 +350,11 @@ def register_app(
 
 
 def launch(arguments: argparse.Namespace) -> None:
-    """Register the app with the token on its launch path, then become datalib-http.
+    """Move an older store into the library, register the app with the token on its launch path, then become datalib-http.
 
     Refuses to start (so supervisord retries with its backoff, and the app is never registered without a
-    server behind it) until the datalib skill's install script has installed the binary.
+    server behind it) until the datalib skill's install script has installed the binary, while a datalib
+    process still holds the store to move, or while that store and a non-empty library both exist.
     """
     if not arguments.datalib_http.is_file():
         raise DatalibLaunchError(
