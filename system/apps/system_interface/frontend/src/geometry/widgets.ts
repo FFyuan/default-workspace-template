@@ -1,8 +1,9 @@
 /**
  * Where widgets are drawn (app-widgets plan sections 3.4, 4.2 and 4.4): each in the corner its client chose,
  * stacked away from that corner in the order the shell lists them, inset from the backdrop's edges (which end
- * above the taskbar) and separated by the theme's gap. A widget's box is its grip above the size its page last
- * reported, clamped to the theme's widget minimum and maximum. Nothing here reads the DOM.
+ * above the taskbar) and separated by the theme's gap. A top corner's stack starts below a window title bar's
+ * height too, so a maximized window's controls stay clear of it. A widget's box is its grip above the size its
+ * page last reported, clamped to the theme's widget minimum and maximum. Nothing here reads the DOM.
  */
 
 import type { WidgetCorner } from "../model/records";
@@ -10,6 +11,7 @@ import type { PixelPoint, PixelRect, PixelSize } from "./frames";
 
 /** The theme metrics a widget's geometry reads. */
 export interface WidgetMetrics {
+  readonly titleBarHeight: number;
   readonly widgetInset: number;
   readonly widgetGap: number;
   readonly widgetMaxWidth: number;
@@ -57,9 +59,10 @@ export function widgetRects(
     const content = clampedWidgetSize(widget.size, metrics);
     const width = content.width;
     const height = content.height + metrics.widgetGripSize;
-    const offset = metrics.widgetInset + reached[widget.corner];
     const x = isLeft(widget.corner) ? metrics.widgetInset : backdrop.width - metrics.widgetInset - width;
-    const y = isTop(widget.corner) ? offset : backdrop.height - offset - height;
+    const y = isTop(widget.corner)
+      ? metrics.titleBarHeight + metrics.widgetInset + reached[widget.corner]
+      : backdrop.height - metrics.widgetInset - reached[widget.corner] - height;
     rects.set(widget.app, { x, y, width, height });
     reached[widget.corner] += height + metrics.widgetGap;
   }

@@ -2763,7 +2763,7 @@ describe("widgets", () => {
     expect(store.getState().widgets.gauge.corner).toBe("top-right");
     await settle();
     expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:top-right:expanded");
-    expect(store.widgetRectOf("gauge")).toEqual({ x: 1000 - 16 - 180, y: 16, width: 180, height: 76 });
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 1000 - 16 - 180, y: 36 + 16, width: 180, height: 76 });
     // A drop in the quadrant it started in writes nothing.
     const writes = api.calls.length;
     store.beginWidgetDrag("gauge", { x: 900, y: 20 }, { x: 4, y: 4 });

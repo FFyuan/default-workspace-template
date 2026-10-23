@@ -2976,7 +2976,8 @@ def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_fo
             _assert_close(box["width"], _WIDGET_EXPANDED_SIZE[0], "expanded width")
             _assert_close(box["height"], _WIDGET_EXPANDED_SIZE[1] + _WIDGET_GRIP_HEIGHT, "expanded height")
             _assert_close(box["x"] + box["width"], backdrop["x"] + backdrop["width"] - 16, "top-right x")
-            _assert_close(box["y"], backdrop["y"] + 16, "top-right y")
+            # Below a title bar's height too, so a maximized window's controls stay clear of it.
+            _assert_close(box["y"], backdrop["y"] + 36 + 16, "top-right y")
 
             widget.locator('[data-widget-control="collapse"]').click()
             expect(widget).to_have_attribute("data-widget-mode", "collapsed")
