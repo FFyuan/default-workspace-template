@@ -326,7 +326,8 @@ def migrate_cron_entries(
     states: StateStoreInterface,
     live_cron_dir: Path = LIVE_CRON_DIR,
 ) -> MigrationReport:
-    """Convert every entry under data/.state/cron.d, carry the runner's state over, and remove both copies."""
+    """Convert every entry under data/.state/cron.d but the app's, carry the runner's state over, and remove both
+    copies."""
     durable_dir = repo_root / LEGACY_CRON_DIR
     if not durable_dir.is_dir():
         return MigrationReport(converted=(), enabled_caretaker=False, skipped=())
