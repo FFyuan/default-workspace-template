@@ -29,6 +29,7 @@ def test_an_antigravity_turn_is_recorded_once_it_ends_with_unknown_usage() -> No
         "origin_id": "chat-1",
         "harness": "antigravity",
         "purpose": "TURN",
+        "turn_id": f"antigravity-agent-ag-{int(_START.timestamp() * 1000)}",
         "agent_id": "agent-ag",
         "call_source": "MAIN",
     }

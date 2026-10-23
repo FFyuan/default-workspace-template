@@ -52,6 +52,7 @@ def build_model_call(
     harness: str | None = None,
     purpose: str | None = None,
     session_id: str | None = None,
+    turn_id: str | None = None,
     credential_ref: str | None = None,
     modifiers: Sequence[str] = (),
 ) -> dict[str, object]:
@@ -65,6 +66,7 @@ def build_model_call(
         "harness": harness,
         "purpose": purpose,
         "session_id": session_id,
+        "turn_id": turn_id,
     }
     event: dict[str, object] = {
         "schema_version": MODEL_CALL_SCHEMA_VERSION,

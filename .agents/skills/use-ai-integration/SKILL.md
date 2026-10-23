@@ -134,6 +134,24 @@ text = resp.choices[0].message.content
 cost = completion_cost(completion_response=resp)  # USD for this call
 ```
 
+To have the Usage app group an app's calls by task (one group per request, job
+or item), wrap each task in `usage_turn`; every call recorded inside it, by
+litellm or by `claude_p_completion`, carries that turn id. It is optional: an
+app that sets none still has every call counted.
+
+```python
+from workspace_usage.turn import usage_turn
+
+with usage_turn(f"email-{email_id}"):
+    resp = completion(model="claude-haiku-4-5", messages=messages, ...)
+
+# Or name one call's turn on the call itself:
+completion(..., metadata={"imbue_turn_id": f"email-{email_id}"})
+```
+
+With a thread pool, enter `usage_turn` inside the function each worker runs:
+a worker thread does not see the turn its caller was in.
+
 **Keyless (no key): copy this skill's `scripts/claude_p.py` and call `claude_p_completion`.**
 It disables tools and runs from an isolated working directory so the repo's
 `CLAUDE.md` / `.claude` hooks can't hijack the answer; `system` is required.

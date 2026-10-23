@@ -93,20 +93,41 @@ export function modelLabel(model: string | null): string {
   return slash === -1 ? model : model.slice(slash + 1);
 }
 
-/** "App · Files", "Chat · c_8f2a1b…": an app by its display name, a chat or routine by a short id. */
-export function sourceLabel(kind: string | null, id: string | null, appNames: Record<string, string>): string {
+/** The names a source is shown under: an app's display name, a chat's or a routine's title, each by its id. */
+export interface SourceNames {
+  apps: Record<string, string>;
+  chats: Record<string, string>;
+  routines: Record<string, string>;
+}
+
+export const NO_SOURCE_NAMES: SourceNames = { apps: {}, chats: {}, routines: {} };
+
+/**
+ * "App · Files", "Chat · Seattle weather", "Routine · US news": a source by the name its owner gives it, else by a
+ * short id.
+ */
+export function sourceLabel(kind: string | null, id: string | null, names: SourceNames): string {
   const kindLabel = ORIGIN_KIND_LABELS[kind ?? "UNKNOWN"] ?? kind ?? "Unknown";
   if (id === null || id === "") return kindLabel;
-  if (kind === "APP") return `${kindLabel} · ${appNames[id] ?? id}`;
+  const named =
+    kind === "APP"
+      ? names.apps[id]
+      : kind === "CHAT"
+        ? names.chats[id]
+        : kind === "ROUTINE"
+          ? names.routines[id]
+          : undefined;
+  if (named !== undefined) return `${kindLabel} · ${named}`;
+  if (kind === "APP") return `${kindLabel} · ${id}`;
   return `${kindLabel} · ${id.length > 10 ? `${id.slice(0, 10)}…` : id}`;
 }
 
-export function groupLabel(breakdown: BreakdownId, group: Group, appNames: Record<string, string>): string {
+export function groupLabel(breakdown: BreakdownId, group: Group, names: SourceNames): string {
   switch (breakdown) {
     case "model":
       return modelLabel(group.model ?? null);
     case "source":
-      return sourceLabel(group.origin_kind ?? null, group.origin_id ?? null, appNames);
+      return sourceLabel(group.origin_kind ?? null, group.origin_id ?? null, names);
     case "billing_mode":
       return billingModeLabel(group.billing_mode ?? null);
   }
@@ -134,7 +155,7 @@ export function breakdownLines(
   breakdown: BreakdownId,
   rows: readonly TotalsRow[],
   latencyRows: readonly LatencyRow[],
-  appNames: Record<string, string>,
+  names: SourceNames,
 ): BreakdownLine[] {
   const fields = breakdownSpec(breakdown).fields;
   const lines = new Map<string, BreakdownLine>();
@@ -145,7 +166,7 @@ export function breakdownLines(
     let line = lines.get(key);
     if (line === undefined) {
       line = {
-        label: groupLabel(breakdown, group, appNames),
+        label: groupLabel(breakdown, group, names),
         group,
         calls: 0,
         tokens: 0,

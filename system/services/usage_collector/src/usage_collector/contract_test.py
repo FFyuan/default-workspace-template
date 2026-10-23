@@ -47,6 +47,7 @@ def test_workspace_usage_events_validate_against_the_schema() -> None:
         status="RATE_LIMITED",
         harness="litellm",
         purpose="APP_CALL",
+        turn_id="request-7",
         modifiers=["FAST_MODE"],
     )
 
@@ -60,6 +61,7 @@ def test_workspace_usage_events_validate_against_the_schema() -> None:
     assert set(tokens) <= set(ModelCallTokens.model_fields)
     assert parsed.schema_version == MODEL_CALL_SCHEMA_VERSION
     assert parsed.attribution.run_id == "r-1"
+    assert parsed.attribution.turn_id == "request-7"
 
 
 def test_usage_context_wire_formats_match() -> None:

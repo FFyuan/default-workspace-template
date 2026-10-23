@@ -74,7 +74,18 @@ def test_collector_health_reports_catching_up(client: FlaskClient) -> None:
 
 
 def test_app_names_come_from_the_registry(client: FlaskClient) -> None:
-    assert client.get("/api/apps").get_json() == {"display_names": {"files": "Files"}}
+    assert client.get("/api/apps").get_json() == {"display_names": {"files": "Files", "chat": "Chat"}}
+
+
+def test_source_names_are_the_chat_apps_titles_and_the_routines_titles(client: FlaskClient) -> None:
+    assert client.get("/api/source-names").get_json() == {
+        "chats": {"agent-1": "Seattle weather", "agent-2": "News"},
+        "routines": {"us-news": "US news"},
+    }
+
+
+def test_source_names_are_empty_when_the_chat_app_cannot_be_asked(unreachable_client: FlaskClient) -> None:
+    assert unreachable_client.get("/api/source-names").get_json() == {"chats": {}, "routines": {}}
 
 
 def test_the_page_and_its_assets_are_served(client: FlaskClient) -> None:

@@ -2,11 +2,11 @@ New app: Usage, a window over the workspace's model usage, read from the usage c
 
 Below the cards, a Total row of tiles across every provider has the time window picker. Each card opens its provider's detail page: a list of every provider on the left, and on the right that provider's card, tiles, chart, breakdown and latest calls. For the last 30 minutes, 24 hours, 7 days or this month (from local midnight on the 1st), the pages show:
 
-- what was billed (Imbue key and API key spend), with a subscription's usage at list price in its own tile, calls of unknown cost counted beside the total rather than added as $0, and a "~" on totals that include costs estimated from tokens;
+- what was billed (Imbue key and API key spend), with no dollar figure for subscription usage, which is not billed per call, calls of unknown cost counted beside the total rather than added as $0, and a "~" on totals that include costs estimated from tokens;
 
 - tokens, calls with the share that failed or were rate-limited, and p50 and p95 latency, with untimed calls counted apart and durations from Claude session logs marked approximate;
 
-- a chart of spend or tokens over the window, stacked by model, and a breakdown by model, source or billing mode, where clicking a row filters the whole page;
+- charts of spend or tokens over the window, one stacked by source and one by model side by side, and a breakdown by model, source or billing mode, where clicking a row filters the whole page; a source goes by its app's display name, its chat's title or its routine's title;
 
 - the latest calls as they happen, in numbered pages of 10, 20, 50 or 100 rows with a box to jump to a page, each opening to its raw event.
 

@@ -16,6 +16,7 @@ import {
   type StoredCall,
   type TotalsRow,
   fetchAppNames,
+  fetchChatAndRoutineTitles,
   fetchCalls,
   fetchCollectorHealth,
   fetchLatency,
@@ -26,6 +27,8 @@ import {
 import {
   type BreakdownId,
   type Filter,
+  NO_SOURCE_NAMES,
+  type SourceNames,
   breakdownSpec,
   callGroup,
   filterKey,
@@ -53,9 +56,10 @@ export interface UsageFigures {
   latency: LatencyRow | null;
 }
 
-/** A set of calls' tiles, chart rows (bucketed, by model) and breakdown: all usage, or one provider's. */
+/** A set of calls' tiles, chart rows (bucketed, by model and by source) and breakdown: all usage, or one provider's. */
 export interface SectionFigures extends UsageFigures {
   chartRows: TotalsRow[];
+  sourceChartRows: TotalsRow[];
   breakdownRows: TotalsRow[];
   breakdownLatency: LatencyRow[];
   /** For a subscription: its breakdown rows within each limit's most recent window, by window key. */
@@ -111,7 +115,7 @@ export class DashboardModel {
   /** The page of calls shown, from 1. */
   callsPage = 1;
   callsPerPage: RowsPerPage = DEFAULT_ROWS_PER_PAGE;
-  appNames: Record<string, string> = {};
+  sourceNames: SourceNames = NO_SOURCE_NAMES;
   isLoading = false;
   isCollectorDown = false;
   isCatchingUp = false;
@@ -133,16 +137,25 @@ export class DashboardModel {
   constructor(private readonly deps: DashboardDeps) {}
 
   start(): void {
-    void fetchAppNames()
-      .then((names) => {
-        this.appNames = names;
-        this.deps.redraw();
-      })
-      .catch(() => undefined);
+    void this.loadSourceNames();
     void this.refresh();
     void this.loadCalls();
     this.connectStream();
-    this.periodic = setInterval(() => void this.refresh(), PERIODIC_REFRESH_MS);
+    this.periodic = setInterval(() => {
+      void this.refresh();
+      // Chats are made and renamed while the page is open.
+      void this.loadSourceNames();
+    }, PERIODIC_REFRESH_MS);
+  }
+
+  /** The names sources are shown under; a lookup that fails leaves the names already known. */
+  async loadSourceNames(): Promise<void> {
+    const [apps, titles] = await Promise.all([
+      fetchAppNames().catch(() => this.sourceNames.apps),
+      fetchChatAndRoutineTitles().catch(() => this.sourceNames),
+    ]);
+    this.sourceNames = { apps, chats: titles.chats, routines: titles.routines };
+    this.deps.redraw();
   }
 
   stop(): void {
@@ -205,6 +218,7 @@ export class DashboardModel {
         summaryRows,
         statusRows,
         chartRows,
+        sourceChartRows,
         breakdownRows,
         totalLatency,
         totalBreakdownLatency,
@@ -215,6 +229,7 @@ export class DashboardModel {
         fetchTotals({ groupBy: split(["cost_provenance"]), since }),
         fetchTotals({ groupBy: split(["status"]), since }),
         fetchTotals({ groupBy: split(["model"]), since, bucket }),
+        fetchTotals({ groupBy: split(["origin_kind", "origin_id"]), since, bucket }),
         fetchTotals({ groupBy: split(breakdownSpec(breakdown).fields), since }),
         fetchLatency(filterFields, since),
         fetchLatency(breakdownFields, since),
@@ -287,6 +302,7 @@ export class DashboardModel {
           failed: failedShare(keep(statusRows)),
           latency: keep(totalLatency)[0] ?? null,
           chartRows: keep(chartRows),
+          sourceChartRows: keep(sourceChartRows),
           breakdownRows: keep(breakdownRows),
           breakdownLatency: keep(totalBreakdownLatency),
         },
@@ -296,6 +312,7 @@ export class DashboardModel {
           failed: failedShare(within(statusRows, spec)),
           latency: keep(sectionLatency[index][0])[0] ?? null,
           chartRows: within(chartRows, spec),
+          sourceChartRows: within(sourceChartRows, spec),
           breakdownRows: within(breakdownRows, spec),
           breakdownLatency: keep(sectionLatency[index][1]),
           limitWindowRows: Object.fromEntries(

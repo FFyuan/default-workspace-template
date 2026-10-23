@@ -341,3 +341,45 @@ def test_calls_filter_by_provider_and_any_of_several_values(store: UsageStore) -
         "API_KEY",
         "UNKNOWN",
     ]
+
+
+def test_totals_group_by_turn_and_calls_filter_by_it(store: UsageStore) -> None:
+    store.insert(_event(attribution={"turn_id": "request-1", "session_id": "s-1"}))
+    store.insert(_event(attribution={"turn_id": "request-1", "session_id": "s-1"}))
+    store.insert(_event(attribution={"turn_id": "request-2", "session_id": "s-1"}))
+    store.insert(_event())
+
+    totals = {
+        row.group["turn_id"]: row.calls
+        for row in store.totals(["turn_id"], NOW - timedelta(hours=1))
+    }
+    [unattributed] = store.calls({"turn_id": [""]})
+
+    assert totals == {None: 1, "request-1": 2, "request-2": 1}
+    assert len(store.calls({"turn_id": ["request-1"]})) == 2
+    assert store.count_calls({"session_id": ["s-1"], "turn_id": ["request-2"]}) == 1
+    assert store.count_calls({"run_id": [""]}) == 4
+    assert ModelCallEvent.model_validate(unattributed.event).attribution.turn_id is None
+
+
+def test_a_database_from_before_turn_ids_gains_the_column_and_keeps_its_calls(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "old.db"
+    old_store = UsageStore(path)
+    old_store.insert(_event())
+    old_store.close()
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP INDEX model_call_turn_id")
+        connection.execute("ALTER TABLE model_call DROP COLUMN turn_id")
+
+    reopened = UsageStore(path)
+    try:
+        reopened.insert(_event(attribution={"turn_id": "request-1"}))
+        totals = {
+            row.group["turn_id"]: row.calls
+            for row in reopened.totals(["turn_id"], NOW - timedelta(hours=1))
+        }
+        assert totals == {None: 1, "request-1": 1}
+    finally:
+        reopened.close()

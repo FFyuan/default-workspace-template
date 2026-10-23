@@ -16,8 +16,9 @@ The app has three kinds of page, one document reading its path:
     used, as a bar, and when it resets, from the freshest reading the collector
     has. A reading is only as new as the last call that carried one, so the card
     says when it was taken; a window whose reset time has passed since then shows
-    as reset. A provider is shown while it has a reading from the last 7 days, and
-    its card adds what this month's use would cost at API prices.
+    as reset. A provider is shown while it has a reading from the last 7 days.
+    No page shows a subscription's usage in dollars: it is not billed per call,
+    and a dollar figure beside a plan's limits reads as a charge.
   - **A spend card** for every provider used without a subscription (an API key,
     Imbue's proxy, a billing mode no writer could tell): this month's spend and
     calls, with calls of unknown cost counted rather than added as $0.
@@ -27,8 +28,8 @@ The app has three kinds of page, one document reading its path:
   picker, its tiles, its chart, its breakdown and its latest calls, in numbered pages
   of 10, 20, 50 or 100 rows with a box to jump to a page.
   A provider's subscription use and its use without one are separate items.
-- **`/all`**: the same for every provider at once, reached from the home page's
-  "See all usage" link.
+  The home page's "See details" link opens the first provider's page.
+- **`/all`**: the same for every provider at once, for a link made by hand.
 
 Nothing names a provider it must find; a card or item exists only for what the
 data shows. The window is the last 30 minutes, 24 hours, 7 days or this month
@@ -38,16 +39,16 @@ are picked out of the same answers the Total row adds up; a provider's latency
 and its latest calls are asked for on their own, filtered to its provider and
 billing modes, since percentiles do not add up. What the tiles, charts and breakdowns show:
 
-- **Spend**: what was billed, with Imbue key and API key spend apart. A
-  subscription's usage is shown in its own tile at list price, since it is not
-  billed per call. Calls whose cost or billing mode is unknown are counted beside
+- **Spend**: what was billed, with Imbue key and API key spend apart; a
+  subscription's calls add nothing to it. Calls whose cost or billing mode is unknown are counted beside
   the total rather than added as $0, and a total that includes a cost the
   collector estimated from tokens carries a "~".
 - **Tokens** (input, output, cache read and cache write), **calls** with the share
   that failed or were rate-limited, and **latency** (p50 and p95 of each call's
   duration; calls with no duration are counted apart, and durations from Claude
   session logs are marked approximate).
-- A chart of spend or tokens over the window, stacked by model. A subscription's
+- Two charts of spend or tokens over the window, side by side: one stacked by
+  source (the app, chat or routine that made the calls), then one by model. A subscription's
   chart shows its **estimated usage** instead, as a share of its 5-hour or weekly
   limit: a harness reports only each window's total share used, so the page
   prices the provider's subscription calls between the window's start and the
@@ -61,6 +62,10 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   next call, so the estimate keeps the last reading's rate (the account's, which
   a reset does not change) and says so; dashed lines mark where the chosen
   window started and where it reset.
+- Sources go by the names the user knows them by: an app by its display name (from
+  the app registry), a chat by its title (from the chat app's chat list) and a
+  routine by its title (from its definition file); one the lookup cannot name
+  shows a short id.
 - A breakdown by model, source (the app, chat or routine that made the calls) or
   billing mode. Clicking a row filters the whole page to it.
 - The latest calls, newest first, as they happen, each with its raw event.

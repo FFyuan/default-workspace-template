@@ -40,8 +40,6 @@ export interface SubscriptionCard {
   title: string;
   windows: LimitWindow[];
   observedAt: Date;
-  /** This month's subscription calls of this provider at list price, when any were priced. */
-  listPriceThisMonth: number | null;
 }
 
 export interface SpendCard {
@@ -131,12 +129,6 @@ function subscriptionCards(
         };
       });
     const provider = SOURCE_PROVIDERS[source];
-    let listPrice: number | null = null;
-    for (const row of monthRows) {
-      if (provider === undefined || row.group.provider !== provider) continue;
-      if (row.group.billing_mode !== "SUBSCRIPTION" || row.cost_usd === null) continue;
-      listPrice = (listPrice ?? 0) + Number(row.cost_usd);
-    }
     return {
       kind: "subscription",
       key: `subscription:${source}`,
@@ -144,7 +136,6 @@ function subscriptionCards(
       title: SUBSCRIPTION_TITLES[source] ?? `${capitalized(source)} subscription`,
       windows,
       observedAt: new Date(Math.max(...readings.map((reading) => Date.parse(reading.observed_at)))),
-      listPriceThisMonth: listPrice,
     };
   });
 }

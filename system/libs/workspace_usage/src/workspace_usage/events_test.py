@@ -60,3 +60,22 @@ def test_build_model_call_without_cost_leaves_it_for_the_collector() -> None:
         and "model" not in event
     )
     assert event["attribution"] == {"workspace_id": "ws", "origin_kind": "UNKNOWN"}
+
+
+def test_build_model_call_carries_a_turn_id_when_given_one() -> None:
+    event = build_model_call(
+        event_id="call-3",
+        started_at=_AT,
+        ended_at=_AT,
+        provider="anthropic",
+        model=None,
+        context={},
+        workspace_id="ws",
+        turn_id="request-7",
+    )
+
+    assert event["attribution"] == {
+        "workspace_id": "ws",
+        "origin_kind": "UNKNOWN",
+        "turn_id": "request-7",
+    }

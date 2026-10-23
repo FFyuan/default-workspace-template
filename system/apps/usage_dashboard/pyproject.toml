@@ -12,6 +12,7 @@ dependencies = [
     "imbue-common",
     "loguru>=0.7",
     "pydantic>=2.0",
+    "routines",
     "werkzeug>=3.0",
 ]
 

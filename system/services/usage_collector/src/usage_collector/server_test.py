@@ -144,3 +144,25 @@ def test_latency_takes_filters_over_http(
     ).get_json()["rows"]
 
     assert [row["timed_calls"] for row in rows] == [1]
+
+
+def test_one_turns_calls_and_totals_by_turn_answer_over_http(
+    client: FlaskClient, ingestor: Ingestor
+) -> None:
+    in_turn = model_call_payload(attribution={"turn_id": "request-1"})
+    ingestor.ingest(in_turn)
+    ingestor.ingest(model_call_payload())
+    since = (NOW - timedelta(hours=1)).isoformat()
+
+    calls = client.get("/v1/calls", query_string={"turn_id": "request-1"}).get_json()
+    totals = client.get(
+        "/v1/totals", query_string={"group_by": "turn_id", "since": since}
+    ).get_json()
+
+    assert [call["event"]["event_id"] for call in calls["calls"]] == [
+        in_turn["event_id"]
+    ]
+    assert calls["total"] == 1
+    assert sorted(
+        (row["group"]["turn_id"] or "", row["calls"]) for row in totals["rows"]
+    ) == [("", 1), ("request-1", 1)]

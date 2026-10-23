@@ -8,9 +8,10 @@ app, as for any app: the collector listens on 127.0.0.1 only, so this server is 
 the workspace. A collector that cannot be reached is answered with 503, which the page shows as a banner over the
 last numbers it had.
 
-Besides the collector it reads the app registry, for the display names the page shows an app's usage under, and
-keeps one small settings file of its own (``settings.py``): which version of the widget the workspace shows,
-which ``/api/settings`` reads and sets.
+Besides the collector it reads the names the page shows a source's usage under: an app's display name from the
+app registry, a chat's title from the chat app, and a routine's title from its definition file
+(``source_names.py``). It keeps one small settings file of its own (``settings.py``): how the workspace's widget
+looks, which ``/api/settings`` reads and sets.
 
 - Listen address: bind ``HOST`` and ``PORT``, which default to the loopback address and this app's assigned port
   but honor ``USAGE_DASHBOARD_HOST`` and ``USAGE_DASHBOARD_PORT``, so a preview can boot on a spare port beside
@@ -34,6 +35,7 @@ from flask import request
 from flask import send_from_directory
 from flask.typing import ResponseReturnValue
 from loguru import logger
+from routines.paths import paths_from_environment
 from werkzeug.serving import run_simple
 
 from app_manifest.content_security_policy import attach_document_policy
@@ -51,9 +53,12 @@ from app_schema.routes import parse_request_body
 from imbue.imbue_common.logging import setup_logging
 from usage_dashboard.data_types import AppNamesResponse
 from usage_dashboard.data_types import HealthResponse
+from usage_dashboard.data_types import SourceNamesResponse
 from usage_dashboard.settings import SETTINGS_FILENAME
 from usage_dashboard.settings import UsageSettings
 from usage_dashboard.settings import UsageSettingsStore
+from usage_dashboard.source_names import chat_titles
+from usage_dashboard.source_names import routine_titles
 
 HOST: Final[str] = os.environ.get("USAGE_DASHBOARD_HOST", "127.0.0.1")
 PORT: Final[int] = int(os.environ.get("USAGE_DASHBOARD_PORT", "8060"))
@@ -105,6 +110,7 @@ ROUTE_TABLE: RouteTable = {
     ("GET", "/assets/{filename}"): SchemalessRoute(reason="one file of the page's built bundle"),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
     ("GET", "/api/apps"): RouteModels(response_model=AppNamesResponse),
+    ("GET", "/api/source-names"): RouteModels(response_model=SourceNamesResponse),
     ("GET", "/api/settings"): RouteModels(response_model=UsageSettings),
     ("POST", "/api/settings"): RouteModels(request_model=UsageSettings, response_model=UsageSettings),
     ("GET", "/api/usage/stream"): SchemalessRoute(reason="the usage collector's stream of new calls, relayed"),
@@ -120,10 +126,18 @@ def _collector_unreachable(e: httpx.HTTPError) -> ResponseReturnValue:
 
 
 def create_app(
-    static_directory: Path, collector: httpx.Client, apps_file: Path, settings: UsageSettingsStore
+    static_directory: Path,
+    collector: httpx.Client,
+    apps_file: Path,
+    http: httpx.Client,
+    routines_dir: Path,
+    settings: UsageSettingsStore,
 ) -> Flask:
-    """The app, reading the collector through ``collector`` (its base URL set) and display names from ``apps_file``,
-    and keeping its settings in ``settings``."""
+    """The app, reading the collector through ``collector`` (its base URL set) and display names from ``apps_file``.
+
+    ``http`` asks the chat app for its chat titles; ``routines_dir`` holds the routine definitions; ``settings``
+    keeps how the widget looks.
+    """
     app = Flask("usage_dashboard", static_folder=None)
     register_api_schema_route(
         app, DEFAULT_API_SCHEMA_PATH, title=APP_DISPLAY_NAME, description=APP_DESCRIPTION, route_table=ROUTE_TABLE
@@ -179,6 +193,13 @@ def create_app(
             rows = []
         names = {str(row.name): str(row.display_name) for row in rows if row.display_name is not None}
         return model_response(AppNamesResponse(display_names=names))
+
+    @app.get("/api/source-names")
+    def source_names() -> ResponseReturnValue:
+        """The titles of the chats and routines the page names usage after."""
+        return model_response(
+            SourceNamesResponse(chats=chat_titles(apps_file, http), routines=routine_titles(routines_dir))
+        )
 
     @app.get("/api/settings")
     def read_settings() -> ResponseReturnValue:
@@ -242,7 +263,14 @@ def create_app(
 def main() -> None:
     setup_logging(level=os.environ.get("USAGE_DASHBOARD_LOG_LEVEL", "INFO"))
     collector = httpx.Client(base_url=COLLECTOR_URL)
-    app = create_app(STATIC_DIR, collector, registry_path(), UsageSettingsStore(path=DATA_DIR / SETTINGS_FILENAME))
+    app = create_app(
+        STATIC_DIR,
+        collector,
+        registry_path(),
+        httpx.Client(),
+        paths_from_environment().definitions_dir,
+        UsageSettingsStore(path=DATA_DIR / SETTINGS_FILENAME),
+    )
     logger.info("Serving the Usage app at http://{}:{}/ over the collector at {}", HOST, PORT, COLLECTOR_URL)
     run_simple(HOST, PORT, app, threaded=True, use_reloader=False, use_debugger=False)
 

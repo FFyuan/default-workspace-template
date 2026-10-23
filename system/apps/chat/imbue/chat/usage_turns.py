@@ -4,7 +4,8 @@ Antigravity exposes no per-call tokens or cost, so nothing inside the agent
 can write its usage. The chat app sees every turn start and end, and records
 each finished turn as one ``model_call`` with no tokens and no cost: the
 workspace's usage shows that the chat used the model, and that what it spent
-is unknown, rather than nothing.
+is unknown, rather than nothing. The call is the whole turn, so it carries
+that turn's id as its ``turn_id``.
 """
 
 import os
@@ -57,8 +58,9 @@ class UnreportedTurnRecorder:
         with self._lock:
             started_at = self._started_at_by_agent.pop(agent_id, at)
         context = {ORIGIN_KIND: ORIGIN_KIND_CHAT, ORIGIN_ID: chat_id} if chat_id else {}
+        turn_id = f"{harness.value}-{agent_id}-{int(started_at.timestamp() * 1000)}"
         event = build_model_call(
-            event_id=f"{harness.value}-{agent_id}-{int(started_at.timestamp() * 1000)}",
+            event_id=turn_id,
             started_at=started_at,
             ended_at=max(at, started_at),
             provider=_PROVIDER_BY_HARNESS[harness],
@@ -67,6 +69,7 @@ class UnreportedTurnRecorder:
             workspace_id=self._workspace_id,
             harness=harness.value,
             purpose="TURN",
+            turn_id=turn_id,
         )
         attribution = event["attribution"]
         if isinstance(attribution, dict):
