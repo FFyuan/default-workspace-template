@@ -5,25 +5,25 @@ Run verification against `http://127.0.0.1:<port>/` (the port registered with
 is served by the host-side forwarder and is **not reachable from inside the container**,
 so in-container verification targets the local port directly.
 
-## Quick verification with smoketest_app.py (Recommended)
+## Quick verification with verify_app.py (Recommended)
 
-Use `system/scripts/smoketest_app.py` for instant verification (<0.1s for HTTP/marker checks,
+Use `system/scripts/verify_app.py` for instant verification (<0.1s for HTTP/marker checks,
 ~1.3s for browser rendering & screenshots). It resolves the port automatically from
 the app name, and it restarts and surfaces the app too, so one call covers the whole
 apply-check-show loop:
 
 ```bash
 # After a code change: restart (no 30 s wait), check, render, and open the window beside the chat:
-python3 system/scripts/smoketest_app.py <name> --restart --marker "<expected-heading-or-text>" --screenshot /tmp/app_mock.png --open
+python3 system/scripts/verify_app.py <name> --restart --marker "<expected-heading-or-text>" --screenshot /tmp/app_mock.png --open
 
 # The same for an app already on the user's screen (reloads its windows instead):
-python3 system/scripts/smoketest_app.py <name> --restart --marker "<expected-heading-or-text>" --refresh
+python3 system/scripts/verify_app.py <name> --restart --marker "<expected-heading-or-text>" --refresh
 
 # Fast HTTP readiness & content marker check only (<0.1s):
-python3 system/scripts/smoketest_app.py <name> --marker "<expected-heading-or-text>"
+python3 system/scripts/verify_app.py <name> --marker "<expected-heading-or-text>"
 
 # Full headless browser render + visual screenshot (~1.3s):
-python3 system/scripts/smoketest_app.py <name> --marker "<expected-heading-or-text>" --screenshot /tmp/app_mock.png
+python3 system/scripts/verify_app.py <name> --marker "<expected-heading-or-text>" --screenshot /tmp/app_mock.png
 ```
 
 `--restart` asks supervisord to stop the program and start it again *without*
@@ -62,7 +62,7 @@ Common failures:
   the port the app actually bound, or the name in `apps.toml` doesn't match the tab's
   service name. See cross-flow-gotchas.md.
 
-### Step 2: Headless Playwright script (if not using smoketest_app.py)
+### Step 2: Headless Playwright script (if not using verify_app.py)
 
 If writing a custom Playwright script, use optimized flags and `domcontentloaded`
 to avoid slow cold-start and `networkidle` timeouts:

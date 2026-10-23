@@ -197,13 +197,13 @@ process restarts:
   window:
 
   ```bash
-  python3 system/scripts/smoketest_app.py <name> --restart --marker "<text unique to your change>" --refresh
+  python3 system/scripts/verify_app.py <name> --restart --marker "<text unique to your change>" --refresh
   ```
 
   With no window open yet, pass `--open` instead of `--refresh`: the call
   opens the window only after the checks pass, the order step 3 asks for.
 
-  A daemon with no port cannot use `smoketest_app.py` (it needs a port to
+  A daemon with no port cannot use `verify_app.py` (it needs a port to
   check), so bounce it with supervisord directly; the call waits out the
   program's `startsecs`, which is 30 s only if its block sets `startsecs=30`:
 
@@ -222,7 +222,7 @@ process restarts:
   ```bash
   uv tool install -e system/apps/<package> --reinstall
   uv sync --all-packages            # the app is also a workspace member; keep the lockfile current
-  python3 system/scripts/smoketest_app.py <name> --restart --marker "<text>" --refresh
+  python3 system/scripts/verify_app.py <name> --restart --marker "<text>" --refresh
   ```
 
   (Background services under `system/services/` run from the root venv
@@ -292,7 +292,7 @@ names any channel that did not land on stderr and is never a reason to stop.
 Confirm the change actually does the right thing, exercised as the user
 would (not just "the process is up"):
 
-- **App**: the `smoketest_app.py --restart --marker ... --refresh` call of
+- **App**: the `verify_app.py --restart --marker ... --refresh` call of
   step 2 is this check (HTTP against the registered backend URL
   `http://127.0.0.1:<port>/`, the marker unique to your change, and
   `--screenshot` for a rendered page only with `--open`, before any window

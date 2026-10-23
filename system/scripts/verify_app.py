@@ -11,11 +11,11 @@ so a crash on start fails the call at once with the stderr log. ``--open`` and
 ``--refresh`` surface the verified page to the user through ``workspace-layout``.
 
 Usage:
-    python3 system/scripts/smoketest_app.py <name-or-port>
-    python3 system/scripts/smoketest_app.py <name-or-port> --marker "Add a task"
-    python3 system/scripts/smoketest_app.py <name-or-port> --screenshot /tmp/mock.png
-    python3 system/scripts/smoketest_app.py <name> --restart --marker "Add a task" --screenshot /tmp/mock.png --open
-    python3 system/scripts/smoketest_app.py <name> --restart --marker "Add a task" --refresh
+    python3 system/scripts/verify_app.py <name-or-port>
+    python3 system/scripts/verify_app.py <name-or-port> --marker "Add a task"
+    python3 system/scripts/verify_app.py <name-or-port> --screenshot /tmp/mock.png
+    python3 system/scripts/verify_app.py <name> --restart --marker "Add a task" --screenshot /tmp/mock.png --open
+    python3 system/scripts/verify_app.py <name> --restart --marker "Add a task" --refresh
 """
 
 import argparse

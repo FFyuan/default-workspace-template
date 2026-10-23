@@ -547,10 +547,10 @@ Two cases, two patterns:
 
 Both paths use the same verification recipe, and in a chat turn it is a single
 tool call. See [references/verify.md](references/verify.md) -- use
-`system/scripts/smoketest_app.py`:
+`system/scripts/verify_app.py`:
 
 ```bash
-python3 system/scripts/smoketest_app.py <name> --restart --marker "<expected-heading-or-text>" --screenshot /tmp/app.png --open
+python3 system/scripts/verify_app.py <name> --restart --marker "<expected-heading-or-text>" --screenshot /tmp/app.png --open
 ```
 
 `--open` is Step 4 folded in; for an app already on the user's screen, use
@@ -569,7 +569,7 @@ a window stuck on the loading page, broken WebSockets), see
 Once verification passes, tell the workspace UI to actually open the
 new window. Without this step the user would have to discover it via the
 launcher -- skip the surfacing step only for services with no UI
-(pure JSON APIs, webhook receivers, etc.). `smoketest_app.py --open` in Step 3
+(pure JSON APIs, webhook receivers, etc.). `verify_app.py --open` in Step 3
 already does this; run it by hand only when verification was done another way:
 
 ```bash
@@ -606,7 +606,7 @@ service) without prompting the user to click Refresh:
 uv run --no-sync workspace-layout refresh --app <name>
 ```
 
-You should always `refresh` services after making changes, to make sure the user can see the updates; `smoketest_app.py <name> --restart ... --refresh` does the restart, the check and the refresh in one call.
+You should always `refresh` services after making changes, to make sure the user can see the updates; `verify_app.py <name> --restart ... --refresh` does the restart, the check and the refresh in one call.
 
 For anything beyond `open` / `refresh` -- placing, focusing, minimizing,
 maximizing, navigating a window to another path, reading the desktops -- see
