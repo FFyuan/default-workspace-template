@@ -20,10 +20,12 @@ from workspace_layout.answers import InventoryOpAnswer
 from workspace_layout.answers import OpenAnswer
 from workspace_layout.answers import ShowAnswer
 from workspace_layout.answers import TransientOpAnswer
+from workspace_layout.answers import WidgetsListing
 from workspace_layout.ops import ClientActivityReport
 from workspace_layout.records import DesktopLayoutView
 from workspace_layout.records import DesktopView
 from workspace_layout.records import EntryPresentation
+from workspace_layout.records import WidgetPresentation
 from workspace_layout.records import WindowView
 from workspace_layout.shell_url import CLIENTS_ROUTE
 from workspace_layout.shell_url import CLIENT_ACTIVITY_ROUTE
@@ -69,6 +71,8 @@ from imbue.system_interface.shell.route_helpers import HTTP_CREATED
 from imbue.system_interface.shell.route_helpers import HTTP_NO_CONTENT
 from imbue.system_interface.shell.wallpapers import WALLPAPER_ROUTE_PREFIX
 from imbue.system_interface.shell.wallpapers import WallpapersListing
+from imbue.system_interface.shell.widgets import WIDGETS_ROUTE
+from imbue.system_interface.shell.widgets import WidgetEnabledRequest
 
 PRESENCE_PATH: Final[str] = "/api/presence"
 PRESENCE_HEARTBEAT_PATH: Final[str] = "/api/presence/heartbeat"
@@ -143,6 +147,11 @@ SHELL_ROUTE_TABLE: RouteTable = {
     ("POST", "/api/clients/{client_id}/entries/{app}"): RouteModels(
         request_model=EntryPresentation, response_model=ClientView
     ),
+    ("POST", "/api/clients/{client_id}/widgets/{app}"): RouteModels(
+        request_model=WidgetPresentation, response_model=ClientView
+    ),
+    ("GET", WIDGETS_ROUTE): RouteModels(response_model=WidgetsListing),
+    ("POST", "/api/widgets/{app}"): RouteModels(request_model=WidgetEnabledRequest, response_model=WidgetsListing),
     ("POST", "/api/clients/{client_id}/shown"): RouteModels(
         request_model=ClientShownRequest, response_model=ClientView
     ),

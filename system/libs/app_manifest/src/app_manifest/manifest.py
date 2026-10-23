@@ -120,6 +120,16 @@ class Pin(FrozenModel):
     )
 
 
+class Widget(FrozenModel):
+    """An app's widget (app-widgets plan section 3.1): a page of the app the shell keeps in a corner of every
+    client's desktop, above the windows, while the workspace has it enabled."""
+
+    path: LaunchPathValue = Field(description="The widget page: a page of the app the shell frames in the corner")
+    default_enabled: bool = Field(
+        default=True, description="Whether the widget shows in a workspace that has made no choice about it"
+    )
+
+
 class LaunchParam(FrozenModel):
     """One documented parameter of a launch path: a GET launch path's query parameter, a POST launch path's body field."""
 
@@ -401,6 +411,7 @@ class AppManifest(FrozenModel):
         "an app without one follows every ranked app",
     )
     pin: Pin | None = Field(default=None, description="The app's pinned taskbar entry, when it declares one")
+    widget: Widget | None = Field(default=None, description="The app's corner widget, when it declares one")
     window_closed_path: LaunchPathValue | None = Field(
         default=None,
         description="The path under the app's origin the shell posts to when a window of the app closes; "

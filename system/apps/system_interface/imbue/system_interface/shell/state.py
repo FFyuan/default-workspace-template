@@ -21,6 +21,7 @@ from loguru import logger
 from pydantic import Field
 from pydantic import PrivateAttr
 from pydantic import field_validator
+from workspace_layout.answers import WidgetState
 from workspace_layout.primitives import ClientId
 from workspace_layout.primitives import DesktopId
 from workspace_layout.primitives import IfPresent
@@ -34,6 +35,7 @@ from workspace_layout.records import DesktopLayout
 from workspace_layout.records import DesktopView
 from workspace_layout.records import EntryPresentation
 from workspace_layout.records import StoredWindowPath
+from workspace_layout.records import WidgetPresentation
 from workspace_layout.records import Window
 from workspace_layout.records import WindowView
 
@@ -56,6 +58,7 @@ from imbue.system_interface.shell.client_activity import ClientActivityLog
 from imbue.system_interface.shell.clients import CLIENT_RETENTION
 from imbue.system_interface.shell.clients import ClientStore
 from imbue.system_interface.shell.clients import entries_wire_json
+from imbue.system_interface.shell.clients import widgets_wire_json
 from imbue.system_interface.shell.close_hints import WindowClosedHintPost
 from imbue.system_interface.shell.close_hints import post_window_closed_hint
 from imbue.system_interface.shell.close_hints import window_closed_hint
@@ -98,6 +101,7 @@ from imbue.system_interface.shell.errors import DesktopNotFoundError
 from imbue.system_interface.shell.errors import DesktopValueError
 from imbue.system_interface.shell.errors import InvalidShellValueError
 from imbue.system_interface.shell.errors import LaunchUnavailableError
+from imbue.system_interface.shell.errors import NoWidgetError
 from imbue.system_interface.shell.errors import PinnedWindowError
 from imbue.system_interface.shell.errors import ShellStateError
 from imbue.system_interface.shell.errors import WindowNotFoundError
@@ -119,6 +123,9 @@ from imbue.system_interface.shell.state_files import STATE_FILES_LOCK
 from imbue.system_interface.shell.update_notice import UpdateNoticeWatch
 from imbue.system_interface.shell.users import UserStore
 from imbue.system_interface.shell.wallpapers import DEFAULT_WALLPAPER_FILES_DIRECTORY
+from imbue.system_interface.shell.widgets import WidgetsStore
+from imbue.system_interface.shell.widgets import declares_widget
+from imbue.system_interface.shell.widgets import widget_states
 from imbue.system_interface.shell.window_paths import WindowPathStore
 from imbue.system_interface.update_staleness import WORKSPACE_ROOT_DIRECTORY
 from imbue.system_interface.ws_broadcaster import WebSocketBroadcaster
@@ -160,6 +167,7 @@ class ShellState(MutableModel):
         frozen=True, description="The avatar designs registered in the workspace"
     )
     avatar_selection: AvatarSelectionStore = Field(frozen=True, description="avatar_selection.json")
+    widgets: WidgetsStore = Field(frozen=True, description="widgets.json: which widgets the workspace shows")
     avatar_status: AvatarStatusReader = Field(
         frozen=True, description="The avatar's mood, read from mngr's event file"
     )
@@ -739,6 +747,33 @@ class ShellState(MutableModel):
         self.broadcaster.broadcast_client_entries_changed(str(record.id), entries_wire_json(record.entries))
         return record
 
+    def set_client_widget_presentation(
+        self, client_id: ClientId, app: AppName, presentation: WidgetPresentation
+    ) -> ClientRecord:
+        """Store how a recorded client shows one widget and tell that client's windows; raises ClientNotFoundError."""
+        record = self.clients.set_widget_presentation(client_id, app, presentation, datetime.now(timezone.utc))
+        self.broadcaster.broadcast_client_widgets_changed(str(record.id), widgets_wire_json(record.widgets))
+        return record
+
+    def widget_states(self) -> tuple[WidgetState, ...]:
+        """Whether the workspace shows each declared widget (app-widgets plan section 3.2)."""
+        return widget_states(self._registry_rows(), self.widgets.read())
+
+    def set_widget_enabled(self, app: AppName, is_enabled: bool) -> tuple[WidgetState, ...]:
+        """Store whether the workspace shows one app's widget and tell every window; raises NoWidgetError for an app
+        that declares none."""
+        if not declares_widget(self._registry_rows(), app):
+            raise NoWidgetError(f"App {str(app)!r} declares no widget")
+        self.widgets.write(app, is_enabled)
+        states = self.widget_states()
+        self.broadcaster.broadcast_widgets_updated(states)
+        return states
+
+    def broadcast_widget_states(self) -> None:
+        """Tell every window which widgets the workspace shows: what the inventory calls after a read that changed
+        the rows, since a registration can add or withdraw a widget."""
+        self.broadcaster.broadcast_widgets_updated(self.widget_states())
+
     def record_client_shown(self, client_id: ClientId, window_id: WindowId | None) -> ClientRecord:
         """Record what a client's phone layout now shows: a window some desktop holds, or its home grid for None.
         Raises WindowNotFoundError for a window no desktop holds, and ClientNotFoundError."""
@@ -870,6 +905,7 @@ def build_shell_state(
         broadcaster=broadcaster,
         avatar_catalog=AvatarCatalogStore(directory=_under_repo_root(avatar_catalog_directory, repo_root)),
         avatar_selection=AvatarSelectionStore(state_directory=state_directory),
+        widgets=WidgetsStore(state_directory=state_directory),
         avatar_status=AvatarStatusReader(
             events_path=agent_events_path if agent_events_path is not None else agent_events_path_from_environment(),
             background_tasks_root=background_tasks_root
@@ -881,4 +917,5 @@ def build_shell_state(
         launch_poster=launch_poster if launch_poster is not None else post_launch,
     )
     resolved_inventory.add_registry_change_listener(shell.reconcile_desktops_with_registry)
+    resolved_inventory.add_registry_change_listener(shell.broadcast_widget_states)
     return shell

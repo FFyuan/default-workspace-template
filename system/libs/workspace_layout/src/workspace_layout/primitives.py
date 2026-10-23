@@ -1,4 +1,5 @@
 import re
+from enum import StrEnum
 from enum import auto
 from typing import Any
 from typing import Final
@@ -152,6 +153,22 @@ class IfPresent(LowerCaseStrEnum):
 
     FOCUS = auto()
     NEW = auto()
+
+
+class WidgetCorner(StrEnum):
+    """The corner of the backdrop one client draws a widget in (app-widgets plan section 3.3; a wire value)."""
+
+    TOP_LEFT = "top-left"
+    TOP_RIGHT = "top-right"
+    BOTTOM_LEFT = "bottom-left"
+    BOTTOM_RIGHT = "bottom-right"
+
+
+class WidgetMode(LowerCaseStrEnum):
+    """Whether one client draws a widget in full or as its one-line pill (app-widgets plan section 3.3)."""
+
+    EXPANDED = auto()
+    COLLAPSED = auto()
 
 
 class WindowState(UpperCaseStrEnum):
