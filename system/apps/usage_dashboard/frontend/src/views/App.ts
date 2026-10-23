@@ -637,7 +637,6 @@ function figuresView(
       ]),
       // Side by side where the card is wide enough, one above the other where it is not.
       m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-x-6 gap-y-4" }, [
-        chart("By model", { rows: figures.chartRows, colors: colors.models, seriesNoun: "model" }),
         chart("By source", {
           rows: figures.sourceChartRows,
           colors: colors.sources,
@@ -645,6 +644,7 @@ function figuresView(
             sourceLabel(row.group.origin_kind ?? null, row.group.origin_id ?? null, model.appNames),
           seriesNoun: "source",
         }),
+        chart("By model", { rows: figures.chartRows, colors: colors.models, seriesNoun: "model" }),
       ]),
       metric === "usage" && scale !== undefined
         ? m(

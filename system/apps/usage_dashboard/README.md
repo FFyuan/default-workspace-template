@@ -47,7 +47,7 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   duration; calls with no duration are counted apart, and durations from Claude
   session logs are marked approximate).
 - Two charts of spend or tokens over the window, side by side: one stacked by
-  model, one by source (the app, chat or routine that made the calls). A subscription's
+  source (the app, chat or routine that made the calls), then one by model. A subscription's
   chart shows its **estimated usage** instead, as a share of its 5-hour or weekly
   limit: a harness reports only each window's total share used, so the page
   prices the provider's subscription calls between the window's start and the
