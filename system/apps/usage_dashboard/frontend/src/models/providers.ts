@@ -55,6 +55,12 @@ const SUBSCRIPTION_TITLES: Record<string, string> = {
   codex: "ChatGPT subscription (Codex)",
 };
 const SOURCE_PROVIDERS: Record<string, string> = { claude: "anthropic", codex: "openai" };
+
+/** The title of a provider's subscription usage, named for the harness whose subscription it is. */
+export function subscriptionTitle(provider: string): string {
+  const source = Object.keys(SOURCE_PROVIDERS).find((candidate) => SOURCE_PROVIDERS[candidate] === provider);
+  return source === undefined ? `${providerName(provider)} subscription` : (SUBSCRIPTION_TITLES[source] ?? source);
+}
 const PROVIDER_NAMES: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", google: "Google" };
 
 function capitalized(name: string): string {

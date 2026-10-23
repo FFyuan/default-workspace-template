@@ -22,7 +22,7 @@ import {
   modelLabel,
   sourceLabel,
 } from "../models/breakdown";
-import type { ChartMetric, DashboardData, DashboardModel } from "../models/dashboard";
+import type { ChartMetric, DashboardData, DashboardModel, DetailSection, UsageFigures } from "../models/dashboard";
 import {
   formatCalls,
   formatCallTime,
@@ -48,7 +48,7 @@ function tile(label: string, value: string, details: m.Children, attrs: m.Attrib
   ]);
 }
 
-function spendTile(data: DashboardData): m.Vnode {
+function spendTile(data: UsageFigures): m.Vnode {
   const { summary } = data;
   const prefix = summary.isSpendEstimated ? "~" : "";
   const modeLines = BILLED_MODES.filter((mode) => summary.spendByMode[mode] !== undefined).map((mode) =>
@@ -72,7 +72,7 @@ function spendTile(data: DashboardData): m.Vnode {
   );
 }
 
-function subscriptionTile(data: DashboardData): m.Vnode | null {
+function subscriptionTile(data: UsageFigures): m.Vnode | null {
   const { summary } = data;
   if (summary.subscriptionCalls === 0) return null;
   return tile(
@@ -86,7 +86,7 @@ function subscriptionTile(data: DashboardData): m.Vnode | null {
   );
 }
 
-function tokensTile(data: DashboardData): m.Vnode {
+function tokensTile(data: UsageFigures): m.Vnode {
   const { tokens } = data.summary;
   return tile(
     "Tokens",
@@ -99,7 +99,7 @@ function tokensTile(data: DashboardData): m.Vnode {
   );
 }
 
-function callsTile(data: DashboardData): m.Vnode {
+function callsTile(data: UsageFigures): m.Vnode {
   const { calls, failed } = data.failed;
   return tile(
     "Calls",
@@ -116,7 +116,7 @@ function latencyText(row: LatencyRow | null | undefined, which: "p50_ms" | "p95_
   return value === null || value === undefined ? "–" : formatDuration(value);
 }
 
-function latencyTile(data: DashboardData): m.Vnode {
+function latencyTile(data: UsageFigures): m.Vnode {
   const row = data.latency;
   return tile(
     "Latency (p50)",
@@ -138,13 +138,13 @@ function latencyTile(data: DashboardData): m.Vnode {
   );
 }
 
-function breakdownSection(model: DashboardModel, data: DashboardData): m.Vnode {
-  const lines = breakdownLines(data.breakdown, data.breakdownRows, data.breakdownLatency, model.appNames);
+function breakdownSection(model: DashboardModel, breakdown: BreakdownId, section: DetailSection): m.Vnode {
+  const lines = breakdownLines(breakdown, section.breakdownRows, section.breakdownLatency, model.appNames);
   const totalTokensAll = lines.reduce((sum, line) => sum + line.tokens, 0);
   const activeKey = model.filter === null ? null : filterKey(model.filter);
-  return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
+  return m("div", { class: "flex flex-col gap-3" }, [
     m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-      m("h2", { class: "type-section text-primary" }, "Breakdown"),
+      m("h3", { class: "type-tag uppercase tracking-wide text-faint" }, "Breakdown"),
       m(SegmentedControl<BreakdownId>(), {
         label: "Break usage down by",
         segments: BREAKDOWNS.map((spec) => ({ value: spec.id, label: spec.label })),
@@ -158,11 +158,7 @@ function breakdownSection(model: DashboardModel, data: DashboardData): m.Vnode {
           m("table", { class: "breakdown-table w-full border-collapse type-body" }, [
             m("thead", [
               m("tr", { class: "border-b border-default text-left type-tag uppercase tracking-wide text-faint" }, [
-                m(
-                  "th",
-                  { class: "py-1.5 pr-3 font-normal" },
-                  BREAKDOWNS.find((spec) => spec.id === data.breakdown)?.label,
-                ),
+                m("th", { class: "py-1.5 pr-3 font-normal" }, BREAKDOWNS.find((spec) => spec.id === breakdown)?.label),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Calls"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Tokens"),
                 m("th", { class: "w-32 py-1.5 pr-3 font-normal" }, "Share"),
@@ -173,7 +169,7 @@ function breakdownSection(model: DashboardModel, data: DashboardData): m.Vnode {
             m(
               "tbody",
               lines.map((line) => {
-                const filter = filterOf(data.breakdown, line.group);
+                const filter = filterOf(breakdown, line.group);
                 const isActive = activeKey === filterKey(filter);
                 return m(
                   "tr",
@@ -408,6 +404,70 @@ function banners(model: DashboardModel): m.Children {
   ];
 }
 
+/** One provider's details: its tiles, its usage over the window by model, and its breakdown. */
+function providerDetails(
+  model: DashboardModel,
+  data: DashboardData,
+  section: DetailSection,
+  now: Date,
+  colors: SeriesColors,
+): m.Vnode {
+  const { spec } = section;
+  const isCollapsed = model.collapsedSections.has(spec.key);
+  const isSubscription = spec.kind === "subscription";
+  // A subscription's calls are not billed per call, so its chart is always tokens.
+  const metric: ChartMetric = isSubscription
+    ? "tokens"
+    : (model.chartMetrics[spec.key] ?? (section.summary.spend > 0 ? "spend" : "tokens"));
+  return m("section", { class: `${CARD_CLASS} provider-details flex flex-col gap-4`, "data-section": spec.key }, [
+    m(
+      "button",
+      {
+        type: "button",
+        class: "flex items-center gap-1.5 self-start type-section text-primary",
+        "aria-expanded": isCollapsed ? "false" : "true",
+        onclick: () => model.toggleSection(spec.key),
+      },
+      [
+        m.trust(icon(isCollapsed ? "chevron-right" : "chevron-down", { size: 14, className: "shrink-0 text-faint" })),
+        spec.title,
+      ],
+    ),
+    isCollapsed
+      ? null
+      : [
+          m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3" }, [
+            isSubscription ? subscriptionTile(section) : spendTile(section),
+            tokensTile(section),
+            callsTile(section),
+            latencyTile(section),
+          ]),
+          m("div", { class: "flex flex-col gap-3" }, [
+            m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
+              m(
+                "h3",
+                { class: "type-tag uppercase tracking-wide text-faint" },
+                metric === "spend" ? "Spend by model" : "Tokens by model",
+              ),
+              isSubscription
+                ? null
+                : m(SegmentedControl<ChartMetric>(), {
+                    label: "Chart",
+                    segments: [
+                      { value: "spend", label: "Spend" },
+                      { value: "tokens", label: "Tokens" },
+                    ],
+                    value: metric,
+                    onSelect: (choice) => model.selectChartMetric(spec.key, choice),
+                  }),
+            ]),
+            m(UsageChart, { windowId: data.windowId, now, rows: section.chartRows, metric, colors }),
+          ]),
+          breakdownSection(model, data.breakdown, section),
+        ],
+  ]);
+}
+
 export interface AppAttrs {
   model: DashboardModel;
   now: () => Date;
@@ -419,7 +479,6 @@ export function App(): m.Component<AppAttrs> {
     view({ attrs: { model, now } }) {
       const data = model.data;
       const current = now();
-      const metric: ChartMetric = model.chartMetric ?? (data !== null && data.summary.spend > 0 ? "spend" : "tokens");
       return m(
         "div",
         { class: "h-screen overflow-y-auto" },
@@ -458,7 +517,7 @@ export function App(): m.Component<AppAttrs> {
                 )
               : m("div", { class: `details flex flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
                   detailsControls(model, model.appNames),
-                  data.summary.calls === 0 && model.filter === null
+                  data.total.summary.calls === 0 && model.filter === null
                     ? m(
                         "div",
                         { class: `${CARD_CLASS} empty-window type-body text-secondary` },
@@ -467,39 +526,17 @@ export function App(): m.Component<AppAttrs> {
                           : "No model calls yet in this window. Try 7 days or this month.",
                       )
                     : [
-                        m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3" }, [
-                          spendTile(data),
-                          subscriptionTile(data),
-                          tokensTile(data),
-                          callsTile(data),
-                          latencyTile(data),
-                        ]),
-                        m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
-                          m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-                            m(
-                              "h2",
-                              { class: "type-section text-primary" },
-                              metric === "spend" ? "Spend by model" : "Tokens by model",
-                            ),
-                            m(SegmentedControl<ChartMetric>(), {
-                              label: "Chart",
-                              segments: [
-                                { value: "spend", label: "Spend" },
-                                { value: "tokens", label: "Tokens" },
-                              ],
-                              value: metric,
-                              onSelect: (choice) => model.selectChartMetric(choice),
-                            }),
+                        m("section", { class: "total-row flex flex-col gap-2", "data-section": "total" }, [
+                          m("h2", { class: "type-section text-primary" }, "Total"),
+                          m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3" }, [
+                            spendTile(data.total),
+                            subscriptionTile(data.total),
+                            tokensTile(data.total),
+                            callsTile(data.total),
+                            latencyTile(data.total),
                           ]),
-                          m(UsageChart, {
-                            windowId: data.windowId,
-                            now: current,
-                            rows: data.chartRows,
-                            metric,
-                            colors,
-                          }),
                         ]),
-                        breakdownSection(model, data),
+                        data.sections.map((section) => providerDetails(model, data, section, current, colors)),
                       ],
                   callsSection(model, current),
                 ]),

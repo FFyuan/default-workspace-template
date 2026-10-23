@@ -21,7 +21,13 @@ subscription am I using":
 Nothing names a provider it must find; a card exists only for what the data
 shows. Below the cards, a closed **Details** section holds the rest, for the last
 30 minutes, 24 hours, 7 days or this month (the billing period, which starts at
-local midnight on the 1st):
+local midnight on the 1st): a **Total** row of tiles across every provider, then
+one collapsible section per provider, matching the cards (a provider's
+subscription use and its use without one are separate sections), each with its
+own tiles, chart and breakdown. Every detail query is grouped by provider and
+billing mode as well, so the sections are picked out of the same answers the
+Total row adds up; a section's latency is asked for on its own, since
+percentiles do not add up. What the tiles, charts and breakdowns show:
 
 - **Spend**: what was billed, with Imbue key and API key spend apart. A
   subscription's usage is shown in its own tile at list price, since it is not

@@ -255,3 +255,19 @@ def test_limits_come_shortest_window_first_and_old_ones_drop_out(
         "seven_day",
     ]
     assert store.limits(NOW) == []
+
+
+def test_latency_filters_keep_calls_with_any_of_the_given_values(
+    store: UsageStore,
+) -> None:
+    store.insert(_timed(1, billing_mode="API_KEY"))
+    store.insert(_timed(3, billing_mode="UNKNOWN"))
+    store.insert(_timed(9, billing_mode="SUBSCRIPTION"))
+
+    [row] = store.latency(
+        [], NOW - timedelta(hours=1), filters={"billing_mode": ["API_KEY", "UNKNOWN"]}
+    )
+
+    assert (row.timed_calls, row.p95_ms) == (2, 3000)
+    with pytest.raises(UsageStoreError):
+        store.latency([], NOW - timedelta(hours=1), filters={"nonsense": ["x"]})

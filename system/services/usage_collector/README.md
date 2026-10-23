@@ -37,7 +37,9 @@ indefinitely; older raw events stay in the files.
   (`90s`, `30m`, `24h`, `7d`) or an ISO timestamp. Grouping only by origin,
   agent, model and billing mode reads per-minute rollups; any other field reads
   raw events.
-- `GET /v1/latency?group_by=model&since=24h[&until=...]`: p50 and p95 call
+- `GET /v1/latency?group_by=model&since=24h[&until=...][&billing_mode=API_KEY,UNKNOWN]`:
+  optionally over only the calls whose fields (any groupable one) take the given
+  values. p50 and p95 call
   duration (`ended_at` minus `started_at`) per group, from raw events. Calls
   with no duration are left out of the percentiles and counted, and calls
   timed from Claude session logs are counted as approximate.

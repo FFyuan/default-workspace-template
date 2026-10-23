@@ -1,7 +1,8 @@
 """The collector's HTTP API, on 127.0.0.1 only.
 
 - ``GET /v1/totals?group_by=origin_id,model&since=24h[&until=...][&bucket=hour]``: cost and token totals.
-- ``GET /v1/latency?group_by=model&since=24h[&until=...]``: call duration percentiles.
+- ``GET /v1/latency?group_by=model&since=24h[&until=...][&provider=anthropic][&billing_mode=API_KEY,UNKNOWN]``: call
+  duration percentiles, optionally over only the calls whose fields take the given values.
 - ``GET /v1/calls?model=...&limit=50[&before=<event id>][&after=<sequence>]``: stored calls, newest first.
 - ``GET /v1/limits?since=7d``: the freshest subscription limit reading of every window.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
@@ -26,6 +27,7 @@ from usage_collector.status import IngestStatus
 from usage_collector.store import (
     CALL_FILTER_DIMENSIONS,
     DEFAULT_CALLS_LIMIT,
+    GROUPABLE_DIMENSIONS,
     TimeBucket,
     UsageStore,
     UsageStoreError,
@@ -132,7 +134,12 @@ def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flas
             since, until = parse_window(
                 request.args.get("since"), request.args.get("until"), now
             )
-            rows = store.latency(group_by, since, until)
+            filters = {
+                dimension: request.args[dimension].split(",")
+                for dimension in GROUPABLE_DIMENSIONS
+                if dimension in request.args
+            }
+            rows = store.latency(group_by, since, until, filters)
         except (QueryParameterError, UsageStoreError) as e:
             return _error(str(e), 400)
         return jsonify(

@@ -4,7 +4,7 @@ The event files are the source of truth: the database is an index of them and is
 
 It also answers the questions the Usage app asks:
 
-- `GET /v1/latency` reports p50 and p95 call duration per group, leaving out and counting calls with no duration, and counting the ones timed from Claude session logs as approximate.
+- `GET /v1/latency` reports p50 and p95 call duration per group, leaving out and counting calls with no duration, and counting the ones timed from Claude session logs as approximate; it can be filtered to calls whose fields take given values (a provider's calls on several billing modes), since percentiles do not add up across groups.
 
 - `GET /v1/calls` lists stored calls newest first, filtered by origin, agent, model or billing mode, paging back with `before` and catching up after a reconnect with `after`.
 

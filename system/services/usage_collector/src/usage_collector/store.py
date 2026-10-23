@@ -424,16 +424,36 @@ class UsageStore:
         group_by: Sequence[str],
         since: datetime,
         until: datetime | None = None,
+        filters: Mapping[str, Sequence[str]] | None = None,
     ) -> list[LatencyRow]:
-        """Duration percentiles for calls that ended in [since, until), grouped by ``group_by``, from raw events."""
+        """Duration percentiles for calls that ended in [since, until), grouped by ``group_by``, from raw events.
+
+        ``filters`` keeps only calls whose field is one of the given values ("" for "not known"). Percentiles do not
+        add up across groups, so a reader that needs one over several groups (a provider's calls on any of several
+        billing modes) asks for it here rather than combining rows.
+        """
         dimensions = _checked_dimensions(group_by)
         selected = ", ".join(
             [*dimensions, "(ended_at - started_at) * 1000 AS duration_ms", "harness"]
         )
+        clauses = ["ended_at >= ?", "ended_at < ?"]
+        parameters: list[object] = [since.timestamp(), _until_timestamp(until)]
+        for dimension, values in (filters or {}).items():
+            _checked_dimensions([dimension])
+            if not values:
+                raise UsageStoreError(f"Filter {dimension} has no values")
+            known = [value for value in values if value]
+            alternatives = (
+                [f"{dimension} IN ({', '.join('?' for _ in known)})"] if known else []
+            )
+            if len(known) < len(values):
+                alternatives.append(f"{dimension} IS NULL")
+            clauses.append(f"({' OR '.join(alternatives)})")
+            parameters.extend(known)
         with self._lock:
             rows = self._connection.execute(
-                f"SELECT {selected} FROM model_call WHERE ended_at >= ? AND ended_at < ?",
-                (since.timestamp(), _until_timestamp(until)),
+                f"SELECT {selected} FROM model_call WHERE {' AND '.join(clauses)}",
+                parameters,
             ).fetchall()
         durations: dict[tuple[str | None, ...], list[float]] = {}
         untimed: dict[tuple[str | None, ...], int] = {}

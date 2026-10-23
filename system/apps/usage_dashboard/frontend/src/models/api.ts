@@ -91,8 +91,14 @@ export async function fetchTotals(query: TotalsQuery): Promise<TotalsRow[]> {
   return answer.rows;
 }
 
-export async function fetchLatency(groupBy: readonly string[], since: Date): Promise<LatencyRow[]> {
+/** Latency grouped by ``groupBy``, over only the calls whose field is one of ``filters``' values ("" for not known). */
+export async function fetchLatency(
+  groupBy: readonly string[],
+  since: Date,
+  filters: Record<string, readonly string[]> = {},
+): Promise<LatencyRow[]> {
   const params = new URLSearchParams({ group_by: groupBy.join(","), since: since.toISOString() });
+  for (const [field, values] of Object.entries(filters)) params.set(field, values.join(","));
   const answer = await requestJson<{ rows: LatencyRow[] }>("GET", `/api/usage/latency?${params}`);
   return answer.rows;
 }

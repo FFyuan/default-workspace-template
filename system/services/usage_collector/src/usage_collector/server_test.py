@@ -123,3 +123,22 @@ def test_limits_answer_the_freshest_reading_per_window(
     assert [
         (r["source"], r["window"], r["used_percentage"]) for r in answer["limits"]
     ] == [("claude", "five_hour", 27)]
+
+
+def test_latency_takes_filters_over_http(
+    client: FlaskClient, ingestor: Ingestor
+) -> None:
+    ingestor.ingest(model_call_payload(billing_mode="API_KEY"))
+    ingestor.ingest(model_call_payload(billing_mode="SUBSCRIPTION"))
+    since = (NOW - timedelta(hours=1)).isoformat()
+
+    rows = client.get(
+        "/v1/latency",
+        query_string={
+            "since": since,
+            "billing_mode": "API_KEY,UNKNOWN",
+            "provider": "anthropic",
+        },
+    ).get_json()["rows"]
+
+    assert [row["timed_calls"] for row in rows] == [1]

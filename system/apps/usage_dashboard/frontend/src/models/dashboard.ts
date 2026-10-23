@@ -33,6 +33,7 @@ import {
   withFilterFields,
 } from "./breakdown";
 import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./providers";
+import { SECTION_FIELDS, type SectionSpec, detailSections, inSection } from "./sections";
 import { type Summary, failedShare, summarize } from "./summary";
 import { type WindowId, windowSpec, windowStart } from "./windows";
 
@@ -45,15 +46,24 @@ const GAP_FILL_LIMIT = 500;
 
 export type ChartMetric = "spend" | "tokens";
 
-export interface DashboardData {
+/** The tiles' numbers for some set of calls: the Total row's, or one provider section's. */
+export interface UsageFigures {
   summary: Summary;
   failed: { calls: number; failed: number };
   latency: LatencyRow | null;
-  /** Totals by model and billing mode (and the filter's fields), bucketed, already filtered. */
+}
+
+/** One provider's details: its tiles, its chart rows (bucketed, by model) and its breakdown. */
+export interface DetailSection extends UsageFigures {
+  spec: SectionSpec;
   chartRows: TotalsRow[];
-  /** Totals by the breakdown's fields and billing mode (and the filter's), already filtered. */
   breakdownRows: TotalsRow[];
   breakdownLatency: LatencyRow[];
+}
+
+export interface DashboardData {
+  total: UsageFigures;
+  sections: DetailSection[];
   windowId: WindowId;
   breakdown: BreakdownId;
   loadedAt: Date;
@@ -78,7 +88,9 @@ export class DashboardModel {
   windowId: WindowId = "24h";
   breakdown: BreakdownId = "model";
   filter: Filter | null = null;
-  chartMetric: ChartMetric | null = null;
+  /** The chart each section shows, once its viewer picked one; a section otherwise shows its default. */
+  chartMetrics: Record<string, ChartMetric> = {};
+  collapsedSections = new Set<string>();
   /** The cards at the top, which answer for now and this month whatever the Details window or filter. */
   providers: ProviderCard[] | null = null;
   isDetailsOpen = false;
@@ -141,8 +153,14 @@ export class DashboardModel {
     this.deps.redraw();
   }
 
-  selectChartMetric(metric: ChartMetric): void {
-    this.chartMetric = metric;
+  selectChartMetric(sectionKey: string, metric: ChartMetric): void {
+    this.chartMetrics = { ...this.chartMetrics, [sectionKey]: metric };
+    this.deps.redraw();
+  }
+
+  toggleSection(sectionKey: string): void {
+    if (this.collapsedSections.has(sectionKey)) this.collapsedSections.delete(sectionKey);
+    else this.collapsedSections.add(sectionKey);
     this.deps.redraw();
   }
 
@@ -172,41 +190,47 @@ export class DashboardModel {
     this.lastRefreshAt = now.getTime();
     this.deps.redraw();
     try {
-      const [
-        limits,
-        monthRows,
-        summaryRows,
-        statusRows,
-        chartRows,
-        breakdownRows,
-        latencyRows,
-        breakdownLatency,
-        health,
-      ] = await Promise.all([
-        fetchLimits(new Date(now.getTime() - LIMITS_LOOKBACK_MS)),
-        fetchTotals({ groupBy: ["provider", "billing_mode", "cost_provenance"], since: windowStart("month", now) }),
-        fetchTotals({ groupBy: withFilterFields(["billing_mode", "cost_provenance"], filter), since }),
-        fetchTotals({ groupBy: withFilterFields(["status"], filter), since }),
-        fetchTotals({ groupBy: withFilterFields(["model", "billing_mode"], filter), since, bucket }),
-        fetchTotals({
-          groupBy: withFilterFields([...breakdownSpec(breakdown).fields, "billing_mode"], filter),
-          since,
-        }),
-        fetchLatency(filterFields, since),
-        fetchLatency(breakdownFields, since),
-        fetchCollectorHealth(),
-      ]);
+      const split = (fields: readonly string[]): string[] => withFilterFields([...fields, ...SECTION_FIELDS], filter);
+      const [limits, monthRows, summaryRows, statusRows, chartRows, breakdownRows, totalLatency, health] =
+        await Promise.all([
+          fetchLimits(new Date(now.getTime() - LIMITS_LOOKBACK_MS)),
+          fetchTotals({ groupBy: ["provider", "billing_mode", "cost_provenance"], since: windowStart("month", now) }),
+          fetchTotals({ groupBy: split(["cost_provenance"]), since }),
+          fetchTotals({ groupBy: split(["status"]), since }),
+          fetchTotals({ groupBy: split(["model"]), since, bucket }),
+          fetchTotals({ groupBy: split(breakdownSpec(breakdown).fields), since }),
+          fetchLatency(filterFields, since),
+          fetchCollectorHealth(),
+        ]);
       if (generation !== this.generation) return;
       const keep = <T extends { group: Record<string, string | null> }>(rows: T[]): T[] =>
         rows.filter((row) => matchesFilter(row.group, filter));
+      const specs = detailSections(keep(summaryRows));
+      const sectionLatency = await Promise.all(
+        specs.map((spec) => {
+          const only = { provider: [spec.provider], billing_mode: spec.billingModes };
+          return Promise.all([fetchLatency(filterFields, since, only), fetchLatency(breakdownFields, since, only)]);
+        }),
+      );
+      if (generation !== this.generation) return;
+      const within = <T extends { group: Record<string, string | null> }>(rows: T[], spec: SectionSpec): T[] =>
+        keep(rows).filter((row) => inSection(row.group, spec));
       this.providers = providerCards(limits, monthRows, now);
       this.data = {
-        summary: summarize(keep(summaryRows)),
-        failed: failedShare(keep(statusRows)),
-        latency: keep(latencyRows)[0] ?? null,
-        chartRows: keep(chartRows),
-        breakdownRows: keep(breakdownRows),
-        breakdownLatency: keep(breakdownLatency),
+        total: {
+          summary: summarize(keep(summaryRows)),
+          failed: failedShare(keep(statusRows)),
+          latency: keep(totalLatency)[0] ?? null,
+        },
+        sections: specs.map((spec, index) => ({
+          spec,
+          summary: summarize(within(summaryRows, spec)),
+          failed: failedShare(within(statusRows, spec)),
+          latency: keep(sectionLatency[index][0])[0] ?? null,
+          chartRows: within(chartRows, spec),
+          breakdownRows: within(breakdownRows, spec),
+          breakdownLatency: keep(sectionLatency[index][1]),
+        })),
         windowId,
         breakdown,
         loadedAt: now,
