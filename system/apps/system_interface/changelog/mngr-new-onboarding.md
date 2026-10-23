@@ -5,3 +5,5 @@ What the tour has done is one record the shell keeps in `data/.state/system_inte
 The pinned chat window now first shows at most of the backdrop (a margin in on every side) rather than the right half, so a new workspace opens on the welcome chat; the tour's chat card is what snaps it aside.
 
 For now the tour runs once per workspace; limiting it to a user's first workspace waits for the cross-workspace data sync.
+
+The tour's words follow the v2 copy document, adapted to the shipped tour (it pauses when the agent answers rather than bringing the user back, and its connect card carries both the services and the folders): the intro, agent, connect, security, devices, feedback, and last cards, and the pause notice, are reworded, and a card's text may hold several short paragraphs (a blank line in the text; the card draws each with a gap).

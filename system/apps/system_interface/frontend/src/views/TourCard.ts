@@ -65,6 +65,15 @@ export function chromeSideOf(anchor: ChromeAnchor): "left" | "right" {
   return anchor === "help" ? "right" : "left";
 }
 
+/** A card's text as paragraphs: one per blank-line break, each after the first a step down from the last. */
+export function textParagraphs(text: string): m.Children[] {
+  return text
+    .split("\n\n")
+    .map((paragraph, index) =>
+      m("p", { class: `${index === 0 ? "m-0" : "mt-2 mb-0"} type-body text-primary` }, paragraph),
+    );
+}
+
 /** What the box shows when it is not a card: the exit badge at the launcher, or the pause notice by the avatar. */
 export type TourNotice = "badge" | "paused";
 
@@ -180,7 +189,7 @@ export function TourCard(): m.Component<TourCardAttrs> {
               class: "size-8 shrink-0",
             }),
             m("div", { class: "min-w-0" }, [
-              m("p", { class: "m-0 type-body text-primary" }, text),
+              ...textParagraphs(text),
               bullets === null
                 ? null
                 : m(

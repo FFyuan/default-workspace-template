@@ -99,7 +99,8 @@ describe("TourCard", () => {
     expect(card()?.getAttribute("data-tour-card")).toBe("a");
     press("data-tour-next");
     expect(card()?.hasAttribute("data-tour-paused")).toBe(true);
-    expect(card()?.textContent).toContain(TOUR_PAUSED_TEXT);
+    for (const paragraph of TOUR_PAUSED_TEXT.split("\n\n")) expect(card()?.textContent).toContain(paragraph);
+    expect(card()?.querySelectorAll("p").length).toBe(2);
     expect(document.querySelector("[data-tour-exit]")).toBeNull();
     press("data-tour-next");
     expect(card()).toBeNull();

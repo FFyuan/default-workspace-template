@@ -29,6 +29,7 @@ export interface TourLink {
 
 export interface TourCard {
   readonly id: string;
+  /** The card's words: one or more short paragraphs, separated by a blank line. */
   readonly text: string;
   /** Lines listed under the text, when the card has them. */
   readonly bullets: readonly string[] | null;
@@ -57,8 +58,12 @@ function card(fields: Partial<TourCard> & Pick<TourCard, "id" | "text">): TourCa
 }
 
 export const TOUR_CARDS: readonly TourCard[] = [
-  card({ id: "intro", text: "Let me show you around. It only takes a minute.", target: "avatar" }),
-  card({ id: "agent", text: "I’m your Studio agent. Click me any time to open our chat.", target: "avatar" }),
+  card({
+    id: "intro",
+    text: "While I work on that, let me show you around.\n\nI’ll let you know when I’m done.",
+    target: "avatar",
+  }),
+  card({ id: "agent", text: "I’m your Studio agent.\n\nClick me anytime to open our chat.", target: "avatar" }),
   card({
     id: "workspace",
     text:
@@ -68,22 +73,21 @@ export const TOUR_CARDS: readonly TourCard[] = [
   }),
   card({
     id: "chat-window",
-    text: "Our chat is a window like any other. Let’s make it smaller so you can see the rest of your desktop.",
+    text: "Our chat is a window like any other.\n\nLet’s make it smaller so you can see the rest of your desktop.",
     target: "avatar",
     action: "snap-avatar-window-right",
   }),
   card({
     id: "apps",
-    text: "Your apps live here. Use them inside the workspace, or drag them onto your own desktop.",
+    text: "Your apps live here.\n\nUse them inside the workspace, or drag them onto your own desktop.",
     target: "shortcuts",
   }),
   card({
     id: "connect",
-    text: "Securely connect your data:",
-    bullets: [
-      "Services like Gmail, Slack, and 100’s more",
-      "Sync folders on your computer, or in Google Drive, Dropbox, etc",
-    ],
+    text:
+      "Bring in info from the apps and folders you already use.\n\n" +
+      "Just ask me to connect them, and your logins stay secure.",
+    bullets: ["Apps like Gmail, Slack, and 100’s more", "Folders on your computer, or in Google Drive, Dropbox, etc"],
     chromeAnchor: "permissions",
     image: {
       url: `${ONBOARDING_MEDIA_BASE_URL}/e8d3b6777dd115923888f1486459766765c0822a44a2b429a7db7b118b8b49f5.gif`,
@@ -92,9 +96,7 @@ export const TOUR_CARDS: readonly TourCard[] = [
   }),
   card({
     id: "security",
-    text:
-      "Your workspace is encrypted and backed up automatically, so your data is safe and only reachable by the " +
-      "people you share it with.",
+    text: "Your workspace is encrypted and backed up automatically.\n\nOnly people you share it with can see it.",
     chromeAnchor: "settings",
   }),
   card({
@@ -104,7 +106,7 @@ export const TOUR_CARDS: readonly TourCard[] = [
   }),
   card({
     id: "devices",
-    text: "Everything you make works across devices.",
+    text: "Everything you make works on any device.",
     target: "avatar",
     image: {
       url: `${ONBOARDING_MEDIA_BASE_URL}/688427f2d430397eaba2072c7089bc4e94e5ed6f81e8dff00ed7f4f1579e8bcd.png`,
@@ -113,7 +115,9 @@ export const TOUR_CARDS: readonly TourCard[] = [
   }),
   card({
     id: "feedback",
-    text: "I can report issues to the Imbue team for you. You can also share feedback with us on Discord.",
+    text:
+      "Something not working? Tell me and I’ll let the team know.\n\n" +
+      "You can also share feedback with us on Discord.",
     chromeAnchor: "help",
     link: { label: "Join our Discord", url: "https://discord.com/invite/GvK8MsCVgk" },
   }),
@@ -133,7 +137,9 @@ export const TOUR_CARDS: readonly TourCard[] = [
   }),
   card({
     id: "done",
-    text: "That’s the tour. Ask me anything in the chat, and you can take this tour again from the launcher.",
+    text:
+      "That’s the tour.\n\nIf you have questions about anything, just ask me in the chat.\n\n" +
+      "You can take it again anytime from the launcher.",
     target: "launcher",
     buttonLabel: "Done",
   }),
@@ -145,7 +151,7 @@ export const TOUR_EXIT_BADGE_TEXT =
 export const TOUR_EXIT_BADGE_BUTTON_LABEL = "Got it";
 
 /** What the card after an interrupted one says: the agent answered while the tour was on, so it waits. */
-export const TOUR_PAUSED_TEXT = "The agent is waiting for you. We’ll resume the tour later.";
+export const TOUR_PAUSED_TEXT = "Looks like I’m done.\n\nLet’s go take a look, and we’ll finish the tour later.";
 export const TOUR_PAUSED_BUTTON_LABEL = "OK";
 
 /** The launcher row that runs the tour, and the words it matches. */
