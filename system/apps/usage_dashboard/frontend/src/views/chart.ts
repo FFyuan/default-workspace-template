@@ -19,11 +19,11 @@ const VIEW_HEIGHT = 180;
 const SEGMENT_GAP = 2;
 const BAR_RADIUS = 4;
 
-function valueOf(metric: ChartMetric, percentPerDollar: number): (row: TotalsRow) => number {
+function valueOf(metric: ChartMetric): (row: TotalsRow) => number {
   if (metric === "tokens") return (row) => totalTokens(row.tokens);
   if (metric === "usage") {
     return (row) =>
-      row.group.billing_mode === "SUBSCRIPTION" && row.cost_usd !== null ? Number(row.cost_usd) * percentPerDollar : 0;
+      row.group.billing_mode === "SUBSCRIPTION" && row.cost_usd !== null ? Number(row.cost_usd) : 0;
   }
   return (row) =>
     (BILLED_MODES as readonly string[]).includes(row.group.billing_mode ?? "") && row.cost_usd !== null
@@ -32,8 +32,7 @@ function valueOf(metric: ChartMetric, percentPerDollar: number): (row: TotalsRow
 }
 
 export function formatMetric(metric: ChartMetric, value: number): string {
-  if (metric === "usage") return `${value.toFixed(value < 10 ? 1 : 0)}%`;
-  return metric === "spend" ? formatDollars(value) : formatCount(value);
+  return metric === "tokens" ? formatCount(value) : formatDollars(value);
 }
 
 function seriesColor(slot: number | null): string {
@@ -50,8 +49,6 @@ export interface ChartAttrs {
   seriesLabel?: (row: TotalsRow) => string;
   /** What the series are, for the chart's accessible name: "model", "source". */
   seriesNoun?: string;
-  /** For the usage metric: the share of a limit a dollar of list price uses. */
-  percentPerDollar?: number;
   /** Moments to mark with a dashed line, such as a limit window starting or resetting. */
   markers?: readonly ChartMarker[];
   /** What the dashed lines mean, said once in the legend rather than on each line. */
@@ -79,9 +76,9 @@ export function UsageChart(): m.Component<ChartAttrs> {
   let hovered: number | null = null;
   return {
     view({ attrs }) {
-      const { windowId, now, rows, metric, colors, percentPerDollar, markers, markerLegend } = attrs;
+      const { windowId, now, rows, metric, colors, markers, markerLegend } = attrs;
       const labelOf = attrs.seriesLabel ?? ((row: TotalsRow) => modelLabel(row.group.model ?? null));
-      const value = valueOf(metric, percentPerDollar ?? 0);
+      const value = valueOf(metric);
       const totalsBySeries = new Map<string, number>();
       for (const row of rows) {
         const series = labelOf(row);

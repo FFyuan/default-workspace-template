@@ -45,7 +45,7 @@ import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./provider
 import { type Route, combinedFilters, inScope, scopeFilters } from "./routing";
 import { SECTION_FIELDS, type SectionSpec, detailSections, inSection } from "./sections";
 import { type Summary, failedShare, summarize } from "./summary";
-import { type UsageScale, calibrationSpan, percentPerDollar } from "./usageEstimate";
+import { type LimitSpan, limitSpan } from "./limitSpans";
 import { type WindowId, windowSpec, windowStart } from "./windows";
 
 export const EVENT_DEBOUNCE_MS = 2_000;
@@ -115,8 +115,8 @@ export class DashboardModel {
   chartMetrics: Record<string, ChartMetric> = {};
   /** What each section's chart is split by, once its viewer picked; a section otherwise shows it by source. */
   chartSeries: Record<string, ChartSeries> = {};
-  /** Each subscription's usage scales, by its section key: one per limit window that can be estimated. */
-  usageScales: Record<string, UsageScale[]> = {};
+  /** Each subscription's limit windows, by its section key: one per limit with a known length and reset. */
+  limitSpans: Record<string, LimitSpan[]> = {};
   /** The limit window each subscription's usage chart is against, once its viewer picked one. */
   usageWindows: Record<string, string> = {};
   /** The cards at the top, which answer for now and this month whatever the Details window or filter. */
@@ -264,15 +264,15 @@ export class DashboardModel {
         rows.filter((row) => matchesFilter(row.group, filter));
       const specs = detailSections(keep(summaryRows));
       const cards = providerCards(limits, monthRows, now);
-      const calibrations = cards.flatMap((card) =>
+      const spans = cards.flatMap((card) =>
         card.kind !== "subscription"
           ? []
           : card.windows.flatMap((window) => {
-              const span = calibrationSpan(window);
-              return span === null ? [] : [{ card, window, span }];
+              const span = limitSpan(window);
+              return span === null ? [] : [{ card, span }];
             }),
       );
-      const [sectionReads, calibrationRows, limitWindowRows] = await Promise.all([
+      const [sectionReads, limitWindowRows] = await Promise.all([
         Promise.all(
           specs.map((spec) => {
             const only = { provider: [spec.provider], billing_mode: spec.billingModes };
@@ -283,18 +283,13 @@ export class DashboardModel {
             ]);
           }),
         ),
-        Promise.all(
-          calibrations.map(({ span }) =>
-            fetchTotals({ groupBy: ["provider", "billing_mode"], since: span.since, until: span.until }),
-          ),
-        ),
         // Each limit's most recent window, up to its reset or now, for the breakdown's per-limit columns.
         Promise.all(
-          calibrations.map(({ window, span }) =>
+          spans.map(({ span }) =>
             fetchTotals({
               groupBy: withFilterFields([...breakdownSpec(breakdown).fields, ...SECTION_FIELDS], filter),
-              since: span.since,
-              until: window.readingResetsAt !== null && window.readingResetsAt < now ? window.readingResetsAt : now,
+              since: span.windowStart,
+              until: span.resetsAt < now ? span.resetsAt : now,
             }),
           ),
         ),
@@ -303,27 +298,11 @@ export class DashboardModel {
       const within = <T extends { group: Record<string, string | null> }>(rows: T[], spec: SectionSpec): T[] =>
         keep(rows).filter((row) => inSection(row.group, spec));
       this.providers = cards;
-      const scales: Record<string, UsageScale[]> = {};
-      calibrations.forEach(({ card, window, span }, index) => {
-        const provider = card.sectionKey.slice("subscription:".length);
-        const listPrice = calibrationRows[index]
-          .filter((row) => row.group.provider === provider && row.group.billing_mode === "SUBSCRIPTION")
-          .reduce((sum, row) => sum + (row.cost_usd === null ? 0 : Number(row.cost_usd)), 0);
-        const rate = percentPerDollar(window.readingPercent ?? 0, listPrice);
-        if (rate === null || window.readingResetsAt === null) return;
-        scales[card.sectionKey] = [
-          ...(scales[card.sectionKey] ?? []),
-          {
-            windowKey: window.key,
-            label: window.label,
-            percentPerDollar: rate,
-            isFromEarlierWindow: window.isResetSinceReading,
-            windowStart: span.since,
-            resetsAt: window.readingResetsAt,
-          },
-        ];
-      });
-      this.usageScales = scales;
+      const sectionSpans: Record<string, LimitSpan[]> = {};
+      for (const { card, span } of spans) {
+        sectionSpans[card.sectionKey] = [...(sectionSpans[card.sectionKey] ?? []), span];
+      }
+      this.limitSpans = sectionSpans;
       this.data = {
         total: {
           summary: summarize(keep(summaryRows)),
@@ -346,8 +325,8 @@ export class DashboardModel {
           breakdownRows: within(breakdownRows, spec),
           breakdownLatency: keep(sectionReads[index][1]),
           limitWindowRows: Object.fromEntries(
-            calibrations.flatMap(({ card, window }, calibration) =>
-              card.sectionKey === spec.key ? [[window.key, within(limitWindowRows[calibration], spec)]] : [],
+            spans.flatMap(({ card, span }, index) =>
+              card.sectionKey === spec.key ? [[span.windowKey, within(limitWindowRows[index], spec)]] : [],
             ),
           ),
         })),
