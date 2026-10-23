@@ -708,7 +708,8 @@ def test_a_seeded_chat_is_launched_by_its_first_send_as_the_seeds_successor(
     (argv_line,) = argv_log.read_text().splitlines()
     argv = argv_line.split()
     templates = [argv[i + 1] for i, tok in enumerate(argv) if tok == "--template"]
-    assert templates == ["chat", "fast"]
+    # A new chat starts at standard speed (the workspace's default fast mode is off), so no fast template.
+    assert templates == ["chat"]
     assert f"chat_id={seeded.chat_id}" in argv and "chat_seq=2" in argv
     assert "Let's" in argv_line
 
@@ -6396,7 +6397,7 @@ def test_an_awaiting_chat_is_launched_by_its_first_message_under_its_own_id(
     (argv_line,) = argv_log.read_text().splitlines()
     argv = argv_line.split()
     assert f"--id {minted.chat_id}" in argv_line
-    assert [argv[i + 1] for i, tok in enumerate(argv) if tok == "--template"] == ["chat", "fast"]
+    assert [argv[i + 1] for i, tok in enumerate(argv) if tok == "--template"] == ["chat"]
     assert "Let's" in argv_line and "/welcome" not in argv_line
 
 
