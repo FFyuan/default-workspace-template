@@ -1218,7 +1218,7 @@ def _write_update_apply_state(
     (state / "snapshots" / "frontend" / "index.html").write_text(
         "<html>the old shell</html>"
     )
-    (state / "dispatcher.py").write_text("print('the app program')\n")
+    (state / "dispatcher.pyz").write_text("print('the app program')\n")
     (state / "schedule.json").write_text('{"schema": 1, "ceiling": "minds-v0.9.0"}\n')
     (state / "run.json").write_text(
         '{"chat_agent_name": "update-to-minds-v0-9-0", "verdict": null}\n'

@@ -177,7 +177,7 @@ def test_the_imbue_studio_update_dispatcher_stays_with_cron_untouched(
     entry = (
         "PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"
         "* * * * * root flock -n /run/update-self-dispatch.lock -c 'cd /home/user/workspace && python3 "
-        "data/.state/update-apply/dispatcher.py tick >> data/.state/update-apply/dispatcher.log 2>&1'\n"
+        "data/.state/update-apply/dispatcher.pyz tick >> data/.state/update-apply/dispatcher.log 2>&1'\n"
     )
     (legacy_cron_dir / "update-self-dispatch").write_text(entry)
     (live_cron_dir / "update-self-dispatch").write_text(entry)

@@ -142,7 +142,7 @@ AGENT_LOG_MEMBER_DIR = "agent-logs"
 # update-self skill, and the Imbue Studio app's in-workspace dispatcher), and the small records in
 # it a report reads whole: why an update did or did not run is in these. Named rather than
 # globbed, so the directory's ``snapshots/`` (pre-apply copies of the workspace's own files) and
-# ``dispatcher.py`` (the app's program, which says nothing about this workspace) never ride.
+# ``dispatcher.pyz`` (the app's program, which says nothing about this workspace) never ride.
 UPDATE_APPLY_STATE_REL = "data/.state/update-apply"
 UPDATE_APPLY_RECORD_FILES = (
     "schedule.json",
