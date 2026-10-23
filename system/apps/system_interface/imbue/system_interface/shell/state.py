@@ -125,6 +125,7 @@ from imbue.system_interface.shell.users import UserStore
 from imbue.system_interface.shell.wallpapers import DEFAULT_WALLPAPER_FILES_DIRECTORY
 from imbue.system_interface.shell.widgets import WidgetsStore
 from imbue.system_interface.shell.widgets import declares_widget
+from imbue.system_interface.shell.widgets import enabled_widget_apps
 from imbue.system_interface.shell.widgets import widget_states
 from imbue.system_interface.shell.window_paths import WindowPathStore
 from imbue.system_interface.update_staleness import WORKSPACE_ROOT_DIRECTORY
@@ -875,6 +876,7 @@ def build_shell_state(
         )
     )
     desktops = DesktopStore(state_directory=state_directory)
+    widgets = WidgetsStore(state_directory=state_directory)
     share_grants = ShareGrantsReader(
         share_env_path=_under_repo_root(DEFAULT_SHARE_ENV_PATH, repo_root),
         share_grants_path=_under_repo_root(DEFAULT_SHARE_GRANTS_PATH, repo_root),
@@ -887,6 +889,7 @@ def build_shell_state(
             is_lifecycle_enabled,
             lambda: _count_windows_by_app(desktops),
             share_grants.granted_app_names,
+            lambda: enabled_widget_apps([entry.row for entry in resolved_inventory.entries()], widgets.read()),
             no_windows_grace_seconds=no_windows_grace_seconds,
             idle_sweep_interval_seconds=idle_sweep_interval_seconds,
         ),
@@ -905,7 +908,7 @@ def build_shell_state(
         broadcaster=broadcaster,
         avatar_catalog=AvatarCatalogStore(directory=_under_repo_root(avatar_catalog_directory, repo_root)),
         avatar_selection=AvatarSelectionStore(state_directory=state_directory),
-        widgets=WidgetsStore(state_directory=state_directory),
+        widgets=widgets,
         avatar_status=AvatarStatusReader(
             events_path=agent_events_path if agent_events_path is not None else agent_events_path_from_environment(),
             background_tasks_root=background_tasks_root
