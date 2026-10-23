@@ -77,11 +77,13 @@ export interface CollectorHealth {
 export interface TotalsQuery {
   groupBy: readonly string[];
   since: Date;
+  until?: Date;
   bucket?: "minute" | "hour";
 }
 
 function totalsParams(query: TotalsQuery): URLSearchParams {
   const params = new URLSearchParams({ group_by: query.groupBy.join(","), since: query.since.toISOString() });
+  if (query.until !== undefined) params.set("until", query.until.toISOString());
   if (query.bucket !== undefined) params.set("bucket", query.bucket);
   return params;
 }
@@ -107,17 +109,21 @@ export interface CallsQuery {
   /** Keep calls whose field is one of the given values ("" for not known). */
   filters: Record<string, readonly string[]>;
   limit: number;
-  before?: string;
-  after?: number;
+  /** Skip this many of the newest. */
+  offset?: number;
 }
 
-export async function fetchCalls(query: CallsQuery): Promise<StoredCall[]> {
+export interface CallsAnswer {
+  calls: StoredCall[];
+  /** How many calls match the filters, over every page. */
+  total: number;
+}
+
+export function fetchCalls(query: CallsQuery): Promise<CallsAnswer> {
   const params = new URLSearchParams({ limit: String(query.limit) });
   for (const [field, values] of Object.entries(query.filters)) params.set(field, values.join(","));
-  if (query.before !== undefined) params.set("before", query.before);
-  if (query.after !== undefined) params.set("after", String(query.after));
-  const answer = await requestJson<{ calls: StoredCall[] }>("GET", `/api/usage/calls?${params}`);
-  return answer.calls;
+  if (query.offset !== undefined) params.set("offset", String(query.offset));
+  return requestJson<CallsAnswer>("GET", `/api/usage/calls?${params}`);
 }
 
 export function fetchCollectorHealth(): Promise<CollectorHealth> {

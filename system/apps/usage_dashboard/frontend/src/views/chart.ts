@@ -19,8 +19,12 @@ const VIEW_HEIGHT = 180;
 const SEGMENT_GAP = 2;
 const BAR_RADIUS = 4;
 
-function valueOf(metric: ChartMetric): (row: TotalsRow) => number {
+function valueOf(metric: ChartMetric, percentPerDollar: number): (row: TotalsRow) => number {
   if (metric === "tokens") return (row) => totalTokens(row.tokens);
+  if (metric === "usage") {
+    return (row) =>
+      row.group.billing_mode === "SUBSCRIPTION" && row.cost_usd !== null ? Number(row.cost_usd) * percentPerDollar : 0;
+  }
   return (row) =>
     (BILLED_MODES as readonly string[]).includes(row.group.billing_mode ?? "") && row.cost_usd !== null
       ? Number(row.cost_usd)
@@ -28,6 +32,7 @@ function valueOf(metric: ChartMetric): (row: TotalsRow) => number {
 }
 
 export function formatMetric(metric: ChartMetric, value: number): string {
+  if (metric === "usage") return `${value.toFixed(value < 10 ? 1 : 0)}%`;
   return metric === "spend" ? formatDollars(value) : formatCount(value);
 }
 
@@ -41,13 +46,36 @@ export interface ChartAttrs {
   rows: readonly TotalsRow[];
   metric: ChartMetric;
   colors: SeriesColors;
+  /** For the usage metric: the share of a limit a dollar of list price uses. */
+  percentPerDollar?: number;
+  /** Moments to mark with a dashed line, such as a limit window starting or resetting. */
+  markers?: readonly ChartMarker[];
+  /** What the dashed lines mean, said once in the legend rather than on each line. */
+  markerLegend?: string;
+}
+
+export interface ChartMarker {
+  at: Date;
+  label: string;
+}
+
+/** Where ``at`` falls across the bars, as a fraction of the chart's width; null outside them. */
+export function markerPosition(starts: readonly Date[], now: Date, at: Date): number | null {
+  const index = starts.findIndex((start, position) => {
+    const end = starts[position + 1] ?? now;
+    return at >= start && at < end;
+  });
+  if (index === -1) return null;
+  const start = starts[index].getTime();
+  const end = (starts[index + 1] ?? now).getTime();
+  return (index + (end > start ? (at.getTime() - start) / (end - start) : 0)) / starts.length;
 }
 
 export function UsageChart(): m.Component<ChartAttrs> {
   let hovered: number | null = null;
   return {
-    view({ attrs: { windowId, now, rows, metric, colors } }) {
-      const value = valueOf(metric);
+    view({ attrs: { windowId, now, rows, metric, colors, percentPerDollar, markers, markerLegend } }) {
+      const value = valueOf(metric, percentPerDollar ?? 0);
       const totalsByModel = new Map<string, number>();
       for (const row of rows) {
         const model = modelLabel(row.group.model ?? null);
@@ -68,6 +96,11 @@ export function UsageChart(): m.Component<ChartAttrs> {
       );
       const barTotals = values.map((bar) => [...bar.values()].reduce((sum, amount) => sum + amount, 0));
       const peak = Math.max(0, ...barTotals);
+      const peakIndex = barTotals.indexOf(peak);
+      const placedMarkers = (markers ?? []).flatMap((marker) => {
+        const position = markerPosition(starts, now, marker.at);
+        return position === null ? [] : [{ marker, position }];
+      });
       if (peak === 0) {
         return m(
           "div",
@@ -81,11 +114,28 @@ export function UsageChart(): m.Component<ChartAttrs> {
       const hoveredBar = hovered !== null && hovered < starts.length ? hovered : null;
 
       return m("div", { class: "usage-chart flex flex-col gap-2" }, [
-        m("div", { class: "relative" }, [
+        // The room above the bars is for the label over the tallest one.
+        m("div", { class: "relative pt-5" }, [
           m(
             "div",
-            { class: "pointer-events-none absolute top-0 left-0 type-tag text-faint" },
+            {
+              class:
+                "peak-label pointer-events-none absolute top-0 -translate-x-1/2 type-tag tabular-nums text-secondary",
+              style: { left: `${((peakIndex + 0.5) / starts.length) * 100}%` },
+            },
             formatMetric(metric, peak),
+          ),
+          placedMarkers.map(({ marker, position }) =>
+            m(
+              "div",
+              {
+                key: `${marker.label}:${marker.at.getTime()}`,
+                class: "chart-marker absolute top-5 bottom-0 w-2 -translate-x-1/2",
+                style: { left: `${position * 100}%` },
+                title: `${marker.label}, ${marker.at.toLocaleString()}`,
+              },
+              m("div", { class: "mx-auto h-full w-0 border-l border-dashed border-(--color-faint)" }),
+            ),
           ),
           m(
             "svg",
@@ -94,7 +144,7 @@ export function UsageChart(): m.Component<ChartAttrs> {
               preserveAspectRatio: "none",
               class: "block h-44 w-full",
               role: "img",
-              "aria-label": `${metric === "spend" ? "Spend" : "Tokens"} over the window, by model`,
+              "aria-label": `${{ spend: "Spend", tokens: "Tokens", usage: "Estimated limit usage" }[metric]} over the window, by model`,
               onmouseleave: () => (hovered = null),
             },
             [
@@ -185,10 +235,8 @@ export function UsageChart(): m.Component<ChartAttrs> {
           m("span", barLabel(windowId, starts[0])),
           m("span", barLabel(windowId, starts[starts.length - 1])),
         ]),
-        m(
-          "div",
-          { class: "chart-legend flex flex-wrap gap-x-4 gap-y-1 type-helper text-secondary" },
-          order.map((series) =>
+        m("div", { class: "chart-legend flex flex-wrap gap-x-4 gap-y-1 type-helper text-secondary" }, [
+          ...order.map((series) =>
             m("span", { class: "flex items-center gap-1.5" }, [
               m("span", {
                 class: "inline-block size-2.5 rounded-sm",
@@ -197,7 +245,13 @@ export function UsageChart(): m.Component<ChartAttrs> {
               series,
             ]),
           ),
-        ),
+          placedMarkers.length === 0 || markerLegend === undefined
+            ? null
+            : m("span", { class: "marker-legend flex items-center gap-1.5" }, [
+                m("span", { class: "inline-block h-3 w-0 border-l border-dashed border-(--color-faint)" }),
+                markerLegend,
+              ]),
+        ]),
       ]);
     },
   };

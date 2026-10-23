@@ -22,10 +22,12 @@ The app has three kinds of page, one document reading its path:
     calls, with calls of unknown cost counted rather than added as $0.
 - **`/p/<item>`, a provider's detail page**, where the item is a section key
   (`subscription:anthropic`, `spend:openai`): a list of every provider (with its
-  limits or spend) and All on the left, and on the right the provider's card,
-  the window picker, its tiles, its chart, its breakdown and its latest calls.
+  limits or spend) on the left, and on the right the provider's card, the window
+  picker, its tiles, its chart, its breakdown and its latest calls, in numbered pages
+  of 10, 20, 50 or 100 rows with a box to jump to a page.
   A provider's subscription use and its use without one are separate items.
-- **`/all`**: the same for every provider at once.
+- **`/all`**: the same for every provider at once, reached from the home page's
+  "See all usage" link.
 
 Nothing names a provider it must find; a card or item exists only for what the
 data shows. The window is the last 30 minutes, 24 hours, 7 days or this month
@@ -44,7 +46,20 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   that failed or were rate-limited, and **latency** (p50 and p95 of each call's
   duration; calls with no duration are counted apart, and durations from Claude
   session logs are marked approximate).
-- A chart of spend or tokens over the window, stacked by model.
+- A chart of spend or tokens over the window, stacked by model. A subscription's
+  chart shows its **estimated usage** instead, as a share of its 5-hour or weekly
+  limit: a harness reports only each window's total share used, so the page
+  prices the provider's subscription calls between the window's start and the
+  reading at API rates (weighing an Opus token above a Haiku one, much as the
+  limits do) and spreads the reported share over them in proportion. The
+  breakdown shows each row's estimated share of each limit within that limit's
+  most recent window (so a 5-hour column adds up to the 5-hour reading, whatever
+  the time window); the latest calls show each call's estimated share of each
+  limit. A subscription's page shows these limit columns in both tables in place
+  of spend and cost; any other page shows spend and cost instead. Once a window resets its harness reports nothing for it until the
+  next call, so the estimate keeps the last reading's rate (the account's, which
+  a reset does not change) and says so; dashed lines mark where the chosen
+  window started and where it reset.
 - A breakdown by model, source (the app, chat or routine that made the calls) or
   billing mode. Clicking a row filters the whole page to it.
 - The latest calls, newest first, as they happen, each with its raw event.

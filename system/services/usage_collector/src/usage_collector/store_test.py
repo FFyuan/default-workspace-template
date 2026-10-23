@@ -185,6 +185,26 @@ def test_calls_are_newest_first_and_page_back_with_before(store: UsageStore) -> 
     ]
 
 
+def test_calls_page_by_offset_and_count_what_the_filters_keep(
+    store: UsageStore,
+) -> None:
+    events = [
+        _event(
+            ended_at=(NOW - timedelta(minutes=minutes)).isoformat(),
+            started_at=(NOW - timedelta(minutes=minutes, seconds=1)).isoformat(),
+        )
+        for minutes in (1, 2, 3)
+    ]
+    for event in events:
+        store.insert(event)
+
+    second_page = store.calls({}, limit=2, offset=2)
+
+    assert [call.event["event_id"] for call in second_page] == [events[2].event_id]
+    assert store.count_calls({}) == 3
+    assert store.count_calls({"model": ["nobody/model"]}) == 0
+
+
 def test_calls_after_a_sequence_are_the_ones_stored_since(store: UsageStore) -> None:
     store.insert(_event())
     [seen] = store.calls({})

@@ -32,20 +32,19 @@ import {
   matchesFilter,
   withFilterFields,
 } from "./breakdown";
+import { DEFAULT_ROWS_PER_PAGE, type RowsPerPage, pageCount, pageHolding, pageOffset } from "./callPages";
 import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./providers";
 import { type Route, combinedFilters, inScope, scopeFilters } from "./routing";
 import { SECTION_FIELDS, type SectionSpec, detailSections, inSection } from "./sections";
 import { type Summary, failedShare, summarize } from "./summary";
+import { type UsageScale, calibrationSpan, percentPerDollar } from "./usageEstimate";
 import { type WindowId, windowSpec, windowStart } from "./windows";
 
 export const EVENT_DEBOUNCE_MS = 2_000;
 export const SLOW_REFRESH_MS = 30_000;
 export const PERIODIC_REFRESH_MS = 60_000;
-export const CALLS_PAGE = 50;
-const MAX_CALLS_KEPT = 300;
-const GAP_FILL_LIMIT = 500;
 
-export type ChartMetric = "spend" | "tokens";
+export type ChartMetric = "spend" | "tokens" | "usage";
 
 /** The tiles' numbers for some set of calls: the Total row's, or one provider section's. */
 export interface UsageFigures {
@@ -59,6 +58,8 @@ export interface SectionFigures extends UsageFigures {
   chartRows: TotalsRow[];
   breakdownRows: TotalsRow[];
   breakdownLatency: LatencyRow[];
+  /** For a subscription: its breakdown rows within each limit's most recent window, by window key. */
+  limitWindowRows?: Record<string, TotalsRow[]>;
 }
 
 /** One provider's details. */
@@ -97,11 +98,19 @@ export class DashboardModel {
   filter: Filter | null = null;
   /** The chart each section shows, once its viewer picked one; a section otherwise shows its default. */
   chartMetrics: Record<string, ChartMetric> = {};
+  /** Each subscription's usage scales, by its section key: one per limit window that can be estimated. */
+  usageScales: Record<string, UsageScale[]> = {};
+  /** The limit window each subscription's usage chart is against, once its viewer picked one. */
+  usageWindows: Record<string, string> = {};
   /** The cards at the top, which answer for now and this month whatever the Details window or filter. */
   providers: ProviderCard[] | null = null;
   data: DashboardData | null = null;
   calls: StoredCall[] = [];
-  hasOlderCalls = false;
+  /** How many calls match the page's item and filter, over every page. */
+  callsTotal = 0;
+  /** The page of calls shown, from 1. */
+  callsPage = 1;
+  callsPerPage: RowsPerPage = DEFAULT_ROWS_PER_PAGE;
   appNames: Record<string, string> = {};
   isLoading = false;
   isCollectorDown = false;
@@ -111,7 +120,7 @@ export class DashboardModel {
   expandedCallId: string | null = null;
 
   private generation = 0;
-  private lastSequence: number | null = null;
+  private callsGeneration = 0;
   private lastRefreshAt = 0;
   private stream: StreamLike | null = null;
   private wasDisconnected = false;
@@ -153,6 +162,11 @@ export class DashboardModel {
     void this.refresh();
   }
 
+  selectUsageWindow(sectionKey: string, windowKey: string): void {
+    this.usageWindows = { ...this.usageWindows, [sectionKey]: windowKey };
+    this.deps.redraw();
+  }
+
   selectChartMetric(sectionKey: string, metric: ChartMetric): void {
     this.chartMetrics = { ...this.chartMetrics, [sectionKey]: metric };
     this.deps.redraw();
@@ -163,7 +177,7 @@ export class DashboardModel {
     this.filter =
       filter !== null && this.filter !== null && filterKey(filter) === filterKey(this.filter) ? null : filter;
     void this.refresh();
-    void this.loadCalls();
+    this.showCallsPage(1);
   }
 
   toggleCall(eventId: string): void {
@@ -210,16 +224,63 @@ export class DashboardModel {
       const keep = <T extends { group: Record<string, string | null> }>(rows: T[]): T[] =>
         rows.filter((row) => matchesFilter(row.group, filter));
       const specs = detailSections(keep(summaryRows));
-      const sectionLatency = await Promise.all(
-        specs.map((spec) => {
-          const only = { provider: [spec.provider], billing_mode: spec.billingModes };
-          return Promise.all([fetchLatency(filterFields, since, only), fetchLatency(breakdownFields, since, only)]);
-        }),
+      const cards = providerCards(limits, monthRows, now);
+      const calibrations = cards.flatMap((card) =>
+        card.kind !== "subscription"
+          ? []
+          : card.windows.flatMap((window) => {
+              const span = calibrationSpan(window);
+              return span === null ? [] : [{ card, window, span }];
+            }),
       );
+      const [sectionLatency, calibrationRows, limitWindowRows] = await Promise.all([
+        Promise.all(
+          specs.map((spec) => {
+            const only = { provider: [spec.provider], billing_mode: spec.billingModes };
+            return Promise.all([fetchLatency(filterFields, since, only), fetchLatency(breakdownFields, since, only)]);
+          }),
+        ),
+        Promise.all(
+          calibrations.map(({ span }) =>
+            fetchTotals({ groupBy: ["provider", "billing_mode"], since: span.since, until: span.until }),
+          ),
+        ),
+        // Each limit's most recent window, up to its reset or now, for the breakdown's per-limit columns.
+        Promise.all(
+          calibrations.map(({ window, span }) =>
+            fetchTotals({
+              groupBy: withFilterFields([...breakdownSpec(breakdown).fields, ...SECTION_FIELDS], filter),
+              since: span.since,
+              until: window.readingResetsAt !== null && window.readingResetsAt < now ? window.readingResetsAt : now,
+            }),
+          ),
+        ),
+      ]);
       if (generation !== this.generation) return;
       const within = <T extends { group: Record<string, string | null> }>(rows: T[], spec: SectionSpec): T[] =>
         keep(rows).filter((row) => inSection(row.group, spec));
-      this.providers = providerCards(limits, monthRows, now);
+      this.providers = cards;
+      const scales: Record<string, UsageScale[]> = {};
+      calibrations.forEach(({ card, window, span }, index) => {
+        const provider = card.sectionKey.slice("subscription:".length);
+        const listPrice = calibrationRows[index]
+          .filter((row) => row.group.provider === provider && row.group.billing_mode === "SUBSCRIPTION")
+          .reduce((sum, row) => sum + (row.cost_usd === null ? 0 : Number(row.cost_usd)), 0);
+        const rate = percentPerDollar(window.readingPercent ?? 0, listPrice);
+        if (rate === null || window.readingResetsAt === null) return;
+        scales[card.sectionKey] = [
+          ...(scales[card.sectionKey] ?? []),
+          {
+            windowKey: window.key,
+            label: window.label,
+            percentPerDollar: rate,
+            isFromEarlierWindow: window.isResetSinceReading,
+            windowStart: span.since,
+            resetsAt: window.readingResetsAt,
+          },
+        ];
+      });
+      this.usageScales = scales;
       this.data = {
         total: {
           summary: summarize(keep(summaryRows)),
@@ -237,6 +298,11 @@ export class DashboardModel {
           chartRows: within(chartRows, spec),
           breakdownRows: within(breakdownRows, spec),
           breakdownLatency: keep(sectionLatency[index][1]),
+          limitWindowRows: Object.fromEntries(
+            calibrations.flatMap(({ card, window }, calibration) =>
+              card.sectionKey === spec.key ? [[window.key, within(limitWindowRows[calibration], spec)]] : [],
+            ),
+          ),
         })),
         windowId,
         breakdown,
@@ -257,45 +323,50 @@ export class DashboardModel {
     }
   }
 
-  /** Replace the calls list with the newest calls matching the filter. */
+  /** Load the page of calls shown, for the current filter. */
   async loadCalls(): Promise<void> {
-    const filter = this.filter;
+    const generation = ++this.callsGeneration;
     try {
-      const calls = await fetchCalls({ filters: this.callFilters(filter), limit: CALLS_PAGE });
-      if (filter !== this.filter) return;
-      this.calls = calls;
-      this.hasOlderCalls = calls.length === CALLS_PAGE;
-      this.noteSequences(calls);
+      const answer = await fetchCalls({
+        filters: this.callFilters(this.filter),
+        limit: this.callsPerPage,
+        offset: pageOffset(this.callsPage, this.callsPerPage),
+      });
+      if (generation !== this.callsGeneration) return;
+      this.calls = answer.calls;
+      this.callsTotal = answer.total;
+      // Calls can leave between asks only through a rebuilt index, which can leave the page past the last one.
+      const count = pageCount(answer.total, this.callsPerPage);
+      if (this.callsPage > count) {
+        this.showCallsPage(count);
+        return;
+      }
     } catch (error) {
       this.noteFailure(error, () => void this.loadCalls());
     }
     this.deps.redraw();
   }
 
-  async loadOlderCalls(): Promise<void> {
-    const oldest = this.calls[this.calls.length - 1] as StoredCall | undefined;
-    if (oldest === undefined) return;
-    const filter = this.filter;
-    try {
-      const older = await fetchCalls({
-        filters: this.callFilters(filter),
-        limit: CALLS_PAGE,
-        before: oldest.event.event_id,
-      });
-      if (filter !== this.filter) return;
-      this.calls = [...this.calls, ...older];
-      this.hasOlderCalls = older.length === CALLS_PAGE;
-    } catch (error) {
-      this.noteFailure(error, () => undefined);
-    }
-    this.deps.redraw();
+  /** Show ``perPage`` calls to a page, on the page holding the first call shown before. */
+  selectCallsPerPage(perPage: RowsPerPage): void {
+    const page = pageHolding(pageOffset(this.callsPage, this.callsPerPage), perPage);
+    this.callsPerPage = perPage;
+    this.showCallsPage(page);
+  }
+
+  showCallsPage(page: number): void {
+    this.callsPage = page;
+    this.expandedCallId = null;
+    void this.loadCalls();
   }
 
   /** Take one streamed call: show it if it matches the filter, and schedule a refetch of the totals. */
   receiveCall(call: ModelCall): void {
     const group = callGroup(call);
     if (matchesFilter(group, this.filter) && inScope(group, this.deps.route)) {
-      this.mergeCalls([{ sequence: 0, event: call }]);
+      this.callsTotal += 1;
+      // Only the first page takes new calls in; a later one keeps the rows being read.
+      if (this.callsPage === 1) this.addNewestCall({ sequence: 0, event: call });
     }
     this.scheduleEventRefresh();
     this.deps.redraw();
@@ -321,20 +392,12 @@ export class DashboardModel {
     this.errorMessage = error instanceof Error ? error.message : String(error);
   }
 
-  private noteSequences(calls: readonly StoredCall[]): void {
-    for (const call of calls) {
-      if (call.sequence > (this.lastSequence ?? 0)) this.lastSequence = call.sequence;
-    }
-  }
-
-  /** Add calls the list does not have yet, keeping it newest first. */
-  private mergeCalls(incoming: readonly StoredCall[]): void {
-    const known = new Set(this.calls.map((call) => call.event.event_id));
-    const added = incoming.filter((call) => !known.has(call.event.event_id));
-    if (added.length === 0) return;
-    this.calls = [...added, ...this.calls]
+  /** Put a new call at the top of the first page, keeping the page to its length. */
+  private addNewestCall(call: StoredCall): void {
+    if (this.calls.some((known) => known.event.event_id === call.event.event_id)) return;
+    this.calls = [call, ...this.calls]
       .sort((a, b) => Date.parse(b.event.ended_at) - Date.parse(a.event.ended_at))
-      .slice(0, MAX_CALLS_KEPT);
+      .slice(0, this.callsPerPage);
   }
 
   private scheduleEventRefresh(): void {
@@ -357,7 +420,7 @@ export class DashboardModel {
       this.streamBackoff.reset();
       if (this.wasDisconnected) {
         this.wasDisconnected = false;
-        void this.fillGap();
+        this.fillGap();
       }
       this.deps.redraw();
     };
@@ -375,22 +438,9 @@ export class DashboardModel {
     };
   }
 
-  /** After a reconnect: the calls stored while the stream was down, then fresh totals. */
-  private async fillGap(): Promise<void> {
-    const filter = this.filter;
-    try {
-      const missed = await fetchCalls({
-        filters: this.callFilters(filter),
-        limit: GAP_FILL_LIMIT,
-        after: this.lastSequence ?? undefined,
-      });
-      if (filter === this.filter) {
-        this.mergeCalls(missed);
-        this.noteSequences(missed);
-      }
-    } catch (error) {
-      this.noteFailure(error, () => void this.fillGap());
-    }
+  /** After a reconnect: the page of calls again, with any stored while the stream was down, then fresh totals. */
+  private fillGap(): void {
+    void this.loadCalls();
     void this.refresh();
   }
 }
