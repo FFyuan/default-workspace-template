@@ -952,8 +952,8 @@ python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scrip
     run-status verdict REFUSED --detail "Stopped at the user's request."
 ```
 
-Then stop the worker keeping its branch (`mngr stop update-self`), run Step 6's
-opening commands, release the `updating workspace` lease (`tk close
+Then, if Step 3b launched the worker, stop it keeping its branch (`mngr stop
+update-self`). Run Step 6's opening commands, release the `updating workspace` lease (`tk close
 "$UPDATE_LEASE_ID" "Stopped at the user's request."`), and tell them nothing was
 applied. Before Step 2 has staged the skill, record the verdict with
 `.agents/skills/update-self/scripts/update_self.py` instead, and only release
