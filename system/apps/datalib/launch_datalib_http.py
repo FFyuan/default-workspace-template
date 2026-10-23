@@ -220,9 +220,10 @@ def move_store_into_library(libraries_dir: Path, data_root: Path) -> bool:
 
     Two renames, each atomic: the folder becomes a staging sibling, and the staging sibling becomes the
     library inside a fresh folder. A start that finds the staging sibling finishes the second rename. A
-    data root that is not directly inside the libraries folder is a store somewhere else, left alone.
+    data root that is not directly inside the libraries folder (judged by where the two are on disk, not by
+    how either path is spelled) is a store somewhere else, left alone.
     """
-    if data_root.parent != libraries_dir:
+    if data_root.parent.resolve() != libraries_dir.resolve():
         return False
     staging = libraries_dir.with_name(
         f"{libraries_dir.name}.moving-to-{data_root.name}"

@@ -89,6 +89,21 @@ def test_a_data_root_outside_the_libraries_folder_never_moves_its_parent(
     ]
 
 
+def test_a_data_root_is_known_by_where_it_is_not_by_how_it_is_spelled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The launcher names the libraries folder relative to the repo root; a data root may name the same library absolutely."""
+    monkeypatch.chdir(tmp_path)
+    libraries_dir = Path("datalib")
+    _write_store(libraries_dir, "flat store")
+    data_root = tmp_path / "datalib" / "Default"
+
+    assert launcher.move_store_into_library(libraries_dir, data_root) is True
+
+    assert (data_root / "slack" / "messages.jsonl").read_text() == "flat store"
+    assert sorted(path.name for path in libraries_dir.iterdir()) == ["Default"]
+
+
 def test_a_store_a_datalib_process_still_holds_is_not_moved(tmp_path: Path) -> None:
     libraries_dir = tmp_path / "datalib"
     _write_store(libraries_dir, "being synced")
