@@ -260,10 +260,13 @@ Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px
 
 ## 9. Amendments to other documents
 
+Landed with this plan:
+
+- contracts.md 2, 3, 4, 5, 6, 7, 11, 12, 13: the manifest table, the row field, the files, the routes, the messages, the contract types, the tokens, and the selectors above.
+- `docs/system/specs/stop-when-no-windows.md` 6.1 and 6.2: an enabled widget clears the idle mark.
+
 Landed with the implementation:
 
-- contracts.md 2, 3, 4, 5, 6, 7, 11, 12: the manifest table, the row field, the files, the routes, the messages, the contract types, the tokens, and the selectors above.
-- `docs/system/specs/stop-when-no-windows.md` 6.1: an enabled widget clears the idle mark.
 - plan-pinned-taskbar-entries.md 4.2: the floating layer has a sibling widget layer at the same level.
 - plan-phone-interface.md: the bar draws collapsed widgets.
 - The `build-app` skill's manifest notes: the `[widget]` table, and that an app declaring one must answer its page cheaply, since it is loaded by every client.
@@ -304,7 +307,7 @@ A suggested commit order, each commit leaving the repository green:
 4. The lifecycle rule.
 5. The phone bar.
 6. The Usage widget page and its manifest table.
-7. The document amendments of section 9 and the changelog entries for `system_interface`, `workspace_ui`, and `usage_dashboard`.
+7. The remaining document amendments of section 9 and the changelog entries for `system_interface`, `workspace_ui`, and `usage_dashboard`.
 
 ## 12. Deferred
 
