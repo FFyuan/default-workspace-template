@@ -53,9 +53,10 @@ export interface UsageFigures {
   latency: LatencyRow | null;
 }
 
-/** A set of calls' tiles, chart rows (bucketed, by model) and breakdown: all usage, or one provider's. */
+/** A set of calls' tiles, chart rows (bucketed, by model and by source) and breakdown: all usage, or one provider's. */
 export interface SectionFigures extends UsageFigures {
   chartRows: TotalsRow[];
+  sourceChartRows: TotalsRow[];
   breakdownRows: TotalsRow[];
   breakdownLatency: LatencyRow[];
   /** For a subscription: its breakdown rows within each limit's most recent window, by window key. */
@@ -205,6 +206,7 @@ export class DashboardModel {
         summaryRows,
         statusRows,
         chartRows,
+        sourceChartRows,
         breakdownRows,
         totalLatency,
         totalBreakdownLatency,
@@ -215,6 +217,7 @@ export class DashboardModel {
         fetchTotals({ groupBy: split(["cost_provenance"]), since }),
         fetchTotals({ groupBy: split(["status"]), since }),
         fetchTotals({ groupBy: split(["model"]), since, bucket }),
+        fetchTotals({ groupBy: split(["origin_kind", "origin_id"]), since, bucket }),
         fetchTotals({ groupBy: split(breakdownSpec(breakdown).fields), since }),
         fetchLatency(filterFields, since),
         fetchLatency(breakdownFields, since),
@@ -287,6 +290,7 @@ export class DashboardModel {
           failed: failedShare(keep(statusRows)),
           latency: keep(totalLatency)[0] ?? null,
           chartRows: keep(chartRows),
+          sourceChartRows: keep(sourceChartRows),
           breakdownRows: keep(breakdownRows),
           breakdownLatency: keep(totalBreakdownLatency),
         },
@@ -296,6 +300,7 @@ export class DashboardModel {
           failed: failedShare(within(statusRows, spec)),
           latency: keep(sectionLatency[index][0])[0] ?? null,
           chartRows: within(chartRows, spec),
+          sourceChartRows: within(sourceChartRows, spec),
           breakdownRows: within(breakdownRows, spec),
           breakdownLatency: keep(sectionLatency[index][1]),
           limitWindowRows: Object.fromEntries(

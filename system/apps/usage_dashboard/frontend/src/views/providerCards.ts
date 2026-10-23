@@ -83,13 +83,6 @@ function subscriptionCard(card: SubscriptionCard, now: Date): m.Vnode {
       ),
     ]),
     card.windows.map((window) => limitRow(window, now)),
-    card.listPriceThisMonth === null
-      ? null
-      : m(
-          "div",
-          { class: "type-helper text-faint" },
-          `This month's use would be ≈ ${formatDollars(card.listPriceThisMonth)} at API prices.`,
-        ),
   ]);
 }
 

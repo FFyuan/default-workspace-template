@@ -13,8 +13,6 @@ describe("summarize", () => {
 
     expect(summary.spend).toBe(1.75);
     expect(summary.spendByMode).toEqual({ IMBUE_KEY: 1.5, API_KEY: 0.25 });
-    expect(summary.subscriptionCalls).toBe(4);
-    expect(summary.subscriptionListPrice).toBe(9);
     expect(summary.isSpendEstimated).toBe(false);
     expect(summary.calls).toBe(7);
   });
@@ -35,10 +33,6 @@ describe("summarize", () => {
 
     expect(summary.spend).toBe(0);
     expect(summary.unknownCostCalls).toBe(5);
-  });
-
-  it("leaves a subscription unpriced when none of its calls had a cost", () => {
-    expect(summarize([totalsRow({ group: { billing_mode: "SUBSCRIPTION" } })]).subscriptionListPrice).toBeNull();
   });
 });
 

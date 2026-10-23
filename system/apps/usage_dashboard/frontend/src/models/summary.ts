@@ -18,9 +18,6 @@ export interface Summary {
   spend: number;
   /** Whether any billed dollar was estimated from tokens rather than reported. */
   isSpendEstimated: boolean;
-  subscriptionCalls: number;
-  /** A subscription's usage at list price; null when none of its calls could be priced. */
-  subscriptionListPrice: number | null;
   /** Calls left out of spend: no known cost, or no known billing mode. */
   unknownCostCalls: number;
   tokens: Record<TokenBucket, number>;
@@ -45,8 +42,6 @@ export function summarize(rows: readonly TotalsRow[]): Summary {
     spendByMode: {},
     spend: 0,
     isSpendEstimated: false,
-    subscriptionCalls: 0,
-    subscriptionListPrice: null,
     unknownCostCalls: 0,
     tokens: emptyTokens(),
   };
@@ -60,10 +55,7 @@ export function summarize(rows: readonly TotalsRow[]): Summary {
       summary.spendByMode[mode] = (summary.spendByMode[mode] ?? 0) + (cost ?? 0);
       summary.spend += cost ?? 0;
       if (cost !== null && cost > 0 && row.group.cost_provenance === "ESTIMATED") summary.isSpendEstimated = true;
-    } else if (mode === "SUBSCRIPTION") {
-      summary.subscriptionCalls += row.calls;
-      if (cost !== null) summary.subscriptionListPrice = (summary.subscriptionListPrice ?? 0) + cost;
-    } else {
+    } else if (mode !== "SUBSCRIPTION") {
       summary.unknownCostCalls += row.calls;
     }
   }

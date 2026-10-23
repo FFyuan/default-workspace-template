@@ -1,6 +1,6 @@
 /**
- * The usage chart: one bar per minute, hour or day of the window, stacked by model, with a legend and a tooltip
- * per bar. Bars are plain SVG; the axis labels are HTML beside it so they stay legible at any width.
+ * The usage chart: one bar per minute, hour or day of the window, stacked by model or by source, with a legend and
+ * a tooltip per bar. Bars are plain SVG; the axis labels are HTML beside it so they stay legible at any width.
  */
 
 import m from "mithril";
@@ -46,6 +46,10 @@ export interface ChartAttrs {
   rows: readonly TotalsRow[];
   metric: ChartMetric;
   colors: SeriesColors;
+  /** The series a row belongs to: its model, unless the chart stacks by something else. */
+  seriesLabel?: (row: TotalsRow) => string;
+  /** What the series are, for the chart's accessible name: "model", "source". */
+  seriesNoun?: string;
   /** For the usage metric: the share of a limit a dollar of list price uses. */
   percentPerDollar?: number;
   /** Moments to mark with a dashed line, such as a limit window starting or resetting. */
@@ -74,26 +78,22 @@ export function markerPosition(starts: readonly Date[], now: Date, at: Date): nu
 export function UsageChart(): m.Component<ChartAttrs> {
   let hovered: number | null = null;
   return {
-    view({ attrs: { windowId, now, rows, metric, colors, percentPerDollar, markers, markerLegend } }) {
+    view({ attrs }) {
+      const { windowId, now, rows, metric, colors, percentPerDollar, markers, markerLegend } = attrs;
+      const labelOf = attrs.seriesLabel ?? ((row: TotalsRow) => modelLabel(row.group.model ?? null));
       const value = valueOf(metric, percentPerDollar ?? 0);
-      const totalsByModel = new Map<string, number>();
+      const totalsBySeries = new Map<string, number>();
       for (const row of rows) {
-        const model = modelLabel(row.group.model ?? null);
-        totalsByModel.set(model, (totalsByModel.get(model) ?? 0) + value(row));
+        const series = labelOf(row);
+        totalsBySeries.set(series, (totalsBySeries.get(series) ?? 0) + value(row));
       }
-      const ranked = [...totalsByModel.entries()]
+      const ranked = [...totalsBySeries.entries()]
         .filter(([, total]) => total > 0)
         .sort((a, b) => b[1] - a[1])
-        .map(([model]) => model);
+        .map(([series]) => series);
       const { shown, slotOf } = colors.assign(ranked);
-      const order = [...shown, ...(ranked.some((model) => !shown.includes(model)) ? [OTHER_SERIES] : [])];
-      const { starts, values } = binRows(
-        windowId,
-        now,
-        rows,
-        (row) => seriesOf(modelLabel(row.group.model ?? null), shown),
-        value,
-      );
+      const order = [...shown, ...(ranked.some((series) => !shown.includes(series)) ? [OTHER_SERIES] : [])];
+      const { starts, values } = binRows(windowId, now, rows, (row) => seriesOf(labelOf(row), shown), value);
       const barTotals = values.map((bar) => [...bar.values()].reduce((sum, amount) => sum + amount, 0));
       const peak = Math.max(0, ...barTotals);
       const peakIndex = barTotals.indexOf(peak);
@@ -144,7 +144,7 @@ export function UsageChart(): m.Component<ChartAttrs> {
               preserveAspectRatio: "none",
               class: "block h-44 w-full",
               role: "img",
-              "aria-label": `${{ spend: "Spend", tokens: "Tokens", usage: "Estimated limit usage" }[metric]} over the window, by model`,
+              "aria-label": `${{ spend: "Spend", tokens: "Tokens", usage: "Estimated limit usage" }[metric]} over the window, by ${attrs.seriesNoun ?? "model"}`,
               onmouseleave: () => (hovered = null),
             },
             [

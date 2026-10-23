@@ -47,7 +47,7 @@ import { type Route, pathOf } from "../models/routing";
 import type { SectionKind } from "../models/sections";
 import { type UsageScale, chosenScale, formatShare, limitShares, lineKey } from "../models/usageEstimate";
 import { WINDOWS, type WindowId } from "../models/windows";
-import { type ChartMarker, UsageChart } from "./chart";
+import { type ChartAttrs, type ChartMarker, UsageChart } from "./chart";
 import { providerCard, providerSection } from "./providerCards";
 
 const CARD_CLASS = "rounded-lg border border-default bg-surface p-4";
@@ -81,20 +81,6 @@ function spendTile(data: UsageFigures): m.Vnode {
         : null,
     ],
     { "data-tile": "spend" },
-  );
-}
-
-function subscriptionTile(data: UsageFigures): m.Vnode | null {
-  const { summary } = data;
-  if (summary.subscriptionCalls === 0) return null;
-  return tile(
-    "Subscription",
-    summary.subscriptionListPrice === null ? "Unpriced" : `≈ ${formatDollars(summary.subscriptionListPrice)}`,
-    [
-      m("div", `${formatCalls(summary.subscriptionCalls)} at list price`),
-      m("div", { class: "text-faint" }, "Covered by the subscription, not billed per call"),
-    ],
-    { "data-tile": "subscription" },
   );
 }
 
@@ -230,13 +216,6 @@ function breakdownSection(
                     showsMoney
                       ? m("td", { class: "py-2 pr-3 text-right tabular-nums text-secondary" }, [
                           line.billedCalls === 0 ? "–" : formatDollars(line.spend),
-                          line.listPrice === null
-                            ? null
-                            : m(
-                                "div",
-                                { class: "type-tag text-faint" },
-                                `≈ ${formatDollars(line.listPrice)} subscription`,
-                              ),
                         ])
                       : null,
                     limitColumns.map((limit) => {
@@ -267,7 +246,7 @@ function breakdownSection(
       "p",
       { class: "type-helper text-faint" },
       showsMoney
-        ? "Click a row to show only its usage. Subscription usage is shown at list price, apart from spend."
+        ? "Click a row to show only its usage. Spend counts only billed calls; subscription calls show none."
         : "Click a row to show only its usage. Each limit column is the row's estimated share of that limit within its most recent window.",
     ),
   ]);
@@ -275,9 +254,10 @@ function breakdownSection(
 
 function callCost(call: StoredCall): string {
   const { cost_usd: cost, billing_mode: mode, cost_provenance: provenance } = call.event;
+  // A subscription call is covered by its plan, so it has no cost of its own to show.
+  if (mode === "SUBSCRIPTION") return "Subscription";
   if (cost === null || cost === undefined) return "unknown";
   const amount = formatDollars(Number(cost));
-  if (mode === "SUBSCRIPTION") return `≈ ${amount}`;
   return provenance === "ESTIMATED" ? `~${amount}` : amount;
 }
 
@@ -567,6 +547,12 @@ function banners(model: DashboardModel): m.Children {
 }
 
 /** A set of calls' figures: their tiles, their usage over the window by model, and their breakdown. */
+/** Each chart keeps its own colours: a model's and a source's never compete for a slot. */
+interface ChartColors {
+  models: SeriesColors;
+  sources: SeriesColors;
+}
+
 function figuresView(
   model: DashboardModel,
   data: DashboardData,
@@ -574,7 +560,7 @@ function figuresView(
   kind: "all" | SectionKind,
   chartKey: string,
   now: Date,
-  colors: SeriesColors,
+  colors: ChartColors,
   columns: UsageColumns,
 ): m.Children {
   const isSubscription = kind === "subscription";
@@ -601,19 +587,27 @@ function figuresView(
           : "tokens";
   const heading =
     metric === "usage" && scale !== undefined
-      ? `Usage by model · estimated % of ${scale.label.replace(" limit", "").toLowerCase()} limit`
+      ? `Usage · estimated % of ${scale.label.replace(" limit", "").toLowerCase()} limit`
       : metric === "spend"
-        ? "Spend by model"
-        : "Tokens by model";
+        ? "Spend"
+        : "Tokens";
+  const chart = (title: string, attrs: Pick<ChartAttrs, "rows" | "colors" | "seriesLabel" | "seriesNoun">): m.Vnode =>
+    m("div", { class: "usage-chart-panel flex min-w-0 flex-col gap-2", "data-chart": attrs.seriesNoun }, [
+      m("h4", { class: "type-helper text-secondary" }, title),
+      m(UsageChart, {
+        windowId: data.windowId,
+        now,
+        metric,
+        percentPerDollar: scale?.percentPerDollar,
+        markers: scale === undefined ? [] : resetMarkers(scale, now),
+        markerLegend: scale === undefined ? undefined : `${capitalized(limitName(scale))} reset`,
+        ...attrs,
+      }),
+    ]);
   const tiles =
     kind === "all"
-      ? [spendTile(figures), subscriptionTile(figures), tokensTile(figures), callsTile(figures), latencyTile(figures)]
-      : [
-          isSubscription ? subscriptionTile(figures) : spendTile(figures),
-          tokensTile(figures),
-          callsTile(figures),
-          latencyTile(figures),
-        ];
+      ? [spendTile(figures), tokensTile(figures), callsTile(figures), latencyTile(figures)]
+      : [isSubscription ? null : spendTile(figures), tokensTile(figures), callsTile(figures), latencyTile(figures)];
   return [
     m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3" }, tiles),
     m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
@@ -641,23 +635,24 @@ function figuresView(
             : null,
         ]),
       ]),
-      m(UsageChart, {
-        windowId: data.windowId,
-        now,
-        rows: figures.chartRows,
-        metric,
-        colors,
-        percentPerDollar: scale?.percentPerDollar,
-        markers: scale === undefined ? [] : resetMarkers(scale, now),
-        markerLegend: scale === undefined ? undefined : `${capitalized(limitName(scale))} reset`,
-      }),
+      // Side by side where the card is wide enough, one above the other where it is not.
+      m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-x-6 gap-y-4" }, [
+        chart("By model", { rows: figures.chartRows, colors: colors.models, seriesNoun: "model" }),
+        chart("By source", {
+          rows: figures.sourceChartRows,
+          colors: colors.sources,
+          seriesLabel: (row) =>
+            sourceLabel(row.group.origin_kind ?? null, row.group.origin_id ?? null, model.appNames),
+          seriesNoun: "source",
+        }),
+      ]),
       metric === "usage" && scale !== undefined
         ? m(
             "p",
             { class: "usage-estimate-note type-helper text-faint" },
             scale.isFromEarlierWindow
-              ? `Estimated at the rate of the ${limitName(scale)} window that reset at ${formatClock(scale.resetsAt)}: each model's tokens are priced at API rates.`
-              : "Estimated: each model's tokens are priced at API rates, then scaled so the limit window adds up to its last reading.",
+              ? `Estimated at the rate of the ${limitName(scale)} window that reset at ${formatClock(scale.resetsAt)}: each call's tokens are priced at API rates.`
+              : "Estimated: each call's tokens are priced at API rates, then scaled so the limit window adds up to its last reading.",
           )
         : null,
     ]),
@@ -691,9 +686,10 @@ function pageHeader(model: DashboardModel, back: boolean): m.Vnode {
   ]);
 }
 
-/** The home page: one card per provider in use, then the Total row, which opens all usage. */
+/** The home page: one card per provider in use, then the Total row, which opens the first provider's details. */
 function homePage(model: DashboardModel, now: Date): m.Children {
   const data = model.data;
+  const firstProvider = model.providers?.[0];
   return [
     pageHeader(model, false),
     banners(model),
@@ -705,11 +701,17 @@ function homePage(model: DashboardModel, now: Date): m.Children {
         m("div", { class: "flex flex-wrap items-center justify-between gap-3" }, [
           m("div", { class: "flex items-baseline gap-3" }, [
             m("h2", { class: "type-section text-primary" }, "Total"),
-            m(
-              "a",
-              { href: pathOf({ page: "all" }), class: "all-link type-helper text-secondary hover:text-primary" },
-              "See all usage ›",
-            ),
+            // The details open on the first provider; the list there leads to the others.
+            firstProvider === undefined
+              ? null
+              : m(
+                  "a",
+                  {
+                    href: pathOf({ page: "item", key: firstProvider.sectionKey }),
+                    class: "details-link type-helper text-secondary hover:text-primary",
+                  },
+                  "See details ›",
+                ),
           ]),
           windowPicker(model),
         ]),
@@ -721,7 +723,6 @@ function homePage(model: DashboardModel, now: Date): m.Children {
             )
           : m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3" }, [
               spendTile(data.total),
-              subscriptionTile(data.total),
               tokensTile(data.total),
               callsTile(data.total),
               latencyTile(data.total),
@@ -766,7 +767,7 @@ function navItems(model: DashboardModel): NavItem[] {
 }
 
 /** A detail page: the list of providers, and the chosen one's limits, figures and latest calls. */
-function detailPage(model: DashboardModel, route: Route, now: Date, colors: SeriesColors): m.Children {
+function detailPage(model: DashboardModel, route: Route, now: Date, colors: ChartColors): m.Children {
   const data = model.data;
   const selectedKey = route.page === "item" ? route.key : "all";
   const items = navItems(model);
@@ -852,7 +853,7 @@ export interface AppAttrs {
 }
 
 export function App(): m.Component<AppAttrs> {
-  const colors = new SeriesColors();
+  const colors: ChartColors = { models: new SeriesColors(), sources: new SeriesColors() };
   return {
     view({ attrs: { model, route, now } }) {
       const current = now();

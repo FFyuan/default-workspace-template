@@ -48,7 +48,7 @@ describe("providerCards", () => {
     expect(providerCards([reading({ observed_at: "2026-10-14T19:00:00Z" })], [], NOW)).toEqual([]);
   });
 
-  it("adds the subscription's list price this month and keeps its calls off the spend cards", () => {
+  it("keeps a subscription's calls off the spend cards", () => {
     const cards = providerCards(
       [reading({})],
       [totalsRow({ group: { provider: "anthropic", billing_mode: "SUBSCRIPTION" }, calls: 9, cost_usd: "3.5" })],
@@ -56,7 +56,7 @@ describe("providerCards", () => {
     );
 
     expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({ kind: "subscription", listPriceThisMonth: 3.5 });
+    expect(cards[0]).toMatchObject({ kind: "subscription" });
   });
 
   it("gives a spend card per provider used without a subscription, counting unknown costs", () => {
