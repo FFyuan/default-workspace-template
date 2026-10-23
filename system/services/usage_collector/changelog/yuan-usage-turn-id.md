@@ -1,1 +1,0 @@
-The usage collector stores each call's `turn_id` (a new, indexed column; an existing database gains it when the collector starts). Totals can be grouped by `turn_id` (`/v1/totals?group_by=turn_id`), and `/v1/calls` filters by `turn_id`, `session_id` and `run_id` as well as the rollup dimensions, e.g. `?turn_id=<id>` for one turn's calls.

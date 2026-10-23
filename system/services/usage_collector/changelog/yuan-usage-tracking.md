@@ -15,3 +15,5 @@ It also answers the questions the Usage app asks:
 - `GET /v1/limits` answers the freshest subscription limit reading of every window per source (Claude's 5-hour and weekly limits, Codex's): the collector now reads the `rate_limits` on agents' snapshot events and on model_calls instead of skipping them.
 
 - The collector keeps the id of every event it has counted, past the 90 days it keeps raw events, so a file read again from its start (a destroyed agent's preserved copy, a restored backup) never counts an old call twice.
+
+The usage collector stores each call's `turn_id` (a new, indexed column; an existing database gains it when the collector starts). Totals can be grouped by `turn_id` (`/v1/totals?group_by=turn_id`), and `/v1/calls` filters by `turn_id`, `session_id` and `run_id` as well as the rollup dimensions, e.g. `?turn_id=<id>` for one turn's calls.
