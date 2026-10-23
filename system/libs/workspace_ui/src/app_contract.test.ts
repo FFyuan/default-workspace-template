@@ -24,6 +24,7 @@ import {
   SHELL_WIDGET_PRESS,
   SHELL_WIDGET_TOOLTIP,
   SHELL_WIDGET_MODE,
+  SHELL_WIDGET_PLACEMENT,
   SHELL_WIDGET_SIZE,
   ShellContractError,
   connectToShell,
@@ -330,6 +331,17 @@ describe("connectToShell", () => {
       { type: SHELL_WIDGET_MENU, x: 12, y: 7 },
       { type: SHELL_OPEN, path: "/", ifPresent: "focus" },
       { type: SHELL_WIDGET_PRESS },
+    ]);
+  });
+
+  it("asks the shell to place its app's widget, from a window as from a widget", () => {
+    const parent = shellFramed();
+    parent.postMessage.mockClear();
+    connection?.placeWidget("tray");
+    connection?.placeWidget("desktop");
+    expect(parent.postMessage.mock.calls).toEqual([
+      [{ type: SHELL_WIDGET_PLACEMENT, placement: "tray" }, "*"],
+      [{ type: SHELL_WIDGET_PLACEMENT, placement: "desktop" }, "*"],
     ]);
   });
 

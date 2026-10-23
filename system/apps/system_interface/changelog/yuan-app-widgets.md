@@ -13,3 +13,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - An enabled widget keeps its app running, as an open window does, even when the app declares `stop_when_no_windows`.
 
 - A widget whose page draws a tray form can live in the taskbar's tray instead: "Move to taskbar" in its menu (and "Move to desktop" back), kept per client. In the tray a click opens a popover above the bar with the widget expanded; a click elsewhere, Escape, or opening the app closes it. A right-click anywhere on a widget, not only its edge, now opens its menu.
+
+- A page of an app can move the app's widget to the tray or back for its client (`shell:widget-placement`), so an app can offer that choice in its own settings.

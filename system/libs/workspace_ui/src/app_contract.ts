@@ -104,6 +104,9 @@ export const SHELL_WIDGET_MENU = "shell:widget-menu";
 /** App to shell, from a widget only: Escape was pressed on the page, which closes the widget's popover if it is
  *  open. */
 export const SHELL_WIDGET_DISMISS = "shell:widget-dismiss";
+/** App to shell, from any page of an app that declares a widget: put the app's widget on the desktop or in the taskbar's
+ *  tray for this client, as its menu's Move to taskbar / Move to desktop does (app-widgets plan section 4.10). */
+export const SHELL_WIDGET_PLACEMENT = "shell:widget-placement";
 /** The attribute a widget page's element carries its tooltip's text in. */
 export const WIDGET_TOOLTIP_ATTRIBUTE = "data-widget-tooltip";
 
@@ -160,6 +163,9 @@ export type ShellSurface = "window" | "widget";
 /** How the client draws a widget: in full, as its one-line pill, or in the taskbar's tray (a page the manifest says
  *  draws a tray form only; app-widgets plan section 4.10). */
 export type WidgetMode = "expanded" | "collapsed" | "tray";
+
+/** Where a client draws an app's widget: on the desktop, or in the taskbar's tray. */
+export type WidgetPlacement = "desktop" | "tray";
 
 export interface ShellHandshake {
   clientId: string;
@@ -225,6 +231,9 @@ export interface ShellConnection {
   widgetSize(width: number, height: number): void;
   /** Tell the shell a widget has nothing to show (true) or has again (false); nothing from a window. */
   widgetHidden(isHidden: boolean): void;
+  /** Ask the shell to put this app's widget on the desktop or in the taskbar's tray, for this client; the shell does
+   *  so only for an app that declares a widget (and, for the tray, one whose page draws a tray form). */
+  placeWidget(placement: WidgetPlacement): void;
   /** Stop listening to the shell. */
   disconnect(): void;
 }
@@ -630,6 +639,7 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
     widgetHidden: (isHidden: boolean) => {
       if (surface === "widget") send(SHELL_WIDGET_HIDDEN, { isHidden });
     },
+    placeWidget: (placement: WidgetPlacement) => send(SHELL_WIDGET_PLACEMENT, { placement }),
     disconnect: () => {
       boundWindow.removeEventListener("message", onMessage);
       boundWindow.removeEventListener("click", onLinkClick);

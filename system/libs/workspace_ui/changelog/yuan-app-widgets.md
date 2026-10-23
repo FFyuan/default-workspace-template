@@ -5,3 +5,5 @@ A widget's page gives an element a tooltip with `data-widget-tooltip`: `connectT
 A press anywhere on a widget's page drags the widget: once it travels a few pixels, `connectToShell` reports it to the shell as `shell:widget-drag` and swallows the click that ends it, with no code in the page. A short press stays the page's click, and a press on a button, a field, or an element marked `data-no-drag` never drags.
 
 The app contract gains mode `tray` for a widget page whose manifest declares a tray form, and three page-to-shell messages `connectToShell` sends by itself: `shell:widget-menu` for a right-click, `shell:widget-press` in place of a click in the tray, and `shell:widget-dismiss` for Escape. A tray widget does not drag.
+
+`connection.placeWidget(placement)` lets any page of an app that declares a widget ask the shell to put the app's widget on the desktop or in the taskbar's tray for this client (`shell:widget-placement`).

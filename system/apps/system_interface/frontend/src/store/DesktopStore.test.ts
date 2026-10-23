@@ -2827,6 +2827,21 @@ describe("widgets", () => {
     expect(store.widgetRects().has("gauge")).toBe(true);
   });
 
+  it("puts a widget in the tray or back when a page of its app asks, and only a widget that draws a tray form", async () => {
+    const store = await widgetStore();
+    await store.placeWidgetFromApp("gauge", "tray");
+    expect(store.getState().widgets.gauge.placement).toBe("tray");
+    const writes = api.calls.length;
+    // Asked again, nothing is written.
+    await store.placeWidgetFromApp("gauge", "tray");
+    expect(api.calls).toHaveLength(writes);
+    await store.placeWidgetFromApp("gauge", "desktop");
+    expect(store.getState().widgets.gauge.placement).toBe("desktop");
+    // An app with no widget is ignored.
+    await store.placeWidgetFromApp("docs", "tray");
+    expect(store.getState().widgets.docs).toBeUndefined();
+  });
+
   it("raises any window of a widget's app, whatever its page, and opens one only when the app has none", async () => {
     api.desktops = [
       desktopRecord("home", { windows: [windowRecord("win-1", "docs", "/a")] }),

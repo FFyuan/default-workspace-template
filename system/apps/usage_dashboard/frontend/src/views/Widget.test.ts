@@ -204,12 +204,43 @@ describe("the tray form", () => {
     expect(rendered(BOTH, "tray", { detail: "less" }).querySelector('[data-ring="outer"]')).toBeNull();
   });
 
-  it("draws the bars under the name beside the 5-hour figure in the bars style", () => {
-    const root = rendered(BOTH, "tray", { variant: "bars" });
+  it("draws the bars under the name beside the 5-hour figure in the bars design", () => {
+    const root = rendered(BOTH, "tray", { tray: "bars" });
     const row = root.querySelector('[data-widget-row="subscription:claude"]');
     expect(row?.textContent).toContain("Claude");
     expect((row?.querySelector('[data-widget-bar="short"]') as HTMLElement).style.width).toBe("80%");
     expect(row?.querySelector('[data-widget-bar="long"]')).not.toBeNull();
     expect(texts(row, "[data-widget-percent]")).toEqual(["80%"]);
+  });
+});
+
+describe("the other tray designs", () => {
+  it("draws the ring pair alone, with no figure or name, its detail in the tooltip", () => {
+    const root = rendered(BOTH, "tray", { tray: "ring" });
+    const pair = root.querySelector('[data-widget-rings="subscription:claude"]');
+    expect(pair?.querySelector('[data-ring="outer"]')).not.toBeNull();
+    expect(pair?.textContent).toBe("");
+    expect(tooltips(pair, "[data-widget-tooltip]")[0]).toContain("5-hour limit: 80% used");
+    expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-tray")).toBe("ring");
+  });
+
+  it("draws the name and the 5-hour figure as text, the weekly one too with more, near-cap figures in colour", () => {
+    const pair = rendered(BOTH, "tray", { tray: "numbers" }).querySelector("[data-widget-rings]");
+    expect(texts(pair, "[data-ring-name]")).toEqual(["Claude"]);
+    expect(texts(pair, "[data-widget-percent]")).toEqual(["80%"]);
+    expect((pair?.querySelector("[data-widget-percent]") as HTMLElement).style.color).toBe("var(--widget-high)");
+    const more = rendered(BOTH, "tray", { tray: "numbers", detail: "more" });
+    expect(texts(more, "[data-widget-percent]")).toEqual(["80%", "34%"]);
+  });
+
+  it("stacks the 5-hour figure over the weekly one beside the name, and drops the weekly with less", () => {
+    const pair = rendered(BOTH, "tray", { tray: "stacked" }).querySelector("[data-widget-rings]");
+    expect(texts(pair, "[data-widget-window] [data-widget-percent]")).toEqual(["80%", "34%"]);
+    expect(tooltips(pair, "[data-widget-window] [data-widget-percent]")).toEqual([
+      `5-hour limit: 80% used, resets ${SHORT_RESET}`,
+      `Weekly limit: 34% used, resets ${WEEKLY_RESET}`,
+    ]);
+    const less = rendered(BOTH, "tray", { tray: "stacked", detail: "less" });
+    expect(texts(less, "[data-widget-window] [data-widget-percent]")).toEqual(["80%"]);
   });
 });

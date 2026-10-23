@@ -16,6 +16,8 @@ import {
   WIDGET_DETAIL_LABELS,
   WIDGET_SIZES,
   WIDGET_SIZE_LABELS,
+  WIDGET_TRAYS,
+  WIDGET_TRAY_LABELS,
   WIDGET_VARIANTS,
   WIDGET_VARIANT_LABELS,
 } from "../models/widgetLook";
@@ -788,8 +790,9 @@ function lookMenu<T extends string>(
   ]);
 }
 
-/** The workspace's pick of how the widget looks -- its style, size and how much it shows -- saved by the Usage app
- *  and shown by its widget at once. */
+/** The workspace's pick of how the widget looks -- its style, size and how much it shows on the desktop, and its
+ *  design in the taskbar's tray -- saved by the Usage app and shown by its widget at once. Picking a tray design also
+ *  puts this client's widget in the tray, where it is seen. */
 function widgetLookPicker(picker: WidgetLookPicker): m.Children {
   const look = picker.look;
   if (look === null) return null;
@@ -804,6 +807,10 @@ function widgetLookPicker(picker: WidgetLookPicker): m.Children {
     lookMenu(WIDGET_SIZES, WIDGET_SIZE_LABELS, look.size, "Widget size", (size) => void picker.select({ size })),
     lookMenu(WIDGET_DETAILS, WIDGET_DETAIL_LABELS, look.detail, "How much the widget shows", (detail) => {
       void picker.select({ detail });
+    }),
+    m("span", { class: "type-helper text-secondary" }, "Taskbar"),
+    lookMenu(WIDGET_TRAYS, WIDGET_TRAY_LABELS, look.tray, "Widget design in the taskbar", (tray) => {
+      void picker.select({ tray });
     }),
   ]);
 }

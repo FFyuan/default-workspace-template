@@ -38,6 +38,7 @@ import {
   SHELL_MESSAGE,
   SHELL_NAVIGATE,
   SHELL_OPEN,
+  SHELL_WIDGET_PLACEMENT,
   SHELL_OPEN_LINK,
   SHELL_SHOWN,
   SHELL_START_WITH_TEXT,
@@ -156,6 +157,7 @@ export class LivePagesLayer implements PageDriver {
     setChildFrameMessageHandler(SHELL_DRAFT_TEXT, (frame, payload) => this.takeDraftText(frame, payload));
     setChildFrameMessageHandler(SHELL_MESSAGE, (frame, payload) => this.takeMessage(frame, payload));
     setChildFrameMessageHandler(SHELL_OPEN_LINK, (frame, payload) => this.takeOpenLink(frame, payload));
+    setChildFrameMessageHandler(SHELL_WIDGET_PLACEMENT, (frame, payload) => this.takeWidgetPlacement(frame, payload));
     // Focusable, so the shell has somewhere of its own to put the document's focus (``takeFocusFromOtherPages``).
     this.host.tabIndex = -1;
     this.store.setPageDriver(this);
@@ -672,6 +674,14 @@ export class LivePagesLayer implements PageDriver {
       return;
     }
     void this.store.openLink(url, window.location.host, app);
+  }
+
+  /** A page of an app asked to put the app's widget on the desktop or in the tray, for this client. */
+  private takeWidgetPlacement(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {
+    const app = this.appOfFrame(frame);
+    const { placement } = payload;
+    if (app === null || (placement !== "desktop" && placement !== "tray")) return;
+    void this.store.placeWidgetFromApp(app, placement);
   }
 
   private takeOpen(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {

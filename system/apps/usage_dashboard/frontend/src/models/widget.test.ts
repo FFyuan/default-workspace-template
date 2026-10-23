@@ -130,7 +130,7 @@ describe("WidgetModel", () => {
     expect(widget.look.variant).toBe("rings");
     stubCollector([reading({})], false, null, "bars");
     await widget.refresh();
-    expect(widget.look).toEqual({ variant: "bars", size: "medium", detail: "standard" });
+    expect(widget.look).toEqual({ variant: "bars", size: "medium", detail: "standard", tray: "rings" });
     stubCollector([reading({})], false, 503);
     await widget.refresh();
     expect(widget.look.variant).toBe("bars");

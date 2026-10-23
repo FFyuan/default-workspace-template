@@ -1,9 +1,10 @@
 /**
- * How the workspace's Usage widget looks (app-widgets plan section 7.8): its style, its size, and how much it shows.
+ * How the workspace's Usage widget looks (app-widgets plan section 7.8): its style, its size, how much it shows, and its
+ * design in the taskbar's tray.
  * A choice the Usage app keeps in its own settings, not a flag. The Usage page picks it; the widget reads it with its
  * figures, and hears at once of a pick made in the same browser through a broadcast channel. ``?variant=``,
- * ``?size=`` and ``?detail=`` on the widget's URL override it for that page alone, so a look can be tried without
- * changing anyone's widget.
+ * ``?size=``, ``?detail=`` and ``?tray=`` on the widget's URL override it for that page alone, so a look can be tried
+ * without changing anyone's widget. Picking a tray design also asks the shell to put this client's widget in the tray.
  */
 
 import { fetchSettings, saveSettings } from "./api";
@@ -20,18 +21,31 @@ export type WidgetSize = (typeof WIDGET_SIZES)[number];
 export const WIDGET_DETAILS = ["less", "standard", "more"] as const;
 export type WidgetDetail = (typeof WIDGET_DETAILS)[number];
 
+/** How the widget is drawn in the taskbar's tray: a ring pair with the name over the 5-hour figure; the ring pair
+ *  alone; the name over two bars; the name and the 5-hour figure as text; the 5-hour figure over the weekly one. */
+export const WIDGET_TRAYS = ["rings", "ring", "bars", "numbers", "stacked"] as const;
+export type WidgetTray = (typeof WIDGET_TRAYS)[number];
+
 export interface WidgetLook {
   readonly variant: WidgetVariant;
   readonly size: WidgetSize;
   readonly detail: WidgetDetail;
+  readonly tray: WidgetTray;
 }
 
-export const DEFAULT_WIDGET_LOOK: WidgetLook = { variant: "rings", size: "medium", detail: "standard" };
+export const DEFAULT_WIDGET_LOOK: WidgetLook = { variant: "rings", size: "medium", detail: "standard", tray: "rings" };
 
 /** What each choice is called where it is picked. */
 export const WIDGET_VARIANT_LABELS: Record<WidgetVariant, string> = { rings: "Rings", bars: "Bars" };
 export const WIDGET_SIZE_LABELS: Record<WidgetSize, string> = { small: "Small", medium: "Medium", large: "Large" };
 export const WIDGET_DETAIL_LABELS: Record<WidgetDetail, string> = { less: "Less", standard: "Standard", more: "More" };
+export const WIDGET_TRAY_LABELS: Record<WidgetTray, string> = {
+  rings: "Rings",
+  ring: "Ring only",
+  bars: "Bars",
+  numbers: "Numbers",
+  stacked: "Stacked",
+};
 
 /** The channel a pick is announced on, to every page of this app in the same browser. */
 export const WIDGET_LOOK_CHANNEL = "usage-widget-look";
@@ -47,7 +61,10 @@ export function asWidgetLook(value: unknown): WidgetLook | null {
   const variant = oneOf(WIDGET_VARIANTS, record.variant);
   const size = oneOf(WIDGET_SIZES, record.size);
   const detail = oneOf(WIDGET_DETAILS, record.detail);
-  return variant === null || size === null || detail === null ? null : { variant, size, detail };
+  const tray = oneOf(WIDGET_TRAYS, record.tray);
+  return variant === null || size === null || detail === null || tray === null
+    ? null
+    : { variant, size, detail, tray };
 }
 
 /** The settings as a look: a part the settings do not name, or name as an unknown choice, takes its default. */
@@ -56,23 +73,26 @@ export function lookOfSettings(settings: UsageSettings): WidgetLook {
     variant: oneOf(WIDGET_VARIANTS, settings.widget_variant) ?? DEFAULT_WIDGET_LOOK.variant,
     size: oneOf(WIDGET_SIZES, settings.widget_size) ?? DEFAULT_WIDGET_LOOK.size,
     detail: oneOf(WIDGET_DETAILS, settings.widget_detail) ?? DEFAULT_WIDGET_LOOK.detail,
+    tray: oneOf(WIDGET_TRAYS, settings.widget_tray) ?? DEFAULT_WIDGET_LOOK.tray,
   };
 }
 
 function settingsOfLook(look: WidgetLook): UsageSettings {
-  return { widget_variant: look.variant, widget_size: look.size, widget_detail: look.detail };
+  return { widget_variant: look.variant, widget_size: look.size, widget_detail: look.detail, widget_tray: look.tray };
 }
 
 /** The parts of the look a widget URL's query names, each only when it is a known choice. */
 export function lookOverrides(search: string): Partial<WidgetLook> {
   const query = new URLSearchParams(search);
-  const overrides: { variant?: WidgetVariant; size?: WidgetSize; detail?: WidgetDetail } = {};
+  const overrides: { variant?: WidgetVariant; size?: WidgetSize; detail?: WidgetDetail; tray?: WidgetTray } = {};
   const variant = oneOf(WIDGET_VARIANTS, query.get("variant"));
   const size = oneOf(WIDGET_SIZES, query.get("size"));
   const detail = oneOf(WIDGET_DETAILS, query.get("detail"));
   if (variant !== null) overrides.variant = variant;
   if (size !== null) overrides.size = size;
   if (detail !== null) overrides.detail = detail;
+  const tray = oneOf(WIDGET_TRAYS, query.get("tray"));
+  if (tray !== null) overrides.tray = tray;
   return overrides;
 }
 
@@ -95,6 +115,8 @@ export interface ChannelLike {
 export interface WidgetLookPickerDeps {
   redraw: () => void;
   openChannel: () => ChannelLike;
+  /** Ask the shell to put this client's Usage widget in the taskbar's tray. */
+  placeInTray: () => void;
 }
 
 /** The Usage page's picker: the stored look, and a change to one part of it saved and announced to the widget. */
@@ -126,5 +148,7 @@ export class WidgetLookPicker {
     const channel = this.deps.openChannel();
     channel.postMessage(next);
     channel.close();
+    // A tray design is seen only in the tray, so picking one puts this client's widget there.
+    if (change.tray !== undefined) this.deps.placeInTray();
   }
 }

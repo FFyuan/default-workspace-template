@@ -3,7 +3,7 @@
  * system monitor: the whole widget is one link to the Usage page, opened in a window of its own
  * (``target="_blank"``, which the shell's link rule turns into raising the Usage window). It draws the look the
  * workspace picked: its style (``widgetRings.ts``, ``widgetBars.ts``), its size (the ``--w-*`` lengths ``style.css``
- * gives each size) and how much it shows. Whatever the look, while the collector indexes its first history the
+ * gives each size) and how much it shows, or in the taskbar's tray its tray design (``widgetTray.ts``). Whatever the look, while the collector indexes its first history the
  * widget says so rather than show partial totals, and while the stream is down it keeps the last figures, dimmed.
  * Nothing in it changes under the pointer; the detail is in tooltips the shell shows.
  */
@@ -12,12 +12,15 @@ import m from "mithril";
 import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import type { WidgetModel } from "../models/widget";
 import type { WidgetDetail, WidgetLook, WidgetVariant } from "../models/widgetLook";
-import { barsCollapsed, barsExpanded, barsTray } from "./widgetBars";
-import { ringsCollapsed, ringsExpanded, ringsTray } from "./widgetRings";
+import { barsCollapsed, barsExpanded } from "./widgetBars";
+import { ringsCollapsed, ringsExpanded } from "./widgetRings";
+import { TRAY_DESIGNS } from "./widgetTray";
 
-const STYLES: Record<WidgetVariant, Record<WidgetMode, (model: WidgetModel, detail: WidgetDetail) => m.Children>> = {
-  rings: { expanded: ringsExpanded, collapsed: ringsCollapsed, tray: ringsTray },
-  bars: { expanded: barsExpanded, collapsed: barsCollapsed, tray: barsTray },
+type DesktopMode = Exclude<WidgetMode, "tray">;
+
+const STYLES: Record<WidgetVariant, Record<DesktopMode, (model: WidgetModel, detail: WidgetDetail) => m.Children>> = {
+  rings: { expanded: ringsExpanded, collapsed: ringsCollapsed },
+  bars: { expanded: barsExpanded, collapsed: barsCollapsed },
 };
 
 export interface WidgetAttrs {
@@ -32,7 +35,9 @@ export const Widget: m.Component<WidgetAttrs> = {
     const isCollapsed = mode !== "expanded";
     const content: m.Children = model.isCatchingUp
       ? m("span", { class: "text-(--widget-muted)" }, isCollapsed ? "..." : "Indexing usage...")
-      : STYLES[look.variant][mode](model, look.detail);
+      : mode === "tray"
+        ? TRAY_DESIGNS[look.tray](model, look.detail)
+        : STYLES[look.variant][mode](model, look.detail);
     return m(
       "a",
       {
@@ -43,6 +48,7 @@ export const Widget: m.Component<WidgetAttrs> = {
         "data-widget-variant": look.variant,
         "data-widget-size": look.size,
         "data-widget-detail": look.detail,
+        "data-widget-tray": look.tray,
         "data-live": model.isLive ? "true" : "false",
         class:
           "usage-widget inline-flex flex-col text-(--widget-text) no-underline " +

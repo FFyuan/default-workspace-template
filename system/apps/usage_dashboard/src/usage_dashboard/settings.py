@@ -1,4 +1,5 @@
-"""The Usage app's own settings: how the workspace's Usage widget looks -- its style, size and how much it shows.
+"""The Usage app's own settings: how the workspace's Usage widget looks -- its style, size and how much it shows on the
+desktop, and its design in the taskbar's tray.
 
 One small JSON file in the app's data directory (``data/.apps/usage-dashboard/settings.json`` on a live workspace),
 read on every request so an edit from another process lands without a restart, and written whole. A missing or
@@ -52,12 +53,28 @@ class WidgetDetail(LowerCaseStrEnum):
     MORE = auto()
 
 
+class TrayDesign(LowerCaseStrEnum):
+    """How the Usage widget is drawn in the taskbar's tray."""
+
+    # A small ring pair per subscription beside its name over its 5-hour figure.
+    RINGS = auto()
+    # The ring pair alone, like a menu-bar icon.
+    RING = auto()
+    # The name over a 5-hour and a weekly bar, beside the 5-hour figure.
+    BARS = auto()
+    # The name and the 5-hour figure, as text alone.
+    NUMBERS = auto()
+    # The 5-hour figure over the weekly one, each with its colour's dot.
+    STACKED = auto()
+
+
 class UsageSettings(FrozenModel):
     """What the settings file holds. Every field has a default, so an older file reads whole."""
 
     widget_variant: WidgetVariant = Field(default=WidgetVariant.RINGS, description="The widget's style")
     widget_size: WidgetSize = Field(default=WidgetSize.MEDIUM, description="How large the widget is drawn")
     widget_detail: WidgetDetail = Field(default=WidgetDetail.STANDARD, description="How much the widget shows")
+    widget_tray: TrayDesign = Field(default=TrayDesign.RINGS, description="The widget's design in the taskbar's tray")
 
 
 class UsageSettingsStore(MutableModel):

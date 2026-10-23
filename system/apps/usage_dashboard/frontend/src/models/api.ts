@@ -195,6 +195,7 @@ export interface UsageSettings {
   widget_variant: string;
   widget_size: string;
   widget_detail: string;
+  widget_tray: string;
 }
 
 export function fetchSettings(): Promise<UsageSettings> {

@@ -221,6 +221,7 @@ The app contract evolves by adding types (contracts section 7); nothing shipped 
 | page to shell | `shell:widget-menu` | `{"x", "y"}`, a right-click on the page in the frame's pixels: the widget's menu (section 4.6) |
 | page to shell | `shell:widget-press` | `{}`, from a widget in the tray: a click on it, which opens or closes its popover (section 4.10) |
 | page to shell | `shell:widget-dismiss` | `{}`, Escape on a widget's page: its popover closes if it is open |
+| page to shell | `shell:widget-placement` | `{"placement": "desktop" \| "tray"}`, from any page of an app declaring a widget (its window too): the shell places the app's widget so for this client, as Move to taskbar / Move to desktop does; the tray only for a widget whose page draws a tray form, never on a phone |
 | page to shell | `shell:widget-drag` | `{"phase": "start" \| "move" \| "end" \| "cancel", "screenX", "screenY"}`, and at the start `"pressX", "pressY"` (where in the frame the press began) and `"pressScreenX", "pressScreenY"`; section 4.4 |
 
 From a widget page the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open`, `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window, on the client's active desktop.
@@ -292,7 +293,17 @@ How the widget looks is the Usage app's own setting, not a flag and nothing the 
 | `standard` (default) | sections 7.4 and 7.5, and the bars as above |
 | `more` | in view rather than only in tooltips: each limit's reset time (expanded), the reading's time beside each heading (expanded rings), the weekly figure and the 5-hour reset beside a collapsed ring pair, and the weekly figure beside the collapsed bars |
 
-In the taskbar's tray (section 4.10) the widget draws its tray form, whatever size was picked: per subscription a 22-pixel ring pair (or, in the bars style, two thin bars under the name) beside the subscription's short name in small capitals over its 5-hour figure; less drops the weekly ring or bar, more adds the weekly figure. A click opens it expanded in the popover.
+In the taskbar's tray (section 4.10) the widget draws the tray design the workspace picked (`widget_tray`, a fourth menu, "Taskbar", in the Usage page's header), whatever size was picked; detail still applies (less: the 5-hour limit alone). Picking a tray design also asks the shell to put this client's widget in the tray (`shell:widget-placement`, section 6), since a tray design is seen only there. A click opens the widget expanded in the popover.
+
+| Tray design (`widget_tray`) | Per subscription |
+|---|---|
+| `rings` (default) | a 22-pixel ring pair beside the name in small capitals over the 5-hour figure (more: and the weekly one) |
+| `ring` | the ring pair alone, like a menu-bar icon; the name and figures are in its tooltip |
+| `bars` | the name over the 5-hour and weekly bars, beside the 5-hour figure |
+| `numbers` | the name and the 5-hour figure as text (more: and the weekly one) |
+| `stacked` | the name beside the 5-hour figure over the weekly one, each with its colour's dot |
+
+A figure near its cap takes its level's colour in every tray design.
 
 | Size (`widget_size`) | Text | Ring | Collapsed bars | Expanded width |
 |---|---|---|---|---|

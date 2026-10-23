@@ -1414,6 +1414,16 @@ export class DesktopStore {
     return this.setWidgetPresentation(app, { ...this.widgetPresentationOf(app), placement });
   }
 
+  /** A page of ``app`` asked to put its widget on the desktop or in the tray: done when the app's widget is shown in
+   *  this client, not on a phone, and (for the tray) its page draws a tray form; else nothing. */
+  async placeWidgetFromApp(app: string, placement: WidgetPlacement): Promise<void> {
+    const shown = shownWidgets(this.state).find((widget) => widget.app.name === app);
+    if (shown === undefined || this.isPhoneLayout()) return;
+    if (placement === "tray" && shown.app.widget?.tray !== true) return;
+    if (shown.presentation.placement === placement) return;
+    await this.setWidgetPlacement(app, placement);
+  }
+
   /** Open a tray widget's popover, or close it when it is the one open (app-widgets plan section 4.10). */
   toggleTrayPopover(app: string): void {
     this.dispatch({ type: "tray_popover_set", app: this.state.trayPopoverApp === app ? null : app });

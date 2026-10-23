@@ -53,7 +53,7 @@ function ringView(window: LimitWindow, radius: number, role: WindowRole): m.Vnod
 
 /** A ring pair with the 5-hour figure in its middle (unless ``hasFigure`` is false, as in the tray); ``outer`` null
  *  draws the 5-hour ring alone. */
-function ringsView(inner: LimitWindow, outer: LimitWindow | null, label: string, hasFigure = true): m.Vnode {
+export function ringsView(inner: LimitWindow, outer: LimitWindow | null, label: string, hasFigure = true): m.Vnode {
   return m(
     "span",
     {
