@@ -50,6 +50,8 @@ export interface ChartAttrs {
   percentPerDollar?: number;
   /** Moments to mark with a dashed line, such as a limit window starting or resetting. */
   markers?: readonly ChartMarker[];
+  /** What the dashed lines mean, said once in the legend rather than on each line. */
+  markerLegend?: string;
 }
 
 export interface ChartMarker {
@@ -72,7 +74,7 @@ export function markerPosition(starts: readonly Date[], now: Date, at: Date): nu
 export function UsageChart(): m.Component<ChartAttrs> {
   let hovered: number | null = null;
   return {
-    view({ attrs: { windowId, now, rows, metric, colors, percentPerDollar, markers } }) {
+    view({ attrs: { windowId, now, rows, metric, colors, percentPerDollar, markers, markerLegend } }) {
       const value = valueOf(metric, percentPerDollar ?? 0);
       const totalsByModel = new Map<string, number>();
       for (const row of rows) {
@@ -95,6 +97,10 @@ export function UsageChart(): m.Component<ChartAttrs> {
       const barTotals = values.map((bar) => [...bar.values()].reduce((sum, amount) => sum + amount, 0));
       const peak = Math.max(0, ...barTotals);
       const peakIndex = barTotals.indexOf(peak);
+      const placedMarkers = (markers ?? []).flatMap((marker) => {
+        const position = markerPosition(starts, now, marker.at);
+        return position === null ? [] : [{ marker, position }];
+      });
       if (peak === 0) {
         return m(
           "div",
@@ -119,29 +125,18 @@ export function UsageChart(): m.Component<ChartAttrs> {
             },
             formatMetric(metric, peak),
           ),
-          (markers ?? []).map((marker) => {
-            const position = markerPosition(starts, now, marker.at);
-            return position === null
-              ? null
-              : m(
-                  "div",
-                  {
-                    key: `${marker.label}:${marker.at.getTime()}`,
-                    class:
-                      "chart-marker pointer-events-none absolute top-5 bottom-0 border-l border-dashed border-(--color-faint)",
-                    style: { left: `${position * 100}%` },
-                    title: `${marker.label}, ${marker.at.toLocaleString()}`,
-                  },
-                  // A label near the right edge sits to the left of its line, so it stays inside the chart.
-                  m(
-                    "span",
-                    {
-                      class: `absolute top-0 ${position > 0.75 ? "right-1" : "left-1"} whitespace-nowrap type-tag text-faint`,
-                    },
-                    marker.label,
-                  ),
-                );
-          }),
+          placedMarkers.map(({ marker, position }) =>
+            m(
+              "div",
+              {
+                key: `${marker.label}:${marker.at.getTime()}`,
+                class: "chart-marker absolute top-5 bottom-0 w-2 -translate-x-1/2",
+                style: { left: `${position * 100}%` },
+                title: `${marker.label}, ${marker.at.toLocaleString()}`,
+              },
+              m("div", { class: "mx-auto h-full w-0 border-l border-dashed border-(--color-faint)" }),
+            ),
+          ),
           m(
             "svg",
             {
@@ -240,10 +235,8 @@ export function UsageChart(): m.Component<ChartAttrs> {
           m("span", barLabel(windowId, starts[0])),
           m("span", barLabel(windowId, starts[starts.length - 1])),
         ]),
-        m(
-          "div",
-          { class: "chart-legend flex flex-wrap gap-x-4 gap-y-1 type-helper text-secondary" },
-          order.map((series) =>
+        m("div", { class: "chart-legend flex flex-wrap gap-x-4 gap-y-1 type-helper text-secondary" }, [
+          ...order.map((series) =>
             m("span", { class: "flex items-center gap-1.5" }, [
               m("span", {
                 class: "inline-block size-2.5 rounded-sm",
@@ -252,7 +245,13 @@ export function UsageChart(): m.Component<ChartAttrs> {
               series,
             ]),
           ),
-        ),
+          placedMarkers.length === 0 || markerLegend === undefined
+            ? null
+            : m("span", { class: "marker-legend flex items-center gap-1.5" }, [
+                m("span", { class: "inline-block h-3 w-0 border-l border-dashed border-(--color-faint)" }),
+                markerLegend,
+              ]),
+        ]),
       ]);
     },
   };

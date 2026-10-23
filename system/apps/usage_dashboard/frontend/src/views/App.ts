@@ -293,13 +293,14 @@ function callTokens(call: StoredCall): number {
   return (tokens.input ?? 0) + (tokens.output ?? 0) + (tokens.cache_read ?? 0) + (tokens.cache_write ?? 0);
 }
 
-/** Where the scale's limit window started, and where it reset once that has happened. */
+/** Where the scale's limit reset: when its window started, and when the window ended once that has happened. */
 function resetMarkers(scale: UsageScale, now: Date): ChartMarker[] {
-  const name = limitName(scale);
-  return [
-    { at: scale.windowStart, label: `${name} window starts` },
-    ...(scale.resetsAt <= now ? [{ at: scale.resetsAt, label: `${name} reset` }] : []),
-  ];
+  const label = `${capitalized(limitName(scale))} reset`;
+  return [{ at: scale.windowStart, label }, ...(scale.resetsAt <= now ? [{ at: scale.resetsAt, label }] : [])];
+}
+
+function capitalized(text: string): string {
+  return text.length === 0 ? text : text[0].toUpperCase() + text.slice(1);
 }
 
 /** "5-hour", "weekly": the limit a usage scale is against. */
@@ -585,6 +586,7 @@ function figuresView(
         colors,
         percentPerDollar: scale?.percentPerDollar,
         markers: scale === undefined ? [] : resetMarkers(scale, now),
+        markerLegend: scale === undefined ? undefined : `${capitalized(limitName(scale))} reset`,
       }),
       metric === "usage" && scale !== undefined
         ? m(
