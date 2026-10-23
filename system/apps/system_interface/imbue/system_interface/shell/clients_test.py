@@ -9,11 +9,11 @@ from app_manifest.primitives import AppName
 from workspace_layout.primitives import ClientId
 from workspace_layout.primitives import DesktopId
 from workspace_layout.primitives import UserId
-from workspace_layout.primitives import WidgetCorner
 from workspace_layout.primitives import WidgetMode
 from workspace_layout.primitives import WindowId
 from workspace_layout.records import EntryPresentation
 from workspace_layout.records import FloatingPosition
+from workspace_layout.records import WidgetPosition
 from workspace_layout.records import WidgetPresentation
 
 from imbue.system_interface.shell.clients import CLIENTS_FILENAME
@@ -135,7 +135,7 @@ def test_an_entry_presentation_is_kept_on_the_client_across_its_reports_and_refu
 def test_a_widget_presentation_is_kept_on_the_client_across_its_reports_and_arrivals(tmp_path: Path) -> None:
     store = ClientStore(state_directory=tmp_path)
     store.record_report(client_report("c1", "home"), TEST_NOW, is_redirected=False)
-    collapsed = WidgetPresentation(corner=WidgetCorner.BOTTOM_LEFT, mode=WidgetMode.COLLAPSED)
+    collapsed = WidgetPresentation(position=WidgetPosition(x=0.02, y=0.9), mode=WidgetMode.COLLAPSED)
     record = store.set_widget_presentation(
         ClientId("c1"), AppName("gauge"), collapsed, TEST_NOW + timedelta(minutes=1)
     )
@@ -145,7 +145,7 @@ def test_a_widget_presentation_is_kept_on_the_client_across_its_reports_and_arri
     arrived = store.record_arrival(ClientId("c1"), None, DesktopId("home"), TEST_NOW + timedelta(minutes=3))
     assert arrived.record.widgets == {"gauge": collapsed}
     assert client_view(arrived.record, False).model_dump(mode="json")["widgets"] == {
-        "gauge": {"corner": "bottom-left", "mode": "collapsed"}
+        "gauge": {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}
     }
     with pytest.raises(ClientNotFoundError):
         store.set_widget_presentation(ClientId("nobody"), AppName("gauge"), collapsed, TEST_NOW)

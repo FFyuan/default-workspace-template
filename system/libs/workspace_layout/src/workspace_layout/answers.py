@@ -124,7 +124,7 @@ class InventoryApp(FrozenModel):
     default_shortcut: DefaultShortcut | None = Field(description="The shortcut a new desktop is seeded with")
     launcher_rank: int | None = Field(description="Where the app sits in the launcher")
     pin: Pin | None = Field(description="The app's pinned taskbar entry")
-    widget: Widget | None = Field(default=None, description="The app's corner widget; None from an older shell")
+    widget: Widget | None = Field(default=None, description="The app's desktop widget; None from an older shell")
     message_handlers: tuple[MessageHandler, ...] = Field(description="The message types the app handles")
     is_running: bool = Field(description="Derived from supervisord or a TCP probe, never stored")
     share_url: str | None = Field(

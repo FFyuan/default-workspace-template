@@ -147,30 +147,33 @@ export interface AppPin {
   readonly default_mode: EntryMode;
 }
 
-/** An app's corner widget, as its manifest declares it (app-widgets plan section 3.1). */
+/** An app's desktop widget, as its manifest declares it (app-widgets plan section 3.1). */
 export interface AppWidget {
-  /** The widget page: the page of the app the shell frames in the corner. */
+  /** The widget page: the page of the app the shell frames on the desktop. */
   readonly path: string;
   /** Whether the widget shows in a workspace that has made no choice about it. */
   readonly default_enabled: boolean;
 }
 
-/** The corner of the backdrop one client draws a widget in. */
-export type WidgetCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
-
-export const WIDGET_CORNERS: readonly WidgetCorner[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
+/** Where a client keeps a widget it has moved: the corner of the widget's box nearest the backdrop's corner of
+ *  the quadrant the point is in, in fractions of the backdrop, so a widget grows away from the edges it sits by. */
+export interface WidgetPosition {
+  readonly x: number;
+  readonly y: number;
+}
 
 /** Whether one client draws a widget in full or as its one-line pill. */
 export type WidgetMode = "expanded" | "collapsed";
 
 /** How one client shows one widget (app-widgets plan section 3.3); global across desktops. */
 export interface WidgetPresentation {
-  readonly corner: WidgetCorner;
+  /** Where it was moved to; null for the default, stacked top right. */
+  readonly position: WidgetPosition | null;
   readonly mode: WidgetMode;
 }
 
 /** How a client with no presentation of a widget draws it. */
-export const DEFAULT_WIDGET_PRESENTATION: WidgetPresentation = { corner: "top-right", mode: "expanded" };
+export const DEFAULT_WIDGET_PRESENTATION: WidgetPresentation = { position: null, mode: "expanded" };
 
 /** Whether the workspace shows one app's widget: the stored choice, else the manifest's default. */
 export interface WidgetSwitch {
@@ -597,7 +600,7 @@ export function parseEntries(raw: unknown): Record<string, EntryPresentation> {
 export function parseWidgetPresentation(raw: unknown): WidgetPresentation {
   const record = asObject(raw, "widget presentation");
   return {
-    corner: asOneOf(record.corner ?? DEFAULT_WIDGET_PRESENTATION.corner, WIDGET_CORNERS, "widget.corner"),
+    position: parseFloatingPosition(record.position),
     mode: asOneOf(record.mode ?? DEFAULT_WIDGET_PRESENTATION.mode, ["expanded", "collapsed"], "widget.mode"),
   };
 }

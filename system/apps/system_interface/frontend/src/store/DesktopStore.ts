@@ -85,7 +85,7 @@ import {
 } from "../geometry/frames";
 import type { PixelPoint, PixelRect, PixelSize, ResizeEdge } from "../geometry/frames";
 import { defaultFloatingPosition, floatingEntryRect, floatingPositionFromPixels } from "../geometry/floating";
-import { cornerAt, widgetRects } from "../geometry/widgets";
+import { widgetPositionOf, widgetRects } from "../geometry/widgets";
 import type { WidgetToPlace } from "../geometry/widgets";
 import {
   cellAtPoint,
@@ -372,8 +372,7 @@ interface ShortcutCellUpdate {
   readonly cell: GridCell;
 }
 
-/** A widget being dragged to another corner: its box follows the pointer less the grab offset, and the corner
- *  is settled from where the pointer is let go. */
+/** A widget being dragged: its box follows the pointer less the grab offset, and stays where it is let go. */
 export interface WidgetGesture {
   readonly kind: "widget";
   readonly app: string;
@@ -1438,14 +1437,14 @@ export class DesktopStore {
   }
 
   /** Every drawn widget's box in backdrop pixels (app-widgets plan sections 3.4 and 4.2): the enabled widgets whose
-   *  page has reported a size and has not asked to be hidden, stacked in their corners; the one a drag holds is
-   *  where the drag has it. */
+   *  page has reported a size and has not asked to be hidden, each where it was moved to or in the default stack;
+   *  the one a drag holds is where the drag has it. */
   widgetRects(): Map<string, PixelRect> {
     const placed: WidgetToPlace[] = [];
     for (const widget of shownWidgets(this.state)) {
       const report = this.state.widgetReports[widget.app.name];
       if (report === undefined || report.size === null || report.isHidden) continue;
-      placed.push({ app: widget.app.name, corner: widget.presentation.corner, size: report.size });
+      placed.push({ app: widget.app.name, position: widget.presentation.position, size: report.size });
     }
     const rects = widgetRects(placed, this.backdrop, this.metrics);
     const gesture = this.gesture;
@@ -1472,23 +1471,24 @@ export class DesktopStore {
     this.gesture = { ...gesture, currentRect: { ...rect, x, y } };
   }
 
-  /** Where the desktop draws a widget now: the drag's box while one moves it, else its place in its corner. */
+  /** Where the desktop draws a widget now: the drag's box while one moves it, else its place. */
   widgetRectOf(app: string): PixelRect | null {
     return this.widgetRects().get(app) ?? null;
   }
 
-  /** The drag ended: the widget snaps to the corner of the quadrant the pointer was let go in, written once. */
+  /** The drag ended: the widget stays where it was let go, written once. */
   endWidgetDrag(pointer: PixelPoint): void {
+    if (this.gesture === null || this.gesture.kind !== "widget") return;
+    this.updateWidgetDrag(pointer);
     const gesture = this.gesture;
-    if (gesture === null || gesture.kind !== "widget") return;
     this.gesture = null;
-    const corner = cornerAt(pointer, this.backdrop);
+    const position = widgetPositionOf(gesture.currentRect, this.backdrop);
     const current = this.widgetPresentationOf(gesture.app);
-    if (corner === current.corner) {
+    if (current.position !== null && current.position.x === position.x && current.position.y === position.y) {
       this.notifyListeners();
       return;
     }
-    void this.setWidgetPresentation(gesture.app, { ...current, corner });
+    void this.setWidgetPresentation(gesture.app, { ...current, position });
   }
 
   /** A page of ``app`` that is no window's (a widget's) asked to open a page of its own app. With ``focus`` a

@@ -2946,12 +2946,12 @@ def _windows_of(base_url: str, app: str) -> list[dict[str, Any]]:
 
 
 @pytest.mark.timeout(120, func_only=False)
-def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_for_everyone(
+def test_a_widget_shows_top_right_collapses_moves_anywhere_opens_its_app_and_hides_for_everyone(
     tmp_path: Path, page: Page
 ) -> None:
     """An app declaring a widget is drawn top right once its page reports a size, over every window; a double-click on
-    its rim collapses it to the size the page reports for that mode; a drag of its rim snaps it to another corner, kept on
-    the client record across a reload; its link raises one window of its app however often it is clicked; and its
+    its rim collapses it to the size the page reports for that mode; a drag of its rim leaves it wherever it is let go, kept
+    on the client record across a reload; its link raises one window of its app however often it is clicked; and its
     menu hides it for the whole workspace."""
     shell: dict[str, str] = {}
     with serve_app(_widget_app(shell)) as widget_served:
@@ -2964,7 +2964,7 @@ def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_fo
             client_id = _client_id(page)
             widget = _widget(page)
             expect(widget).to_be_visible(timeout=15000)
-            expect(widget).to_have_attribute("data-widget-corner", "top-right")
+            expect(widget).to_have_attribute("data-widget-moved", "false")
             expect(widget).to_have_attribute("data-widget-mode", "expanded")
             frame = _widget_frame(page)
             handshake = frame.evaluate("() => window.__handshake")
@@ -2990,27 +2990,37 @@ def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_fo
             )
             assert frame.evaluate("() => window.__modes") == ["expanded", "collapsed"]
 
+            # Dragged by its rim to a spot in the lower left that is no corner, it stays where it is let go.
             rim = _box(widget)
-            _drag(
-                page,
-                (rim["x"] + 30, rim["y"] + 2),
-                (backdrop["x"] + 40, backdrop["y"] + backdrop["height"] - 40),
-            )
-            expect(widget).to_have_attribute("data-widget-corner", "bottom-left")
+            target = (backdrop["x"] + 300, backdrop["y"] + backdrop["height"] - 200)
+            _drag(page, (rim["x"] + 30, rim["y"] + 2), target)
+            expect(widget).to_have_attribute("data-widget-moved", "true")
+            dropped = _box(widget)
+            _assert_close(dropped["x"], target[0] - 30, "dropped x")
+            _assert_close(dropped["y"], target[1] - 2, "dropped y")
             wait_for(
-                lambda: _client_widgets(server.base_url, client_id).get(_WIDGET_APP_NAME)
-                == {"corner": "bottom-left", "mode": "collapsed"},
+                lambda: (_client_widgets(server.base_url, client_id).get(_WIDGET_APP_NAME) or {}).get("position")
+                is not None,
                 timeout=10.0,
                 poll_interval=0.1,
-                error_message="the drag never wrote the corner",
+                error_message="the drag never wrote the position",
+            )
+            stored = _client_widgets(server.base_url, client_id)[_WIDGET_APP_NAME]
+            assert stored["mode"] == "collapsed"
+            # Kept by its bottom-left corner, the one nearest the edges it sits by.
+            _assert_close(stored["position"]["x"] * backdrop["width"], dropped["x"] - backdrop["x"], "stored x")
+            _assert_close(
+                stored["position"]["y"] * backdrop["height"],
+                dropped["y"] + dropped["height"] - backdrop["y"],
+                "stored y",
             )
 
             page.reload()
-            expect(_widget(page)).to_have_attribute("data-widget-corner", "bottom-left", timeout=15000)
+            expect(_widget(page)).to_have_attribute("data-widget-moved", "true", timeout=15000)
             expect(_widget(page)).to_have_attribute("data-widget-mode", "collapsed")
             moved = _box(_widget(page))
-            _assert_close(moved["x"], backdrop["x"] + 16, "bottom-left x")
-            _assert_close(moved["y"] + moved["height"], backdrop["y"] + backdrop["height"] - 16, "bottom-left y")
+            _assert_close(moved["x"], dropped["x"], "moved x after a reload")
+            _assert_close(moved["y"], dropped["y"], "moved y after a reload")
 
             link = _widget_frame(page).locator("#open")
             link.click()

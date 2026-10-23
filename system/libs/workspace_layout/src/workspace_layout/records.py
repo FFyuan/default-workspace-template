@@ -24,7 +24,6 @@ from workspace_layout.primitives import ShortcutTargetKind
 from workspace_layout.primitives import UserId
 from workspace_layout.primitives import WallpaperKind
 from workspace_layout.primitives import WallpaperName
-from workspace_layout.primitives import WidgetCorner
 from workspace_layout.primitives import WidgetMode
 from workspace_layout.primitives import WindowId
 from workspace_layout.primitives import WindowPath
@@ -196,10 +195,21 @@ class EntryPresentation(FrozenModel):
     position: FloatingPosition | None = Field(default=None, description="The floating position; None for the default")
 
 
+class WidgetPosition(FrozenModel):
+    """Where a client keeps a widget it has moved (app-widgets plan section 3.3): the corner of the widget's box
+    nearest the backdrop's corner of the quadrant the point is in, in fractions of the backdrop, so a widget grows
+    away from the edges it sits by."""
+
+    x: float = Field(ge=0.0, le=1.0, description="The anchoring corner's x, 0..1")
+    y: float = Field(ge=0.0, le=1.0, description="The anchoring corner's y, 0..1")
+
+
 class WidgetPresentation(FrozenModel):
     """How one client shows one widget (app-widgets plan section 3.3); global across desktops."""
 
-    corner: WidgetCorner = Field(default=WidgetCorner.TOP_RIGHT, description="The corner it is drawn in")
+    position: WidgetPosition | None = Field(
+        default=None, description="Where it was moved to; None for the default, stacked top right"
+    )
     mode: WidgetMode = Field(default=WidgetMode.EXPANDED, description="In full, or as its one-line pill")
 
 

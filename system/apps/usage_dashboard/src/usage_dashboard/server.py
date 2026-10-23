@@ -62,7 +62,7 @@ STATIC_DIR: Final[Path] = Path(__file__).parent / "static"
 _HASHED_ASSET: Final[re.Pattern[str]] = re.compile(r"-[A-Za-z0-9_-]{8}\.(js|css)$")
 _A_YEAR_IN_SECONDS: Final[int] = 365 * 24 * 60 * 60
 PAGE_DOCUMENT_FILENAME: Final[str] = "index.html"
-# The widget the workspace shell keeps in a corner of the desktop: a page of its own, declared in the manifest.
+# The widget the workspace shell keeps on the desktop: a page of its own, declared in the manifest.
 WIDGET_PATH: Final[str] = "/widget"
 WIDGET_DOCUMENT_FILENAME: Final[str] = "widget.html"
 HEALTH_PATH: Final[str] = "/api/health"
@@ -94,7 +94,7 @@ ROUTE_TABLE: RouteTable = {
     ("GET", "/p/{item}"): SchemalessRoute(
         reason="the detail page for one provider's usage: the same document, which reads its path"
     ),
-    ("GET", WIDGET_PATH): SchemalessRoute(reason="the Usage widget, which the workspace shell frames in a corner"),
+    ("GET", WIDGET_PATH): SchemalessRoute(reason="the Usage widget, which the workspace shell frames on the desktop"),
     ("GET", "/assets/{filename}"): SchemalessRoute(reason="one file of the page's built bundle"),
     ("GET", HEALTH_PATH): RouteModels(response_model=HealthResponse),
     ("GET", "/api/apps"): RouteModels(response_model=AppNamesResponse),

@@ -1,6 +1,6 @@
 # App widgets and the usage widget
 
-This is the spec for app widgets: a small, always-on-top view an app declares in its manifest and the shell draws in a corner of the desktop, above every window, for every client of the workspace.
+This is the spec for app widgets: a small, always-on-top view an app declares in its manifest and the shell draws on the desktop (top right until the user moves it), above every window, for every client of the workspace.
 It ships with one widget, the Usage app's, which shows at a glance how much of each subscription limit is used and what pay-as-you-go spend has reached this month, the way a system-stats menu shows CPU and memory.
 It is written for the people and agents implementing it, and it is the reference the implementation is judged against.
 It builds on the desktop interface V1 ([plan-desktop-interface.md](../desktop-interface/plan-desktop-interface.md), [concepts.md](../desktop-interface/concepts.md), [contracts.md](../desktop-interface/contracts.md)), borrows its floating layer and per-client presentation from the pinned taskbar entries ([plan-pinned-taskbar-entries.md](../pinned-taskbar-entries/plan-pinned-taskbar-entries.md)), and amends those documents and the stop-when-no-windows spec where section 9 says.
@@ -8,7 +8,7 @@ It builds on the desktop interface V1 ([plan-desktop-interface.md](../desktop-in
 ## 1. Purpose and principles
 
 A window is the wrong shape for a number you want to see without asking for it: it has a title bar, takes a place in the stack, and is buried as soon as you work in another window.
-A widget is a page of an app that the shell keeps visible in a corner, small, translucent until hovered, and collapsible to a one-line pill.
+A widget is a page of an app that the shell keeps visible wherever the user puts it, small, translucent until hovered, and collapsible to a one-line pill.
 It shows; it is not worked in. A click on it opens the app's window.
 
 The five principles of the workspace app model hold: one owner per fact; the shell is generic and names no app; truth is shared while arrangement is scoped; minimal shell state; no two-phase commits.
@@ -16,17 +16,17 @@ Applied here:
 
 - **The shell names no app.** An app opts in with a `[widget]` table; the shell draws whatever page it names and knows nothing of usage. The shell's ratchets (`test_project_ratchets.py`) hold unchanged.
 - **The app owns the content, the shell owns the frame.** The page draws both its expanded and collapsed forms and says how big it is; the shell decides where the frame is, whether it is collapsed, how translucent it is, and how it moves.
-- **Whether a widget is on is shared truth; where it sits is the client's arrangement.** One workspace-wide switch per widget, like the avatar selection; corner and collapsed state per client, like a pinned entry's presentation.
+- **Whether a widget is on is shared truth; where it sits is the client's arrangement.** One workspace-wide switch per widget, like the avatar selection; position and collapsed state per client, like a pinned entry's presentation.
 - **A widget that is on keeps its app up**, as a window does (section 3.5).
 
 ## 2. Glossary
 
 | Term | Meaning |
 |---|---|
-| Widget | An app's manifest declaration of a page the shell shows in a corner, and the frame the shell draws it in |
+| Widget | An app's manifest declaration of a page the shell shows on the desktop, and the frame the shell draws it in |
 | Widget page | The page at the widget's path under the app's origin; an ordinary page of the app that speaks the app contract |
 | Enabled | Whether the workspace shows a widget at all; shared, one value per widget |
-| Corner | Where one client draws a widget: `top-left`, `top-right`, `bottom-left`, `bottom-right`; per client |
+| Position | Where one client draws a widget it has moved: a point in fractions of the backdrop, or none for the default stack top right; per client |
 | Mode | How one client draws a widget: `expanded` or `collapsed`; per client |
 | Rest opacity | The translucency of a widget the pointer is not over |
 
@@ -50,17 +50,19 @@ A stored value naming an app that no longer declares a widget is kept (so a widg
 
 ### 3.3 Presentation, per client
 
-How one client shows a widget is two values on the client record, keyed by app: its corner and its mode.
+How one client shows a widget is two values on the client record, keyed by app: its position and its mode.
 They are global to the client rather than per desktop, for the reason the pinned entries give: an always-on-top thing that jumped when the desktop switched would read as broken.
-A client with no presentation for an app draws it `top-right`, `expanded`.
+A client with no presentation for an app, or one with no position, draws it in the default stack top right, `expanded`.
 
-`top-right` rather than `bottom-right` because the chat's floating avatar defaults to the bottom-right corner, and the taskbar's tray sits under it.
+Top right rather than bottom right because the chat's floating avatar defaults to the bottom-right corner, and the taskbar's tray sits under it.
 
-### 3.4 Stacking
+A widget can be put anywhere on the backdrop. Its position is the corner of its box nearest the backdrop's corner of the quadrant it sits in, in fractions of the backdrop (`{"x", "y"}`, each 0 to 1): a widget by the right edge is kept by its right edge, one in the lower half by its bottom edge. So when its page reports a new size (on a collapse, or as its content changes) it grows away from the edges it sits by rather than off them, and a backdrop of another size keeps it in the same relative place. The box is then shifted, if need be, to lie wholly inside the backdrop.
 
-Widgets sharing a corner stack away from it (downward from a top corner, upward from a bottom one) in registry order, separated by the theme's widget gap.
-The first is nearest the corner. Nothing overlaps; a stack taller than the backdrop is clipped, which with the size cap of section 4.2 needs five widgets in one corner.
-A top corner's stack starts a window title bar's height below the inset, so a maximized window's minimize, maximize, and close controls stay clear of it.
+### 3.4 The default stack
+
+Widgets with no position stack downward from the top-right corner in registry order, separated by the theme's widget gap, inset from the backdrop's edges by the theme's widget inset.
+The stack starts a window title bar's height below the inset, so a maximized window's minimize, maximize, and close controls stay clear of it.
+A moved widget takes no place in the stack; moved widgets may overlap each other or the stack, as the user put them.
 
 ### 3.5 Lifecycle
 
@@ -80,7 +82,7 @@ No per-visitor gating is needed: the share gateway admits a visitor holding only
 |---|---|
 | Whether an app has a widget; its path and default | The app's manifest, through the registry |
 | Whether a widget is enabled | Shell, shared |
-| A widget's corner and mode | Shell, per client, on the client record |
+| A widget's position and mode | Shell, per client, on the client record |
 | The widget's size | The widget page, reported per frame; never stored |
 | What the widget shows | The app |
 | Where each widget is drawn | Derived in the browser |
@@ -88,7 +90,7 @@ No per-visitor gating is needed: the share gateway admits a visitor holding only
 ### 3.8 Invariants
 
 - Nothing in the shell package names an app, imports mngr, or runs mngr.
-- A client draws at most one frame per enabled widget, in exactly one corner.
+- A client draws at most one frame per enabled widget, wholly inside the backdrop.
 - No widget frame is larger than the theme's widget maximum, whatever its page reports.
 - An enabled widget's app is never stopped by the no-window rule.
 
@@ -98,12 +100,12 @@ No per-visitor gating is needed: the share gateway admits a visitor holding only
 
 Widgets are drawn in their own layer, a sibling of the floating entries' layer inside the backdrop's stacking context, at the same sticky level: above every window and live page (a maximized window goes under them), below the launcher overlay, menus, and modals.
 The layer is inert; only each widget's own box takes a press.
-Each corner's stack is inset from the backdrop's edges by the theme's widget inset, so a bottom corner sits above the taskbar.
+The backdrop ends above the taskbar, so no widget is drawn over it.
 
 ### 4.2 The frame
 
 A widget's frame is an iframe of the app's `url` plus the widget's `path`, with the shell's chrome around it: a light panel (the theme's widget surface, edge, and radius) with no bar, which the page fills but for a thin rim of the theme's rim width on every side. The rim is the widget's handle. The page draws on a transparent background over the panel.
-The frame is not drawn until its page first reports a size, so a page that is loading or fails to load leaves no empty box in the corner; a page that never reports is logged once and never drawn.
+The frame is not drawn until its page first reports a size, so a page that is loading or fails to load leaves no empty box on the desktop; a page that never reports is logged once and never drawn.
 The frame's size is the last size its page reported for the current mode, clamped to the theme's widget maximum (320 by 240) and minimum (24 by 24), plus the rim on each side.
 At rest the frame is drawn at the rest opacity; while the pointer is over it, or a menu of it is open, fully opaque.
 
@@ -113,10 +115,10 @@ A double-click on the rim, or Collapse or Expand in its menu, toggles the client
 The shell tells the page its mode after every handshake and on every change; the page draws the matching form and reports its size again.
 The page decides what each form shows; the shell never draws a pill of its own.
 
-### 4.4 Moving between corners
+### 4.4 Moving
 
 Dragging the rim moves the widget, with the gesture layer's threshold, pointer capture, and click suppression, as a floating entry drags.
-During the drag the frame follows the pointer; on release it snaps to the corner of the backdrop quadrant the pointer is in, and the corner is written to the client record once.
+During the drag the frame follows the pointer, held inside the backdrop; on release it stays where it was let go, and its position (section 3.3) is written to the client record once. A drop where it already was writes nothing.
 A press that never travels the threshold is a click on the rim, which does nothing.
 
 ### 4.5 Clicking
@@ -157,7 +159,7 @@ Touch mode uses long press on the rim for the menu, as elsewhere; the rim is wid
 ### 5.1 State files
 
 - `widgets.json`, new: `{"version": 1, "apps": {"<app>": {"is_enabled": bool}}}`; absent means every widget takes its manifest default.
-- `clients.json` (version 2, unchanged): each client gains `widgets`, a map from app name to `{"corner", "mode"}`; absent means the defaults.
+- `clients.json` (version 2, unchanged): each client gains `widgets`, a map from app name to `{"position": {"x", "y"} | null, "mode"}`; absent means the defaults.
 
 ### 5.2 The manifest and the registry
 
@@ -171,7 +173,7 @@ The inventory's and `apps_updated`'s `app` object carries `widget` (the table, o
 |---|---|
 | `GET /api/widgets` | new: `{"widgets": [{"app", "is_enabled"}]}`, one per app declaring a widget, the effective value |
 | `POST /api/widgets/<app>` | new: `{"is_enabled"}`; writes `widgets.json`, broadcasts `widgets_updated`, answers as `GET`; `404` for an app declaring no widget |
-| `POST /api/clients/<client_id>/widgets/<app>` | new: `{"corner", "mode"}`; answers the client record and announces `client_widgets_changed` to that client's windows |
+| `POST /api/clients/<client_id>/widgets/<app>` | new: `{"position", "mode"}`; answers the client record and announces `client_widgets_changed` to that client's windows |
 | `GET /api/inventory` | gains `widgets`, as `GET /api/widgets` answers it |
 
 New socket messages:
@@ -260,7 +262,7 @@ Tokens, read into the metrics record with the others: `--desk-widget-inset: 16px
 | Attribute | On |
 |---|---|
 | `data-widgets` | the widget layer |
-| `data-widget="<app>"`, `data-widget-corner="top-left\|top-right\|bottom-left\|bottom-right"`, `data-widget-mode="expanded\|collapsed"` | each widget's frame |
+| `data-widget="<app>"`, `data-widget-moved="true\|false"`, `data-widget-mode="expanded\|collapsed"` | each widget's frame |
 | `data-widget-grip="<app>"` | each widget's chrome too, whose rim is its handle |
 | `data-menu-row="widget-collapse\|widget-expand\|widget-open\|widget-hide\|widget-show"` | the widget rows of the rim, shortcut, and launcher menus |
 | `data-widget-frames`, `data-widget-frame="<app>"` | the widget frames' host, and each widget's iframe |
@@ -288,13 +290,13 @@ Unit tests, beside the code:
 - `widgets.json`: defaults, a stored value, an unusable file; the switch routes and their refusals; the client record's `widgets` and its route.
 - The lifecycle rule: an enabled widget clears the idle mark until it is hidden; an internal app's widget holds nothing up.
 - `app_contract.ts`: the `surface` field, the three new types, and that a widget sends no location or focus.
-- Geometry: corner stacks and their order, the title-bar offset of a top corner, size clamping, the corner a drop snaps to.
-- The store: switches and presentations from the inventory and the pushes, drawing only after a size report, the optimistic mode write and its undo, the drag to a corner, show and hide.
+- Geometry: the default stack and its order, its title-bar offset, size clamping, a moved widget anchored by its corner nearest the edges and kept inside the backdrop, and the position a drop is stored as.
+- The store: switches and presentations from the inventory and the pushes, drawing only after a size report, the optimistic mode write and its undo, the drag and the position it writes, show and hide.
 - Usage widget models: rows and the pill from fixture readings and totals, an empty read, a collector still indexing or unreachable.
 
 End to end, with a stub app declaring a widget whose page reports a size per mode:
 
-- `test_e2e.py`: the widget appears top right below a title bar's height, at the size its page reported; a double-click on its rim changes it to the collapsed size; a drag of the rim snaps it to the bottom-left corner, written to the client record and kept across a reload; a click on its `_blank` link raises one window of its app however often it is clicked; Hide widget removes it and turns the switch off.
+- `test_e2e.py`: the widget appears top right below a title bar's height, at the size its page reported; a double-click on its rim changes it to the collapsed size; a drag of the rim leaves it where it is let go, written to the client record by its nearest corner and kept across a reload; a click on its `_blank` link raises one window of its app however often it is clicked; Hide widget removes it and turns the switch off.
 - `test_e2e.py`, phone viewport: the widget is drawn collapsed in the strip above the bar, and a tap on its link opens its app's window, which the phone shows.
 - `test_app_lifecycle_system.py`: an app declaring `stop_when_no_windows` is not stopped with its widget enabled and no window, and is stopped once the widget is hidden.
 
@@ -305,7 +307,7 @@ A suggested commit order, each commit leaving the repository green:
 
 1. The manifest table, the registry and inventory fields, `widgets.json`, and its routes.
 2. The app contract's types.
-3. The widget layer, frame, collapse, corners, stacking, and menus, with the stub-app end-to-end tests.
+3. The widget layer, frame, collapse, positions, the default stack, and menus, with the stub-app end-to-end tests.
 4. The lifecycle rule.
 5. The phone bar.
 6. The Usage widget page and its manifest table.
@@ -316,6 +318,5 @@ A suggested commit order, each commit leaving the repository green:
 - A native, always-on-top widget outside the workspace (a macOS menubar item or panel from Imbue Studio); this design keeps all usage data inside the workspace, and a native host would load the same widget page.
 - Per-user enablement; this version has the shared switch only.
 - Agent ops for widgets.
-- Free positioning; corners only.
 - Alerts (toasts, sounds) at a limit's level.
 - A System Monitor widget, which this contract makes a manifest table and a page.

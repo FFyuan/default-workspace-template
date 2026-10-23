@@ -2708,25 +2708,28 @@ describe("widgets", () => {
   async function widgetStore(): Promise<DesktopStore> {
     api.apps = [appRecord("docs"), gauge];
     api.widgetSwitches = [{ app: "gauge", is_enabled: true }];
-    api.clients = [clientRecord(CLIENT, { widgets: { gauge: { corner: "bottom-left", mode: "expanded" } } })];
+    api.clients = [
+      clientRecord(CLIENT, { widgets: { gauge: { position: { x: 0.016, y: 0.98 }, mode: "expanded" } } }),
+    ];
     return startedStore();
   }
 
   it("loads the switches and this client's presentations with the inventory, and takes the shell's pushes", async () => {
     const store = await widgetStore();
     expect(shownWidgets(store.getState()).map((widget) => [widget.app.name, widget.presentation])).toEqual([
-      ["gauge", { corner: "bottom-left", mode: "expanded" }],
+      ["gauge", { position: { x: 0.016, y: 0.98 }, mode: "expanded" }],
     ]);
     socket.deliver().onClientWidgetsChanged({ clientId: "other", widgets: {} });
-    expect(store.getState().widgets.gauge.corner).toBe("bottom-left");
+    expect(store.getState().widgets.gauge.position).toEqual({ x: 0.016, y: 0.98 });
     socket.deliver().onClientWidgetsChanged({ clientId: CLIENT, widgets: {} });
     // A client with no presentation draws the default.
-    expect(shownWidgets(store.getState())[0].presentation).toEqual({ corner: "top-right", mode: "expanded" });
+    expect(shownWidgets(store.getState())[0].presentation).toEqual({ position: null, mode: "expanded" });
     socket.deliver().onWidgetsUpdated([{ app: "gauge", is_enabled: false }]);
     expect(shownWidgets(store.getState())).toEqual([]);
   });
 
   it("draws a widget only once its page has reported a size and while it has not asked to be hidden", async () => {
+    // Moved near the bottom-left corner, it is anchored there by its bottom-left corner.
     const store = await widgetStore();
     expect(store.widgetRects().size).toBe(0);
     store.reportWidgetSize("gauge", { width: 180, height: 64 });
@@ -2741,7 +2744,7 @@ describe("widgets", () => {
   it("writes a mode at once, and puts the old presentation back when the shell refuses", async () => {
     const store = await widgetStore();
     await store.setWidgetMode("gauge", "collapsed");
-    expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:bottom-left:collapsed");
+    expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:0.016,0.98:collapsed");
     expect(store.getState().widgets.gauge.mode).toBe("collapsed");
     api.refusal = "no such client";
     await store.setWidgetMode("gauge", "expanded");
@@ -2749,7 +2752,7 @@ describe("widgets", () => {
     expect(store.getState().widgets.gauge.mode).toBe("collapsed");
   });
 
-  it("drags a widget by its rim and snaps it to the corner of the quadrant it is let go in", async () => {
+  it("drags a widget by its rim and leaves it where it is let go, anchored by its corner nearest the edges", async () => {
     const store = await widgetStore();
     store.reportWidgetSize("gauge", { width: 180, height: 64 });
     store.beginWidgetDrag("gauge", { x: 20, y: 712 }, { x: 4, y: 4 });
@@ -2760,14 +2763,18 @@ describe("widgets", () => {
     expect(store.widgetRectOf("gauge")).toEqual({ x: 808, y: 100, width: 192, height: 76 });
     store.endWidgetDrag({ x: 994, y: 104 });
     expect(store.getGesture()).toBeNull();
-    expect(store.getState().widgets.gauge.corner).toBe("top-right");
+    // Let go in the upper right, it is kept by its top-right corner, at the backdrop's right edge.
+    expect(store.getState().widgets.gauge.position).toEqual({ x: 1, y: 0.125 });
     await settle();
-    expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:top-right:expanded");
-    expect(store.widgetRectOf("gauge")).toEqual({ x: 1000 - 16 - 192, y: 36 + 16, width: 192, height: 76 });
-    // A drop in the quadrant it started in writes nothing.
+    expect(last(api.calls)).toBe("setWidgetPresentation:client-1:gauge:1,0.125:expanded");
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 808, y: 100, width: 192, height: 76 });
+    // Collapsed to a smaller box, it shrinks towards that corner.
+    store.reportWidgetSize("gauge", { width: 60, height: 40 });
+    expect(store.widgetRectOf("gauge")).toEqual({ x: 1000 - 72, y: 100, width: 72, height: 52 });
+    // A drop where it already is writes nothing.
     const writes = api.calls.length;
-    store.beginWidgetDrag("gauge", { x: 900, y: 20 }, { x: 4, y: 4 });
-    store.endWidgetDrag({ x: 950, y: 30 });
+    store.beginWidgetDrag("gauge", { x: 950, y: 110 }, { x: 22, y: 10 });
+    store.endWidgetDrag({ x: 950, y: 110 });
     await settle();
     expect(api.calls).toHaveLength(writes);
   });

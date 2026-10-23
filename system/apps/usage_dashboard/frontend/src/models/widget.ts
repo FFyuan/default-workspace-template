@@ -1,5 +1,5 @@
 /**
- * The Usage widget's model (app-widgets plan section 7): what the small view in a corner of the desktop shows, read
+ * The Usage widget's model (app-widgets plan section 7): what the small view on the desktop shows, read
  * from the same cards the page opens on (``providerCards``), so the widget and the page can never disagree on a
  * limit's level or on whether a window has reset since its reading.
  *

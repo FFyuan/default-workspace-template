@@ -1,4 +1,4 @@
-Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop shows subscription limits and this month's API spend in a corner, styled like a Mac system monitor (iStat Menus): small uppercase headings, tabular figures, and rings over faint tracks, on a white panel.
+Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop shows subscription limits and this month's API spend on the desktop, styled like a Mac system monitor (iStat Menus): small uppercase headings, tabular figures, and rings over faint tracks, on a white panel.
 
 - Expanded, it has a section per subscription: its ring pair beside a row per limit with the share used (each limit's reset time shows while the pointer is over the widget), then this month's API spend per provider.
 

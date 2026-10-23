@@ -138,7 +138,7 @@ Under `data/.state/system_interface/`, written atomically under one process-wide
 
 ### 4.3 `clients.json`
 
-`{"version": 2, "clients": {"<client_id>": {"active_desktop": "<desktop_id>", "last_seen": "<RFC 3339>", "user_id": "<user_id>" | null, "entries": {"<app>": {"mode": "bar" | "floating", "style": "plain" | "avatar", "position": {"x": 0.9, "y": 0.85} | null}}, "widgets": {"<app>": {"corner": "top-left" | "top-right" | "bottom-left" | "bottom-right", "mode": "expanded" | "collapsed"}}, "shown_history": ["<window_id>" | "home", ...], "desktop_revision": 0, "desktop_moved_by": "<page_id>" | null}}}`.
+`{"version": 2, "clients": {"<client_id>": {"active_desktop": "<desktop_id>", "last_seen": "<RFC 3339>", "user_id": "<user_id>" | null, "entries": {"<app>": {"mode": "bar" | "floating", "style": "plain" | "avatar", "position": {"x": 0.9, "y": 0.85} | null}}, "widgets": {"<app>": {"position": {"x": 0.3, "y": 0.75} | null, "mode": "expanded" | "collapsed"}}, "shown_history": ["<window_id>" | "home", ...], "desktop_revision": 0, "desktop_moved_by": "<page_id>" | null}}}`.
 `user_id` is the signed-in visitor the client last arrived as (section 5.5), null for the owner or an anonymous client; an entry without the key reads as null. `entries` (default `{}`) is how the client shows each pinned entry.
 `widgets` (default `{}`) is how the client shows each widget; an app with no entry is drawn `top-right`, `expanded`.
 `desktop_revision` (default `0`) counts the moves of `active_desktop`: every write that changes it adds one, as does a report the shell lands off a deleted desktop (section 6) even when the stored desktop stays, under the same lock as the write, so the revisions order the moves as they were written.
@@ -237,7 +237,7 @@ A save whose placements name windows the desktop does not hold is accepted with 
 | `POST /api/clients/<client_id>/shown` | takes `{"window_id": "<id>" \| null}` (null for the home grid) and records it at the end of the client's `shown_history` (section 4.3); answers the client record; `404` for a window no desktop holds or an unknown client |
 | `POST /api/clients/<client_id>/arrive` | `{"desktop_id", "created_desktop": desktop \| null, "replaced_desktop_name": string \| null}` |
 | `POST /api/clients/<client_id>/entries/<app>` | takes `{"mode", "style", "position"}` (section 4.3), for a pinned non-internal app, the style `plain` or the pin's; answers the client record and announces `client_entries_changed` to that client's windows |
-| `POST /api/clients/<client_id>/widgets/<app>` | takes `{"corner", "mode"}` (section 4.3), for a non-internal app declaring a widget; answers the client record and announces `client_widgets_changed` to that client's windows |
+| `POST /api/clients/<client_id>/widgets/<app>` | takes `{"position", "mode"}` (section 4.3), for a non-internal app declaring a widget; answers the client record and announces `client_widgets_changed` to that client's windows |
 | `GET /api/widgets` | `{"widgets": [{"app", "is_enabled"}, ...]}`, one per registered, non-internal app declaring a widget, `is_enabled` the effective value |
 | `POST /api/widgets/<app>` | takes `{"is_enabled"}`; writes `widgets.json` (section 4.7), broadcasts `widgets_updated`, and answers as `GET /api/widgets`; `404` for an app declaring no widget; a preview shell edits its own copy |
 | `GET /api/avatars` | `{"designs": [{"id", "label", "source_path"}], "selected", "default"}` |
@@ -345,7 +345,7 @@ A page no shell has handed a handshake -- an unframed page, or one framed by som
 | page to shell | `shell:widget-size` | `{"width", "height"}`; from a widget only: the CSS pixel size of its content in its current mode, which the shell clamps to the widget minimum and maximum (section 11) and sizes the frame to; a widget is not drawn until its first one |
 | page to shell | `shell:widget-hidden` | `{"isHidden"}`; from a widget only: with `true` the shell draws nothing for it on this client and keeps its frame loaded; with `false` it is drawn again |
 
-A widget is drawn in its client's corner, stacked with the corner's other widgets in registry order, inset by `--desk-widget-inset` and, in a top corner, a title bar's height more, so a maximized window's controls stay clear of it; on a phone, collapsed in a strip above the bar.
+A widget is drawn where its client moved it: its `position` is the corner of its box nearest the backdrop's corner of the quadrant it sits in, in fractions of the backdrop, and the box is kept wholly inside the backdrop. A widget with no position is drawn in the default stack, downward from the top-right corner in registry order, inset by `--desk-widget-inset` and a title bar's height more at the top, so a maximized window's controls stay clear of it. On a phone, widgets are drawn collapsed in a strip above the bar.
 
 From a widget the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window. A widget's `shell:open` with `ifPresent: "focus"` raises any window of its app, whatever page it is on (this client's most recently used one on the active desktop, else the first on another desktop, switching to it), and opens a window at the path only when the app has none; with `"new"` it opens one on the active desktop.
 
@@ -523,7 +523,7 @@ Data attributes, never classes, so restyling cannot break a test:
 | `data-pinned-entry="<app>"`, `data-entry-mode="bar\|floating"`, `data-entry-style="plain\|avatar"` | each pinned entry, in the bar or floating |
 | `data-floating-entries` | the floating layer |
 | `data-widgets` | the widget layer |
-| `data-widget="<app>"`, `data-widget-corner="top-left\|top-right\|bottom-left\|bottom-right"`, `data-widget-mode="expanded\|collapsed"` | each drawn widget's chrome; a widget whose page has not reported a size, or says it has nothing to show, is not drawn |
+| `data-widget="<app>"`, `data-widget-moved="true\|false"`, `data-widget-mode="expanded\|collapsed"` | each drawn widget's chrome; a widget whose page has not reported a size, or says it has nothing to show, is not drawn |
 | `data-widget-frames`, `data-widget-frame="<app>"` | the widget frames' host, and each widget's iframe |
 | `data-widget-grip="<app>"` | each drawn widget's chrome too, whose rim is its handle |
 | `data-mood="working\|idle"`, `data-stale="true\|false"` | each avatar image's button |

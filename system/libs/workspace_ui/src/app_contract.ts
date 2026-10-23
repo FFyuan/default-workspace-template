@@ -120,7 +120,7 @@ export function hasWorkspaceCoordinate(host: string): boolean {
  * the window belongs to, and the path the window is at (desktop-interface contracts.md section
  * 7). The client id is required; a field the shell does not send, a page reads as "".
  */
-/** What frames the page: a window, or a widget in a corner of the desktop (app-widgets plan section 6). */
+/** What frames the page: a window, or a widget on the desktop (app-widgets plan section 6). */
 export type ShellSurface = "window" | "widget";
 
 /** How the client draws a widget: in full, or as its one-line pill. */

@@ -162,11 +162,11 @@ describe("ShellSocket", () => {
     current().receive({
       type: "client_widgets_changed",
       client_id: "client-1",
-      widgets: { gauge: { corner: "bottom-left", mode: "collapsed" } },
+      widgets: { gauge: { position: { x: 0.02, y: 0.9 }, mode: "collapsed" } },
     });
     expect(handlers.onClientWidgetsChanged).toHaveBeenCalledWith({
       clientId: "client-1",
-      widgets: { gauge: { corner: "bottom-left", mode: "collapsed" } },
+      widgets: { gauge: { position: { x: 0.02, y: 0.9 }, mode: "collapsed" } },
     });
     current().receive({ type: "widgets_updated", widgets: [{ app: "gauge", is_enabled: false }] });
     expect(handlers.onWidgetsUpdated).toHaveBeenCalledWith([{ app: "gauge", is_enabled: false }]);

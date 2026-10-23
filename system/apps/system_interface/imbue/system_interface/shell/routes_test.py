@@ -964,26 +964,28 @@ def test_a_clients_widget_presentation_is_written_and_announced_to_that_client_a
     drain_messages(first_queue)
     drain_messages(second_queue)
 
-    written = client.post("/api/clients/c1/widgets/gauge", json={"corner": "bottom-left", "mode": "collapsed"})
+    written = client.post(
+        "/api/clients/c1/widgets/gauge", json={"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}
+    )
     assert written.status_code == 200
-    assert written.get_json()["widgets"] == {"gauge": {"corner": "bottom-left", "mode": "collapsed"}}
+    assert written.get_json()["widgets"] == {"gauge": {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}}
     assert drain_messages(first_queue) == [
         {
             "type": "client_widgets_changed",
             "client_id": "c1",
-            "widgets": {"gauge": {"corner": "bottom-left", "mode": "collapsed"}},
+            "widgets": {"gauge": {"position": {"x": 0.02, "y": 0.9}, "mode": "collapsed"}},
         }
     ]
     assert drain_messages(second_queue) == []
     listed = {entry["id"]: entry for entry in client.get("/api/clients").get_json()["clients"]}
     assert listed["c2"]["widgets"] == {}
-    # An absent field takes the default; an app declaring no widget, an internal app, an unknown corner, an unknown
-    # app, and an unknown client are refused.
+    # An absent field takes the default; an app declaring no widget, an internal app, a position off the backdrop, an
+    # unknown app, and an unknown client are refused.
     defaulted = client.post("/api/clients/c1/widgets/meter", json={})
-    assert defaulted.get_json()["widgets"]["meter"] == {"corner": "top-right", "mode": "expanded"}
+    assert defaulted.get_json()["widgets"]["meter"] == {"position": None, "mode": "expanded"}
     for name in ("files", "probe"):
         assert client.post(f"/api/clients/c1/widgets/{name}", json={}).status_code == 400
-    assert client.post("/api/clients/c1/widgets/gauge", json={"corner": "middle"}).status_code == 400
+    assert client.post("/api/clients/c1/widgets/gauge", json={"position": {"x": 1.5, "y": 0.2}}).status_code == 400
     assert client.post("/api/clients/c1/widgets/nope", json={}).status_code == 404
     assert client.post("/api/clients/ghost/widgets/gauge", json={}).status_code == 404
 

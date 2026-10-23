@@ -78,7 +78,7 @@ collector, which listens on 127.0.0.1:8795 only:
 | `GET /api/usage/stream` | the collector's server-sent events, relayed |
 | `GET /api/apps` | the display name of every registered app |
 | `GET /api/health` | whether the app is up and its page built |
-| `GET /widget` | the Usage widget, which the workspace shell keeps in a corner of the desktop |
+| `GET /widget` | the Usage widget, which the workspace shell keeps on the desktop |
 
 Who sees usage is the workspace's sharing grants, as for any app: the share
 gateway admits a visitor with a workspace-wide grant or a grant on this app, and

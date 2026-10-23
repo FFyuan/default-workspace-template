@@ -1,8 +1,8 @@
 /**
  * The widgets' chrome (app-widgets plan section 4): a layer above every window and live page, beside the floating
- * entries' at the theme's sticky level, drawing for each widget its page reported a size for a dark panel at its
- * place in its corner, with no bar: the content box the widget frames layer lays the page on fills it but for a
- * thin rim, and the rim is the handle. A press on it drags the widget to another corner, a right-click or long
+ * entries' at the theme's sticky level, drawing for each widget its page reported a size for a light panel at its
+ * place, with no bar: the content box the widget frames layer lays the page on fills it but for a thin rim, and
+ * the rim is the handle. A press on it drags the widget anywhere on the backdrop, a right-click or long
  * press opens its menu, and a double-click collapses or expands it. At rest a widget is see-through; under the
  * pointer, or with its menu open, it is not. The layer is inert; only each widget's box takes a press. Nothing
  * here measures the DOM or listens for gestures.
@@ -43,7 +43,7 @@ export const Widgets: m.Component<WidgetsAttrs> = {
               [WIDGET_ATTRIBUTE]: app.name,
               [WIDGET_GRIP_ATTRIBUTE]: app.name,
               "aria-label": `${app.display_name} widget: drag its edge to move it, double-click to resize it`,
-              "data-widget-corner": presentation.corner,
+              "data-widget-moved": presentation.position === null ? "false" : "true",
               "data-widget-mode": presentation.mode,
               class:
                 "widget pointer-events-auto absolute flex cursor-grab touch-none select-none overflow-hidden " +

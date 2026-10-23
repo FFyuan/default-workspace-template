@@ -64,8 +64,8 @@
   --desk-floating-entry-size: 56px;
   --desk-floating-entry-inset-x: 16px;
   --desk-floating-entry-inset-y: 12px;
-  /* App widgets (app-widgets plan section 4): how far a corner's stack stands off the backdrop's edges, the
-     gap between widgets stacked in one corner, the most and least a widget's page may ask for, the rim
+  /* App widgets (app-widgets plan section 4): how far the default stack in the top-right
+     corner stands off the backdrop's edges, the gap between widgets stacked there, the most and least a widget's page may ask for, the rim
      around its page (what a press drags it by), and how see-through a widget is when the pointer is
      elsewhere. A widget is a light panel its page draws on, through a transparent background. */
   --desk-widget-inset: 16px;

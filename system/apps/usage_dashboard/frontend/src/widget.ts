@@ -1,5 +1,5 @@
 /**
- * The Usage widget's root (app-widgets plan section 7): the page the workspace shell keeps in a corner of the
+ * The Usage widget's root (app-widgets plan section 7): the page the workspace shell keeps on the
  * desktop. Framed as a widget, it draws the mode the shell tells it, reports the size of what it drew after every
  * change, and says it has nothing to show while no usage exists yet.
  */

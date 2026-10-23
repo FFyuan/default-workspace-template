@@ -128,7 +128,7 @@ class RegistryRow(FrozenModel):
         default=None, description="The app's place among the launcher's leading tiles; absent reads as none"
     )
     pin: Pin | None = Field(default=None, description="The app's pinned taskbar entry, when its manifest declares one")
-    widget: Widget | None = Field(default=None, description="The app's corner widget, when its manifest declares one")
+    widget: Widget | None = Field(default=None, description="The app's desktop widget, when its manifest declares one")
     window_closed_path: LaunchPathValue | None = Field(
         default=None, description="Where the shell posts a closed window of the app; absent means no post"
     )

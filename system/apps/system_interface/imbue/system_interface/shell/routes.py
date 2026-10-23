@@ -296,7 +296,7 @@ def set_client_entry(client_id: str, app: str) -> ResponseReturnValue:
 
 
 def set_client_widget(client_id: str, app: str) -> ResponseReturnValue:
-    """How one client shows one widget (app-widgets plan section 5.3): its corner and mode; the app must declare a
+    """How one client shows one widget (app-widgets plan section 5.3): its position and mode; the app must declare a
     widget."""
     body = parse_request_body(WidgetPresentation)
     shell = _shell()

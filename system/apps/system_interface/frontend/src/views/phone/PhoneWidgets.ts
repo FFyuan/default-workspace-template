@@ -1,7 +1,7 @@
 /**
  * The phone's widgets (app-widgets plan section 4.8): a strip just above the bar, holding each enabled widget whose
  * page has reported a size and not asked to be hidden, always collapsed and no taller than the phone's widget
- * height. The phone has no floating layer, so there is no grip, menu, or corner: a tap is the page's, and its link
+ * height. The phone has no floating layer, so there is no rim, menu, or place to move it to: a tap is the page's, and its link
  * opens the app's window, which the phone shows. Each widget is only the box its page is laid over; the widget frames
  * layer lays it there.
  */
