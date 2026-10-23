@@ -56,8 +56,8 @@ GROUPABLE_DIMENSIONS: Final[tuple[str, ...]] = (
     "workspace_id",
     "cost_provenance",
 )
-# The equality filters a calls query takes: the rollup dimensions, which a dashboard groups by.
-CALL_FILTER_DIMENSIONS: Final[tuple[str, ...]] = ROLLUP_DIMENSIONS
+# The filters a calls query takes: the rollup dimensions a dashboard groups by, and the provider.
+CALL_FILTER_DIMENSIONS: Final[tuple[str, ...]] = (*ROLLUP_DIMENSIONS, "provider")
 DEFAULT_CALLS_LIMIT: Final[int] = 50
 MAX_CALLS_LIMIT: Final[int] = 500
 # Harnesses whose start time is read off a log line, not measured, so their durations are approximate.
@@ -448,20 +448,14 @@ class UsageStore:
         selected = ", ".join(
             [*dimensions, "(ended_at - started_at) * 1000 AS duration_ms", "harness"]
         )
-        clauses = ["ended_at >= ?", "ended_at < ?"]
-        parameters: list[object] = [since.timestamp(), _until_timestamp(until)]
-        for dimension, values in (filters or {}).items():
-            _checked_dimensions([dimension])
-            if not values:
-                raise UsageStoreError(f"Filter {dimension} has no values")
-            known = [value for value in values if value]
-            alternatives = (
-                [f"{dimension} IN ({', '.join('?' for _ in known)})"] if known else []
-            )
-            if len(known) < len(values):
-                alternatives.append(f"{dimension} IS NULL")
-            clauses.append(f"({' OR '.join(alternatives)})")
-            parameters.extend(known)
+        _checked_dimensions(list(filters or {}))
+        filter_clauses, filter_parameters = _any_of(filters or {})
+        clauses = ["ended_at >= ?", "ended_at < ?", *filter_clauses]
+        parameters: list[object] = [
+            since.timestamp(),
+            _until_timestamp(until),
+            *filter_parameters,
+        ]
         with self._lock:
             rows = self._connection.execute(
                 f"SELECT {selected} FROM model_call WHERE {' AND '.join(clauses)}",
@@ -495,30 +489,24 @@ class UsageStore:
 
     def calls(
         self,
-        filters: Mapping[str, str],
+        filters: Mapping[str, Sequence[str]],
         limit: int = DEFAULT_CALLS_LIMIT,
         before: str | None = None,
         after: int | None = None,
+        offset: int = 0,
     ) -> list[StoredCall]:
-        """Stored calls matching ``filters``, newest first.
+        """Stored calls whose fields take one of the values ``filters`` gives them ("" for "not known"), newest first.
 
         ``before`` (an event id) pages back to calls that ended before that one;
         ``after`` (a sequence) returns only calls stored after it, which is how a
-        stream client fills the gap a reconnect left.
+        stream client fills the gap a reconnect left. ``offset`` skips that many
+        of the newest, for numbered pages.
         """
-        unknown = [
-            dimension
-            for dimension in filters
-            if dimension not in CALL_FILTER_DIMENSIONS
-        ]
-        if unknown:
-            raise UsageStoreError(
-                f"Cannot filter by {unknown}; choose from {list(CALL_FILTER_DIMENSIONS)}"
-            )
         if not 1 <= limit <= MAX_CALLS_LIMIT:
             raise UsageStoreError(f"limit must be between 1 and {MAX_CALLS_LIMIT}")
-        clauses = [f"{dimension} IS ?" for dimension in filters]
-        parameters: list[object] = [value or None for value in filters.values()]
+        if offset < 0:
+            raise UsageStoreError("offset must not be negative")
+        clauses, parameters = _call_filters(filters)
         with self._lock:
             if before is not None:
                 anchor = self._connection.execute(
@@ -535,13 +523,23 @@ class UsageStore:
             where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
             rows = self._connection.execute(
                 f"SELECT rowid, event_json FROM model_call{where} "
-                "ORDER BY ended_at DESC, rowid DESC LIMIT ?",
-                (*parameters, limit),
+                "ORDER BY ended_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                (*parameters, limit, offset),
             ).fetchall()
         return [
             StoredCall(sequence=row["rowid"], event=json.loads(row["event_json"]))
             for row in rows
         ]
+
+    def count_calls(self, filters: Mapping[str, Sequence[str]]) -> int:
+        """How many stored calls ``calls`` would page through for ``filters``."""
+        clauses, parameters = _call_filters(filters)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._lock:
+            row = self._connection.execute(
+                f"SELECT COUNT(*) FROM model_call{where}", parameters
+            ).fetchone()
+        return int(row[0])
 
 
 def _totals_row(
@@ -578,6 +576,37 @@ def _checked_dimensions(group_by: Sequence[str]) -> list[str]:
             f"Cannot group by {unknown}; choose from {list(GROUPABLE_DIMENSIONS)}"
         )
     return list(dict.fromkeys(group_by))
+
+
+def _call_filters(
+    filters: Mapping[str, Sequence[str]],
+) -> tuple[list[str], list[object]]:
+    unknown = [
+        dimension for dimension in filters if dimension not in CALL_FILTER_DIMENSIONS
+    ]
+    if unknown:
+        raise UsageStoreError(
+            f"Cannot filter by {unknown}; choose from {list(CALL_FILTER_DIMENSIONS)}"
+        )
+    return _any_of(filters)
+
+
+def _any_of(filters: Mapping[str, Sequence[str]]) -> tuple[list[str], list[object]]:
+    """SQL clauses keeping rows whose field is one of the given values, "" standing for NULL."""
+    clauses: list[str] = []
+    parameters: list[object] = []
+    for dimension, values in filters.items():
+        if not values:
+            raise UsageStoreError(f"Filter {dimension} has no values")
+        known = [value for value in values if value]
+        alternatives = (
+            [f"{dimension} IN ({', '.join('?' for _ in known)})"] if known else []
+        )
+        if len(known) < len(values):
+            alternatives.append(f"{dimension} IS NULL")
+        clauses.append(f"({' OR '.join(alternatives)})")
+        parameters.extend(known)
+    return clauses, parameters
 
 
 def _until_timestamp(until: datetime | None) -> float:

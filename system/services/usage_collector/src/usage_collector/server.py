@@ -3,7 +3,9 @@
 - ``GET /v1/totals?group_by=origin_id,model&since=24h[&until=...][&bucket=hour]``: cost and token totals.
 - ``GET /v1/latency?group_by=model&since=24h[&until=...][&provider=anthropic][&billing_mode=API_KEY,UNKNOWN]``: call
   duration percentiles, optionally over only the calls whose fields take the given values.
-- ``GET /v1/calls?model=...&limit=50[&before=<event id>][&after=<sequence>]``: stored calls, newest first.
+- ``GET /v1/calls?provider=...&billing_mode=API_KEY,UNKNOWN&limit=50[&offset=N][&before=<event id>][&after=<sequence>]``:
+  stored calls, newest first, optionally only those whose fields take one of the given values, with the
+  number of matching calls as ``total``.
 - ``GET /v1/limits?since=7d``: the freshest subscription limit reading of every window.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.
 - ``GET /health``: whether the collector is up, and whether it is still reading the event files.
@@ -152,7 +154,7 @@ def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flas
     @app.get("/v1/calls")
     def _get_calls() -> Response | tuple[Response, int]:
         filters = {
-            dimension: request.args[dimension]
+            dimension: request.args[dimension].split(",")
             for dimension in CALL_FILTER_DIMENSIONS
             if dimension in request.args
         }
@@ -160,15 +162,20 @@ def create_app(store: UsageStore, feed: UsageFeed, status: IngestStatus) -> Flas
         try:
             limit = parse_int(request.args.get("limit"), "limit")
             after = parse_int(request.args.get("after"), "after")
+            offset = parse_int(request.args.get("offset"), "offset")
             calls = store.calls(
                 filters,
                 DEFAULT_CALLS_LIMIT if limit is None else limit,
                 before=before,
                 after=after,
+                offset=0 if offset is None else offset,
             )
+            total = store.count_calls(filters)
         except (QueryParameterError, UsageStoreError) as e:
             return _error(str(e), 400)
-        return jsonify(calls=[call.model_dump(mode="json") for call in calls])
+        return jsonify(
+            calls=[call.model_dump(mode="json") for call in calls], total=total
+        )
 
     @app.get("/v1/limits")
     def _get_limits() -> Response | tuple[Response, int]:

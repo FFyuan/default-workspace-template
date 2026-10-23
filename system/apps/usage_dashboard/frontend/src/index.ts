@@ -13,6 +13,7 @@ import { createContextMenuOpener } from "@imbue/workspace-ui/src/components/cont
 import { installElementContextMenu } from "@imbue/workspace-ui/src/context_menu";
 
 import { DashboardModel } from "./models/dashboard";
+import { routeOf } from "./models/routing";
 import { App } from "./views/App";
 
 function bootstrap(): void {
@@ -22,15 +23,17 @@ function bootstrap(): void {
   const connection = connectToShell({ onHandshake: (received) => (handshake = received) });
   window.addEventListener("focus", () => connection.focused());
   installElementContextMenu({ connection, handshake: () => handshake, open: createContextMenuOpener().open });
-  connection.location("/", "Usage");
+  const route = routeOf(window.location.pathname);
+  connection.location(window.location.pathname, "Usage");
 
   const now = (): Date => new Date();
   const model = new DashboardModel({
+    route,
     now,
     redraw: () => m.redraw(),
     openStream: (url) => new EventSource(url),
   });
-  m.mount(root, { view: () => m(App, { model, now }) });
+  m.mount(root, { view: () => m(App, { model, route, now }) });
   model.start();
 }
 

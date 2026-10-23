@@ -6,7 +6,7 @@ It also answers the questions the Usage app asks:
 
 - `GET /v1/latency` reports p50 and p95 call duration per group, leaving out and counting calls with no duration, and counting the ones timed from Claude session logs as approximate; it can be filtered to calls whose fields take given values (a provider's calls on several billing modes), since percentiles do not add up across groups.
 
-- `GET /v1/calls` lists stored calls newest first, filtered by origin, agent, model or billing mode, paging back with `before` and catching up after a reconnect with `after`.
+- `GET /v1/calls` lists stored calls newest first, filtered by origin, agent, model, billing mode or provider (any of several values), with how many calls match, paging by `offset` or back with `before`, and catching up after a reconnect with `after`.
 
 - Totals can be grouped by `cost_provenance`, so a reader can tell which costs were estimated from tokens.
 

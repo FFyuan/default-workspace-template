@@ -85,12 +85,14 @@ def test_latency_and_calls_answer_over_http(
     assert [call["event"]["event_id"] for call in calls["calls"]] == [
         payload["event_id"]
     ]
+    assert calls["total"] == 1
 
 
 def test_bad_calls_parameters_are_refused(client: FlaskClient) -> None:
     assert client.get("/v1/calls", query_string={"limit": "many"}).status_code == 400
     assert client.get("/v1/calls", query_string={"limit": "0"}).status_code == 400
     assert client.get("/v1/calls", query_string={"before": "nope"}).status_code == 400
+    assert client.get("/v1/calls", query_string={"offset": "-1"}).status_code == 400
 
 
 def test_health_reports_catching_up_until_a_complete_pass(

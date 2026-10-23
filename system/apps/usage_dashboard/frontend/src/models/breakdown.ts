@@ -59,6 +59,7 @@ export function matchesFilter(group: Group, filter: Filter | null): boolean {
 export function callGroup(call: ModelCall): Group {
   return {
     model: call.model,
+    provider: call.provider,
     billing_mode: call.billing_mode,
     origin_kind: call.attribution.origin_kind,
     origin_id: call.attribution.origin_id ?? null,

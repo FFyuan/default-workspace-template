@@ -46,10 +46,12 @@ was already pruned to the rollups a second time.
   duration (`ended_at` minus `started_at`) per group, from raw events. Calls
   with no duration are left out of the percentiles and counted, and calls
   timed from Claude session logs are counted as approximate.
-- `GET /v1/calls?limit=50[&model=...][&before=<event id>][&after=<sequence>]`:
+- `GET /v1/calls?limit=50[&offset=N][&provider=...][&billing_mode=API_KEY,UNKNOWN][&before=<event id>][&after=<sequence>]`:
   stored calls, newest first, filtered by any of origin_kind, origin_id,
-  agent_id, model and billing_mode. `before` pages back; `after` returns the
-  calls stored since a `sequence` a client last saw.
+  agent_id, model, billing_mode and provider (comma-separated values mean any
+  of them), with `total`, how many calls the filters match. `offset` skips
+  that many of the newest, for numbered pages; `before` pages back; `after`
+  returns the calls stored since a `sequence` a client last saw.
 - `GET /v1/limits?since=7d`: the freshest subscription limit reading of every
   window, per source (claude, codex, ...): the share used, when it resets, the
   window's length and when the reading was taken. Readings come from any event

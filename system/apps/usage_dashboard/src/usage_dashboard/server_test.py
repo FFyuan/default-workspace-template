@@ -95,3 +95,9 @@ def test_limits_pass_through(client: FlaskClient, ingestor: Ingestor) -> None:
     answer = client.get("/api/usage/limits", query_string={"since": (NOW - timedelta(days=1)).isoformat()}).get_json()
 
     assert [(row["source"], row["used_percentage"]) for row in answer["limits"]] == [("codex", 40)]
+
+
+def test_the_detail_pages_serve_the_same_document(client: FlaskClient) -> None:
+    for path in ("/all", "/p/subscription:anthropic"):
+        response = client.get(path)
+        assert response.status_code == 200 and b"<title>Usage</title>" in response.data, path

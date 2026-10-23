@@ -7,6 +7,7 @@ import m from "mithril";
 
 import { formatCalls, formatClock, formatDollars } from "../models/format";
 import type { LimitLevel, LimitWindow, ProviderCard, SpendCard, SubscriptionCard } from "../models/providers";
+import { pathOf } from "../models/routing";
 
 const CARD_CLASS = "provider-card flex min-w-0 flex-col gap-3 rounded-lg border border-default bg-surface p-4";
 
@@ -113,6 +114,12 @@ function spendCard(card: SpendCard): m.Vnode {
   ]);
 }
 
+/** One card's contents, as the home page and a detail page both show it. */
+export function providerCard(card: ProviderCard, now: Date): m.Vnode {
+  return card.kind === "subscription" ? subscriptionCard(card, now) : spendCard(card);
+}
+
+/** The home page's cards, each a link to its provider's detail page. */
 export function providerSection(cards: readonly ProviderCard[] | null, now: Date): m.Vnode {
   if (cards === null) return m("div", { class: "type-helper py-6 text-center text-faint" }, "Loading usage…");
   if (cards.length === 0) {
@@ -125,6 +132,19 @@ export function providerSection(cards: readonly ProviderCard[] | null, now: Date
   return m(
     "div",
     { class: "provider-cards grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3" },
-    cards.map((card) => (card.kind === "subscription" ? subscriptionCard(card, now) : spendCard(card))),
+    cards.map((card) =>
+      m(
+        "a",
+        {
+          key: card.key,
+          href: pathOf({ page: "item", key: card.sectionKey }),
+          class:
+            "provider-link flex rounded-lg no-underline transition-shadow hover:shadow-md " +
+            "focus-visible:outline-2 focus-visible:outline-accent [&>*]:flex-1",
+          "aria-label": `${card.title}: see details`,
+        },
+        providerCard(card, now),
+      ),
+    ),
   );
 }

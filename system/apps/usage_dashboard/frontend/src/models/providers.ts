@@ -24,11 +24,19 @@ export interface LimitWindow {
   resetsAt: Date | null;
   isResetSinceReading: boolean;
   level: LimitLevel;
+  /** The window's length, when fixed, and when its reading was taken: what a usage estimate calibrates on. */
+  windowSeconds: number | null;
+  observedAt: Date;
+  /** The reading as taken, before a reset since it is applied: its share used and when its window reset. */
+  readingPercent: number | null;
+  readingResetsAt: Date | null;
 }
 
 export interface SubscriptionCard {
   kind: "subscription";
   key: string;
+  /** The detail item (a section key) the card opens. */
+  sectionKey: string;
   title: string;
   windows: LimitWindow[];
   observedAt: Date;
@@ -39,6 +47,7 @@ export interface SubscriptionCard {
 export interface SpendCard {
   kind: "spend";
   key: string;
+  sectionKey: string;
   title: string;
   spend: number;
   calls: number;
@@ -115,6 +124,10 @@ function subscriptionCards(
           resetsAt: isResetSinceReading ? null : resetsAt,
           isResetSinceReading,
           level: limitLevel(usedPercent),
+          windowSeconds: reading.window_seconds,
+          observedAt: new Date(reading.observed_at),
+          readingPercent: reading.used_percentage,
+          readingResetsAt: resetsAt,
         };
       });
     const provider = SOURCE_PROVIDERS[source];
@@ -127,6 +140,7 @@ function subscriptionCards(
     return {
       kind: "subscription",
       key: `subscription:${source}`,
+      sectionKey: `subscription:${provider ?? source}`,
       title: SUBSCRIPTION_TITLES[source] ?? `${capitalized(source)} subscription`,
       windows,
       observedAt: new Date(Math.max(...readings.map((reading) => Date.parse(reading.observed_at)))),
@@ -144,6 +158,7 @@ function spendCards(monthRows: readonly TotalsRow[]): SpendCard[] {
     const card = byProvider.get(provider) ?? {
       kind: "spend",
       key: `spend:${provider}`,
+      sectionKey: `spend:${provider}`,
       title: `${providerName(provider)} API`,
       spend: 0,
       calls: 0,
