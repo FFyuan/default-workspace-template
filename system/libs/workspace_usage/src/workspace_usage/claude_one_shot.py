@@ -28,6 +28,7 @@ from workspace_usage.context import (
     read_workspace_id,
 )
 from workspace_usage.emit import record_model_call
+from workspace_usage.turn import current_turn_id
 
 CLAUDE_HARNESS = "claude"
 
@@ -49,12 +50,14 @@ def record_claude_one_shot(
     billing_mode: str | None = None,
     environ: Mapping[str, str] | None = None,
     delete_log: bool = True,
+    turn_id: str | None = None,
 ) -> int:
     """Record a finished one-shot's calls; returns how many. Never raises.
 
     ``context`` defaults to this process's usage context, and ``billing_mode``
     to what the account under ``config_dir`` records (API key, subscription,
     or unknown). ``delete_log=False`` keeps a session the user may resume.
+    ``turn_id`` defaults to that of the ``usage_turn`` the one-shot ran in.
     """
     env = os.environ if environ is None else environ
     main_log = claude_session_calls.find_session_log(str(config_dir), session_id)
@@ -66,6 +69,7 @@ def record_claude_one_shot(
         )
         return 0
     inherited = read_usage_context(env) if context is None else context
+    resolved_turn_id = turn_id or current_turn_id()
     attribution: dict[str, str] = {
         "workspace_id": read_workspace_id(env),
         ORIGIN_KIND: inherited.get(ORIGIN_KIND, ORIGIN_KIND_UNKNOWN),
@@ -76,6 +80,7 @@ def record_claude_one_shot(
         },
         "harness": CLAUDE_HARNESS,
         **({"purpose": purpose} if purpose else {}),
+        **({"turn_id": resolved_turn_id} if resolved_turn_id else {}),
     }
     mode = billing_mode or claude_session_calls.claude_billing_mode(
         {"CLAUDE_CONFIG_DIR": str(config_dir)}, str(config_dir)

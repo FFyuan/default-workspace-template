@@ -1,0 +1,1 @@
+The `use-ai-integration` skill shows app authors how to group an app's model calls by task with `usage_turn` (or a call's `imbue_turn_id` metadata), and that a thread-pool worker has to enter the turn itself.

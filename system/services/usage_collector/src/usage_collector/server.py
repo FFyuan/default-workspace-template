@@ -4,7 +4,8 @@
 - ``GET /v1/latency?group_by=model&since=24h[&until=...][&provider=anthropic][&billing_mode=API_KEY,UNKNOWN]``: call
   duration percentiles, optionally over only the calls whose fields take the given values.
 - ``GET /v1/calls?provider=...&billing_mode=API_KEY,UNKNOWN&limit=50[&offset=N][&before=<event id>][&after=<sequence>]``:
-  stored calls, newest first, optionally only those whose fields take one of the given values, with the
+  stored calls, newest first, optionally only those whose fields take one of the given values (also
+  ``session_id``, ``run_id`` and ``turn_id``, e.g. ``?turn_id=<id>`` for one turn's calls), with the
   number of matching calls as ``total``.
 - ``GET /v1/limits?since=7d``: the freshest subscription limit reading of every window.
 - ``GET /v1/stream``: server-sent events, one ``model_call`` message per newly stored event.

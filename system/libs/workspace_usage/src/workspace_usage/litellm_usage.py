@@ -3,6 +3,11 @@
 ``install_litellm_usage_callback()`` once at app start registers it for every
 ``litellm.completion`` / ``acompletion`` in the process, successes and
 failures alike; the call itself is untouched. Needs the ``litellm`` extra.
+
+A call's turn id is the one its ``metadata`` names (``TURN_ID_METADATA_KEY``),
+else that of the ``usage_turn`` it was made in. The latter is read before the
+request is sent, in the caller's own context, since LiteLLM may report a call
+from a thread of its own.
 """
 
 import os
@@ -26,8 +31,11 @@ from workspace_usage.events import (
     STATUS_RATE_LIMITED,
     build_model_call,
 )
+from workspace_usage.turn import TURN_ID_METADATA_KEY, current_turn_id
 
 _HARNESS = "litellm"
+# Where the callback keeps the turn id it read before the request, in LiteLLM's per-call details.
+_CAPTURED_TURN_ID_KEY = "imbue_usage_turn_id"
 # Calls to these hosts are billed to the key the app passed; any other base (the LiteLLM
 # proxy, a local gateway) bills someone the callback cannot see.
 _PROVIDER_API_HOSTS = (
@@ -50,6 +58,13 @@ class UsageCallback(CustomLogger):
         self._context = dict(context)
         self._workspace_id = workspace_id
         self._emit = emit
+
+    def log_pre_api_call(
+        self, model: Any, messages: Any, kwargs: dict[str, Any]
+    ) -> None:
+        turn_id = current_turn_id()
+        if turn_id is not None:
+            kwargs[_CAPTURED_TURN_ID_KEY] = turn_id
 
     def log_success_event(
         self, kwargs: dict[str, Any], response_obj: Any, start_time: Any, end_time: Any
@@ -108,6 +123,7 @@ class UsageCallback(CustomLogger):
             else _failure_status(kwargs.get("exception")),
             harness=_HARNESS,
             purpose=PURPOSE_APP_CALL,
+            turn_id=_turn_id(kwargs),
         )
 
 
@@ -119,6 +135,23 @@ def install_litellm_usage_callback(
     callback = UsageCallback(read_usage_context(env), read_workspace_id(env))
     litellm.callbacks.append(callback)
     return callback
+
+
+def _turn_id(kwargs: Mapping[str, Any]) -> str | None:
+    """The call's own metadata turn id, else the one captured before the request, else the current one."""
+    litellm_params = kwargs.get("litellm_params")
+    metadata = (
+        litellm_params.get("metadata") if isinstance(litellm_params, Mapping) else None
+    )
+    candidates = (
+        metadata.get(TURN_ID_METADATA_KEY) if isinstance(metadata, Mapping) else None,
+        kwargs.get(_CAPTURED_TURN_ID_KEY),
+        current_turn_id(),
+    )
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return None
 
 
 def _tokens(payload: Mapping[str, Any], response_obj: Any) -> dict[str, int | None]:

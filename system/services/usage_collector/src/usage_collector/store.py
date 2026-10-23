@@ -46,6 +46,7 @@ GROUPABLE_DIMENSIONS: Final[tuple[str, ...]] = (
     "provider",
     "status",
     "run_id",
+    "turn_id",
     "parent_agent_id",
     "harness",
     "session_id",
@@ -56,8 +57,15 @@ GROUPABLE_DIMENSIONS: Final[tuple[str, ...]] = (
     "workspace_id",
     "cost_provenance",
 )
-# The filters a calls query takes: the rollup dimensions a dashboard groups by, and the provider.
-CALL_FILTER_DIMENSIONS: Final[tuple[str, ...]] = (*ROLLUP_DIMENSIONS, "provider")
+# The filters a calls query takes: the rollup dimensions a dashboard groups by, the provider, and the
+# session, run and turn a call belongs to.
+CALL_FILTER_DIMENSIONS: Final[tuple[str, ...]] = (
+    *ROLLUP_DIMENSIONS,
+    "provider",
+    "session_id",
+    "run_id",
+    "turn_id",
+)
 DEFAULT_CALLS_LIMIT: Final[int] = 50
 MAX_CALLS_LIMIT: Final[int] = 500
 # Harnesses whose start time is read off a log line, not measured, so their durations are approximate.
@@ -92,7 +100,8 @@ CREATE TABLE IF NOT EXISTS model_call (
     call_source TEXT,
     subagent_type TEXT,
     purpose TEXT,
-    event_json TEXT NOT NULL
+    event_json TEXT NOT NULL,
+    turn_id TEXT
 );
 CREATE INDEX IF NOT EXISTS model_call_ended_at ON model_call (ended_at);
 CREATE TABLE IF NOT EXISTS counted_event (
@@ -196,6 +205,15 @@ class StoredCall(FrozenModel):
     event: dict[str, object] = Field(description="The model_call event as stored")
 
 
+def _add_turn_id_column(connection: sqlite3.Connection) -> None:
+    """Give a database made before calls had a turn id its column, last, where a new database has it."""
+    columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(model_call)")
+    }
+    if "turn_id" not in columns:
+        connection.execute("ALTER TABLE model_call ADD COLUMN turn_id TEXT")
+
+
 def _rollup_key(event: ModelCallEvent) -> tuple[str, ...]:
     attribution = event.attribution
     return (
@@ -220,6 +238,10 @@ class UsageStore:
         with self._lock:
             self._connection.execute("PRAGMA journal_mode=WAL")
             self._connection.executescript(_SCHEMA)
+            _add_turn_id_column(self._connection)
+            self._connection.execute(
+                "CREATE INDEX IF NOT EXISTS model_call_turn_id ON model_call (turn_id)"
+            )
             # A database made before counted_event existed: its stored events are the ones counted so far.
             self._connection.execute(
                 "INSERT OR IGNORE INTO counted_event SELECT event_id FROM model_call"
@@ -244,7 +266,7 @@ class UsageStore:
                 if is_new:
                     self._connection.execute(
                         "INSERT INTO model_call VALUES "
-                        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (
                             event.event_id,
                             event.started_at.timestamp(),
@@ -273,6 +295,7 @@ class UsageStore:
                             attribution.subagent_type,
                             _optional_str(attribution.purpose),
                             event.model_dump_json(),
+                            attribution.turn_id,
                         ),
                     )
                     self._connection.execute(

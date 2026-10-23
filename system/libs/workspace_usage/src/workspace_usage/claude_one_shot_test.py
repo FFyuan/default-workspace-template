@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from workspace_usage.claude_one_shot import claude_session_args, record_claude_one_shot
+from workspace_usage.turn import usage_turn
 
 _SESSION = "4d2f8e61-9a07-4c3b-b5e8-1f6d0a7c2e93"
 
@@ -103,3 +104,23 @@ def test_a_session_without_a_log_records_nothing(tmp_path: Path) -> None:
         )
         == 0
     )
+
+
+def test_a_one_shot_run_inside_a_usage_turn_records_its_calls_under_that_turn(
+    tmp_path: Path,
+) -> None:
+    _write_session(tmp_path / "account", ["req_4", "req_5"])
+    environ = {
+        "IMBUE_USAGE_DATA_DIR": str(tmp_path / "usage"),
+        "IMBUE_USAGE_CONTEXT": "origin_kind=APP,origin_id=triage",
+    }
+
+    with usage_turn("email-42"):
+        record_claude_one_shot(tmp_path / "account", _SESSION, environ=environ)
+
+    events_file = tmp_path / "usage" / "events" / "app-triage.jsonl"
+    events = [json.loads(line) for line in events_file.read_text().splitlines()]
+    assert [event["attribution"]["turn_id"] for event in events] == [
+        "email-42",
+        "email-42",
+    ]

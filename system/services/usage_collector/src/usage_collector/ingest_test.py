@@ -34,8 +34,7 @@ def test_an_event_that_does_not_fit_the_schema_is_rejected(
     ingestor: Ingestor, store: UsageStore
 ) -> None:
     assert (
-        ingestor.ingest(model_call_payload(cost_usd="0.10"))
-        == IngestOutcome.REJECTED
+        ingestor.ingest(model_call_payload(cost_usd="0.10")) == IngestOutcome.REJECTED
     )
     assert store.totals([], NOW - timedelta(hours=1))[0].calls == 0
 
