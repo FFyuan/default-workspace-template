@@ -85,6 +85,10 @@ export const TOUR_CARDS: readonly TourCard[] = [
       "Sync folders on your computer, or in Google Drive, Dropbox, etc",
     ],
     chromeAnchor: "permissions",
+    image: {
+      url: `${ONBOARDING_MEDIA_BASE_URL}/e8d3b6777dd115923888f1486459766765c0822a44a2b429a7db7b118b8b49f5.gif`,
+      alt: "Logos of services a workspace can connect to, sliding by: Gmail, Slack, Google Calendar, Notion, GitHub, and more",
+    },
   }),
   card({
     id: "security",

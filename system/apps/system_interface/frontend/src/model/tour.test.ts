@@ -59,7 +59,11 @@ describe("the tour's state machine", () => {
     const last = TOUR_CARDS[TOUR_CARDS.length - 1];
     expect(last.target).toBe("launcher");
     expect(last.buttonLabel).toBe("Done");
-    expect(TOUR_CARDS.filter((card) => card.image !== null).map((card) => card.id)).toEqual(["devices", "providers"]);
+    expect(TOUR_CARDS.filter((card) => card.image !== null).map((card) => card.id)).toEqual([
+      "connect",
+      "devices",
+      "providers",
+    ]);
     // The chat card comes before the apps card: its Next snaps the chat aside, which is what shows the shortcuts.
     const ids = TOUR_CARDS.map((card) => card.id);
     expect(TOUR_CARDS.find((card) => card.action === "snap-avatar-window-right")?.id).toBe("chat-window");
