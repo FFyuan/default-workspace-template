@@ -54,7 +54,7 @@ import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
 import { type Route, pathOf } from "../models/routing";
 import type { SectionKind } from "../models/sections";
-import { type LimitSpan, chosenSpan, limitCosts, lineKey } from "../models/limitSpans";
+import { type UsageScale, chosenScale, formatShare, limitShares, lineKey } from "../models/usageEstimate";
 import { WINDOWS, type WindowId } from "../models/windows";
 import { cardTitle } from "./cardTitle";
 import { type ChartAttrs, type ChartMarker, UsageChart } from "./chart";
@@ -149,27 +149,27 @@ function latencyTile(data: UsageFigures): m.Vnode {
   );
 }
 
-/** A column for one limit: its window and the breakdown rows within it. */
+/** A column for one limit: its scale and the breakdown rows within its most recent window. */
 interface LimitColumn {
-  span: LimitSpan;
+  scale: UsageScale;
   rows: readonly TotalsRow[];
 }
 
 /**
- * The breakdown's usage columns on a page: a subscription's cost in each limit's window, one column per limit, or
- * (with none) a spend column.
+ * The usage columns the breakdown and the latest calls share on a page: a subscription's limit estimates, one
+ * column per limit, or (with none) a money column, spend for the breakdown and cost for a call.
  */
 type UsageColumns = readonly LimitColumn[];
 
-function limitHeader(limit: LimitColumn): m.Vnode {
+function limitHeader(limit: LimitColumn, of: string): m.Vnode {
   return m(
     "th",
     {
-      key: limit.span.windowKey,
+      key: limit.scale.windowKey,
       class: "py-1.5 pr-3 text-right font-normal",
-      title: `Cost at API rates of this workspace's calls in the ${limitName(limit.span)} limit's most recent window`,
+      title: `Estimated share of the ${limitName(limit.scale)} limit, ${of}`,
     },
-    limit.span.label.replace(" limit", ""),
+    limit.scale.label.replace(" limit", ""),
   );
 }
 
@@ -180,7 +180,7 @@ function breakdownSection(
   columns: UsageColumns,
 ): m.Vnode {
   const lines = breakdownLines(breakdown, section.breakdownRows, section.breakdownLatency, model.sourceNames);
-  const limitColumns = columns.map((limit) => ({ ...limit, costs: limitCosts(breakdown, limit.rows) }));
+  const limitColumns = columns.map((limit) => ({ ...limit, shares: limitShares(breakdown, limit.rows, limit.scale) }));
   const showsMoney = columns.length === 0;
   const activeKey = model.filter === null ? null : filterKey(model.filter);
   return m("div", { class: "flex flex-col gap-3" }, [
@@ -203,7 +203,7 @@ function breakdownSection(
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Calls"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Tokens"),
                 showsMoney ? m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Spend") : null,
-                limitColumns.map((limit) => limitHeader(limit)),
+                limitColumns.map((limit) => limitHeader(limit, "within its most recent window")),
                 m("th", { class: "py-1.5 text-right font-normal" }, "p50"),
               ]),
             ]),
@@ -232,16 +232,16 @@ function breakdownSection(
                         ])
                       : null,
                     limitColumns.map((limit) => {
-                      const cost = limit.costs.get(lineKey(line.group));
+                      const share = limit.shares.get(lineKey(line.group));
                       return m(
                         "td",
                         {
-                          key: limit.span.windowKey,
+                          key: limit.scale.windowKey,
                           class: "breakdown-usage py-2 pr-3 text-right tabular-nums text-secondary",
-                          "data-limit": limit.span.windowKey,
-                          title: `Cost at API rates in the ${limitName(limit.span)} limit's most recent window`,
+                          "data-limit": limit.scale.windowKey,
+                          title: `Estimated share of the ${limitName(limit.scale)} limit in its most recent window`,
                         },
-                        cost === undefined ? "–" : formatDollars(cost),
+                        share === undefined ? "–" : formatShare(share),
                       );
                     }),
                     m(
@@ -260,14 +260,15 @@ function breakdownSection(
       { class: "type-helper text-faint" },
       showsMoney
         ? "Click a row to show only its usage. Spend counts only billed calls; subscription calls show none."
-        : "Click a row to show only its usage. Each limit column is the row's cost at API rates in that limit's most recent window, counting only this workspace's calls.",
+        : "Click a row to show only its usage. Each limit column is the row's estimated share of that limit within its most recent window.",
     ),
   ]);
 }
 
 function callCost(call: StoredCall): string {
-  // A subscription call's cost is its list price at API rates: what it took, though its plan covers it.
-  const { cost_usd: cost, cost_provenance: provenance } = call.event;
+  const { cost_usd: cost, billing_mode: mode, cost_provenance: provenance } = call.event;
+  // A subscription call is covered by its plan, so it has no cost of its own to show.
+  if (mode === "SUBSCRIPTION") return "Subscription";
   if (cost === null || cost === undefined) return "unknown";
   const amount = formatDollars(Number(cost));
   return provenance === "ESTIMATED" ? `~${amount}` : amount;
@@ -278,19 +279,26 @@ function callTokens(call: StoredCall): number {
   return (tokens.input ?? 0) + (tokens.output ?? 0) + (tokens.cache_read ?? 0) + (tokens.cache_write ?? 0);
 }
 
-/** Where a limit reset: when its window started, and when the window ended once that has happened. */
-function resetMarkers(span: LimitSpan, now: Date): ChartMarker[] {
-  const label = `${capitalized(limitName(span))} reset`;
-  return [{ at: span.windowStart, label }, ...(span.resetsAt <= now ? [{ at: span.resetsAt, label }] : [])];
+/** Where the scale's limit reset: when its window started, and when the window ended once that has happened. */
+function resetMarkers(scale: UsageScale, now: Date): ChartMarker[] {
+  const label = `${capitalized(limitName(scale))} reset`;
+  return [{ at: scale.windowStart, label }, ...(scale.resetsAt <= now ? [{ at: scale.resetsAt, label }] : [])];
 }
 
 function capitalized(text: string): string {
   return text.length === 0 ? text : text[0].toUpperCase() + text.slice(1);
 }
 
-/** "5-hour", "weekly": the name of a limit. */
-function limitName(span: LimitSpan): string {
-  return span.label.replace(" limit", "").toLowerCase();
+/** "5-hour", "weekly": the limit a usage scale is against. */
+function limitName(scale: UsageScale): string {
+  return scale.label.replace(" limit", "").toLowerCase();
+}
+
+/** A subscription call's estimated share of a limit, from its list price; null for any other call. */
+function callShare(call: StoredCall, scale: UsageScale): number | null {
+  const { billing_mode: mode, cost_usd: cost } = call.event;
+  if (mode !== "SUBSCRIPTION" || cost === null || cost === undefined) return null;
+  return Number(cost) * scale.percentPerDollar;
 }
 
 /** What one row of the latest turns shows, for a turn or one of its calls. */
@@ -302,11 +310,13 @@ interface ActivityCells {
   calls: number | null;
   tokens: number;
   cost: string;
+  /** The row's estimated share of each limit column, in the columns' order; null where it has none. */
+  shares: (number | null)[];
   durationMs: number;
   status: { text: string; isOk: boolean };
 }
 
-function activityCells(cells: ActivityCells, now: Date, lead: m.Children): m.Children {
+function activityCells(cells: ActivityCells, now: Date, columns: UsageColumns, lead: m.Children): m.Children {
   const cell = "py-1.5 pr-3 text-right tabular-nums text-secondary";
   return [
     m("td", { class: "whitespace-nowrap py-1.5 pr-3 tabular-nums text-secondary" }, [
@@ -317,13 +327,22 @@ function activityCells(cells: ActivityCells, now: Date, lead: m.Children): m.Chi
     m("td", { class: "max-w-48 truncate py-1.5 pr-3 text-secondary", title: cells.modelTitle }, cells.model),
     m("td", { class: cell }, cells.calls === null ? "" : formatCount(cells.calls)),
     m("td", { class: cell }, formatCount(cells.tokens)),
-    m("td", { class: `call-cost ${cell}` }, cells.cost),
+    columns.length === 0 ? m("td", { class: cell }, cells.cost) : null,
+    columns.map((limit, index) => {
+      const share = cells.shares[index] ?? null;
+      return m(
+        "td",
+        { key: limit.scale.windowKey, class: `call-usage ${cell}`, "data-limit": limit.scale.windowKey },
+        share === null ? "–" : formatShare(share),
+      );
+    }),
     m("td", { class: cell }, cells.durationMs > 0 ? formatDuration(cells.durationMs) : "–"),
     m("td", { class: `py-1.5 ${cells.status.isOk ? "text-faint" : "text-danger"}` }, cells.status.text),
   ];
 }
 
-function turnCells(turn: TurnRow, model: DashboardModel): ActivityCells {
+function turnCells(turn: TurnRow, model: DashboardModel, columns: UsageColumns): ActivityCells {
+  const subscription = turn.subscription_cost_usd === null ? null : Number(turn.subscription_cost_usd);
   const [first, ...rest] = turn.models;
   return {
     endedAt: new Date(turn.ended_at),
@@ -335,9 +354,10 @@ function turnCells(turn: TurnRow, model: DashboardModel): ActivityCells {
     cost:
       turn.billed_cost_usd !== null
         ? `${turn.is_billed_cost_estimated ? "~" : ""}${formatDollars(Number(turn.billed_cost_usd))}`
-        : turn.unknown_cost_calls > 0 || turn.subscription_cost_usd === null
+        : turn.unknown_cost_calls > 0
           ? "unknown"
-          : formatDollars(Number(turn.subscription_cost_usd)),
+          : "Subscription",
+    shares: columns.map((limit) => (subscription === null ? null : subscription * limit.scale.percentPerDollar)),
     durationMs: Date.parse(turn.ended_at) - Date.parse(turn.started_at),
     status:
       turn.failed_calls === 0
@@ -346,7 +366,7 @@ function turnCells(turn: TurnRow, model: DashboardModel): ActivityCells {
   };
 }
 
-function callCells(call: StoredCall, model: DashboardModel): ActivityCells {
+function callCells(call: StoredCall, model: DashboardModel, columns: UsageColumns): ActivityCells {
   const event = call.event;
   const group = callGroup(event);
   return {
@@ -356,6 +376,7 @@ function callCells(call: StoredCall, model: DashboardModel): ActivityCells {
     calls: null,
     tokens: callTokens(call),
     cost: callCost(call),
+    shares: columns.map((limit) => callShare(call, limit.scale)),
     durationMs: Date.parse(event.ended_at) - Date.parse(event.started_at),
     status: { text: event.status.toLowerCase().replace("_", " "), isOk: event.status === "OK" },
   };
@@ -365,8 +386,9 @@ function callCells(call: StoredCall, model: DashboardModel): ActivityCells {
  * The latest turns: one row per turn (a user message and every call it led to, or a call no writer gave a turn),
  * newest first, each opening to its calls, and each call to its raw event.
  */
-function turnsSection(model: DashboardModel, now: Date): m.Vnode {
-  const columnCount = 8;
+function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): m.Vnode {
+  const showsMoney = columns.length === 0;
+  const columnCount = 7 + (showsMoney ? 1 : columns.length);
   const callRows = (turn: TurnRow): m.Vnode[] => {
     const calls = model.expandedTurnCalls;
     if (calls === null) {
@@ -389,7 +411,7 @@ function turnsSection(model: DashboardModel, now: Date): m.Vnode {
             title: isOpen ? "Hide the raw event" : "Show the raw event",
             onclick: () => model.toggleCall(event.event_id),
           },
-          activityCells(callCells(call, model), now, m("span", { class: "inline-block w-6" })),
+          activityCells(callCells(call, model, columns), now, columns, m("span", { class: "inline-block w-6" })),
         ),
       ];
       if (isOpen) {
@@ -427,14 +449,8 @@ function turnsSection(model: DashboardModel, now: Date): m.Vnode {
                 m("th", { class: "py-1.5 pr-3 font-normal" }, "Model"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Calls"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Tokens"),
-                m(
-                  "th",
-                  {
-                    class: "py-1.5 pr-3 text-right font-normal",
-                    title: "What was billed, or for a subscription call its cost at API rates",
-                  },
-                  "Cost",
-                ),
+                showsMoney ? m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Cost") : null,
+                columns.map((limit) => limitHeader(limit, "from the list price of its calls")),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Duration"),
                 m("th", { class: "py-1.5 font-normal" }, "Status"),
               ]),
@@ -456,8 +472,9 @@ function turnsSection(model: DashboardModel, now: Date): m.Vnode {
                       onclick: () => model.toggleTurn(turn),
                     },
                     activityCells(
-                      turnCells(turn, model),
+                      turnCells(turn, model, columns),
                       now,
+                      columns,
                       m("span", { class: "inline-block w-6 text-faint", "aria-hidden": "true" }, isOpen ? "▾" : "▸"),
                     ),
                   ),
@@ -636,12 +653,12 @@ function figuresView(
   columns: UsageColumns,
 ): m.Children {
   const isSubscription = kind === "subscription";
-  const spans = isSubscription ? (model.limitSpans[chartKey] ?? []) : [];
-  const span = chosenSpan(spans, model.usageWindows[chartKey]);
-  // A subscription's calls are not billed per call, so its chart is tokens or their cost at API rates.
+  const scales = isSubscription ? (model.usageScales[chartKey] ?? []) : [];
+  const scale = chosenScale(scales, model.usageWindows[chartKey]);
+  // A subscription's calls are not billed per call, so its chart is tokens or their estimated share of a limit.
   const choices: { value: ChartMetric; label: string }[] = isSubscription
     ? [
-        { value: "usage", label: "Usage" },
+        ...(scale === undefined ? [] : [{ value: "usage" as const, label: "Usage" }]),
         { value: "tokens", label: "Tokens" },
       ]
     : [
@@ -658,8 +675,8 @@ function figuresView(
           ? "spend"
           : "tokens";
   const heading =
-    metric === "usage"
-      ? "Usage · cost at API rates"
+    metric === "usage" && scale !== undefined
+      ? `Usage · estimated % of ${scale.label.replace(" limit", "").toLowerCase()} limit`
       : metric === "spend"
         ? "Spend"
         : "Tokens";
@@ -670,8 +687,9 @@ function figuresView(
         windowId: data.windowId,
         now,
         metric,
-        markers: metric !== "usage" || span === undefined ? [] : resetMarkers(span, now),
-        markerLegend: metric !== "usage" || span === undefined ? undefined : `${capitalized(limitName(span))} reset`,
+        percentPerDollar: scale?.percentPerDollar,
+        markers: scale === undefined ? [] : resetMarkers(scale, now),
+        markerLegend: scale === undefined ? undefined : `${capitalized(limitName(scale))} reset`,
         ...attrs,
       }),
     ]);
@@ -685,14 +703,14 @@ function figuresView(
       m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
         cardTitle(heading),
         m("div", { class: "flex flex-wrap items-center gap-2" }, [
-          metric === "usage" && spans.length > 1
+          metric === "usage" && scales.length > 1
             ? m(SegmentedControl<string>(), {
                 label: "Limit",
-                segments: spans.map((candidate) => ({
+                segments: scales.map((candidate) => ({
                   value: candidate.windowKey,
                   label: candidate.label.replace(" limit", ""),
                 })),
-                value: span?.windowKey ?? "",
+                value: scale?.windowKey ?? "",
                 onSelect: (windowKey) => model.selectUsageWindow(chartKey, windowKey),
               })
             : null,
@@ -724,13 +742,13 @@ function figuresView(
             seriesNoun: "source",
           })
         : chart({ rows: figures.chartRows, colors: colors.models, seriesNoun: "model" }),
-      metric === "usage"
+      metric === "usage" && scale !== undefined
         ? m(
             "p",
             { class: "usage-estimate-note type-helper text-faint" },
-            span?.isFromEarlierWindow
-              ? `Each call's tokens priced at API rates, counting only this workspace's calls. The dashed lines mark the ${limitName(span)} window that reset at ${formatClock(span.resetsAt)}.`
-              : "Each call's tokens priced at API rates, counting only this workspace's calls.",
+            scale.isFromEarlierWindow
+              ? `Estimated at the rate of the ${limitName(scale)} window that reset at ${formatClock(scale.resetsAt)}: each call's tokens are priced at API rates.`
+              : "Estimated: each call's tokens are priced at API rates, at the rate this workspace's own calls have moved the limit.",
           )
         : null,
     ]),
@@ -864,12 +882,12 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
   const kind: "all" | SectionKind =
     route.page === "item" ? (selectedKey.startsWith("subscription:") ? "subscription" : "spend") : "all";
   const figures = route.page === "all" ? data?.total : section;
-  // A subscription's breakdown shows its cost in each limit's window; any other page's shows spend.
+  // A subscription's page measures both tables against its limits; any other page in money.
   const columns: UsageColumns =
     kind === "subscription"
-      ? (model.limitSpans[selectedKey] ?? []).flatMap((span) => {
-          const rows = section?.limitWindowRows?.[span.windowKey];
-          return rows === undefined ? [] : [{ span, rows }];
+      ? (model.usageScales[selectedKey] ?? []).flatMap((scale) => {
+          const rows = section?.limitWindowRows?.[scale.windowKey];
+          return rows === undefined ? [] : [{ scale, rows }];
         })
       : [];
   return [
@@ -931,7 +949,7 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
                   : "No calls in this window. Try 7 days or this month.",
               )
             : figuresView(model, data, figures, kind, selectedKey, now, colors, columns),
-        turnsSection(model, now),
+        turnsSection(model, now, columns),
       ]),
     ]),
   ];

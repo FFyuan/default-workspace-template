@@ -53,18 +53,23 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   session logs are marked approximate).
 - A chart of spend or tokens over the window, stacked by source (the app, chat or
   routine that made the calls), or by model when picked beside it. A subscription's
-  chart shows its **usage** instead: the cost of its calls at API rates (the list
-  price the collector puts on subscription calls), counting only this
-  workspace's calls. A harness's limit reading counts the whole account, wherever
-  else it is signed in, so the page takes from it only when each limit window
-  started and resets, never its share used. The breakdown shows each row's cost
-  at API rates within each limit's most recent window, one column per limit (a
-  5-hour column and a weekly one for Claude), whatever the time window; any other
-  page's breakdown shows spend instead. The latest turns show what each turn and
-  call was billed, or for a subscription call its cost at API rates. Once a
-  window resets its harness reports nothing for it until the next call, so the
-  page keeps the last reading's window and says so; dashed lines mark where the
-  chosen window started and where it reset.
+  chart shows its **estimated usage** instead, as a share of its 5-hour or weekly
+  limit; a subscription never shows a dollar figure. A harness reports only each
+  window's share used for the whole account, wherever else it is signed in, so
+  the page does not spread that share over this workspace's calls. It measures
+  what they added instead: the rise in the window's share from its first reading
+  here to its latest (the collector keeps both), divided by the API-rate price of
+  this workspace's calls between the two (weighing an Opus token above a Haiku
+  one, much as the limits do), gives a share per dollar, and a call's estimated
+  share is its price times that. Until a window has risen there is nothing to
+  measure, and the page shows no estimate for it. The breakdown shows each row's
+  estimated share of each limit within that limit's most recent window; the
+  latest turns show each turn's and each call's estimated share of each limit. A
+  subscription's page shows these limit columns in both tables in place of spend
+  and cost; any other page shows spend and cost instead. Once a window resets its
+  harness reports nothing for it until the next call, so the estimate keeps the
+  last reading's rate (the account's, which a reset does not change) and says so;
+  dashed lines mark where the chosen window started and where it reset.
 - Sources go by the names the user knows them by: an app by its display name (from
   the app registry), a chat by its title (from the chat app's chat list) and a
   routine by its title (from its definition file); one the lookup cannot name

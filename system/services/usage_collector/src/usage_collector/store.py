@@ -136,6 +136,8 @@ CREATE TABLE IF NOT EXISTS limit_window (
     resets_at REAL,
     window_seconds INTEGER,
     observed_at REAL NOT NULL,
+    first_used_percentage REAL,
+    first_observed_at REAL,
     PRIMARY KEY (source, window)
 );
 CREATE TABLE IF NOT EXISTS file_position (
@@ -252,6 +254,16 @@ def _add_turn_id_column(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE model_call ADD COLUMN turn_id TEXT")
 
 
+def _add_first_reading_columns(connection: sqlite3.Connection) -> None:
+    """Give a database made before limit windows kept their first reading its columns, last, as a new one has them."""
+    columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(limit_window)")
+    }
+    if "first_used_percentage" not in columns:
+        connection.execute("ALTER TABLE limit_window ADD COLUMN first_used_percentage REAL")
+        connection.execute("ALTER TABLE limit_window ADD COLUMN first_observed_at REAL")
+
+
 def _rollup_key(event: ModelCallEvent) -> tuple[str, ...]:
     attribution = event.attribution
     return (
@@ -277,6 +289,7 @@ class UsageStore:
             self._connection.execute("PRAGMA journal_mode=WAL")
             self._connection.executescript(_SCHEMA)
             _add_turn_id_column(self._connection)
+            _add_first_reading_columns(self._connection)
             self._connection.execute(
                 "CREATE INDEX IF NOT EXISTS model_call_turn_id ON model_call (turn_id)"
             )
@@ -367,12 +380,42 @@ class UsageStore:
         and every agent on the account reports the account's windows, so a lower share there is a stale reading,
         however recently it was stamped. A later reset time is a later window and wins; an earlier one loses.
         Without a reset time on either side, the fresher reading wins.
+
+        Beside it each window keeps its first reading: the lowest share seen in it, at the earliest time that share
+        was seen (an idle agent can keep restamping an old share, which must not move it later). A later window
+        starts over from the reading that opens it. The rise from the first reading to the kept one is what this
+        workspace's calls between them added to the window, which is what a call's share is estimated from.
         """
         if not readings:
             return
+        rows = [
+            {
+                "source": reading.source,
+                "window": reading.window,
+                "label": reading.label,
+                "used": reading.used_percentage,
+                "resets_at": reading.resets_at.timestamp() if reading.resets_at is not None else None,
+                "window_seconds": reading.window_seconds,
+                "observed_at": reading.observed_at.timestamp(),
+            }
+            for reading in readings
+        ]
         with self._lock:
+            # Before the kept reading moves, so a reading is weighed against the window as it stood.
             self._connection.executemany(
-                "INSERT INTO limit_window VALUES (?,?,?,?,?,?,?) "
+                "UPDATE limit_window SET first_used_percentage = :used, first_observed_at = :observed_at "
+                "WHERE source = :source AND window = :window AND CASE "
+                "WHEN :resets_at IS NULL OR resets_at IS NULL THEN :observed_at >= observed_at "
+                "WHEN :resets_at != resets_at THEN :resets_at > resets_at "
+                "WHEN :used IS NULL THEN first_used_percentage IS NULL "
+                "ELSE first_used_percentage IS NULL OR :used < first_used_percentage "
+                "OR (:used = first_used_percentage AND :observed_at < first_observed_at) "
+                "END",
+                rows,
+            )
+            self._connection.executemany(
+                "INSERT INTO limit_window VALUES "
+                "(:source, :window, :label, :used, :resets_at, :window_seconds, :observed_at, :used, :observed_at) "
                 "ON CONFLICT (source, window) DO UPDATE SET label = excluded.label, "
                 "used_percentage = excluded.used_percentage, resets_at = excluded.resets_at, "
                 "window_seconds = excluded.window_seconds, observed_at = excluded.observed_at "
@@ -385,20 +428,7 @@ class UsageStore:
                 "THEN excluded.observed_at >= limit_window.observed_at "
                 "ELSE COALESCE(excluded.used_percentage, -1) > COALESCE(limit_window.used_percentage, -1) "
                 "END",
-                [
-                    (
-                        reading.source,
-                        reading.window,
-                        reading.label,
-                        reading.used_percentage,
-                        reading.resets_at.timestamp()
-                        if reading.resets_at is not None
-                        else None,
-                        reading.window_seconds,
-                        reading.observed_at.timestamp(),
-                    )
-                    for reading in readings
-                ],
+                rows,
             )
 
     def limits(self, since: datetime) -> list[LimitReading]:
@@ -422,6 +452,12 @@ class UsageStore:
                 ),
                 window_seconds=row["window_seconds"],
                 observed_at=datetime.fromtimestamp(row["observed_at"], tz=timezone.utc),
+                first_used_percentage=row["first_used_percentage"],
+                first_observed_at=(
+                    datetime.fromtimestamp(row["first_observed_at"], tz=timezone.utc)
+                    if row["first_observed_at"] is not None
+                    else None
+                ),
             )
             for row in rows
         ]

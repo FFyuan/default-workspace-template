@@ -66,7 +66,11 @@ was already pruned to the rollups a second time.
   an account-level counter that every agent on the account reports, so within
   one window (the same reset time) the higher share wins, however recently a
   lower one was stamped; a later reset time starts a new window and wins, and
-  without a reset time the freshest wins.
+  without a reset time the freshest wins. Each window also carries its first
+  reading (`first_used_percentage`, `first_observed_at`): the lowest share seen
+  in it, at the earliest time that share was seen, so the rise from there to the
+  latest reading is what this workspace's calls in between added (the Usage
+  app's estimate of each call's share is calibrated on it).
 - `GET /v1/stream`: server-sent events, one `model_call` message per newly
   stored event.
 - `GET /health`: `catching_up` is true until a pass has read every event file

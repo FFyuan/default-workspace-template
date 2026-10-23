@@ -111,6 +111,9 @@ export interface LimitReading {
   resets_at: string | null;
   window_seconds: number | null;
   observed_at: string;
+  /** The lowest share seen in the window and when: where this workspace's calls began to count in it. */
+  first_used_percentage: number | null;
+  first_observed_at: string | null;
 }
 
 export async function fetchLimits(since: Date): Promise<LimitReading[]> {

@@ -34,6 +34,14 @@ class LimitReading(FrozenModel):
     observed_at: datetime = Field(
         description="When the event carrying this reading was written"
     )
+    first_used_percentage: float | None = Field(
+        default=None,
+        description="The lowest share seen in this window: where this workspace's calls began to count in it",
+    )
+    first_observed_at: datetime | None = Field(
+        default=None,
+        description="When the lowest share was first seen; the calls after it are what the window's rise is from",
+    )
 
 
 def _source_of(record: Mapping[str, object]) -> str | None:
