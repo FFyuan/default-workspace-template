@@ -1,4 +1,4 @@
-"""The datalib pieces outside this directory agree with each other: one pinned version, and no program until first use."""
+"""The datalib pieces outside this directory agree with each other: one pinned version, one data root, and no program until first use."""
 
 import configparser
 import re
