@@ -75,6 +75,7 @@ export function UsageChart(): m.Component<ChartAttrs> {
       );
       const barTotals = values.map((bar) => [...bar.values()].reduce((sum, amount) => sum + amount, 0));
       const peak = Math.max(0, ...barTotals);
+      const peakIndex = barTotals.indexOf(peak);
       if (peak === 0) {
         return m(
           "div",
@@ -88,10 +89,15 @@ export function UsageChart(): m.Component<ChartAttrs> {
       const hoveredBar = hovered !== null && hovered < starts.length ? hovered : null;
 
       return m("div", { class: "usage-chart flex flex-col gap-2" }, [
-        m("div", { class: "relative" }, [
+        // The room above the bars is for the label over the tallest one.
+        m("div", { class: "relative pt-5" }, [
           m(
             "div",
-            { class: "pointer-events-none absolute top-0 left-0 type-tag text-faint" },
+            {
+              class:
+                "peak-label pointer-events-none absolute top-0 -translate-x-1/2 type-tag tabular-nums text-secondary",
+              style: { left: `${((peakIndex + 0.5) / starts.length) * 100}%` },
+            },
             formatMetric(metric, peak),
           ),
           m(
