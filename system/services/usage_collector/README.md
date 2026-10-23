@@ -68,7 +68,8 @@ was already pruned to the rollups a second time.
   lower one was stamped; a later reset time starts a new window and wins, and
   without a reset time the freshest wins. Each window also carries its first
   reading (`first_used_percentage`, `first_observed_at`): the lowest share seen
-  in it, at the earliest time that share was seen, so the rise from there to the
+  in it, at the earliest time that share was seen (never a reading dated before
+  its window opened), so the rise from there to the
   latest reading is what this workspace's calls in between added (the Usage
   app's estimate of each call's share is calibrated on it).
 - `GET /v1/stream`: server-sent events, one `model_call` message per newly

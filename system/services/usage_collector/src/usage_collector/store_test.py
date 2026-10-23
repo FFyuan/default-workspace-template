@@ -381,6 +381,23 @@ def test_a_later_window_starts_its_first_reading_over(store: UsageStore) -> None
     )
 
 
+def test_a_reading_dated_before_its_window_opened_is_never_its_first(
+    store: UsageStore,
+) -> None:
+    # A writer catching up on old session logs stamps a day-old call with the reading it holds now.
+    store.record_limits([_reading(6, minutes_ago=24 * 60, resets_in_minutes=180)])
+    store.record_limits([_reading(9, minutes_ago=60, resets_in_minutes=180)])
+    store.record_limits([_reading(12, minutes_ago=1, resets_in_minutes=180)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert (reading.used_percentage, reading.first_used_percentage, reading.first_observed_at) == (
+        12,
+        9,
+        NOW - timedelta(minutes=60),
+    )
+
+
 def test_a_database_from_before_first_readings_gains_them(tmp_path: Path) -> None:
     path = tmp_path / "old.db"
     with sqlite3.connect(path) as connection:

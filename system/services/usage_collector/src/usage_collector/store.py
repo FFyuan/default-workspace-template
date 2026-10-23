@@ -400,14 +400,21 @@ class UsageStore:
             }
             for reading in readings
         ]
+        # A reading dated before its window opened was stamped onto an older call after the fact (a writer catching
+        # up on old session logs stamps them with the reading it holds now), so it cannot say where the window began.
+        is_in_window = (
+            "(:resets_at IS NULL OR :window_seconds IS NULL OR :observed_at >= :resets_at - :window_seconds)"
+        )
         with self._lock:
             # Before the kept reading moves, so a reading is weighed against the window as it stood.
             self._connection.executemany(
-                "UPDATE limit_window SET first_used_percentage = :used, first_observed_at = :observed_at "
+                "UPDATE limit_window SET "
+                f"first_used_percentage = CASE WHEN {is_in_window} THEN :used END, "
+                f"first_observed_at = CASE WHEN {is_in_window} THEN :observed_at END "
                 "WHERE source = :source AND window = :window AND CASE "
                 "WHEN :resets_at IS NULL OR resets_at IS NULL THEN :observed_at >= observed_at "
                 "WHEN :resets_at != resets_at THEN :resets_at > resets_at "
-                "WHEN :used IS NULL THEN first_used_percentage IS NULL "
+                f"WHEN :used IS NULL OR NOT {is_in_window} THEN 0 "
                 "ELSE first_used_percentage IS NULL OR :used < first_used_percentage "
                 "OR (:used = first_used_percentage AND :observed_at < first_observed_at) "
                 "END",
@@ -415,7 +422,8 @@ class UsageStore:
             )
             self._connection.executemany(
                 "INSERT INTO limit_window VALUES "
-                "(:source, :window, :label, :used, :resets_at, :window_seconds, :observed_at, :used, :observed_at) "
+                "(:source, :window, :label, :used, :resets_at, :window_seconds, :observed_at, "
+                f"CASE WHEN {is_in_window} THEN :used END, CASE WHEN {is_in_window} THEN :observed_at END) "
                 "ON CONFLICT (source, window) DO UPDATE SET label = excluded.label, "
                 "used_percentage = excluded.used_percentage, resets_at = excluded.resets_at, "
                 "window_seconds = excluded.window_seconds, observed_at = excluded.observed_at "
