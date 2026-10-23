@@ -593,7 +593,7 @@ function figuresView(
             "p",
             { class: "usage-estimate-note type-helper text-faint" },
             scale.isFromEarlierWindow
-              ? `Estimated at the rate of the ${limitName(scale)} window that reset at ${formatClock(scale.resetsAt)}: each model's tokens are priced at API rates, scaled so that window added up to its last reading. The limit reports nothing new until the next call.`
+              ? `Estimated at the rate of the ${limitName(scale)} window that reset at ${formatClock(scale.resetsAt)}: each model's tokens are priced at API rates.`
               : "Estimated: each model's tokens are priced at API rates, then scaled so the limit window adds up to its last reading.",
           )
         : null,
