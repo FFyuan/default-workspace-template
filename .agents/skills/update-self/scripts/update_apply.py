@@ -1249,7 +1249,7 @@ def apply_update(
         # failure alone does not roll the merge back: a failed tool install
         # leaves the tree and services consistent, and re-running the
         # provisioner later is cheap and merge-independent -- whereas the
-        # rollback costs the whole release plus a fresh worker pass. So the
+        # rollback costs the whole release plus a retry through the worker. So the
         # apply carries on to the restart and the probes; a load-bearing
         # provisioner change (a node bump, a new apt dependency) still
         # fails those and still rolls back, and a landed update records

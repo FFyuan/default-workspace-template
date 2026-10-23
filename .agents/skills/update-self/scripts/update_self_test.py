@@ -4280,7 +4280,7 @@ def test_a_failed_provisioner_alone_lands_the_update_and_records_the_gap(
 ) -> None:
     # A failed tool install leaves the tree and services consistent, and
     # re-running the provisioner later is cheap and merge-independent -- so it
-    # must not cost the whole release plus a fresh worker pass. The update
+    # must not cost the whole release plus a retry through the worker. The update
     # lands, and the gap is loud: on stderr, and as a durable record for the
     # skill to act on.
     monkeypatch.setenv("MNGR_AGENT_NAME", "the-lead")
