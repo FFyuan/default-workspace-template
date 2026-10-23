@@ -56,15 +56,11 @@ import { type Route, pathOf } from "../models/routing";
 import type { SectionKind } from "../models/sections";
 import { type UsageScale, chosenScale, formatShare, limitShares, lineKey } from "../models/usageEstimate";
 import { WINDOWS, type WindowId } from "../models/windows";
+import { cardTitle } from "./cardTitle";
 import { type ChartAttrs, type ChartMarker, UsageChart } from "./chart";
 import { providerCard, providerSection } from "./providerCards";
 
 const CARD_CLASS = "rounded-lg border border-default bg-surface p-4";
-
-/** A card's title in the details: every tile, the chart, the breakdown and the latest turns wear the same one. */
-function cardTitle(text: string, tag: "h3" | "span" = "h3"): m.Vnode {
-  return m(tag, { class: "type-tag uppercase tracking-wide text-faint" }, text);
-}
 
 function tile(label: string, value: string, details: m.Children, attrs: m.Attributes = {}): m.Vnode {
   return m("div", { class: `${CARD_CLASS} flex min-w-0 flex-col gap-1`, ...attrs }, [
