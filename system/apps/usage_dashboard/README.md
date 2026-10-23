@@ -61,6 +61,10 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   next call, so the estimate keeps the last reading's rate (the account's, which
   a reset does not change) and says so; dashed lines mark where the chosen
   window started and where it reset.
+- Sources go by the names the user knows them by: an app by its display name (from
+  the app registry), a chat by its title (from the chat app's chat list) and a
+  routine by its title (from its definition file); one the lookup cannot name
+  shows a short id.
 - A breakdown by model, source (the app, chat or routine that made the calls) or
   billing mode. Clicking a row filters the whole page to it.
 - The latest calls, newest first, as they happen, each with its raw event.

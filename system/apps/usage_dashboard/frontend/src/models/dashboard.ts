@@ -16,6 +16,7 @@ import {
   type StoredCall,
   type TotalsRow,
   fetchAppNames,
+  fetchChatAndRoutineTitles,
   fetchCalls,
   fetchCollectorHealth,
   fetchLatency,
@@ -26,6 +27,8 @@ import {
 import {
   type BreakdownId,
   type Filter,
+  NO_SOURCE_NAMES,
+  type SourceNames,
   breakdownSpec,
   callGroup,
   filterKey,
@@ -112,7 +115,7 @@ export class DashboardModel {
   /** The page of calls shown, from 1. */
   callsPage = 1;
   callsPerPage: RowsPerPage = DEFAULT_ROWS_PER_PAGE;
-  appNames: Record<string, string> = {};
+  sourceNames: SourceNames = NO_SOURCE_NAMES;
   isLoading = false;
   isCollectorDown = false;
   isCatchingUp = false;
@@ -134,16 +137,25 @@ export class DashboardModel {
   constructor(private readonly deps: DashboardDeps) {}
 
   start(): void {
-    void fetchAppNames()
-      .then((names) => {
-        this.appNames = names;
-        this.deps.redraw();
-      })
-      .catch(() => undefined);
+    void this.loadSourceNames();
     void this.refresh();
     void this.loadCalls();
     this.connectStream();
-    this.periodic = setInterval(() => void this.refresh(), PERIODIC_REFRESH_MS);
+    this.periodic = setInterval(() => {
+      void this.refresh();
+      // Chats are made and renamed while the page is open.
+      void this.loadSourceNames();
+    }, PERIODIC_REFRESH_MS);
+  }
+
+  /** The names sources are shown under; a lookup that fails leaves the names already known. */
+  async loadSourceNames(): Promise<void> {
+    const [apps, titles] = await Promise.all([
+      fetchAppNames().catch(() => this.sourceNames.apps),
+      fetchChatAndRoutineTitles().catch(() => this.sourceNames),
+    ]);
+    this.sourceNames = { apps, chats: titles.chats, routines: titles.routines };
+    this.deps.redraw();
   }
 
   stop(): void {

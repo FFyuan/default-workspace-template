@@ -135,6 +135,14 @@ export async function fetchAppNames(): Promise<Record<string, string>> {
   return answer.display_names;
 }
 
+/** Each chat's title and each routine's title, by id; an id missing from them is shown as itself. */
+export function fetchChatAndRoutineTitles(): Promise<{
+  chats: Record<string, string>;
+  routines: Record<string, string>;
+}> {
+  return requestJson("GET", "/api/source-names");
+}
+
 /** Whether a refusal says the collector is down (the app answers 503), not that the request was wrong. */
 export function isUnreachable(error: unknown): boolean {
   return error instanceof HttpError && error.status >= 502 && error.status <= 504;

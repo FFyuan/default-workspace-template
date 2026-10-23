@@ -3,7 +3,10 @@ from pathlib import Path
 
 import httpx
 import pytest
+from flask import Flask
+from flask import jsonify
 from flask.testing import FlaskClient
+from flask.typing import ResponseReturnValue
 
 from usage_collector.feed import UsageFeed
 from usage_collector.ingest import Ingestor
@@ -47,21 +50,50 @@ def apps_file(tmp_path: Path) -> Path:
     path = tmp_path / "apps.toml"
     path.write_text(
         '[[apps]]\nname = "files"\nlabel = "files-x1"\nurl = "http://localhost:8020"\ndisplay_name = "Files"\n'
+        '[[apps]]\nname = "chat"\nlabel = "chat-x1"\nurl = "http://localhost:8010"\ndisplay_name = "Chat"\n'
     )
     return path
 
 
 @pytest.fixture
-def client(static_directory: Path, collector: httpx.Client, apps_file: Path) -> FlaskClient:
-    return create_app(static_directory, collector, apps_file).test_client()
+def chat_app() -> Iterator[httpx.Client]:
+    """A stand-in for the chat app at the URL ``apps_file`` registers it under, listing two chats."""
+    chat = Flask("chat")
+
+    @chat.get("/api/chats")
+    def chats() -> ResponseReturnValue:
+        return jsonify(
+            chats=[{"chat_id": "agent-1", "title": "Seattle weather"}, {"chat_id": "agent-2", "title": "News"}]
+        )
+
+    with httpx.Client(mounts={"http://localhost:8010": httpx.WSGITransport(app=chat)}) as client:
+        yield client
 
 
 @pytest.fixture
-def unreachable_client(static_directory: Path, apps_file: Path) -> Iterator[FlaskClient]:
+def routines_dir(tmp_path: Path) -> Path:
+    directory = tmp_path / "routines"
+    directory.mkdir()
+    (directory / "us-news.toml").write_text(
+        'title = "US news"\nwhat = "Pulls the latest US headlines."\nevery = "1h"\ncommand = ["true"]\n'
+    )
+    (directory / "broken.toml").write_text("title = [")
+    return directory
+
+
+@pytest.fixture
+def client(
+    static_directory: Path, collector: httpx.Client, apps_file: Path, chat_app: httpx.Client, routines_dir: Path
+) -> FlaskClient:
+    return create_app(static_directory, collector, apps_file, chat_app, routines_dir).test_client()
+
+
+@pytest.fixture
+def unreachable_client(static_directory: Path, apps_file: Path, tmp_path: Path) -> Iterator[FlaskClient]:
     """The app over a collector that refuses every connection."""
 
     def refuse(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused", request=request)
 
     with httpx.Client(transport=httpx.MockTransport(refuse), base_url="http://collector") as collector:
-        yield create_app(static_directory, collector, apps_file).test_client()
+        yield create_app(static_directory, collector, apps_file, collector, tmp_path / "routines").test_client()

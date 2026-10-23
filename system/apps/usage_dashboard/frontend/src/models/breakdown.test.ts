@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { latencyRow, totalsRow } from "../testing/rows";
-import { breakdownLines, filterOf, matchesFilter, sourceLabel, withFilterFields } from "./breakdown";
+import { NO_SOURCE_NAMES, breakdownLines, filterOf, matchesFilter, sourceLabel, withFilterFields } from "./breakdown";
 
 describe("breakdownLines", () => {
   it("keeps spend and a subscription's list price apart within one model", () => {
@@ -18,7 +18,7 @@ describe("breakdownLines", () => {
         }),
       ],
       [latencyRow({ group: { model: "anthropic/opus" }, p50_ms: 1500 })],
-      {},
+      NO_SOURCE_NAMES,
     );
 
     expect(line.label).toBe("opus");
@@ -41,7 +41,7 @@ describe("breakdownLines", () => {
         }),
       ],
       [],
-      {},
+      NO_SOURCE_NAMES,
     );
 
     expect(lines.map((line) => line.label)).toEqual(["Imbue key", "API key"]);
@@ -72,8 +72,15 @@ describe("filters", () => {
 
 describe("sourceLabel", () => {
   it("names an app by its display name and shortens a long id", () => {
-    expect(sourceLabel("APP", "files", { files: "Files" })).toBe("App · Files");
-    expect(sourceLabel("CHAT", "c_8f2a1b9c3d4e", {})).toBe("Chat · c_8f2a1b9c…");
-    expect(sourceLabel("SYSTEM", null, {})).toBe("System");
+    const names = {
+      apps: { files: "Files" },
+      chats: { "agent-1": "Seattle weather" },
+      routines: { "us-news": "US news" },
+    };
+    expect(sourceLabel("APP", "files", names)).toBe("App · Files");
+    expect(sourceLabel("CHAT", "agent-1", names)).toBe("Chat · Seattle weather");
+    expect(sourceLabel("ROUTINE", "us-news", names)).toBe("Routine · US news");
+    expect(sourceLabel("CHAT", "c_8f2a1b9c3d4e", names)).toBe("Chat · c_8f2a1b9c…");
+    expect(sourceLabel("SYSTEM", null, names)).toBe("System");
   });
 });

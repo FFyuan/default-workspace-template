@@ -13,7 +13,7 @@
  */
 
 import type { Group, TotalsRow } from "./api";
-import { type BreakdownId, breakdownLines } from "./breakdown";
+import { type BreakdownId, NO_SOURCE_NAMES, breakdownLines } from "./breakdown";
 import type { LimitWindow } from "./providers";
 
 /** The share of one limit window a dollar of list price uses, for one subscription. */
@@ -68,7 +68,7 @@ export function limitShares(
   scale: UsageScale,
 ): Map<string, number> {
   const shares = new Map<string, number>();
-  for (const line of breakdownLines(breakdown, windowRows, [], {})) {
+  for (const line of breakdownLines(breakdown, windowRows, [], NO_SOURCE_NAMES)) {
     if (line.listPrice !== null) shares.set(lineKey(line.group), line.listPrice * scale.percentPerDollar);
   }
   return shares;

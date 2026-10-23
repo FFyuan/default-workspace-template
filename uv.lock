@@ -4328,6 +4328,7 @@ dependencies = [
     { name = "imbue-common" },
     { name = "loguru" },
     { name = "pydantic" },
+    { name = "routines" },
     { name = "werkzeug" },
 ]
 
@@ -4351,6 +4352,7 @@ requires-dist = [
     { name = "imbue-common", git = "https://github.com/imbue-ai/mngr?subdirectory=libs%2Fimbue_common&rev=57bb7ed370338296e3696416454d5be16df2c242" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "pydantic", specifier = ">=2.0" },
+    { name = "routines", editable = "system/libs/routines" },
     { name = "werkzeug", specifier = ">=3.0" },
 ]
 

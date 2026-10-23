@@ -21,6 +21,7 @@ import {
   filterOf,
   groupLabel,
   modelLabel,
+  type SourceNames,
   sourceLabel,
 } from "../models/breakdown";
 import type { ChartMetric, DashboardData, DashboardModel, SectionFigures, UsageFigures } from "../models/dashboard";
@@ -166,7 +167,7 @@ function breakdownSection(
   section: SectionFigures,
   columns: UsageColumns,
 ): m.Vnode {
-  const lines = breakdownLines(breakdown, section.breakdownRows, section.breakdownLatency, model.appNames);
+  const lines = breakdownLines(breakdown, section.breakdownRows, section.breakdownLatency, model.sourceNames);
   const limitColumns = columns.map((limit) => ({ ...limit, shares: limitShares(breakdown, limit.rows, limit.scale) }));
   const showsMoney = columns.length === 0;
   const activeKey = model.filter === null ? null : filterKey(model.filter);
@@ -338,7 +339,7 @@ function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
                       m(
                         "td",
                         { class: "max-w-48 truncate py-1.5 pr-3 text-primary" },
-                        sourceLabel(group.origin_kind, group.origin_id, model.appNames),
+                        sourceLabel(group.origin_kind, group.origin_id, model.sourceNames),
                       ),
                       m("td", { class: "max-w-48 truncate py-1.5 pr-3 text-secondary" }, modelLabel(event.model)),
                       m(
@@ -497,7 +498,7 @@ function liveIndicator(model: DashboardModel): m.Vnode {
 }
 
 /** What the details below answer for: their window, and the filter a breakdown row set. */
-function detailsControls(model: DashboardModel, appNames: Record<string, string>): m.Vnode {
+function detailsControls(model: DashboardModel, names: SourceNames): m.Vnode {
   const filter = model.filter;
   return m("div", { class: "flex flex-wrap items-center justify-between gap-3" }, [
     filter === null
@@ -511,7 +512,7 @@ function detailsControls(model: DashboardModel, appNames: Record<string, string>
             title: "Show everything again",
             onclick: () => model.toggleFilter(null),
           },
-          [`Only ${groupLabel(filter.breakdown, filter.values, appNames)}`, m("span", { class: "text-faint" }, " ×")],
+          [`Only ${groupLabel(filter.breakdown, filter.values, names)}`, m("span", { class: "text-faint" }, " ×")],
         ),
     m(SegmentedControl<WindowId>(), {
       label: "Time window",
@@ -641,7 +642,7 @@ function figuresView(
           rows: figures.sourceChartRows,
           colors: colors.sources,
           seriesLabel: (row) =>
-            sourceLabel(row.group.origin_kind ?? null, row.group.origin_id ?? null, model.appNames),
+            sourceLabel(row.group.origin_kind ?? null, row.group.origin_id ?? null, model.sourceNames),
           seriesNoun: "source",
         }),
         chart("By model", { rows: figures.chartRows, colors: colors.models, seriesNoun: "model" }),
@@ -824,7 +825,7 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
             )
           : null,
         card === undefined ? null : providerCard(card, now),
-        detailsControls(model, model.appNames),
+        detailsControls(model, model.sourceNames),
         data === null
           ? m(
               "div",

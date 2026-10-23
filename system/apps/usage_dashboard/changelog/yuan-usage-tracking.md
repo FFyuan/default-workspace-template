@@ -6,7 +6,7 @@ Below the cards, a Total row of tiles across every provider has the time window 
 
 - tokens, calls with the share that failed or were rate-limited, and p50 and p95 latency, with untimed calls counted apart and durations from Claude session logs marked approximate;
 
-- charts of spend or tokens over the window, one stacked by source and one by model side by side, and a breakdown by model, source or billing mode, where clicking a row filters the whole page;
+- charts of spend or tokens over the window, one stacked by source and one by model side by side, and a breakdown by model, source or billing mode, where clicking a row filters the whole page; a source goes by its app's display name, its chat's title or its routine's title;
 
 - the latest calls as they happen, in numbered pages of 10, 20, 50 or 100 rows with a box to jump to a page, each opening to its raw event.
 
