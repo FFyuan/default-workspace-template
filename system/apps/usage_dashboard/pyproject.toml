@@ -54,7 +54,7 @@ ignore = ["E501"]
 force-single-line = true
 case-sensitive = true
 order-by-type = false
-known-first-party = ["usage_dashboard", "usage_collector", "imbue", "app_manifest", "app_schema"]
+known-first-party = ["usage_dashboard", "usage_collector", "imbue", "app_manifest", "app_schema", "routines"]
 
 # Makes this directory ty's project; without a [tool.ty] table ty keeps searching upward.
 [tool.ty]

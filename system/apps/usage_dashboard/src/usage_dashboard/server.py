@@ -39,7 +39,6 @@ from app_manifest.content_security_policy import attach_document_policy
 from app_manifest.registry import RegistryReadError
 from app_manifest.registry import read_registry
 from app_manifest.registry_location import registry_path
-from routines.paths import paths_from_environment
 from app_schema.api_schema import DEFAULT_API_SCHEMA_PATH
 from app_schema.api_schema import RouteModels
 from app_schema.api_schema import RouteTable
@@ -48,6 +47,7 @@ from app_schema.api_schema import register_api_schema_route
 from app_schema.routes import error_response
 from app_schema.routes import model_response
 from imbue.imbue_common.logging import setup_logging
+from routines.paths import paths_from_environment
 from usage_dashboard.data_types import AppNamesResponse
 from usage_dashboard.data_types import HealthResponse
 from usage_dashboard.data_types import SourceNamesResponse
