@@ -57,7 +57,8 @@ def record_claude_one_shot(
     ``context`` defaults to this process's usage context, and ``billing_mode``
     to what the account under ``config_dir`` records (API key, subscription,
     or unknown). ``delete_log=False`` keeps a session the user may resume.
-    ``turn_id`` defaults to that of the ``usage_turn`` the one-shot ran in.
+    ``turn_id`` defaults to that of the ``usage_turn`` the one-shot ran in,
+    and replaces the turn the session log gives each call.
     """
     env = os.environ if environ is None else environ
     main_log = claude_session_calls.find_session_log(str(config_dir), session_id)
@@ -80,7 +81,6 @@ def record_claude_one_shot(
         },
         "harness": CLAUDE_HARNESS,
         **({"purpose": purpose} if purpose else {}),
-        **({"turn_id": resolved_turn_id} if resolved_turn_id else {}),
     }
     mode = billing_mode or claude_session_calls.claude_billing_mode(
         {"CLAUDE_CONFIG_DIR": str(config_dir)}, str(config_dir)
@@ -91,6 +91,8 @@ def record_claude_one_shot(
         logger.warning("Could not read the one-shot's session log {}: {}", main_log, e)
         return 0
     for event in events:
+        if resolved_turn_id:
+            event["attribution"]["turn_id"] = resolved_turn_id
         record_model_call(event, env)
     if delete_log:
         _delete_session_logs(Path(main_log))
