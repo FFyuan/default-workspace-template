@@ -42,12 +42,32 @@ is used, so a workspace that never uses datalib downloads nothing. The launcher 
    it in the `user` band (200), the band the manifest's `priority` names; the
    OOM backstop only ever raises a process to its band, so it leaves 900 alone.
 4. Replaces itself with `~/.local/bin/datalib-http --no-open
-   data/.skills/datalib`, with `DATALIB_BIND=127.0.0.1:8731` and the token in
-   `DATALIB_TOKEN`. From then on supervisord supervises datalib-http directly.
+   data/.skills/datalib/Default`, with `DATALIB_BIND=127.0.0.1:8731` and the
+   token in `DATALIB_TOKEN`. From then on supervisord supervises datalib-http
+   directly.
 
 If it is started before that script has installed the binary, the launcher
 exits without registering anything and supervisord retries it with its
 backoff, so the app never appears with nothing behind it.
+
+## The libraries folder
+
+The skill's folder, `data/.skills/datalib`, is laid out like the desktop
+app's `~/Datalib`: a libraries folder with one folder per library. The app
+serves one library, `Default`, so the data root on its command line is
+`data/.skills/datalib/Default`, and the skill's scripts and `SKILL.md` name
+the same path. A second library would need a program, port, token and window
+of its own; the layout only leaves room for one.
+
+A workspace that used datalib before the libraries folder existed wrote its
+store at `data/.skills/datalib` itself. The launcher moves such a store into
+`Default` before it reads the token: it renames the folder to a staging
+sibling (`data/.skills/datalib.moving-to-Default`), makes a fresh folder, and
+renames the staging sibling into it. Each rename is atomic, and a start that
+finds the staging sibling finishes the second rename, so an interruption
+between the two loses nothing. A folder that holds a store of its own *and* a
+non-empty `Default` is left alone and the launcher refuses to start, naming
+both, since it cannot tell which one is the user's.
 
 ## The token
 
@@ -64,7 +84,7 @@ the copy, so a window opens at `/?token=<token>`. `app.toml` must keep its
 `[[launch_paths]]` table last for the append to land in it; the launcher
 checks this and refuses to start otherwise.
 
-The token itself is `data/.skills/datalib/system/api-token`: the launcher reads
+The token itself is `data/.skills/datalib/Default/system/api-token`: the launcher reads
 it at start and hands it to `datalib-http` through `DATALIB_TOKEN`, so it stays
 the same across restarts (a browser already holding the cookie stays signed
 in) and the skill can read the same file for its bearer token. When the file
@@ -100,8 +120,9 @@ screen runs inside `datalib-http` and has to finish after the window closes.
 ## Tests
 
 `uv run pytest system/apps/datalib` from the repo root.
-`launch_datalib_http_test.py` pins the token handling and the registered
-manifest copy; `test_datalib_app.py` runs the launcher as a process, through
+`launch_datalib_http_test.py` pins the token handling, the move of a store
+into the default library, and the registered manifest copy;
+`test_datalib_app.py` runs the launcher as a process, through
 the real `forward_port.py` and around a fake `datalib-http`
 (`datalib_launcher_testing.py`); `test_datalib_pin.py` holds the skill to the
 version the install script installs, and keeps the program out of

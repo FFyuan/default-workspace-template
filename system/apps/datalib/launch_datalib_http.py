@@ -42,9 +42,17 @@ FORWARD_PORT_PATH: Final[Path] = Path("system/scripts/forward_port.py")
 DEFAULT_PORT: Final[int] = 8731
 BIND_HOST: Final[str] = "127.0.0.1"
 
-# The store the datalib skill's CLI writes and searches; the UI serves the same one, so a
-# source added through the wizard is what the agent queries and vice versa.
-DATA_ROOT: Final[Path] = Path("data/.skills/datalib")
+# The skill's folder is laid out like the desktop app's ~/Datalib: a libraries folder holding one
+# folder per library, and the store the skill's CLI writes and searches is the default library. The
+# UI serves the same one, so a source added through the wizard is what the agent queries and vice versa.
+LIBRARIES_DIR: Final[Path] = Path("data/.skills/datalib")
+DEFAULT_LIBRARY_NAME: Final[str] = "Default"
+DATA_ROOT: Final[Path] = LIBRARIES_DIR / DEFAULT_LIBRARY_NAME
+
+# What marks a directory as holding a store: the config the skill writes, or the directory
+# datalib-http keeps its own files (the token, the lock) in.
+CONFIG_FILE_NAME: Final[str] = "config.toml"
+SYSTEM_DIRECTORY_NAME: Final[str] = "system"
 
 # Where the manifest copy that carries the token is written. Machine state: it is rewritten on
 # every start and never read by anything but forward_port.py.
@@ -129,6 +137,49 @@ class DatalibLaunchError(Exception):
 def token_file_path(data_root: Path) -> Path:
     """Where datalib-http writes the token for a store at ``data_root``."""
     return data_root / TOKEN_FILE_RELATIVE_PATH
+
+
+def is_data_root(path: Path) -> bool:
+    return (path / CONFIG_FILE_NAME).is_file() or (
+        path / SYSTEM_DIRECTORY_NAME
+    ).is_dir()
+
+
+def _remove_if_empty(data_root: Path, libraries_dir: Path) -> None:
+    if not data_root.exists():
+        return
+    if data_root.is_dir() and not any(data_root.iterdir()):
+        data_root.rmdir()
+        return
+    raise DatalibLaunchError(
+        f"both the libraries folder {libraries_dir} and the library {data_root} hold a store; "
+        "move one of them aside, then start the app again"
+    )
+
+
+# CLEANUP: drop move_store_into_library and its call in launch() once every workspace that used
+# datalib while the store sat at data/.skills/datalib itself (before the libraries folder, October
+# 2026) has started the app since.
+def move_store_into_library(data_root: Path) -> bool:
+    """Move a store written at ``data_root``'s parent, the libraries folder, into ``data_root``; return whether one moved.
+
+    Two renames, each atomic: the folder becomes a staging sibling, and the staging sibling becomes the
+    library inside a fresh folder. A start that finds the staging sibling finishes the second rename.
+    """
+    libraries_dir = data_root.parent
+    staging = libraries_dir.with_name(
+        f"{libraries_dir.name}.moving-to-{data_root.name}"
+    )
+    if not staging.is_dir():
+        if not is_data_root(libraries_dir):
+            return False
+        _remove_if_empty(data_root, libraries_dir)
+        libraries_dir.rename(staging)
+    libraries_dir.mkdir(parents=True, exist_ok=True)
+    _remove_if_empty(data_root, libraries_dir)
+    staging.rename(data_root)
+    logger.info("Moved the store at %s into the library %s", libraries_dir, data_root)
+    return True
 
 
 def mint_token() -> str:
@@ -251,6 +302,7 @@ def launch(arguments: argparse.Namespace) -> None:
             f"{arguments.datalib_http} is not installed yet; "
             "run .agents/skills/datalib/scripts/install_datalib.sh, as the datalib skill does on first use"
         )
+    move_store_into_library(arguments.data_root)
     token = read_or_mint_token(arguments.data_root)
     registered_manifest_path = write_registered_manifest(
         arguments.manifest, token, arguments.state_directory
@@ -284,7 +336,7 @@ def parse_arguments(argv: list[str]) -> argparse.Namespace:
         "--data-root",
         type=Path,
         default=DATA_ROOT,
-        help="The datalib data root the UI serves",
+        help="The datalib data root the UI serves: a library inside the libraries folder",
     )
     parser.add_argument(
         "--datalib-http",
