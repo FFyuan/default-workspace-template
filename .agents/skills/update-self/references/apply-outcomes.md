@@ -63,8 +63,9 @@ stderr and the `apply phase timings:` line, then:
 A retry goes back to the worker, which still holds its branch and its
 validation; it is never a re-run of the same apply (below). Consume the `done`
 you applied, as SKILL.md 5b does before a catch-up, then send it the cause and
-the retry through 5b's catch-up sender, re-arm the poll, and audit the `done` it
-sends back (5a) before 5b applies again:
+the retry through 5b's catch-up sender with `$RETRY` in place of `$CATCH_UP`,
+re-arm the poll, and audit the `done` it sends back (5a) before 5b applies
+again:
 
 ```bash
 RETRY="The apply rolled back: <the cause, one plain line>. Retry per §8 of your worker guide, catching up to $(git rev-parse HEAD), then report done again."
