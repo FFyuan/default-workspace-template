@@ -28,12 +28,23 @@ export interface UsageScale {
   resetsAt: Date;
 }
 
-/** The span a window's reading covers, from the window's start to the reading, whether or not it has reset since. */
+/**
+ * How far past a reading its span runs. A reading that rides on a call is dated to that call's end and already
+ * counts it, and the collector keeps calls that ended before ``until`` (and dates to the microsecond, which a
+ * ``Date`` truncates to the millisecond), so the span must close just after the reading to keep that call.
+ */
+const READING_INCLUDES_MS = 1;
+
+/**
+ * The span a window's reading covers, from the window's start to just after the reading, whether or not it has
+ * reset since.
+ */
 export function calibrationSpan(window: LimitWindow): { since: Date; until: Date } | null {
   if (window.readingResetsAt === null || window.windowSeconds === null) return null;
   if (window.readingPercent === null || window.readingPercent <= 0) return null;
   const since = new Date(window.readingResetsAt.getTime() - window.windowSeconds * 1000);
-  return since < window.observedAt ? { since, until: window.observedAt } : null;
+  const until = new Date(window.observedAt.getTime() + READING_INCLUDES_MS);
+  return since < window.observedAt ? { since, until } : null;
 }
 
 /** The share per dollar of list price, or null when the window's calls had no list price to spread it over. */

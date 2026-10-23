@@ -21,11 +21,21 @@ function window(patch: Partial<LimitWindow>): LimitWindow {
 }
 
 describe("calibrationSpan", () => {
-  it("runs from the window's start to the reading", () => {
+  it("runs from the window's start to just after the reading", () => {
     expect(calibrationSpan(window({}))).toEqual({
       since: new Date("2026-10-20T00:00:00Z"),
-      until: new Date("2026-10-22T20:00:00Z"),
+      until: new Date("2026-10-22T20:00:00.001Z"),
     });
+  });
+
+  it("keeps the call the reading rode on, which the reading already counts", () => {
+    // The collector dates such a reading to the call's end (here to the microsecond, which a Date truncates) and
+    // keeps calls that ended before ``until``.
+    const callEndedAt = Date.parse("2026-10-22T20:00:00.130Z") + 0.649;
+    const span = calibrationSpan(window({ observedAt: new Date("2026-10-22T20:00:00.130649Z") }));
+
+    expect(span).not.toBeNull();
+    expect(callEndedAt).toBeLessThan(span!.until.getTime());
   });
 
   it("keeps the last reading's span once its window has reset", () => {
