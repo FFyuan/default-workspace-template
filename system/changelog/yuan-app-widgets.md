@@ -1,0 +1,1 @@
+Planned app widgets: an app can declare a small, always-on-top view that the workspace desktop shows in a corner, starting with the Usage app's subscription-limit and spend widget. Added the plan (`docs/system/blueprint/app-widgets/plan-app-widgets.md`) and the matching additions to the desktop interface contracts and the stop-when-no-windows spec; no behaviour changes yet.
