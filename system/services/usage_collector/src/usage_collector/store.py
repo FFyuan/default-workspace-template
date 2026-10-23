@@ -5,7 +5,9 @@ Every insert is idempotent by ``event_id``, so re-reading a file never
 double-counts. The rollup row a new event lands in is updated in the same
 transaction, so a totals query over the rollup dimensions reads at most one row
 per minute per key instead of scanning raw events. Raw events are kept
-``RAW_RETENTION`` and rollups indefinitely.
+``RAW_RETENTION`` and rollups indefinitely; the id of every event ever counted is
+kept as long as the rollups, since a file read again from its start (a destroyed
+agent's preserved copy, a restored backup) still holds events older than that.
 """
 
 import json
@@ -93,6 +95,9 @@ CREATE TABLE IF NOT EXISTS model_call (
     event_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS model_call_ended_at ON model_call (ended_at);
+CREATE TABLE IF NOT EXISTS counted_event (
+    event_id TEXT PRIMARY KEY
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS rollup_minute (
     minute INTEGER NOT NULL,
     origin_kind TEXT NOT NULL,
@@ -215,6 +220,10 @@ class UsageStore:
         with self._lock:
             self._connection.execute("PRAGMA journal_mode=WAL")
             self._connection.executescript(_SCHEMA)
+            # A database made before counted_event existed: its stored events are the ones counted so far.
+            self._connection.execute(
+                "INSERT OR IGNORE INTO counted_event SELECT event_id FROM model_call"
+            )
 
     def close(self) -> None:
         with self._lock:
@@ -229,40 +238,43 @@ class UsageStore:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self._connection.execute(
-                    "INSERT OR IGNORE INTO model_call VALUES "
-                    "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (
-                        event.event_id,
-                        event.started_at.timestamp(),
-                        event.ended_at.timestamp(),
-                        event.provider,
-                        event.model,
-                        tokens.input,
-                        tokens.output,
-                        tokens.cache_read,
-                        tokens.cache_write,
-                        tokens.cache_write_1h,
-                        cost,
-                        _optional_str(event.cost_provenance),
-                        str(event.billing_mode),
-                        str(event.status),
-                        event.credential_ref,
-                        attribution.workspace_id,
-                        str(attribution.origin_kind),
-                        attribution.origin_id,
-                        attribution.run_id,
-                        attribution.agent_id,
-                        attribution.parent_agent_id,
-                        attribution.harness,
-                        attribution.session_id,
-                        _optional_str(attribution.call_source),
-                        attribution.subagent_type,
-                        _optional_str(attribution.purpose),
-                        event.model_dump_json(),
-                    ),
+                    "INSERT OR IGNORE INTO counted_event VALUES (?)", (event.event_id,)
                 )
                 is_new = cursor.rowcount == 1
                 if is_new:
+                    self._connection.execute(
+                        "INSERT INTO model_call VALUES "
+                        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (
+                            event.event_id,
+                            event.started_at.timestamp(),
+                            event.ended_at.timestamp(),
+                            event.provider,
+                            event.model,
+                            tokens.input,
+                            tokens.output,
+                            tokens.cache_read,
+                            tokens.cache_write,
+                            tokens.cache_write_1h,
+                            cost,
+                            _optional_str(event.cost_provenance),
+                            str(event.billing_mode),
+                            str(event.status),
+                            event.credential_ref,
+                            attribution.workspace_id,
+                            str(attribution.origin_kind),
+                            attribution.origin_id,
+                            attribution.run_id,
+                            attribution.agent_id,
+                            attribution.parent_agent_id,
+                            attribution.harness,
+                            attribution.session_id,
+                            _optional_str(attribution.call_source),
+                            attribution.subagent_type,
+                            _optional_str(attribution.purpose),
+                            event.model_dump_json(),
+                        ),
+                    )
                     self._connection.execute(
                         "INSERT INTO rollup_minute VALUES (?,?,?,?,?,?,1,?,?,?,?,?,?) "
                         "ON CONFLICT (minute, origin_kind, origin_id, agent_id, model, billing_mode) DO UPDATE SET "
