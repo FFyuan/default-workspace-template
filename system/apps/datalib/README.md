@@ -65,9 +65,22 @@ store at `data/.skills/datalib` itself. The launcher moves such a store into
 sibling (`data/.skills/datalib.moving-to-Default`), makes a fresh folder, and
 renames the staging sibling into it. Each rename is atomic, and a start that
 finds the staging sibling finishes the second rename, so an interruption
-between the two loses nothing. A folder that holds a store of its own *and* a
-non-empty `Default` is left alone and the launcher refuses to start, naming
-both, since it cannot tell which one is the user's.
+between the two loses nothing. The move follows the desktop app's rules for
+moving a library:
+
+- only a store at the real libraries folder is moved; a `--data-root` that
+  is not directly inside it (a test's) is a store somewhere else, and its
+  parent is never touched;
+- a store a datalib process still holds (a `flock` on `system/lock` or
+  `system/runner-lock`, say a `datalib-dag` an agent ran that straddles the
+  restart) is left where it is, and the launcher exits so supervisord retries
+  it; the move happens on the start that finds the store released;
+- a top-level `data_root` in the moved `config.toml` that names the old folder
+  is dropped, since `datalib-dag` writes where that key says; any other value
+  is kept;
+- a folder that holds a store of its own *and* a non-empty `Default` is left
+  alone and the launcher refuses to start, naming both, since it cannot tell
+  which one is the user's.
 
 ## The token
 

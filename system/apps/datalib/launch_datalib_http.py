@@ -19,6 +19,7 @@ package, by path, the way ``oom_tag_service.py`` imports it.
 """
 
 import argparse
+import fcntl
 import logging
 import os
 import re
@@ -53,6 +54,16 @@ DATA_ROOT: Final[Path] = LIBRARIES_DIR / DEFAULT_LIBRARY_NAME
 # datalib-http keeps its own files (the token, the lock) in.
 CONFIG_FILE_NAME: Final[str] = "config.toml"
 SYSTEM_DIRECTORY_NAME: Final[str] = "system"
+
+# The files datalib-http (``lock``) and datalib-dag (``runner-lock``) hold a flock(2) on under
+# system/ while they run; the kernel releases it when the holder exits.
+LOCK_FILE_NAMES: Final[tuple[str, ...]] = ("lock", "runner-lock")
+
+# A config's top-level ``data_root`` key, which datalib-dag uses as written in place of the
+# config's own folder.
+DATA_ROOT_LINE: Final[re.Pattern[str]] = re.compile(
+    r'^\s*data_root\s*=\s*"([^"]*)"\s*$'
+)
 
 # Where the manifest copy that carries the token is written. Machine state: it is rewritten on
 # every start and never read by anything but forward_port.py.
@@ -145,39 +156,86 @@ def is_data_root(path: Path) -> bool:
     ).is_dir()
 
 
-def _remove_if_empty(data_root: Path, libraries_dir: Path) -> None:
+def _remove_if_empty(data_root: Path, other_store: Path) -> None:
     if not data_root.exists():
         return
     if data_root.is_dir() and not any(data_root.iterdir()):
         data_root.rmdir()
         return
     raise DatalibLaunchError(
-        f"both the libraries folder {libraries_dir} and the library {data_root} hold a store; "
+        f"both {other_store} and the library {data_root} hold a store; "
         "move one of them aside, then start the app again"
     )
 
 
-# CLEANUP: drop move_store_into_library and its call in launch() once every workspace that used
-# datalib while the store sat at data/.skills/datalib itself (before the libraries folder, October
-# 2026) has started the app since.
-def move_store_into_library(data_root: Path) -> bool:
-    """Move a store written at ``data_root``'s parent, the libraries folder, into ``data_root``; return whether one moved.
+def _require_unlocked(store: Path) -> None:
+    for name in LOCK_FILE_NAMES:
+        lock_path = store / SYSTEM_DIRECTORY_NAME / name
+        if not lock_path.is_file():
+            continue
+        with lock_path.open("rb") as lock_file:
+            try:
+                fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as e:
+                raise DatalibLaunchError(
+                    f"a datalib process still holds {lock_path}; the store at {store} is moved on the next start"
+                ) from e
+
+
+def _names_root(line: str, root: Path) -> bool:
+    match = DATA_ROOT_LINE.match(line)
+    if match is None:
+        return False
+    return Path(match.group(1)).expanduser().resolve() == root.resolve()
+
+
+def _drop_data_root_line(config_path: Path, old_root: Path) -> None:
+    """Drop a top-level ``data_root`` that names the moved folder, as the desktop app does when it moves a library.
+
+    A config's ``data_root`` defaults to the config's own folder, which moves with it; one written out as the old
+    folder would keep the pipeline writing there. Only that line goes: any other value was chosen on purpose.
+    """
+    if not config_path.is_file():
+        return
+    kept: list[str] = []
+    changed = False
+    is_top_level = True
+    for line in config_path.read_text(encoding="utf-8").splitlines(keepends=True):
+        if line.lstrip().startswith("["):
+            is_top_level = False
+        if is_top_level and _names_root(line, old_root):
+            changed = True
+            continue
+        kept.append(line)
+    if changed:
+        config_path.write_text("".join(kept), encoding="utf-8")
+
+
+# CLEANUP: drop move_store_into_library, its helpers above, and its call in launch() once every
+# workspace that used datalib while the store sat at data/.skills/datalib itself (before the
+# libraries folder, October 2026) has started the app since.
+def move_store_into_library(libraries_dir: Path, data_root: Path) -> bool:
+    """Move a store written at the libraries folder itself into ``data_root``, a library inside it; return whether one moved.
 
     Two renames, each atomic: the folder becomes a staging sibling, and the staging sibling becomes the
-    library inside a fresh folder. A start that finds the staging sibling finishes the second rename.
+    library inside a fresh folder. A start that finds the staging sibling finishes the second rename. A
+    data root that is not directly inside the libraries folder is a store somewhere else, left alone.
     """
-    libraries_dir = data_root.parent
+    if data_root.parent != libraries_dir:
+        return False
     staging = libraries_dir.with_name(
         f"{libraries_dir.name}.moving-to-{data_root.name}"
     )
     if not staging.is_dir():
         if not is_data_root(libraries_dir):
             return False
+        _require_unlocked(libraries_dir)
         _remove_if_empty(data_root, libraries_dir)
         libraries_dir.rename(staging)
     libraries_dir.mkdir(parents=True, exist_ok=True)
-    _remove_if_empty(data_root, libraries_dir)
+    _remove_if_empty(data_root, staging)
     staging.rename(data_root)
+    _drop_data_root_line(data_root / CONFIG_FILE_NAME, libraries_dir)
     logger.info("Moved the store at %s into the library %s", libraries_dir, data_root)
     return True
 
@@ -302,7 +360,7 @@ def launch(arguments: argparse.Namespace) -> None:
             f"{arguments.datalib_http} is not installed yet; "
             "run .agents/skills/datalib/scripts/install_datalib.sh, as the datalib skill does on first use"
         )
-    move_store_into_library(arguments.data_root)
+    move_store_into_library(LIBRARIES_DIR, arguments.data_root)
     token = read_or_mint_token(arguments.data_root)
     registered_manifest_path = write_registered_manifest(
         arguments.manifest, token, arguments.state_directory

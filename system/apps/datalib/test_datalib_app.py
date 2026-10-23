@@ -36,6 +36,7 @@ def _run_launcher(
     datalib_http_path: Path,
     record_dir: Path,
     data_root: Path | None = None,
+    cwd: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -59,6 +60,7 @@ def _run_launcher(
             _ENV_APPS_FILE: str(tmp_path / "apps.toml"),
             ENV_FAKE_DATALIB_HTTP_DIR: str(record_dir),
         },
+        cwd=cwd,
         capture_output=True,
         text=True,
         timeout=_RUN_TIMEOUT_SECONDS,
@@ -128,26 +130,36 @@ def test_the_launcher_mints_a_token_when_none_is_published(tmp_path: Path) -> No
 def test_the_launcher_moves_a_store_at_the_libraries_folder_into_the_library_it_serves(
     tmp_path: Path,
 ) -> None:
-    """A workspace that used datalib before the libraries folder keeps its store, its token, and its sign-in."""
+    """A workspace that used datalib before the libraries folder keeps its store, its token, and its sign-in.
+
+    Run from a temporary workspace root on the launcher's real, relative data root: only a store at the real
+    libraries folder is moved.
+    """
     executable, record_dir = install_fake_datalib_http(tmp_path / "fake")
-    libraries_dir = tmp_path / "datalib"
+    workspace = tmp_path / "workspace"
+    libraries_dir = workspace / launcher.LIBRARIES_DIR
     token_path = launcher.token_file_path(libraries_dir)
     token_path.parent.mkdir(parents=True)
     token_path.write_text(_PUBLISHED_TOKEN)
     (libraries_dir / "config.toml").write_text('[[groups]]\ntype = "slack"\n')
-    data_root = libraries_dir / "Default"
 
-    result = _run_launcher(tmp_path, executable, record_dir, data_root=data_root)
+    result = _run_launcher(
+        tmp_path, executable, record_dir, data_root=launcher.DATA_ROOT, cwd=workspace
+    )
 
     assert result.returncode == FAKE_DATALIB_HTTP_EXIT_STATUS, result.stderr
-    assert read_fake_datalib_http_argv(record_dir) == ["--no-open", str(data_root)]
+    assert read_fake_datalib_http_argv(record_dir) == [
+        "--no-open",
+        str(launcher.DATA_ROOT),
+    ]
     environment = read_fake_datalib_http_environment(record_dir)
     assert environment is not None
     assert environment["DATALIB_TOKEN"] == _PUBLISHED_TOKEN
+    data_root = workspace / launcher.DATA_ROOT
     assert launcher.token_file_path(data_root).read_text() == _PUBLISHED_TOKEN
     assert (data_root / "config.toml").exists()
     assert sorted(path.name for path in libraries_dir.iterdir()) == ["Default"]
-    assert not (tmp_path / "datalib.moving-to-Default").exists()
+    assert sorted(path.name for path in libraries_dir.parent.iterdir()) == ["datalib"]
 
 
 def test_the_launcher_exits_without_registering_when_the_binary_is_missing(

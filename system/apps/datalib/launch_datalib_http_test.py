@@ -1,5 +1,6 @@
 """Unit tests for the Datalib launcher's token handling and the manifest copy it registers."""
 
+import fcntl
 import tomllib
 from pathlib import Path
 
@@ -37,7 +38,7 @@ def test_a_store_at_the_libraries_folder_moves_into_the_default_library(
     _write_store(libraries_dir, "flat store")
     data_root = libraries_dir / "Default"
 
-    assert launcher.move_store_into_library(data_root) is True
+    assert launcher.move_store_into_library(libraries_dir, data_root) is True
 
     assert (data_root / "slack" / "messages.jsonl").read_text() == "flat store"
     assert "flat store" in (data_root / "config.toml").read_text()
@@ -54,15 +55,94 @@ def test_a_libraries_folder_that_already_holds_libraries_is_left_alone(
     _write_store(data_root, "already a library")
     (libraries_dir / "Work").mkdir()
 
-    assert launcher.move_store_into_library(data_root) is False
+    assert launcher.move_store_into_library(libraries_dir, data_root) is False
 
     assert sorted(path.name for path in libraries_dir.iterdir()) == ["Default", "Work"]
     assert (data_root / "slack" / "messages.jsonl").read_text() == "already a library"
 
 
 def test_an_absent_libraries_folder_is_nothing_to_move(tmp_path: Path) -> None:
-    assert launcher.move_store_into_library(tmp_path / "datalib" / "Default") is False
-    assert not (tmp_path / "datalib").exists()
+    libraries_dir = tmp_path / "datalib"
+    assert (
+        launcher.move_store_into_library(libraries_dir, libraries_dir / "Default")
+        is False
+    )
+    assert not libraries_dir.exists()
+
+
+def test_a_data_root_outside_the_libraries_folder_never_moves_its_parent(
+    tmp_path: Path,
+) -> None:
+    """A test's or an operator's store elsewhere is not a library; its parent may be anything, even a checkout."""
+    _write_store(tmp_path, "a checkout with a system/ directory")
+    data_root = tmp_path / "data-root"
+    data_root.mkdir()
+
+    assert launcher.move_store_into_library(tmp_path / "datalib", data_root) is False
+
+    assert (tmp_path / "config.toml").exists()
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "config.toml",
+        "data-root",
+        "slack",
+        "system",
+    ]
+
+
+def test_a_store_a_datalib_process_still_holds_is_not_moved(tmp_path: Path) -> None:
+    libraries_dir = tmp_path / "datalib"
+    _write_store(libraries_dir, "being synced")
+    runner_lock = libraries_dir / "system" / "runner-lock"
+    runner_lock.write_text("")
+    with runner_lock.open("rb") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        with pytest.raises(launcher.DatalibLaunchError, match="still holds"):
+            launcher.move_store_into_library(libraries_dir, libraries_dir / "Default")
+
+    assert (libraries_dir / "slack" / "messages.jsonl").read_text() == "being synced"
+    assert not (tmp_path / "datalib.moving-to-Default").exists()
+    # Released, the lock no longer stands in the way.
+    assert (
+        launcher.move_store_into_library(libraries_dir, libraries_dir / "Default")
+        is True
+    )
+
+
+def test_a_config_naming_the_old_folder_as_its_data_root_loses_that_line(
+    tmp_path: Path,
+) -> None:
+    """datalib-dag writes where the config's data_root says; one naming the old folder would write there again."""
+    libraries_dir = tmp_path / "datalib"
+    _write_store(libraries_dir, "flat store")
+    (libraries_dir / "config.toml").write_text(
+        f'binary_dir = "/opt/datalib"\ndata_root = "{libraries_dir}/"\n\n[[groups]]\ntype = "slack"\n'
+        f'data_root = "{libraries_dir}"\n'
+    )
+    data_root = libraries_dir / "Default"
+
+    assert launcher.move_store_into_library(libraries_dir, data_root) is True
+
+    assert (data_root / "config.toml").read_text() == (
+        f'binary_dir = "/opt/datalib"\n\n[[groups]]\ntype = "slack"\ndata_root = "{libraries_dir}"\n'
+    )
+
+
+def test_a_config_naming_another_data_root_keeps_it(tmp_path: Path) -> None:
+    libraries_dir = tmp_path / "datalib"
+    _write_store(libraries_dir, "flat store")
+    (libraries_dir / "config.toml").write_text(
+        'data_root = "/mnt/elsewhere"\n[[groups]]\ntype = "slack"\n'
+    )
+
+    assert (
+        launcher.move_store_into_library(libraries_dir, libraries_dir / "Default")
+        is True
+    )
+
+    assert (libraries_dir / "Default" / "config.toml").read_text() == (
+        'data_root = "/mnt/elsewhere"\n[[groups]]\ntype = "slack"\n'
+    )
 
 
 def test_an_empty_default_library_beside_a_store_gives_way_to_it(
@@ -74,7 +154,7 @@ def test_an_empty_default_library_beside_a_store_gives_way_to_it(
     data_root = libraries_dir / "Default"
     data_root.mkdir()
 
-    assert launcher.move_store_into_library(data_root) is True
+    assert launcher.move_store_into_library(libraries_dir, data_root) is True
 
     assert (data_root / "slack" / "messages.jsonl").read_text() == "flat store"
     assert not (data_root / "Default").exists()
@@ -88,8 +168,11 @@ def test_a_store_at_the_libraries_folder_and_a_filled_default_library_refuse_to_
     data_root = libraries_dir / "Default"
     _write_store(data_root, "library store")
 
-    with pytest.raises(launcher.DatalibLaunchError, match="hold a store"):
-        launcher.move_store_into_library(data_root)
+    with pytest.raises(
+        launcher.DatalibLaunchError,
+        match=f"both {libraries_dir} and the library {data_root} hold a store",
+    ):
+        launcher.move_store_into_library(libraries_dir, data_root)
 
     # Neither store moved.
     assert (libraries_dir / "slack" / "messages.jsonl").read_text() == "flat store"
@@ -100,12 +183,31 @@ def test_an_interrupted_move_is_finished_on_the_next_start(tmp_path: Path) -> No
     """After the first rename the folder is gone and the store sits in the staging sibling."""
     staging = tmp_path / "datalib.moving-to-Default"
     _write_store(staging, "half moved")
-    data_root = tmp_path / "datalib" / "Default"
+    libraries_dir = tmp_path / "datalib"
+    data_root = libraries_dir / "Default"
 
-    assert launcher.move_store_into_library(data_root) is True
+    assert launcher.move_store_into_library(libraries_dir, data_root) is True
 
     assert (data_root / "slack" / "messages.jsonl").read_text() == "half moved"
     assert not staging.exists()
+
+
+def test_an_interrupted_move_that_meets_a_filled_default_library_names_the_staging_sibling(
+    tmp_path: Path,
+) -> None:
+    staging = tmp_path / "datalib.moving-to-Default"
+    _write_store(staging, "half moved")
+    libraries_dir = tmp_path / "datalib"
+    data_root = libraries_dir / "Default"
+    _write_store(data_root, "library store")
+
+    with pytest.raises(
+        launcher.DatalibLaunchError,
+        match=f"both {staging} and the library {data_root} hold a store",
+    ):
+        launcher.move_store_into_library(libraries_dir, data_root)
+
+    assert (staging / "slack" / "messages.jsonl").read_text() == "half moved"
 
 
 def test_a_minted_token_is_64_hex_characters_and_unique() -> None:
