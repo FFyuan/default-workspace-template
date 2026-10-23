@@ -13,3 +13,5 @@ It also answers the questions the Usage app asks:
 - `GET /health` reports `catching_up` until the collector has read every event file to its end.
 
 - `GET /v1/limits` answers the freshest subscription limit reading of every window per source (Claude's 5-hour and weekly limits, Codex's): the collector now reads the `rate_limits` on agents' snapshot events and on model_calls instead of skipping them.
+
+- The collector keeps the id of every event it has counted, past the 90 days it keeps raw events, so a file read again from its start (a destroyed agent's preserved copy, a restored backup) never counts an old call twice.

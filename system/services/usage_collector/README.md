@@ -28,7 +28,10 @@ deleting it rebuilds it by re-reading them. Events are idempotent by
 workspace. A call whose cost is unknown is stored with no cost, never $0; one
 with tokens but no cost is priced from mngr_usage's price table and marked
 estimated. The database keeps raw events 90 days and per-minute rollups
-indefinitely; older raw events stay in the files.
+indefinitely; older raw events stay in the files. It also keeps the id of every
+event it has ever counted, so a file read again from its start (a destroyed
+agent's preserved copy, a restored backup) never adds an event whose raw row
+was already pruned to the rollups a second time.
 
 ## API
 

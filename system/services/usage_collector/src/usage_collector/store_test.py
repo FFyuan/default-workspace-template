@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -98,6 +99,37 @@ def test_prune_drops_old_raw_events_but_keeps_rollups(store: UsageStore) -> None
     assert store.prune(NOW) == 1
     assert store.totals(["harness"], NOW - timedelta(days=100)) == []
     assert store.totals(["origin_id"], NOW - timedelta(days=100))[0].calls == 1
+
+
+def test_an_event_pruned_from_raw_storage_is_not_counted_again(
+    store: UsageStore,
+) -> None:
+    old = (NOW - timedelta(days=91)).isoformat()
+    event = _event(started_at=old, ended_at=old)
+    store.insert(event)
+    store.prune(NOW)
+
+    assert not store.insert(event)
+    assert store.totals([], NOW - timedelta(days=100))[0].calls == 1
+
+
+def test_a_database_from_before_counted_ids_still_skips_its_stored_events(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "old.db"
+    event = _event()
+    old_store = UsageStore(path)
+    old_store.insert(event)
+    old_store.close()
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TABLE counted_event")
+
+    reopened = UsageStore(path)
+    try:
+        assert not reopened.insert(event)
+        assert reopened.totals([], NOW - timedelta(hours=1))[0].calls == 1
+    finally:
+        reopened.close()
 
 
 def test_file_positions_persist(tmp_path: Path, store: UsageStore) -> None:

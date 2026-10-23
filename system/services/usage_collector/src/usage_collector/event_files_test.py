@@ -223,3 +223,29 @@ def test_an_agents_snapshot_events_give_its_subscription_limits(
         "seven_day",
         7,
     )
+
+
+def test_a_preserved_copy_read_after_its_events_were_pruned_counts_nothing_twice(
+    tmp_path: Path, store: UsageStore, ingestor: Ingestor
+) -> None:
+    long_ago = NOW - timedelta(days=120)
+    live = _event_file(tmp_path)
+    live.write_text(
+        json.dumps(
+            model_call_payload(
+                started_at=(long_ago - timedelta(seconds=2)).isoformat(),
+                ended_at=long_ago.isoformat(),
+            )
+        )
+        + "\n"
+    )
+    follow_event_files([live], store, ingestor.ingest, "ws-host")
+    store.prune(NOW)
+    preserved = _event_file(tmp_path, root="preserved")
+    preserved.write_bytes(live.read_bytes())
+    live.unlink()
+
+    follow_event_files([preserved], store, ingestor.ingest, "ws-host")
+
+    [row] = store.totals([], long_ago - timedelta(days=1))
+    assert row.calls == 1
