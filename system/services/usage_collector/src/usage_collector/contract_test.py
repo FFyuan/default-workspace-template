@@ -3,8 +3,15 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import pytest
 from imbue.imbue_common.primitives import NonEmptyStr
-from imbue.mngr_usage.model_call import ModelCallEvent, OriginKind, UsageContext
+from imbue.mngr_usage.model_call import (
+    ModelCallEvent,
+    ModelCallTokens,
+    OriginKind,
+    UsageAttribution,
+    UsageContext,
+)
 from imbue.mngr_usage.model_call import (
     format_usage_context as mngr_format_usage_context,
 )
@@ -45,6 +52,12 @@ def test_workspace_usage_events_validate_against_the_schema() -> None:
 
     parsed = ModelCallEvent.model_validate(event)
 
+    # Readers ignore fields they do not know, so hold the writer to the exact schema here.
+    assert set(event) <= set(ModelCallEvent.model_fields)
+    attribution, tokens = event["attribution"], event["tokens"]
+    assert isinstance(attribution, dict) and isinstance(tokens, dict)
+    assert set(attribution) <= set(UsageAttribution.model_fields)
+    assert set(tokens) <= set(ModelCallTokens.model_fields)
     assert parsed.schema_version == MODEL_CALL_SCHEMA_VERSION
     assert parsed.attribution.run_id == "r-1"
 
@@ -69,6 +82,19 @@ def test_usage_context_wire_formats_match() -> None:
         )
         == context
     )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "origin_kind=CHAT,origin_id=chat-1",
+        "origin_kind=APP,origin_id=my%2Capp%3Dx,run_id=r%201",
+        "origin_kind=SYSTEM,parent_agent_id=agent-1,colour=red",
+        "origin_kind=NEWER_KIND,origin_id=c1",
+    ],
+)
+def test_usage_context_reads_match_the_agent_writers(value: str) -> None:
+    assert parse_usage_context(value) == model_call_lib.parse_usage_context(value)
 
 
 def test_the_usage_context_file_name_matches_what_agent_writers_read() -> None:
