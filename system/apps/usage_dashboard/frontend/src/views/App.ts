@@ -61,9 +61,14 @@ import { providerCard, providerSection } from "./providerCards";
 
 const CARD_CLASS = "rounded-lg border border-default bg-surface p-4";
 
+/** A card's title in the details: every tile, the chart, the breakdown and the latest turns wear the same one. */
+function cardTitle(text: string, tag: "h3" | "span" = "h3"): m.Vnode {
+  return m(tag, { class: "type-tag uppercase tracking-wide text-faint" }, text);
+}
+
 function tile(label: string, value: string, details: m.Children, attrs: m.Attributes = {}): m.Vnode {
   return m("div", { class: `${CARD_CLASS} flex min-w-0 flex-col gap-1`, ...attrs }, [
-    m("span", { class: "type-tag uppercase tracking-wide text-faint" }, label),
+    cardTitle(label, "span"),
     m("span", { class: "type-heading-lg tabular-nums text-primary" }, value),
     m("div", { class: "type-helper text-secondary" }, details),
   ]);
@@ -184,7 +189,7 @@ function breakdownSection(
   const activeKey = model.filter === null ? null : filterKey(model.filter);
   return m("div", { class: "flex flex-col gap-3" }, [
     m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-      m("h3", { class: "type-tag uppercase tracking-wide text-faint" }, "Breakdown"),
+      cardTitle("Breakdown"),
       m(SegmentedControl<BreakdownId>(), {
         label: "Break usage down by",
         segments: BREAKDOWNS.map((spec) => ({ value: spec.id, label: spec.label })),
@@ -434,7 +439,7 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
   };
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
-      m("h2", { class: "type-section text-primary" }, "Latest turns"),
+      cardTitle("Latest turns"),
       m("span", { class: "type-helper text-faint" }, model.filter === null ? "All usage" : "Filtered"),
     ]),
     model.turns.length === 0
@@ -700,7 +705,7 @@ function figuresView(
     m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3" }, tiles),
     m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
       m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-        m("h3", { class: "type-tag uppercase tracking-wide text-faint" }, heading),
+        cardTitle(heading),
         m("div", { class: "flex flex-wrap items-center gap-2" }, [
           metric === "usage" && scales.length > 1
             ? m(SegmentedControl<string>(), {
