@@ -1,4 +1,4 @@
-"""Unit tests for the Datalib launcher's token handling and the manifest copy it registers."""
+"""Unit tests for the Datalib launcher: its token handling, the move of a store into the default library, and the manifest copy it registers."""
 
 import fcntl
 import tomllib
