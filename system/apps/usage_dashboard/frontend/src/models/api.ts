@@ -52,6 +52,48 @@ export interface StoredCall {
   event: ModelCall;
 }
 
+/** One turn: the calls of one user message (or one call with no turn id), summed (the collector's ``/v1/turns``). */
+export interface TurnRow {
+  turn_id: string | null;
+  /** For a turn with no turn id, its one call's event id. */
+  event_id: string | null;
+  started_at: string;
+  ended_at: string;
+  calls: number;
+  failed_calls: number;
+  unknown_cost_calls: number;
+  tokens: Record<TokenBucket, number>;
+  billed_cost_usd: string | null;
+  is_billed_cost_estimated: boolean;
+  /** The subscription calls at list price, which nothing bills: what a limit estimate is computed from. */
+  subscription_cost_usd: string | null;
+  models: string[];
+  origin_kind: string;
+  origin_id: string | null;
+}
+
+/** The key a turn is known by on the page: its turn id, or its one call's. */
+export function turnKey(turn: TurnRow): string {
+  return turn.turn_id ?? `call:${turn.event_id ?? ""}`;
+}
+
+/** The filter that keeps one turn's calls. */
+export function turnFilter(turn: TurnRow): Record<string, readonly string[]> {
+  return turn.turn_id === null ? { event_id: [turn.event_id ?? ""] } : { turn_id: [turn.turn_id] };
+}
+
+export interface TurnsQuery {
+  filters: Record<string, readonly string[]>;
+  limit: number;
+  offset: number;
+}
+
+export function fetchTurns(query: TurnsQuery): Promise<{ turns: TurnRow[]; total: number }> {
+  const params = new URLSearchParams({ limit: String(query.limit), offset: String(query.offset) });
+  for (const [field, values] of Object.entries(query.filters)) params.set(field, values.join(","));
+  return requestJson("GET", `/api/usage/turns?${params}`);
+}
+
 /** The freshest reading of one subscription window (the collector's ``/v1/limits``). */
 export interface LimitReading {
   source: string;

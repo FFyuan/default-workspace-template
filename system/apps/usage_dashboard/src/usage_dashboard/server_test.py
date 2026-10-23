@@ -30,6 +30,16 @@ def test_totals_pass_through_with_their_query(client: FlaskClient, ingestor: Ing
     ]
 
 
+def test_turns_pass_through(client: FlaskClient, ingestor: Ingestor) -> None:
+    ingestor.ingest(model_call_payload(attribution={"turn_id": "t-1"}))
+    ingestor.ingest(model_call_payload(attribution={"turn_id": "t-1"}))
+
+    answer = client.get("/api/usage/turns", query_string={"limit": "5"}).get_json()
+
+    assert [(turn["turn_id"], turn["calls"]) for turn in answer["turns"]] == [("t-1", 2)]
+    assert answer["total"] == 1
+
+
 def test_latency_and_calls_pass_through(client: FlaskClient, ingestor: Ingestor) -> None:
     payload = model_call_payload()
     ingestor.ingest(payload)

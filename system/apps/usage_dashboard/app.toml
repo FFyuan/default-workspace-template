@@ -1,5 +1,5 @@
 # The Usage app: the workspace's model usage -- spend, tokens, calls and latency over the last 30 minutes, 24
-# hours, 7 days and this month, by model, source and billing mode, with the latest calls as they happen.
+# hours, 7 days and this month, by model, source and billing mode, with the latest turns as they happen.
 # Everything it shows is the usage collector's (system/services/usage_collector), which it reads through its own
 # server, since the page lives on this app's origin and the collector on 127.0.0.1 only. All it stores of its own
 # is which version of its widget the workspace shows (data/.apps/usage-dashboard/settings.json).

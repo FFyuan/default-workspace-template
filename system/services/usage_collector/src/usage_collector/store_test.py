@@ -383,3 +383,84 @@ def test_a_database_from_before_turn_ids_gains_the_column_and_keeps_its_calls(
         assert totals == {None: 1, "request-1": 1}
     finally:
         reopened.close()
+
+
+def test_turns_group_calls_by_turn_and_a_call_with_no_turn_stands_alone(
+    store: UsageStore,
+) -> None:
+    def at(minutes: int, **overrides: object) -> ModelCallEvent:
+        return _event(
+            ended_at=(NOW - timedelta(minutes=minutes)).isoformat(),
+            started_at=(NOW - timedelta(minutes=minutes, seconds=2)).isoformat(),
+            **overrides,
+        )
+
+    store.insert(
+        at(
+            5,
+            attribution={"turn_id": "t-1", "origin_kind": "CHAT", "origin_id": "c-1"},
+            billing_mode="SUBSCRIPTION",
+        )
+    )
+    store.insert(
+        at(
+            3,
+            attribution={"turn_id": "t-1", "origin_kind": "CHAT", "origin_id": "c-1"},
+            billing_mode="SUBSCRIPTION",
+            model="anthropic/claude-haiku-5-5",
+            status="ERROR",
+        )
+    )
+    loose = at(4, billing_mode="API_KEY", cost_usd="0.25", cost_provenance="REPORTED")
+    store.insert(loose)
+
+    turns = store.turns({}, limit=10)
+
+    assert [(turn.turn_id, turn.event_id, turn.calls) for turn in turns] == [
+        ("t-1", None, 2),
+        (None, loose.event_id, 1),
+    ]
+    first = turns[0]
+    assert first.ended_at == NOW - timedelta(minutes=3)
+    assert first.started_at == NOW - timedelta(minutes=5, seconds=2)
+    assert (first.failed_calls, first.billed_cost_usd, first.origin_id) == (
+        1,
+        None,
+        "c-1",
+    )
+    assert first.subscription_cost_usd is not None and first.subscription_cost_usd > 0
+    assert first.models == ["anthropic/claude-haiku-5-5", "anthropic/claude-opus-5-5"]
+    assert first.tokens == {
+        "input": 2000,
+        "output": 200,
+        "cache_read": 0,
+        "cache_write": 0,
+    }
+    assert turns[1].billed_cost_usd == Decimal("0.25")
+    assert store.count_turns({}) == 2
+
+
+def test_turns_sum_only_the_calls_the_filters_keep_and_page_by_offset(
+    store: UsageStore,
+) -> None:
+    for minutes, turn_id, mode in (
+        (1, "t-1", "SUBSCRIPTION"),
+        (2, "t-1", "API_KEY"),
+        (3, "t-2", "SUBSCRIPTION"),
+    ):
+        store.insert(
+            _event(
+                ended_at=(NOW - timedelta(minutes=minutes)).isoformat(),
+                started_at=(NOW - timedelta(minutes=minutes, seconds=1)).isoformat(),
+                attribution={"turn_id": turn_id},
+                billing_mode=mode,
+            )
+        )
+
+    subscription = store.turns({"billing_mode": ["SUBSCRIPTION"]}, limit=1)
+    second_page = store.turns({"billing_mode": ["SUBSCRIPTION"]}, limit=1, offset=1)
+
+    assert [(turn.turn_id, turn.calls) for turn in subscription] == [("t-1", 1)]
+    assert [turn.turn_id for turn in second_page] == ["t-2"]
+    assert store.count_turns({"billing_mode": ["SUBSCRIPTION"]}) == 2
+    assert len(store.calls({"turn_id": ["t-2"]})) == 1
