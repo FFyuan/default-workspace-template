@@ -568,7 +568,9 @@ def test_a_handoffs_successor_starts_fast_only_when_the_chats_mode_calls_for_it(
             account_id="acct-1",
             extra_labels=(),
         )
-        # No mode of its own: the workspace default (auto) launches fast.
+        # No mode of its own: the workspace default (off) launches at standard speed.
+        assert "fast" not in manager._build_successor_create_command(spec)
+        manager.set_fast_mode_state(chat_id, ChatFastModeState(mode=FastModeMode.AUTO))
         assert "fast" in manager._build_successor_create_command(spec)
         manager.set_fast_mode_state(chat_id, ChatFastModeState(mode=FastModeMode.AUTO, is_switched=True))
         assert "fast" not in manager._build_successor_create_command(spec)
