@@ -361,7 +361,13 @@ class UsageStore:
         return is_new
 
     def record_limits(self, readings: Sequence[LimitReading]) -> None:
-        """Keep each reading unless the store already holds a fresher one for its source and window."""
+        """Keep each reading unless the store already holds a better one for its source and window.
+
+        Within one window (the same reset time) the higher share wins: a share only grows until its window resets,
+        and every agent on the account reports the account's windows, so a lower share there is a stale reading,
+        however recently it was stamped. A later reset time is a later window and wins; an earlier one loses.
+        Without a reset time on either side, the fresher reading wins.
+        """
         if not readings:
             return
         with self._lock:
@@ -370,7 +376,15 @@ class UsageStore:
                 "ON CONFLICT (source, window) DO UPDATE SET label = excluded.label, "
                 "used_percentage = excluded.used_percentage, resets_at = excluded.resets_at, "
                 "window_seconds = excluded.window_seconds, observed_at = excluded.observed_at "
-                "WHERE excluded.observed_at >= limit_window.observed_at",
+                "WHERE CASE "
+                "WHEN excluded.resets_at IS NULL OR limit_window.resets_at IS NULL "
+                "THEN excluded.observed_at >= limit_window.observed_at "
+                "WHEN excluded.resets_at != limit_window.resets_at "
+                "THEN excluded.resets_at > limit_window.resets_at "
+                "WHEN excluded.used_percentage IS limit_window.used_percentage "
+                "THEN excluded.observed_at >= limit_window.observed_at "
+                "ELSE COALESCE(excluded.used_percentage, -1) > COALESCE(limit_window.used_percentage, -1) "
+                "END",
                 [
                     (
                         reading.source,
