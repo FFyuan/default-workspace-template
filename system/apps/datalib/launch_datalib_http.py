@@ -150,7 +150,7 @@ def token_file_path(data_root: Path) -> Path:
     return data_root / TOKEN_FILE_RELATIVE_PATH
 
 
-def is_data_root(path: Path) -> bool:
+def _is_data_root(path: Path) -> bool:
     return (path / CONFIG_FILE_NAME).is_file() or (
         path / SYSTEM_DIRECTORY_NAME
     ).is_dir()
@@ -227,7 +227,7 @@ def move_store_into_library(libraries_dir: Path, data_root: Path) -> bool:
         f"{libraries_dir.name}.moving-to-{data_root.name}"
     )
     if not staging.is_dir():
-        if not is_data_root(libraries_dir):
+        if not _is_data_root(libraries_dir):
             return False
         _require_unlocked(libraries_dir)
         _remove_if_empty(data_root, libraries_dir)
