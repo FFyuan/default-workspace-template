@@ -240,7 +240,7 @@ Each section's `title` gives the detail a hover asks for (each window's reset ti
 
 ### 7.5 Collapsed
 
-A pair of concentric rings per subscription, in the expanded order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside, with the 5-hour percentage in the middle and the subscription's short name in small capitals beneath, one alone as well. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock. The figures, resets, and reading time are the pair's `title`.
+A pair of concentric rings per subscription, in the expanded order, after the activity rings of a watch: the longest window (the weekly limit) outside and the shortest (the 5-hour limit) inside, with the 5-hour percentage in the middle and the subscription's short name in small capitals beside it, one alone as well. Each ring is a faint full track with, over it, the share used drawn clockwise from twelve o'clock. While the pointer is over the widget, the name gives way, in its own place, to when each window resets (`5h 7:00 PM`, `wk Wed 10 AM`); the place is as large as the larger of the two at rest too, so the widget never changes size. The detail is drawn in the page, not left to the pair's `title`, which Imbue Studio does not show.
 With no subscription, the collapsed widget is one figure of this month's total spend (`$165.21`).
 
 ### 7.6 States

@@ -1,7 +1,9 @@
 /**
  * The rings version of the Usage widget (app-widgets plan section 7.5). Collapsed, a pair of concentric rings per
  * subscription (the weekly limit outside, the 5-hour limit inside, each over a faint track) with the 5-hour figure in
- * the middle and the subscription's name beneath. Expanded, a section per subscription headed by its name: the ring
+ * the middle and the subscription's name beside it; while the pointer is over the widget the name gives way, in its
+ * own place, to when each window resets, so the widget never changes size. The detail is drawn rather than left to a
+ * native ``title`` tooltip, which not every host of the desktop shows. Expanded, a section per subscription headed by its name: the ring
  * pair beside a row per window, each with a dot in its ring's colour and the share used, and, while the pointer is
  * over the widget, when it resets; then the pay-as-you-go spend.
  */
@@ -65,25 +67,39 @@ function ringsView(inner: LimitWindow, outer: LimitWindow | null, label: string)
   ]);
 }
 
+/** One line of a collapsed pair's hover detail: a window's short name and when it resets. */
+function ringDetailLine(shortName: string, window: LimitWindow): m.Vnode {
+  return m("span", { "data-ring-detail": shortName }, `${shortName} ${resetText(window)}`);
+}
+
 function ringPairView(pair: RingPair): m.Vnode {
+  // The name and the detail share one grid cell, so it is as wide and tall as the larger of them at rest too.
   return m(
     "span",
-    {
-      key: pair.key,
-      "data-widget-rings": pair.key,
-      class: "flex flex-col items-center gap-1",
-      title: pair.tooltip,
-    },
+    { key: pair.key, "data-widget-rings": pair.key, class: "flex items-center gap-1.5", title: pair.tooltip },
     [
       ringsView(pair.inner, pair.outer, pair.tooltip),
-      m(
-        "span",
-        {
-          "data-ring-name": "",
-          class: "text-[9px] leading-none font-semibold tracking-wider text-(--widget-muted) uppercase",
-        },
-        pair.name,
-      ),
+      m("span", { class: "grid items-center" }, [
+        m(
+          "span",
+          {
+            "data-ring-name": "",
+            class:
+              "[grid-area:1/1] text-[9px] leading-none font-semibold tracking-wider text-(--widget-muted) uppercase " +
+              "transition-opacity group-hover:opacity-0",
+          },
+          pair.name,
+        ),
+        m(
+          "span",
+          {
+            class:
+              "[grid-area:1/1] flex flex-col gap-0.5 text-[9px] leading-tight whitespace-nowrap tabular-nums " +
+              "text-(--widget-muted) opacity-0 transition-opacity group-hover:opacity-100",
+          },
+          [ringDetailLine("5h", pair.inner), pair.outer === null ? null : ringDetailLine("wk", pair.outer)],
+        ),
+      ]),
     ],
   );
 }

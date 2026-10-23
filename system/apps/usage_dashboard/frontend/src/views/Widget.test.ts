@@ -59,6 +59,11 @@ describe("the collapsed Usage widget", () => {
     // The 5-hour figure sits in the middle, and the pair carries its provider's name, alone as beside another.
     expect(pair?.querySelector("[data-ring-figure]")?.textContent).toBe("80%");
     expect(pair?.querySelector("[data-ring-name]")?.textContent).toBe("Claude");
+    // Under the pointer the name gives way to when each window resets, drawn in the page rather than a tooltip.
+    expect([...(pair?.querySelectorAll("[data-ring-detail]") ?? [])].map((line) => line.textContent)).toEqual([
+      `5h ${formatClock(new Date("2026-10-22T22:30:00Z"))}`,
+      `wk ${new Date(WEEKLY.resets_at).toLocaleString(undefined, { weekday: "short", hour: "numeric" })}`,
+    ]);
   });
 
   it("names each of several pairs, and leaves a reset window's ring as a bare track", () => {
