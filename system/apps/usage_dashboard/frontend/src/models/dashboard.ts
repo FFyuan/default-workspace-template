@@ -32,6 +32,15 @@ import {
   matchesFilter,
   withFilterFields,
 } from "./breakdown";
+import {
+  type CallPage,
+  callPage,
+  needsMoreCalls,
+  newerOffset,
+  offsetAfterNewCalls,
+  CALLS_PER_PAGE,
+  olderOffset,
+} from "./callPages";
 import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./providers";
 import { type Route, combinedFilters, inScope, scopeFilters } from "./routing";
 import { SECTION_FIELDS, type SectionSpec, detailSections, inSection } from "./sections";
@@ -109,6 +118,8 @@ export class DashboardModel {
   data: DashboardData | null = null;
   calls: StoredCall[] = [];
   hasOlderCalls = false;
+  /** Where the shown page of calls starts in ``calls``. */
+  callsOffset = 0;
   appNames: Record<string, string> = {};
   isLoading = false;
   isCollectorDown = false;
@@ -329,6 +340,7 @@ export class DashboardModel {
       if (filter !== this.filter) return;
       this.calls = calls;
       this.hasOlderCalls = calls.length === CALLS_PAGE;
+      this.callsOffset = 0;
       this.noteSequences(calls);
     } catch (error) {
       this.noteFailure(error, () => void this.loadCalls());
@@ -336,7 +348,25 @@ export class DashboardModel {
     this.deps.redraw();
   }
 
-  async loadOlderCalls(): Promise<void> {
+  /** The page of calls shown. */
+  get callPage(): CallPage<StoredCall> {
+    return callPage(this.calls, this.callsOffset, this.hasOlderCalls);
+  }
+
+  showNewerCalls(): void {
+    this.callsOffset = newerOffset(this.callsOffset);
+    this.deps.redraw();
+  }
+
+  /** Show the next page of older calls, loading more first when the page runs past those loaded. */
+  async showOlderCalls(): Promise<void> {
+    const offset = olderOffset(this.callsOffset);
+    if (needsMoreCalls(this.calls.length, offset) && this.hasOlderCalls) await this.loadOlderCalls();
+    if (offset < this.calls.length) this.callsOffset = offset;
+    this.deps.redraw();
+  }
+
+  private async loadOlderCalls(): Promise<void> {
     const oldest = this.calls[this.calls.length - 1] as StoredCall | undefined;
     if (oldest === undefined) return;
     const filter = this.filter;
@@ -352,7 +382,6 @@ export class DashboardModel {
     } catch (error) {
       this.noteFailure(error, () => undefined);
     }
-    this.deps.redraw();
   }
 
   /** Take one streamed call: show it if it matches the filter, and schedule a refetch of the totals. */
@@ -396,9 +425,14 @@ export class DashboardModel {
     const known = new Set(this.calls.map((call) => call.event.event_id));
     const added = incoming.filter((call) => !known.has(call.event.event_id));
     if (added.length === 0) return;
-    this.calls = [...added, ...this.calls]
-      .sort((a, b) => Date.parse(b.event.ended_at) - Date.parse(a.event.ended_at))
-      .slice(0, MAX_CALLS_KEPT);
+    const merged = [...added, ...this.calls].sort(
+      (a, b) => Date.parse(b.event.ended_at) - Date.parse(a.event.ended_at),
+    );
+    this.callsOffset = offsetAfterNewCalls(this.callsOffset, added.length);
+    // Never drop calls an older page is showing.
+    const kept = Math.max(MAX_CALLS_KEPT, this.callsOffset + CALLS_PER_PAGE);
+    if (merged.length > kept) this.hasOlderCalls = true;
+    this.calls = merged.slice(0, kept);
   }
 
   private scheduleEventRefresh(): void {

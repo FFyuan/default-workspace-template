@@ -22,10 +22,11 @@ The app has three kinds of page, one document reading its path:
     calls, with calls of unknown cost counted rather than added as $0.
 - **`/p/<item>`, a provider's detail page**, where the item is a section key
   (`subscription:anthropic`, `spend:openai`): a list of every provider (with its
-  limits or spend) and All on the left, and on the right the provider's card,
-  the window picker, its tiles, its chart, its breakdown and its latest calls.
+  limits or spend) on the left, and on the right the provider's card, the window
+  picker, its tiles, its chart, its breakdown and its latest calls, 20 to a page.
   A provider's subscription use and its use without one are separate items.
-- **`/all`**: the same for every provider at once.
+- **`/all`**: the same for every provider at once, reached from the home page's
+  "See all usage" link.
 
 Nothing names a provider it must find; a card or item exists only for what the
 data shows. The window is the last 30 minutes, 24 hours, 7 days or this month

@@ -301,6 +301,7 @@ function callShare(call: StoredCall, scale: UsageScale): number | null {
 function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): m.Vnode {
   const showsMoney = columns.length === 0;
   const columnCount = 6 + (showsMoney ? 1 : columns.length);
+  const page = model.callPage;
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
       m("h2", { class: "type-section text-primary" }, "Latest calls"),
@@ -324,7 +325,7 @@ function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
             ]),
             m(
               "tbody",
-              model.calls.flatMap((call) => {
+              page.rows.flatMap((call) => {
                 const event = call.event;
                 const group = callGroup(event);
                 const duration = Date.parse(event.ended_at) - Date.parse(event.started_at);
@@ -405,8 +406,27 @@ function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
             ),
           ]),
         ]),
-    model.hasOlderCalls
-      ? m("div", [m(Button, { sm: true, onclick: () => void model.loadOlderCalls() }, "Show older calls")])
+    page.hasNewer || page.hasOlder
+      ? m("div", { class: "calls-pages flex items-center justify-between gap-2" }, [
+          m("span", { class: "type-helper tabular-nums text-faint" }, `${page.first}–${page.last}`),
+          m("div", { class: "flex gap-2" }, [
+            m(
+              Button,
+              { sm: true, disabled: !page.hasNewer, "data-page": "newer", onclick: () => model.showNewerCalls() },
+              "Newer",
+            ),
+            m(
+              Button,
+              {
+                sm: true,
+                disabled: !page.hasOlder,
+                "data-page": "older",
+                onclick: () => void model.showOlderCalls(),
+              },
+              "Older",
+            ),
+          ]),
+        ])
       : null,
   ]);
 }
@@ -649,7 +669,7 @@ interface NavItem {
   note: string;
 }
 
-/** The detail page's list: the providers in the order of the home page's cards, any other with calls, then All. */
+/** The detail page's list: the providers in the order of the home page's cards, then any other with calls. */
 function navItems(model: DashboardModel): NavItem[] {
   const items: NavItem[] = [];
   for (const card of model.providers ?? []) {
@@ -673,7 +693,6 @@ function navItems(model: DashboardModel): NavItem[] {
       note: "",
     });
   }
-  items.push({ route: { page: "all" }, key: "all", title: "All", note: "Every provider" });
   return items;
 }
 
@@ -728,7 +747,11 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Seri
       m("div", { class: `detail-content flex min-w-0 flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
         // A card names its provider itself; without one the item needs a heading.
         card === undefined
-          ? m("h2", { class: "type-heading text-primary" }, selected?.title ?? "Unknown provider")
+          ? m(
+              "h2",
+              { class: "type-heading text-primary" },
+              selected?.title ?? (route.page === "all" ? "All usage" : "Unknown provider"),
+            )
           : null,
         card === undefined ? null : providerCard(card, now),
         detailsControls(model, model.appNames),
