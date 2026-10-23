@@ -955,8 +955,11 @@ python3 data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scrip
 Then stop the worker keeping its branch (`mngr stop update-self`), run Step 6's
 opening commands, release the `updating workspace` lease (`tk close
 "$UPDATE_LEASE_ID" "Stopped at the user's request."`), and tell them nothing was
-applied. An apply already under way is never stopped halfway: it lands or rolls
-back on its own, and the pass ends by that outcome instead.
+applied. Before Step 2 has staged the skill, record the verdict with
+`.agents/skills/update-self/scripts/update_self.py` instead, and only release
+the lease if you hold it: nothing has been launched, bridged or paused yet. An
+apply already under way is never stopped halfway: it lands or rolls back on its
+own, and the pass ends by that outcome instead.
 
 ## Migration-required updates
 
