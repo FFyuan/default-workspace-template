@@ -16,3 +16,10 @@
   --series-7: #6250d6;
   --series-other: #a3a29c;
 }
+
+/* The pager's fields stand at its buttons' height, so the row reads as one control. */
+.calls-pages .calls-go-to,
+.calls-pages [data-dropdown-part="trigger"] {
+  height: 34px;
+  padding-block: 0;
+}

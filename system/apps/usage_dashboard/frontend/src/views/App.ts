@@ -6,6 +6,8 @@ import m from "mithril";
 
 import { bannerClass } from "@imbue/workspace-ui/src/components/banner";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
+import { inputClass } from "@imbue/workspace-ui/src/components/Input";
+import { Dropdown } from "@imbue/workspace-ui/src/components/dropdown";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 
 import type { LatencyRow, StoredCall, TotalsRow } from "../models/api";
@@ -31,7 +33,14 @@ import {
   formatDuration,
   formatPercent,
 } from "../models/format";
-import { pageCount, pageNumbers, pageRange } from "../models/callPages";
+import {
+  ROWS_PER_PAGE_CHOICES,
+  type RowsPerPage,
+  pageCount,
+  pageNumbers,
+  pageRange,
+  typedPage,
+} from "../models/callPages";
 import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
 import { type Route, pathOf } from "../models/routing";
@@ -410,51 +419,83 @@ function callsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
   ]);
 }
 
-/** The latest calls' page numbers, with the calls the page shows; nothing while they fit on one page. */
+/**
+ * The latest calls' pager, laid out as data tables usually are: the calls shown on the left; on the right the
+ * page numbers, how many rows to a page, and a box to jump to a page. Nothing while every call fits on the
+ * smallest page.
+ */
 function callPager(model: DashboardModel): m.Vnode | null {
-  const count = pageCount(model.callsTotal);
-  if (count === 1) return null;
+  const perPage = model.callsPerPage;
+  if (model.callsTotal <= ROWS_PER_PAGE_CHOICES[0]) return null;
+  const count = pageCount(model.callsTotal, perPage);
   const current = model.callsPage;
-  const [first, last] = pageRange(current, model.callsTotal);
-  const step = (page: number, label: string, title: string): m.Vnode =>
+  const [first, last] = pageRange(current, perPage, model.callsTotal);
+  const pageButton = (page: number, label: string, attrs: Record<string, unknown>): m.Vnode =>
     m(
       Button,
       {
-        sm: true,
         variant: "ghost",
-        disabled: page < 1 || page > count,
-        title,
-        "aria-label": title,
+        extra: "min-w-[34px] px-2 tabular-nums",
         onclick: () => model.showCallsPage(page),
+        ...attrs,
       },
       label,
     );
-  return m("nav", { class: "calls-pages flex flex-wrap items-center justify-between gap-2", "aria-label": "Pages" }, [
+  const step = (page: number, label: string, title: string): m.Vnode =>
+    pageButton(page, label, { disabled: page < 1 || page > count, title, "aria-label": title });
+  return m("nav", { class: "calls-pages flex flex-wrap items-center justify-between gap-3", "aria-label": "Pages" }, [
     m(
       "span",
-      { class: "type-helper tabular-nums text-faint" },
-      `${first.toLocaleString()}–${last.toLocaleString()} of ${model.callsTotal.toLocaleString()}`,
+      { class: "calls-range type-helper tabular-nums text-secondary" },
+      `${first.toLocaleString()}–${last.toLocaleString()} of ${model.callsTotal.toLocaleString()} calls`,
     ),
-    m("div", { class: "flex items-center gap-1 tabular-nums" }, [
-      step(current - 1, "‹", "Previous page"),
-      pageNumbers(current, count).map((item, index) =>
-        item === "gap"
-          ? m("span", { key: `gap${index}`, class: "px-1 text-faint" }, "…")
-          : m(
-              Button,
-              {
-                key: item,
-                sm: true,
-                variant: "ghost",
-                selected: item === current,
-                "aria-current": item === current ? "page" : undefined,
-                "data-page": item,
-                onclick: () => model.showCallsPage(item),
-              },
-              String(item),
+    m("div", { class: "flex flex-wrap items-center justify-end gap-x-4 gap-y-2" }, [
+      count === 1
+        ? null
+        : m("div", { class: "flex items-center gap-1" }, [
+            step(current - 1, "‹", "Previous page"),
+            pageNumbers(current, count).map((item, index) =>
+              item === "gap"
+                ? m("span", { key: `gap${index}`, class: "min-w-[34px] text-center text-faint" }, "…")
+                : pageButton(item, String(item), {
+                    key: item,
+                    selected: item === current,
+                    "aria-current": item === current ? "page" : undefined,
+                    "aria-label": `Page ${item}`,
+                    "data-page": item,
+                  }),
             ),
-      ),
-      step(current + 1, "›", "Next page"),
+            step(current + 1, "›", "Next page"),
+          ]),
+      m("div", { class: "calls-per-page w-28" }, [
+        m(Dropdown<string>, {
+          options: ROWS_PER_PAGE_CHOICES.map((choice) => ({ value: String(choice), label: `${choice} / page` })),
+          value: String(perPage),
+          placeholder: `${perPage} / page`,
+          "aria-label": "Rows per page",
+          onSelect: (value: string) => model.selectCallsPerPage(Number(value) as RowsPerPage),
+        }),
+      ]),
+      count === 1
+        ? null
+        : m("label", { class: "flex items-center gap-2 whitespace-nowrap type-helper text-secondary" }, [
+            "Go to",
+            m("div", { class: "w-16" }, [
+              m("input", {
+                class: inputClass({ extra: "calls-go-to text-center tabular-nums" }),
+                type: "text",
+                inputmode: "numeric",
+                "aria-label": "Go to page",
+                onkeydown: (event: KeyboardEvent) => {
+                  if (event.key !== "Enter") return;
+                  const field = event.target as HTMLInputElement;
+                  const page = typedPage(field.value, count);
+                  field.value = "";
+                  if (page !== null) model.showCallsPage(page);
+                },
+              }),
+            ]),
+          ]),
     ]),
   ]);
 }

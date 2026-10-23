@@ -32,7 +32,7 @@ import {
   matchesFilter,
   withFilterFields,
 } from "./breakdown";
-import { CALLS_PER_PAGE, pageCount, pageOffset } from "./callPages";
+import { DEFAULT_ROWS_PER_PAGE, type RowsPerPage, pageCount, pageHolding, pageOffset } from "./callPages";
 import { LIMITS_LOOKBACK_MS, type ProviderCard, providerCards } from "./providers";
 import { type Route, combinedFilters, inScope, scopeFilters } from "./routing";
 import { SECTION_FIELDS, type SectionSpec, detailSections, inSection } from "./sections";
@@ -110,6 +110,7 @@ export class DashboardModel {
   callsTotal = 0;
   /** The page of calls shown, from 1. */
   callsPage = 1;
+  callsPerPage: RowsPerPage = DEFAULT_ROWS_PER_PAGE;
   appNames: Record<string, string> = {};
   isLoading = false;
   isCollectorDown = false;
@@ -328,21 +329,29 @@ export class DashboardModel {
     try {
       const answer = await fetchCalls({
         filters: this.callFilters(this.filter),
-        limit: CALLS_PER_PAGE,
-        offset: pageOffset(this.callsPage),
+        limit: this.callsPerPage,
+        offset: pageOffset(this.callsPage, this.callsPerPage),
       });
       if (generation !== this.callsGeneration) return;
       this.calls = answer.calls;
       this.callsTotal = answer.total;
       // Calls can leave between asks only through a rebuilt index, which can leave the page past the last one.
-      if (this.callsPage > pageCount(answer.total)) {
-        this.showCallsPage(pageCount(answer.total));
+      const count = pageCount(answer.total, this.callsPerPage);
+      if (this.callsPage > count) {
+        this.showCallsPage(count);
         return;
       }
     } catch (error) {
       this.noteFailure(error, () => void this.loadCalls());
     }
     this.deps.redraw();
+  }
+
+  /** Show ``perPage`` calls to a page, on the page holding the first call shown before. */
+  selectCallsPerPage(perPage: RowsPerPage): void {
+    const page = pageHolding(pageOffset(this.callsPage, this.callsPerPage), perPage);
+    this.callsPerPage = perPage;
+    this.showCallsPage(page);
   }
 
   showCallsPage(page: number): void {
@@ -388,7 +397,7 @@ export class DashboardModel {
     if (this.calls.some((known) => known.event.event_id === call.event.event_id)) return;
     this.calls = [call, ...this.calls]
       .sort((a, b) => Date.parse(b.event.ended_at) - Date.parse(a.event.ended_at))
-      .slice(0, CALLS_PER_PAGE);
+      .slice(0, this.callsPerPage);
   }
 
   private scheduleEventRefresh(): void {

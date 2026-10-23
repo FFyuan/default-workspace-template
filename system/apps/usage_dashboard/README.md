@@ -23,7 +23,8 @@ The app has three kinds of page, one document reading its path:
 - **`/p/<item>`, a provider's detail page**, where the item is a section key
   (`subscription:anthropic`, `spend:openai`): a list of every provider (with its
   limits or spend) on the left, and on the right the provider's card, the window
-  picker, its tiles, its chart, its breakdown and its latest calls, 20 to a page.
+  picker, its tiles, its chart, its breakdown and its latest calls, in numbered pages
+  of 10, 20, 50 or 100 rows with a box to jump to a page.
   A provider's subscription use and its use without one are separate items.
 - **`/all`**: the same for every provider at once, reached from the home page's
   "See all usage" link.
