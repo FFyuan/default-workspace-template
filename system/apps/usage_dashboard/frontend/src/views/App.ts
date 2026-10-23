@@ -51,6 +51,7 @@ import {
   formatDollars,
   formatDuration,
   formatPercent,
+  formatTurns,
 } from "../models/format";
 import {
   ROWS_PER_PAGE_CHOICES,
@@ -66,6 +67,7 @@ import { type Route, pathOf } from "../models/routing";
 import type { SectionKind } from "../models/sections";
 import { type UsageScale, chosenScale, formatShare, limitShares, lineKey } from "../models/usageEstimate";
 import { WINDOWS, type WindowId } from "../models/windows";
+import { cardTitle } from "./cardTitle";
 import { type ChartAttrs, type ChartMarker, UsageChart } from "./chart";
 import { providerCard, providerSection } from "./providerCards";
 
@@ -73,7 +75,7 @@ const CARD_CLASS = "rounded-lg border border-default bg-surface p-4";
 
 function tile(label: string, value: string, details: m.Children, attrs: m.Attributes = {}): m.Vnode {
   return m("div", { class: `${CARD_CLASS} flex min-w-0 flex-col gap-1`, ...attrs }, [
-    m("span", { class: "type-tag uppercase tracking-wide text-faint" }, label),
+    cardTitle(label, "span"),
     m("span", { class: "type-heading-lg tabular-nums text-primary" }, value),
     m("div", { class: "type-helper text-secondary" }, details),
   ]);
@@ -121,9 +123,12 @@ function callsTile(data: UsageFigures): m.Vnode {
   return tile(
     "Calls",
     formatCount(calls),
-    failed === 0
-      ? m("div", "None failed")
-      : m("div", { class: "text-danger" }, `${formatPercent(failed, calls)} failed or rate-limited`),
+    [
+      m("div", `in ${formatTurns(data.turns)}`),
+      failed === 0
+        ? m("div", "None failed")
+        : m("div", { class: "text-danger" }, `${formatPercent(failed, calls)} failed or rate-limited`),
+    ],
     { "data-tile": "calls" },
   );
 }
@@ -191,7 +196,7 @@ function breakdownSection(
   const activeKey = model.filter === null ? null : filterKey(model.filter);
   return m("div", { class: "flex flex-col gap-3" }, [
     m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-      m("h3", { class: "type-tag uppercase tracking-wide text-faint" }, "Breakdown"),
+      cardTitle("Breakdown"),
       m(SegmentedControl<BreakdownId>(), {
         label: "Break usage down by",
         segments: BREAKDOWNS.map((spec) => ({ value: spec.id, label: spec.label })),
@@ -441,7 +446,7 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
   };
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
-      m("h2", { class: "type-section text-primary" }, "Latest turns"),
+      cardTitle("Latest turns"),
       m("span", { class: "type-helper text-faint" }, model.filter === null ? "All usage" : "Filtered"),
     ]),
     model.turns.length === 0
@@ -707,7 +712,7 @@ function figuresView(
     m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3" }, tiles),
     m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
       m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
-        m("h3", { class: "type-tag uppercase tracking-wide text-faint" }, heading),
+        cardTitle(heading),
         m("div", { class: "flex flex-wrap items-center gap-2" }, [
           metric === "usage" && scales.length > 1
             ? m(SegmentedControl<string>(), {

@@ -18,6 +18,11 @@ export function formatCalls(count: number): string {
   return `${formatCount(count)} ${count === 1 ? "call" : "calls"}`;
 }
 
+/** "1 turn", "1.2K turns". */
+export function formatTurns(count: number): string {
+  return `${formatCount(count)} ${count === 1 ? "turn" : "turns"}`;
+}
+
 /** "850 ms", "2.4 s", "1.5 min". */
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`;

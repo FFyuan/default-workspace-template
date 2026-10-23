@@ -16,6 +16,7 @@ import {
   ringOrder,
 } from "../models/providers";
 import { pathOf } from "../models/routing";
+import { cardTitle } from "./cardTitle";
 
 const CARD_CLASS = "provider-card flex min-w-0 flex-col gap-3 rounded-lg border border-default bg-surface p-4";
 
@@ -125,7 +126,7 @@ function subscriptionCard(card: SubscriptionCard, now: Date): m.Vnode {
   const isCritical = windows.some((window) => window.level === "critical" && !window.isResetSinceReading);
   return m("section", { class: CARD_CLASS, "data-card": card.key }, [
     m("div", { class: "flex items-baseline justify-between gap-2" }, [
-      m("h2", { class: "type-section text-primary" }, card.title),
+      cardTitle(card.title, "h2"),
       m(
         "span",
         { class: "shrink-0 whitespace-nowrap type-tag text-faint" },
@@ -148,7 +149,7 @@ function subscriptionCard(card: SubscriptionCard, now: Date): m.Vnode {
 function spendCard(card: SpendCard): m.Vnode {
   return m("section", { class: CARD_CLASS, "data-card": card.key }, [
     m("div", { class: "flex items-baseline justify-between gap-2" }, [
-      m("h2", { class: "type-section text-primary" }, card.title),
+      cardTitle(card.title, "h2"),
       m("span", { class: "shrink-0 whitespace-nowrap type-tag text-faint" }, "this month"),
     ]),
     m("div", { class: "flex items-baseline gap-2" }, [

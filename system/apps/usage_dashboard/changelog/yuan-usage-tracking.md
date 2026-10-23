@@ -4,7 +4,7 @@ Below the cards, a Total row of tiles across every provider has the time window 
 
 - what was billed (Imbue key and API key spend), with no dollar figure for subscription usage, which is not billed per call, calls of unknown cost counted beside the total rather than added as $0, and a "~" on totals that include costs estimated from tokens;
 
-- tokens, calls with the share that failed or were rate-limited, and p50 and p95 latency, with untimed calls counted apart and durations from Claude session logs marked approximate;
+- tokens, calls with how many turns they were in and the share that failed or were rate-limited, and p50 and p95 latency, with untimed calls counted apart and durations from Claude session logs marked approximate;
 
 - a chart of spend or tokens over the window, stacked by source or, when picked beside it, by model, and a breakdown by source, model or billing mode, where clicking a row filters the whole page; a source goes by its app's display name, its chat's title or its routine's title;
 

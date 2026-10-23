@@ -86,12 +86,20 @@ export interface TurnsQuery {
   filters: Record<string, readonly string[]>;
   limit: number;
   offset: number;
+  /** Keep only calls that ended at or after this, so a turn counts when any of its calls is in the window. */
+  since?: Date;
 }
 
 export function fetchTurns(query: TurnsQuery): Promise<{ turns: TurnRow[]; total: number }> {
   const params = new URLSearchParams({ limit: String(query.limit), offset: String(query.offset) });
+  if (query.since !== undefined) params.set("since", query.since.toISOString());
   for (const [field, values] of Object.entries(query.filters)) params.set(field, values.join(","));
   return requestJson("GET", `/api/usage/turns?${params}`);
+}
+
+/** How many turns have a call that ``filters`` keep ending since ``since``. */
+export async function fetchTurnCount(filters: Record<string, readonly string[]>, since: Date): Promise<number> {
+  return (await fetchTurns({ filters, limit: 1, offset: 0, since })).total;
 }
 
 /** The freshest reading of one subscription window (the collector's ``/v1/limits``). */

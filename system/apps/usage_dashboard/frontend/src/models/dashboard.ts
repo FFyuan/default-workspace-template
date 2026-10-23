@@ -19,6 +19,7 @@ import {
   fetchAppNames,
   fetchChatAndRoutineTitles,
   fetchCalls,
+  fetchTurnCount,
   fetchTurns,
   fetchCollectorHealth,
   fetchLatency,
@@ -61,6 +62,8 @@ export type ChartSeries = "source" | "model";
 export interface UsageFigures {
   summary: Summary;
   failed: { calls: number; failed: number };
+  /** How many turns those calls belong to. */
+  turns: number;
   latency: LatencyRow | null;
 }
 
@@ -241,6 +244,7 @@ export class DashboardModel {
         breakdownRows,
         totalLatency,
         totalBreakdownLatency,
+        totalTurns,
         health,
       ] = await Promise.all([
         fetchLimits(new Date(now.getTime() - LIMITS_LOOKBACK_MS)),
@@ -252,6 +256,7 @@ export class DashboardModel {
         fetchTotals({ groupBy: split(breakdownSpec(breakdown).fields), since }),
         fetchLatency(filterFields, since),
         fetchLatency(breakdownFields, since),
+        fetchTurnCount(combinedFilters({}, filter?.values ?? null), since),
         fetchCollectorHealth(),
       ]);
       if (generation !== this.generation) return;
@@ -267,11 +272,15 @@ export class DashboardModel {
               return span === null ? [] : [{ card, window, span }];
             }),
       );
-      const [sectionLatency, calibrationRows, limitWindowRows] = await Promise.all([
+      const [sectionReads, calibrationRows, limitWindowRows] = await Promise.all([
         Promise.all(
           specs.map((spec) => {
             const only = { provider: [spec.provider], billing_mode: spec.billingModes };
-            return Promise.all([fetchLatency(filterFields, since, only), fetchLatency(breakdownFields, since, only)]);
+            return Promise.all([
+              fetchLatency(filterFields, since, only),
+              fetchLatency(breakdownFields, since, only),
+              fetchTurnCount(combinedFilters(only, filter?.values ?? null), since),
+            ]);
           }),
         ),
         Promise.all(
@@ -319,6 +328,7 @@ export class DashboardModel {
         total: {
           summary: summarize(keep(summaryRows)),
           failed: failedShare(keep(statusRows)),
+          turns: totalTurns,
           latency: keep(totalLatency)[0] ?? null,
           chartRows: keep(chartRows),
           sourceChartRows: keep(sourceChartRows),
@@ -329,11 +339,12 @@ export class DashboardModel {
           spec,
           summary: summarize(within(summaryRows, spec)),
           failed: failedShare(within(statusRows, spec)),
-          latency: keep(sectionLatency[index][0])[0] ?? null,
+          turns: sectionReads[index][2],
+          latency: keep(sectionReads[index][0])[0] ?? null,
           chartRows: within(chartRows, spec),
           sourceChartRows: within(sourceChartRows, spec),
           breakdownRows: within(breakdownRows, spec),
-          breakdownLatency: keep(sectionLatency[index][1]),
+          breakdownLatency: keep(sectionReads[index][1]),
           limitWindowRows: Object.fromEntries(
             calibrations.flatMap(({ card, window }, calibration) =>
               card.sectionKey === spec.key ? [[window.key, within(limitWindowRows[calibration], spec)]] : [],

@@ -464,3 +464,30 @@ def test_turns_sum_only_the_calls_the_filters_keep_and_page_by_offset(
     assert [turn.turn_id for turn in second_page] == ["t-2"]
     assert store.count_turns({"billing_mode": ["SUBSCRIPTION"]}) == 2
     assert len(store.calls({"turn_id": ["t-2"]})) == 1
+
+
+def test_turns_in_a_window_keep_only_the_calls_that_ended_in_it(
+    store: UsageStore,
+) -> None:
+    for minutes, turn_id in ((5, "t-1"), (30, "t-1"), (90, "t-2")):
+        store.insert(
+            _event(
+                ended_at=(NOW - timedelta(minutes=minutes)).isoformat(),
+                started_at=(NOW - timedelta(minutes=minutes, seconds=1)).isoformat(),
+                attribution={"turn_id": turn_id},
+            )
+        )
+
+    last_hour = store.turns({}, since=NOW - timedelta(hours=1))
+    before_that = store.turns({}, until=NOW - timedelta(hours=1))
+
+    assert [(turn.turn_id, turn.calls) for turn in last_hour] == [("t-1", 2)]
+    assert [turn.turn_id for turn in before_that] == ["t-2"]
+    assert store.count_turns({}, since=NOW - timedelta(minutes=10)) == 1
+    assert store.count_turns({}, since=NOW - timedelta(hours=2)) == 2
+    assert (
+        store.count_turns(
+            {}, since=NOW - timedelta(hours=2), until=NOW - timedelta(minutes=10)
+        )
+        == 2
+    )

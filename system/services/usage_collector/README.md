@@ -52,11 +52,12 @@ was already pruned to the rollups a second time.
   of them), with `total`, how many calls the filters match. `offset` skips
   that many of the newest, for numbered pages; `before` pages back; `after`
   returns the calls stored since a `sequence` a client last saw.
-- `GET /v1/turns?limit=20[&offset=N][&provider=...][&billing_mode=...]`: the
-  turns of the calls the same filters keep, latest first, each summing only
+- `GET /v1/turns?limit=20[&offset=N][&provider=...][&billing_mode=...][&since=24h][&until=...]`:
+  the turns of the calls the same filters keep, latest first, each summing only
   those calls (calls, failures, tokens, billed cost apart from subscription
-  list price, models, source), with `total`, how many turns there are. A call
-  with no `turn_id` is a turn of its own; `/v1/calls?turn_id=...` (or
+  list price, models, source), with `total`, how many turns there are. `since`
+  and `until` keep only calls that ended in that window, so a turn is counted
+  when any of its calls is. A call with no `turn_id` is a turn of its own; `/v1/calls?turn_id=...` (or
   `?event_id=...` for such a call) lists one turn's calls.
 - `GET /v1/limits?since=7d`: the freshest subscription limit reading of every
   window, per source (claude, codex, ...): the share used, when it resets, the
