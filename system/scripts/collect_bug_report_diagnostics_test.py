@@ -1226,6 +1226,9 @@ def _write_update_apply_state(
     (state / "last-dispatch.json").write_text(
         '{"schema": 1, "started_by": "scheduled"}\n'
     )
+    (state / "dispatch-attempt.json").write_text(
+        '{"schema": 1, "attempt_id": "0123456789abcdef0123456789abcdef"}\n'
+    )
     (state / "provision-incomplete.json").write_text(
         '{"ref": "minds-v0.9.0", "error": "npm ci failed"}\n'
     )
@@ -1269,6 +1272,7 @@ def test_the_update_records_ride_with_the_logs_but_never_the_snapshots_or_the_di
             "update-apply/schedule.json",
             "update-apply/run.json",
             "update-apply/last-dispatch.json",
+            "update-apply/dispatch-attempt.json",
             "update-apply/provision-incomplete.json",
             "update-apply/dispatcher.log",
         ]

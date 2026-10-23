@@ -77,8 +77,6 @@ List each, in plain terms:
 - **The work-in-progress commit**: that unfinished work from other chats was
   saved as it stood, so nothing was lost, and that you can split it up or put
   it back uncommitted if they prefer.
-- **Any change of yours that unblocked the apply** (apply-outcomes.md, "Exit
-  2"): which file, what changed and why, and the offer to put it back.
 - **The browser or an app it stopped**: that it starts again the next time
   they open it.
 
@@ -133,6 +131,6 @@ concrete choices -- apply the update and lose it, skip the update, or the
 worker's best adaptation -- with a recommendation. Reassure that nothing has
 been applied and the workspace is untouched, and that nothing is waiting on
 them: the workspace runs as usual, and whenever they answer here, the update
-picks up from where it stopped (SKILL.md, "Resuming after a decision"). Name
+picks up from where it stopped (`resuming-after-a-decision.md`). Name
 anything the pass did on their behalf before it stopped, as the results
 message would.

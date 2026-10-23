@@ -56,16 +56,22 @@ stderr and the `apply phase timings:` line, then:
   worktrees and old snapshots), then retry.
 - **A network cause** (a download, `npm ci` or `uv sync` that could not reach
   its registry): retry once.
-- **A file of the user's blocking the apply** (an app of theirs whose
-  pre-flight or probe fails on a file the update did not touch, a stray file
-  where the update writes): make the smallest change that unblocks it and
-  conflicts with nothing they did (commit it on its own, saying what and why),
-  then retry, and name the change with its undo in the results message.
-- **Anything else**, or a retry that fails again: no retry.
+- **Anything else**, or a retry that fails again: no retry. That includes a
+  critical app of the user's that fails its probe: it blocks the update, and
+  the results message says so.
 
-A retry is a fresh worker pass off the current `HEAD`, never a re-run of the
-same apply (below): `mngr stop update-self`, then SKILL.md Step 3b with the
-same `$REF`, the lease and the run record carried over. Nothing retries beyond
+A retry goes back to the worker, which still holds its branch and its
+validation; it is never a re-run of the same apply (below). Consume the `done`
+you applied, as SKILL.md 5b does before a catch-up, then send it the cause and
+the retry through 5b's catch-up sender, re-arm the poll, and audit the `done` it
+sends back (5a) before 5b applies again:
+
+```bash
+RETRY="The apply rolled back: <the cause, one plain line>. Retry per §8 of your worker guide, catching up to $(git rev-parse HEAD), then report done again."
+```
+
+Only a worker that is gone takes a fresh pass (SKILL.md Step 3b, with the same
+`$REF`, the lease and the run record carried over). Nothing retries beyond
 these rules, and nothing retries unwatched: a pass that fails after your best
 effort records `run-status verdict REFUSED --detail "<what failed, one plain
 line>"` at once, so the app shows the failure immediately.
@@ -79,13 +85,12 @@ have to change before another attempt can succeed. If the closing line said the
 frontend was already broken beforehand, report that alongside.
 
 Because the rollback is a forward revert, the merge stays in history while its
-content does not, and re-running the apply of that same merge is refused. A
-retry means a fresh worker pass off the current `HEAD`, and that pass -- like any
-later pass, to this release or a newer one -- must revert the rollback commit
-before it merges (the worker reference says how): git counts the reverted
-content as already merged, so a plain merge lands only what the target changed
-since. The apply refuses a merge ref that leaves the rollback in place (exit 1,
-nothing changed), naming the commits to revert.
+content does not, and re-running the apply of that same merge is refused. The
+worker's retry -- like any later pass, to this release or a newer one -- reverts
+the rollback commit on its branch (the worker reference says how): git counts
+the reverted content as already merged, so a plain merge lands only what the
+target changed since. The apply refuses a merge ref that leaves the rollback in
+place (exit 1, nothing changed), naming the commits to revert.
 
 ## Exit 3 -- emergency
 
@@ -131,8 +136,8 @@ validation covers. Another apply in flight is the same once it finishes, and
 so is an interrupted apply of a different merge once `recover` has rolled it
 back, as the refusal says: either has likely moved `HEAD`, so come back
 through 5b's fast-forward check. A merge already landed and rolled back, or
-one that leaves an earlier update's rollback in place, needs a fresh worker
-pass off the current `HEAD`.
+one that leaves an earlier update's rollback in place, goes back to the worker
+as a retry does (exit 2).
 
 ## Needs a decision -- nothing applied
 
@@ -147,7 +152,7 @@ the workspace runs as usual, and the user can answer whenever they like.
 Their choices, as the decision message puts them (`results-message.md`): take
 the update and lose the customization, keep the customization and skip the
 update, or the worker's best adaptation. Skipping records `REFUSED`; either
-other answer re-lands the kept pass (SKILL.md, "Resuming after a decision"),
+other answer re-lands the kept pass (`resuming-after-a-decision.md`),
 catching the worker up first when the workspace moved on meanwhile. A later
 update started before they answer sets the kept pass aside (Step 3b archives
 its branch), and the decision is then that update's to ask again.
@@ -162,7 +167,7 @@ the workspace heals itself: bootstrap rolls a stale marker back at the next
 container start, and a recovery cron (`recover --if-stale`) does the same
 within minutes for a kill without a restart. Both leave the tree matching the
 pre-update revision with the worker branch intact; as above, that is a forward
-revert, so a retry means a fresh worker pass.
+revert, so a retry goes back to the worker as after exit 2.
 
 One carve-out, exactly once per workspace: both unattended triggers live in the
 *running* container, not in the merge being applied. On the very first apply
@@ -213,7 +218,8 @@ service's restore point, when Step 1 confirmed a recent one.
 
 ## Migration-required updates
 
-Some updates cannot be applied in place -- the judgment is the lead's,
+Some updates cannot be applied in place, and that is a terminal verdict, not a
+confirmation to wait on -- the judgment is the lead's,
 standardized here rather than by any mechanical marker: the release
 restructures something this workspace's live state was built on (a changed
 data layout with no in-place migration, a provisioning change only a fresh
@@ -247,20 +253,20 @@ reports the workspace by it. Choose it by what happened:
 - `NEEDS_DECISION`: the update cannot keep something the user built, and the
   validated merge is kept for their answer ("Needs a decision"). Their answer
   resumes the pass, which then ends with the verdict that answer leads to
-  (SKILL.md, "Resuming after a decision").
+  (`resuming-after-a-decision.md`).
 - `NEEDS_RECREATION`: the update cannot be applied in place
   ("Migration-required updates"), including a worker's `stuck` report that
   shows the merge cannot land without breaking the running workspace.
 - `REFUSED`: the pass ran as it should and chose not to apply. Nothing is
   broken: there was no target it may take, the user declined or told you to
-  stop (SKILL.md, "Stopping when asked"), or the apply rolled back and your
+  stop (`stopping-when-asked.md`), or the apply rolled back and your
   best effort at a retry is spent.
 - `STUCK`: a fault stopped the pass and you could not recover from it. The
   worker reported `stuck` for any other reason, a dead worker did not come
   back through `.agents/skills/launch-task/references/dead-worker-recovery.md`,
   a step the update depends on failed, the apply ended in an emergency
   (exit 3), Step 2 reported a fault, or this chat keeps stopping for a reason
-  you cannot find or fix (SKILL.md, "Resuming after a restart"). The watchdog
+  you cannot find or fix (`resuming-after-a-restart.md`). The watchdog
   records it for a lead whose chat was deleted.
 
 `STUCK` and `REFUSED` say different things to the user, but the app reports

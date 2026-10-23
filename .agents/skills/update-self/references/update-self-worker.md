@@ -598,3 +598,17 @@ Report `done` again with the full §6 body, brought up to date, and a
 **Catch-up** section first: the commit you merged, the commits it brought in,
 each conflict and its resolution, and which of the items above ran, with
 their results.
+
+## 8. Retry after the apply rolled back
+
+When the lead's apply of your branch rolls back, the lead deals with the cause
+(a loaded workspace, a registry it could not reach) and asks you to retry. The
+workspace's `HEAD` now holds your branch, a `Roll back update apply` commit on
+top of it, and whatever was committed since. Bring that in as §7 does (merge
+the commit the lead named), then revert the rollback on your branch with Step
+1's `pending-rollbacks` block, so the branch holds the update again on top of
+the workspace's latest work.
+
+Validate as §7 does, over `$PRE..HEAD`: the rollback and its revert cancel out,
+so that range is the workspace's commits since your last `done`. Report `done`
+again with §7's Catch-up section, naming the rollback you reverted.

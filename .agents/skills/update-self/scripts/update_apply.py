@@ -1049,11 +1049,11 @@ def apply_update(
         raise ApplyPreconditionError(
             f"{merge_ref} was landed and then rolled back, so its content is no "
             "longer in the tree even though the commit is still in history. "
-            "Re-running the apply cannot re-land it: re-dispatch a fresh worker "
-            "pass off the current HEAD instead. Nothing was changed."
+            "Re-running the apply cannot re-land it: land a branch that reverts the "
+            "rollback on top of the current HEAD instead. Nothing was changed."
         )
-    # The fresh worker pass that follows such a rollback has the same trap one step
-    # later: its merge lands the rolled-back content only if it reverts the rollback.
+    # The retry that follows such a rollback has the same trap one step later: its
+    # branch lands the rolled-back content only if it reverts the rollback.
     if target_ref is not None and not is_merge_landed:
         _refuse_a_merge_that_leaves_an_update_rolled_back(
             target_ref, merge_ref, repo_root, runner

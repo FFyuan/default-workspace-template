@@ -1636,7 +1636,7 @@ def test_skill_md_runs_its_scripts_from_the_staged_copy_below_step_3() -> None:
     ]
     # The commands this guard exists for; without them it is vacuous.
     assert any("run-status delegate" in line for line in invocations)
-    assert any("run-status hold" in line for line in invocations)
+    assert any("run-status verdict" in line for line in invocations)
     staged = "data/.tasks/update-self/skill-at-target/.agents/skills/update-self/scripts/update_self.py"
     strays = [line for line in invocations if staged not in line]
     assert strays == []
@@ -1853,7 +1853,9 @@ def test_step_4_ends_a_hold_with_a_decision_keeping_the_worker() -> None:
         _fenced_commands(_skill_section("## 6. Teardown")), "run-status resume-chats"
     )
 
-    relanding = _fenced_commands(_skill_section("## Resuming after a decision"))
+    relanding = _fenced_commands(
+        (_MODULE_PATH.parent.parent / "references" / "resuming-after-a-decision.md").read_text(encoding="utf-8")
+    )
     order = [
         _first_index(relanding, "run-status start"),
         _first_index(relanding, "git merge-base --is-ancestor HEAD mngr/update-self"),

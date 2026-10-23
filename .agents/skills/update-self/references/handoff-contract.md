@@ -57,38 +57,24 @@ target release's own copy (or the local one, when the ref predates the skill).
 
 ## The scheduled entry: a pinned target and ceiling
 
-The Imbue Studio app starts every pass with one message, whether the
-workspace's own schedule started it or the user pressed "Update now", and the
-lead is never told which. The message may pin the update, so the lead never
-has to reach the app (which may be closed, on a laptop that is asleep):
+The Imbue Studio app starts every pass with one message, scheduled or pressed,
+that names the target and the app's ceiling, so the lead never has to reach the
+app (which may be closed, on a laptop that is asleep). The app writes that
+message and the template only reads it, from Steps 1 and 2 of the workspace's
+*local* copy, so it is a contract with every release's Steps 1 and 2:
 
-```
-/update-self
-
-The Imbue Studio app pinned this update, so do not ask it for its version:
-- Target: minds-v0.9.0
-- Ceiling: minds-v0.9.0
-When you resolve the target in Step 2, append `--ceiling minds-v0.9.0` to the `resolve-target` command. If the app cannot be reached for anything else during this run, that is not a fault.
-```
-
-The existing override note follows when the target is the user's own choice,
-and the no-backup note when the workspace has none. The app writes this shape;
-the template only reads it, so it is a contract with every release's Steps 1
-and 2, which run from the workspace's *local* copy:
-
-- **Step 2 must honor the pin in every version.** A Step 2 that knows the pin
-  reads the `Ceiling:` (and a `Target:` the override note names) into
-  `resolve-target`'s `--app-version` and `--override`. One that predates it
-  follows the message's own sentence instead, so `--ceiling` must stay an
-  accepted spelling of `--app-version`. Neither asks the app, and Step 3a's
-  re-check passes the same pin.
+- **Step 2 must honor the pin in every version.** One that predates the pin
+  follows the message's own instruction to append `--ceiling <ref>` to
+  `resolve-target`, so `--ceiling` must stay an accepted spelling of
+  `--app-version`. Neither kind asks the app, and Step 3a's re-check passes the
+  same pin.
 - **Step 1 must never stop to ask.** Nobody may be watching a pass, so a future
   Step 1 must keep taking an abandoned lease over by rule and saving a dirty
   tree as one commit rather than refusing it.
 
-The message's `--ceiling` sentence exists only for the Step 2 copies that
-predate the pin; the app drops it once the oldest release it updates from
-reads the pin itself.
+The `--ceiling` instruction exists only for the Step 2 copies that predate the
+pin; the app drops it once the oldest release it updates from reads the pin
+itself.
 
 ## What the apply must tolerate
 

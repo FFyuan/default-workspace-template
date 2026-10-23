@@ -148,6 +148,7 @@ UPDATE_APPLY_RECORD_FILES = (
     "schedule.json",
     "run.json",
     "last-dispatch.json",
+    "dispatch-attempt.json",
     "watchdog.json",
     "marker.json",
     "emergency.json",
