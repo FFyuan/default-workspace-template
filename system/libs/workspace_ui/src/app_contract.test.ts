@@ -18,6 +18,7 @@ import {
   SHELL_OPEN,
   SHELL_OPEN_LINK,
   SHELL_SHOWN,
+  SHELL_WIDGET_DRAG,
   SHELL_WIDGET_HIDDEN,
   SHELL_WIDGET_MODE,
   SHELL_WIDGET_SIZE,
@@ -145,6 +146,102 @@ describe("connectToShell", () => {
       [{ type: SHELL_WIDGET_SIZE, width: 180, height: 64 }, "*"],
       [{ type: SHELL_WIDGET_HIDDEN, isHidden: true }, "*"],
     ]);
+  });
+
+  describe("a press on a widget's page", () => {
+    /** A pointer event as a browser dispatches it (jsdom has no PointerEvent), at a screen point and the same
+     *  client point. */
+    function pointer(type: string, target: EventTarget, x: number, y: number, button = 0): void {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button,
+        clientX: x,
+        clientY: y,
+        screenX: x,
+        screenY: y,
+      });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      Object.defineProperty(event, "isPrimary", { value: true });
+      target.dispatchEvent(event);
+    }
+
+    function widgetPage(html: string): { parent: { postMessage: ReturnType<typeof vi.fn> }; root: HTMLElement } {
+      const parent = framed();
+      connection = connectToShell({});
+      deliver({ ...HANDSHAKE, windowId: null, surface: "widget", path: "/widget" }, parent);
+      const root = document.createElement("div");
+      root.innerHTML = html;
+      document.body.appendChild(root);
+      parent.postMessage.mockClear();
+      return { parent, root };
+    }
+
+    afterEach(() => {
+      document.body.innerHTML = "";
+    });
+
+    it("drags the widget once it travels past the threshold, and swallows the click that ends it", () => {
+      const { parent, root } = widgetPage('<a id="link" href="/" target="_blank">Usage</a>');
+      const link = root.querySelector("#link") as Element;
+      const onClick = vi.fn();
+      link.addEventListener("click", onClick);
+
+      pointer("pointerdown", link, 10, 20);
+      pointer("pointermove", link, 12, 21);
+      pointer("pointermove", link, 30, 40);
+      pointer("pointermove", link, 50, 60);
+      pointer("pointerup", link, 50, 60);
+      link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+
+      expect(parent.postMessage.mock.calls).toEqual([
+        [
+          {
+            type: SHELL_WIDGET_DRAG,
+            phase: "start",
+            pressX: 10,
+            pressY: 20,
+            pressScreenX: 10,
+            pressScreenY: 20,
+            screenX: 30,
+            screenY: 40,
+          },
+          "*",
+        ],
+        [{ type: SHELL_WIDGET_DRAG, phase: "move", screenX: 50, screenY: 60 }, "*"],
+        [{ type: SHELL_WIDGET_DRAG, phase: "end", screenX: 50, screenY: 60 }, "*"],
+      ]);
+      // Neither the page nor the link rule saw the click, so no window was opened.
+      expect(onClick).not.toHaveBeenCalled();
+    });
+
+    it("leaves a press that barely moves to be a click, and never drags from a control or as a window", () => {
+      const { parent, root } = widgetPage(
+        '<a id="link" href="/" target="_blank">Usage</a><button id="button">x</button>',
+      );
+      const link = root.querySelector("#link") as Element;
+      pointer("pointerdown", link, 10, 20);
+      pointer("pointermove", link, 12, 22);
+      pointer("pointerup", link, 12, 22);
+      link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+      expect(parent.postMessage.mock.calls).toEqual([[{ type: SHELL_OPEN, path: "/", ifPresent: "focus" }, "*"]]);
+
+      parent.postMessage.mockClear();
+      const button = root.querySelector("#button") as Element;
+      pointer("pointerdown", button, 10, 20);
+      pointer("pointermove", button, 60, 80);
+      pointer("pointerup", button, 60, 80);
+      // A secondary press is the page's too.
+      pointer("pointerdown", link, 10, 20, 2);
+      pointer("pointermove", link, 60, 80, 2);
+      expect(parent.postMessage).not.toHaveBeenCalled();
+
+      deliver(HANDSHAKE, parent);
+      pointer("pointerdown", link, 10, 20);
+      pointer("pointermove", link, 60, 80);
+      pointer("pointerup", link, 60, 80);
+      expect(parent.postMessage).not.toHaveBeenCalled();
+    });
   });
 
   it("as a window, ignores a widget mode and sends no widget report", () => {

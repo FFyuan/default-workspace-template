@@ -53,6 +53,7 @@ import type { GestureListener, GestureSource } from "../gestures/pointerGestures
 import { LivePagesLayer, WINDOW_ID_ATTRIBUTE } from "../pages/livePages";
 import type { MountPolicy } from "../pages/livePages";
 import { WIDGET_ATTRIBUTE, WidgetFramesLayer } from "../pages/widgetFrames";
+import type { ViewportPoint, WidgetDragStep } from "../pages/widgetFrames";
 import type { DesktopStore } from "../store/DesktopStore";
 import { AVATAR_DESIGN_PROMPT, AvatarChooserDialog } from "./AvatarChooserDialog";
 import { Backdrop } from "./Backdrop";
@@ -327,7 +328,11 @@ export function App(): m.Component<AppAttrs> {
    *  live pages layer, which takes what a widget's page asks of the shell. */
   function startWidgetFramesLayer(current: DesktopStore, host: HTMLElement, attrs: AppAttrs): void {
     widgetFrames?.stop();
-    widgetFrames = new WidgetFramesLayer(host, current, { host: attrs.host, protocol: attrs.protocol });
+    widgetFrames = new WidgetFramesLayer(host, current, {
+      host: attrs.host,
+      protocol: attrs.protocol,
+      onDrag: (app, step) => followWidgetDrag(current, app, step),
+    });
     const layer = widgetFrames;
     pages?.setWidgetFrameResolver((frame) => layer.appOfFrame(frame));
     widgetFrames.start();
@@ -411,6 +416,38 @@ export function App(): m.Component<AppAttrs> {
     const rect = current.widgetRectOf(app);
     if (element !== undefined && element !== null && rect !== null) applyRectStyle(element, rect);
     widgetFrames?.placeFrame(app);
+  }
+
+  /** A drag a widget's page reported (a press anywhere on the widget): the same drag a press on its rim makes,
+   *  but from the page's points, and none on a phone, where a widget does not move or while another gesture runs. */
+  function followWidgetDrag(current: DesktopStore, app: string, step: WidgetDragStep): void {
+    const origin = backdropArea?.getBoundingClientRect();
+    if (origin === undefined) return;
+    const toBackdrop = (point: ViewportPoint): PixelPoint => ({ x: point.x - origin.left, y: point.y - origin.top });
+    const gesture = current.getGesture();
+    const isThisDrag = gesture !== null && gesture.kind === "widget" && gesture.app === app;
+    switch (step.phase) {
+      case "start": {
+        const rect = current.widgetRectOf(app);
+        if (gesture !== null || current.isPhoneLayout() || rect === null) return;
+        const press = toBackdrop(step.press);
+        current.beginWidgetDrag(app, toBackdrop(step.point), { x: press.x - rect.x, y: press.y - rect.y });
+        break;
+      }
+      case "move":
+        if (!isThisDrag) return;
+        current.updateWidgetDrag(toBackdrop(step.point));
+        break;
+      case "end":
+        if (!isThisDrag) return;
+        current.endWidgetDrag(toBackdrop(step.point));
+        break;
+      case "cancel":
+        if (!isThisDrag) return;
+        current.cancelGesture();
+        break;
+    }
+    paintWidget(current, app);
   }
 
   /** Paint a lifted shortcut's travel straight onto its icon: the per-move step of its drag, and once more

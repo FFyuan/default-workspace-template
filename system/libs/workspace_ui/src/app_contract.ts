@@ -37,6 +37,12 @@
  * A call that names a frame of the page stays the browser's, and one that names ``_self`` follows
  * the rule for a plain click: the page's own origin navigates the page, any other link goes to the
  * shell.
+ *
+ * A widget's page is dragged by a press anywhere on it (``widgetDragTracker``): once a primary press travels
+ * ``WIDGET_DRAG_THRESHOLD_PX``, the page reports the drag to the shell as ``shell:widget-drag`` (start, every move,
+ * then end or cancel), in screen coordinates, which stay true while the shell moves the frame under the pointer;
+ * the click that would end it is swallowed. A press that never travels that far is the page's click, and a press
+ * on a control (a button, a field, an element marked ``data-no-drag``) is never a drag.
  */
 
 /** Shell to app: sent after every `load` of the frame; says which window, desktop, path, and client this page is in. */
@@ -75,6 +81,11 @@ export const SHELL_OPEN_LINK = "shell:open-link";
 export const SHELL_WIDGET_MODE = "shell:widget-mode";
 export const SHELL_WIDGET_SIZE = "shell:widget-size";
 export const SHELL_WIDGET_HIDDEN = "shell:widget-hidden";
+/** App to shell, from a widget only: a press on the page is dragging the widget (see the module docs). */
+export const SHELL_WIDGET_DRAG = "shell:widget-drag";
+
+/** How far a press on a widget's page travels before it is a drag rather than a click, in CSS pixels. */
+export const WIDGET_DRAG_THRESHOLD_PX = 4;
 
 /** The bare host names of this machine (a ``*.localhost`` host is local too). */
 export const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -333,6 +344,91 @@ function popupHandedOn(
   return !isExternalUrl(target) || isOnPageCoordinate ? openLink : null;
 }
 
+/** The elements a press on which is never a drag: the page's controls, and anything it marks ``data-no-drag``. */
+const UNDRAGGABLE_SELECTOR = "button, input, textarea, select, [contenteditable], [data-no-drag]";
+
+/** Where a widget drag's press began: in the frame (the page's client pixels) and on the screen. */
+interface WidgetPress {
+  readonly pointerId: number;
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly screenX: number;
+  readonly screenY: number;
+  isDragging: boolean;
+}
+
+/**
+ * Turn presses on a widget's page into drags reported to the shell (see the module docs); ``isWidget`` says whether
+ * a shell frames the page as a widget now. Returns the listeners to add to the page's window, each named by its
+ * event.
+ */
+function widgetDragTracker(
+  isWidget: () => boolean,
+  send: (type: string, payload: Record<string, unknown>) => void,
+): Readonly<Record<string, (event: Event) => void>> {
+  let press: WidgetPress | null = null;
+  let isClickSwallowed = false;
+  const end = (event: PointerEvent, phase: "end" | "cancel"): void => {
+    if (press === null || event.pointerId !== press.pointerId) return;
+    if (press.isDragging) {
+      send(SHELL_WIDGET_DRAG, phase === "end" ? { phase, screenX: event.screenX, screenY: event.screenY } : { phase });
+      isClickSwallowed = phase === "end";
+    }
+    press = null;
+  };
+  return {
+    pointerdown: (event) => {
+      const pointer = event as PointerEvent;
+      isClickSwallowed = false;
+      if (!isWidget() || pointer.button !== PRIMARY_BUTTON || !pointer.isPrimary) return;
+      const target = pointer.target;
+      if (target instanceof Element && target.closest(UNDRAGGABLE_SELECTOR) !== null) return;
+      press = {
+        pointerId: pointer.pointerId,
+        clientX: pointer.clientX,
+        clientY: pointer.clientY,
+        screenX: pointer.screenX,
+        screenY: pointer.screenY,
+        isDragging: false,
+      };
+    },
+    pointermove: (event) => {
+      const pointer = event as PointerEvent;
+      if (press === null || pointer.pointerId !== press.pointerId) return;
+      if (!press.isDragging) {
+        const travel = Math.hypot(pointer.screenX - press.screenX, pointer.screenY - press.screenY);
+        if (travel < WIDGET_DRAG_THRESHOLD_PX) return;
+        press.isDragging = true;
+        // Keep the moves coming once the pointer outruns the frame, as it does at the backdrop's edge.
+        if (pointer.target instanceof Element) pointer.target.setPointerCapture?.(pointer.pointerId);
+        send(SHELL_WIDGET_DRAG, {
+          phase: "start",
+          pressX: press.clientX,
+          pressY: press.clientY,
+          pressScreenX: press.screenX,
+          pressScreenY: press.screenY,
+          screenX: pointer.screenX,
+          screenY: pointer.screenY,
+        });
+        return;
+      }
+      send(SHELL_WIDGET_DRAG, { phase: "move", screenX: pointer.screenX, screenY: pointer.screenY });
+    },
+    pointerup: (event) => end(event as PointerEvent, "end"),
+    pointercancel: (event) => end(event as PointerEvent, "cancel"),
+    // A press on a link would otherwise start the browser's own drag of it, which ends the pointer's events.
+    dragstart: (event) => {
+      if (isWidget()) event.preventDefault();
+    },
+    click: (event) => {
+      if (!isClickSwallowed) return;
+      isClickSwallowed = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+  };
+}
+
 /**
  * Connect this page to the shell that frames it. Safe to call on a top-level page: nothing
  * arrives, and every send is a no-op, so an app behaves the same visited directly. Once a
@@ -403,10 +499,14 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
     },
   });
 
+  // In the capture phase, so a swallowed click never reaches the page's handlers or the link rule.
+  const dragListeners = widgetDragTracker(() => hasShell && surface === "widget", send);
+
   boundWindow.addEventListener("message", onMessage);
   if (isFramed) {
     boundWindow.addEventListener("click", onLinkClick);
     boundWindow.addEventListener("auxclick", onLinkClick);
+    for (const [type, listener] of Object.entries(dragListeners)) boundWindow.addEventListener(type, listener, true);
     boundWindow.open = routedOpen;
   }
   send(SHELL_CAPABILITIES, { navigation: capabilities.navigation, closeChord: capabilities.closeChord });
@@ -436,6 +536,9 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
       boundWindow.removeEventListener("message", onMessage);
       boundWindow.removeEventListener("click", onLinkClick);
       boundWindow.removeEventListener("auxclick", onLinkClick);
+      for (const [type, listener] of Object.entries(dragListeners)) {
+        boundWindow.removeEventListener(type, listener, true);
+      }
       if (boundWindow.open === routedOpen) boundWindow.open = nativeOpen;
     },
   };

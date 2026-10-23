@@ -117,7 +117,7 @@ The page decides what each form shows; the shell never draws a pill of its own.
 
 ### 4.4 Moving
 
-Dragging the rim moves the widget, with the gesture layer's threshold, pointer capture, and click suppression, as a floating entry drags.
+A press anywhere on the widget drags it. On the rim, the shell's gesture layer takes it, with its threshold, pointer capture, and click suppression, as a floating entry drags. On the page, the page's contract reports the drag (`shell:widget-drag`, section 6), and the shell moves the widget the same way; a press that travels less than the contract's threshold stays the page's click, and hover is the page's throughout, since nothing covers it.
 During the drag the frame follows the pointer, held inside the backdrop; on release it stays where it was let go, and its position (section 3.3) is written to the client record once. A drop where it already was writes nothing.
 A press that never travels the threshold is a click on the rim, which does nothing.
 
@@ -203,9 +203,11 @@ The app contract evolves by adding types (contracts section 7); nothing shipped 
 | shell to page | `shell:widget-mode` | `{"mode": "expanded" \| "collapsed"}`; to a widget page only, after every handshake and on every change |
 | page to shell | `shell:widget-size` | `{"width", "height"}`, CSS pixels of the page's content in its current mode; the shell clamps it (section 4.2) |
 | page to shell | `shell:widget-hidden` | `{"isHidden": bool}`; section 4.7 |
+| page to shell | `shell:widget-drag` | `{"phase": "start" \| "move" \| "end" \| "cancel", "screenX", "screenY"}`, and at the start `"pressX", "pressY"` (where in the frame the press began) and `"pressScreenX", "pressScreenY"`; section 4.4 |
 
 From a widget page the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open`, `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window, on the client's active desktop.
 `connectToShell` gains `onWidgetMode(mode)` among its handlers and `widgetSize(width, height)` and `widgetHidden(isHidden)` on the connection, plus `surface()`, so one page module serves both a window and a widget.
+On a widget it also sends `shell:widget-drag` itself, with no code in the page: a primary press that travels `WIDGET_DRAG_THRESHOLD_PX` (4) is a drag, reported in screen pixels (which stay true while the shell moves the frame under the pointer) until it ends, and the click that ends it is swallowed before the page or the link rule sees it. A press on a control (a button, a field, an element marked `data-no-drag`) is never a drag, and the browser's own drag of a link is prevented.
 
 ## 7. The Usage widget
 
@@ -289,14 +291,14 @@ Unit tests, beside the code:
 - The manifest table and its refusals; the registry copy (`forward_port.py`); the inventory field.
 - `widgets.json`: defaults, a stored value, an unusable file; the switch routes and their refusals; the client record's `widgets` and its route.
 - The lifecycle rule: an enabled widget clears the idle mark until it is hidden; an internal app's widget holds nothing up.
-- `app_contract.ts`: the `surface` field, the three new types, and that a widget sends no location or focus.
+- `app_contract.ts`: the `surface` field, the four new types, that a widget sends no location or focus, and that a press on a widget's page past the threshold is reported as a drag whose click is swallowed, while a short press, a press on a control, or one on a window is not.
 - Geometry: the default stack and its order, its title-bar offset, size clamping, a moved widget anchored by its corner nearest the edges and kept inside the backdrop, and the position a drop is stored as.
 - The store: switches and presentations from the inventory and the pushes, drawing only after a size report, the optimistic mode write and its undo, the drag and the position it writes, show and hide.
 - Usage widget models: rows and the pill from fixture readings and totals, an empty read, a collector still indexing or unreachable.
 
 End to end, with a stub app declaring a widget whose page reports a size per mode:
 
-- `test_e2e.py`: the widget appears top right below a title bar's height, at the size its page reported; a double-click on its rim changes it to the collapsed size; a drag of the rim leaves it where it is let go, written to the client record by its nearest corner and kept across a reload; a click on its `_blank` link raises one window of its app however often it is clicked; Hide widget removes it and turns the switch off.
+- `test_e2e.py`: the widget appears top right below a title bar's height, at the size its page reported; a double-click on its rim changes it to the collapsed size; a drag of the rim leaves it where it is let go, written to the client record by its nearest corner and kept across a reload; a drag that starts on its page moves it too and opens nothing; a click on its `_blank` link raises one window of its app however often it is clicked; Hide widget removes it and turns the switch off.
 - `test_e2e.py`, phone viewport: the widget is drawn collapsed in the strip above the bar, and a tap on its link opens its app's window, which the phone shows.
 - `test_app_lifecycle_system.py`: an app declaring `stop_when_no_windows` is not stopped with its widget enabled and no window, and is stopped once the widget is hidden.
 

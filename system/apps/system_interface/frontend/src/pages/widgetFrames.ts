@@ -9,13 +9,16 @@
  *
  * The shell side of the app contract for a widget lives here: the handshake after every load and on a desktop
  * change (``surface: "widget"``, no window), the mode after every handshake and on every change, and the page's
- * own ``shell:widget-size`` and ``shell:widget-hidden``. The rest of what a widget's page may send (an open, a
+ * own ``shell:widget-size``, ``shell:widget-hidden`` and ``shell:widget-drag``. A drag's points arrive in screen
+ * pixels, which stay true while the frame moves under the pointer; the layer turns them into the shell's viewport
+ * pixels by where the press was in the frame, and hands each step to ``onDrag``. The rest of what a widget's page may send (an open, a
  * message, a link) the live pages layer takes, asking ``appOfFrame`` whose frame it is. Messages cross through
  * ``relay.ts``.
  */
 
 import {
   SHELL_HANDSHAKE,
+  SHELL_WIDGET_DRAG,
   SHELL_WIDGET_HIDDEN,
   SHELL_WIDGET_MODE,
   SHELL_WIDGET_SIZE,
@@ -45,15 +48,35 @@ interface WidgetFrame {
   sentMode: WidgetMode | null;
 }
 
+/** A point in the shell document's viewport, in CSS pixels. */
+export interface ViewportPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** One step of a drag a widget's page reported: where the pointer is now, and at the start where it was pressed. */
+export type WidgetDragStep =
+  | { readonly phase: "start"; readonly point: ViewportPoint; readonly press: ViewportPoint }
+  | { readonly phase: "move" | "end"; readonly point: ViewportPoint }
+  | { readonly phase: "cancel" };
+
 export interface WidgetFramesOptions {
   /** The shell document's host and protocol, which every page URL derives from. */
   readonly host: string;
   readonly protocol: string;
+  /** A step of a drag a widget's page reported, for the widget of ``app``. */
+  readonly onDrag: (app: string, step: WidgetDragStep) => void;
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 export class WidgetFramesLayer {
   private readonly frames = new Map<string, WidgetFrame>();
   private isGestureActive = false;
+  /** For each widget its page is dragging: what turns a screen point into a viewport point. */
+  private readonly dragOffsets = new Map<string, ViewportPoint>();
 
   constructor(
     private readonly host: HTMLElement,
@@ -65,6 +88,7 @@ export class WidgetFramesLayer {
   start(): void {
     setChildFrameMessageHandler(SHELL_WIDGET_SIZE, (frame, payload) => this.takeSize(frame, payload));
     setChildFrameMessageHandler(SHELL_WIDGET_HIDDEN, (frame, payload) => this.takeHidden(frame, payload));
+    setChildFrameMessageHandler(SHELL_WIDGET_DRAG, (frame, payload) => this.takeDrag(frame, payload));
   }
 
   /** Stop: every frame goes, and what its page said with it. */
@@ -152,6 +176,7 @@ export class WidgetFramesLayer {
 
   private destroy(widget: WidgetFrame): void {
     this.frames.delete(widget.app);
+    if (this.dragOffsets.delete(widget.app)) this.options.onDrag(widget.app, { phase: "cancel" });
     widget.wrapper.remove();
     this.store.resetWidgetReport(widget.app);
   }
@@ -227,6 +252,35 @@ export class WidgetFramesLayer {
     if (app === null || typeof width !== "number" || typeof height !== "number") return;
     if (!Number.isFinite(width) || !Number.isFinite(height)) return;
     this.store.reportWidgetSize(app, { width, height });
+  }
+
+  private takeDrag(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {
+    const app = this.appOfFrame(frame);
+    if (app === null) return;
+    if (payload.phase === "cancel") {
+      if (this.dragOffsets.delete(app)) this.options.onDrag(app, { phase: "cancel" });
+      return;
+    }
+    const screenX = finiteNumber(payload.screenX);
+    const screenY = finiteNumber(payload.screenY);
+    if (screenX === null || screenY === null) return;
+    if (payload.phase === "start") {
+      const pressX = finiteNumber(payload.pressX);
+      const pressY = finiteNumber(payload.pressY);
+      const pressScreenX = finiteNumber(payload.pressScreenX);
+      const pressScreenY = finiteNumber(payload.pressScreenY);
+      if (pressX === null || pressY === null || pressScreenX === null || pressScreenY === null) return;
+      const box = frame.getBoundingClientRect();
+      const press = { x: box.left + pressX, y: box.top + pressY };
+      const offset = { x: press.x - pressScreenX, y: press.y - pressScreenY };
+      this.dragOffsets.set(app, offset);
+      this.options.onDrag(app, { phase: "start", point: { x: screenX + offset.x, y: screenY + offset.y }, press });
+      return;
+    }
+    const offset = this.dragOffsets.get(app);
+    if (offset === undefined || (payload.phase !== "move" && payload.phase !== "end")) return;
+    if (payload.phase === "end") this.dragOffsets.delete(app);
+    this.options.onDrag(app, { phase: payload.phase, point: { x: screenX + offset.x, y: screenY + offset.y } });
   }
 
   private takeHidden(frame: HTMLIFrameElement, payload: Record<string, unknown>): void {

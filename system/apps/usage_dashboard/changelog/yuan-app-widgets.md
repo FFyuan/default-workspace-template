@@ -4,4 +4,4 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 
 - Collapsed, it shows two concentric rings per subscription (the weekly limit outside, the 5-hour limit inside) with the 5-hour percentage in the middle and the provider's name beneath, else the month's spend. A ring is cyan (5-hour) or violet (weekly) while comfortable, orange from 75% and red from 90%.
 
-- It says when usage is still being indexed, dims while reconnecting, hides itself when there is no usage yet, and opens the Usage window when clicked.
+- It says when usage is still being indexed, dims while reconnecting, hides itself when there is no usage yet, opens the Usage window when clicked, and can be dragged anywhere on the desktop by a press anywhere on it.

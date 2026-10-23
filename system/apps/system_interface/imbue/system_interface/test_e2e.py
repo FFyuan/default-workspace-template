@@ -2950,8 +2950,8 @@ def test_a_widget_shows_top_right_collapses_moves_anywhere_opens_its_app_and_hid
     tmp_path: Path, page: Page
 ) -> None:
     """An app declaring a widget is drawn top right once its page reports a size, over every window; a double-click on
-    its rim collapses it to the size the page reports for that mode; a drag of its rim leaves it wherever it is let go, kept
-    on the client record across a reload; its link raises one window of its app however often it is clicked; and its
+    its rim collapses it to the size the page reports for that mode; a drag of its rim, or of its page, leaves it
+    wherever it is let go, kept on the client record across a reload, and a drag opens nothing; its link raises one window of its app however often it is clicked; and its
     menu hides it for the whole workspace."""
     shell: dict[str, str] = {}
     with serve_app(_widget_app(shell)) as widget_served:
@@ -3021,6 +3021,28 @@ def test_a_widget_shows_top_right_collapses_moves_anywhere_opens_its_app_and_hid
             moved = _box(_widget(page))
             _assert_close(moved["x"], dropped["x"], "moved x after a reload")
             _assert_close(moved["y"], dropped["y"], "moved y after a reload")
+
+            # A press anywhere on the widget's page drags it too, through the page's contract, and the click that
+            # ends the drag opens nothing.
+            grab = (moved["x"] + _WIDGET_RIM + 8, moved["y"] + _WIDGET_RIM + 8)
+            target = (backdrop["x"] + backdrop["width"] - 300, backdrop["y"] + 200)
+            _drag(page, grab, target)
+            wait_for(
+                lambda: abs(_box(_widget(page))["x"] - (target[0] - (grab[0] - moved["x"]))) <= _GEOMETRY_TOLERANCE_PX,
+                timeout=10.0,
+                poll_interval=0.1,
+                error_message="a drag on the widget's page never moved it",
+            )
+            _assert_close(_box(_widget(page))["y"], target[1] - (grab[1] - moved["y"]), "page-dragged y")
+            wait_for(
+                lambda: _client_widgets(server.base_url, client_id)[_WIDGET_APP_NAME]["position"]
+                != stored["position"],
+                timeout=10.0,
+                poll_interval=0.1,
+                error_message="the page's drag never wrote the position",
+            )
+            page.wait_for_timeout(500)
+            assert _windows_of(server.base_url, _WIDGET_APP_NAME) == []
 
             link = _widget_frame(page).locator("#open")
             link.click()
