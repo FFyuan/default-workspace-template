@@ -6,7 +6,7 @@ Below the cards, a Total row of tiles across every provider has the time window 
 
 - tokens, calls with the share that failed or were rate-limited, and p50 and p95 latency, with untimed calls counted apart and durations from Claude session logs marked approximate;
 
-- charts of spend or tokens over the window, one stacked by source and one by model side by side, and a breakdown by model, source or billing mode, where clicking a row filters the whole page; a source goes by its app's display name, its chat's title or its routine's title;
+- a chart of spend or tokens over the window, stacked by source or, when picked beside it, by model, and a breakdown by source, model or billing mode, where clicking a row filters the whole page; a source goes by its app's display name, its chat's title or its routine's title;
 
 - the latest turns as they happen (each a user message and every call it led to; a call with no turn is a turn of its own), in numbered pages of 10, 20, 50 or 100 rows with a box to jump to a page, each opening to its calls and each call to its raw event.
 
@@ -14,4 +14,4 @@ It stores nothing of its own, reconnects to the collector's live stream after an
 
 Who sees it follows the workspace's sharing grants, like any app: a visitor with a workspace-wide grant or a grant on Usage sees the same numbers as the owner. The Share tab lists it under System.
 
-A subscription's chart shows each model's estimated usage as a share of its 5-hour or weekly limit, its breakdown shows each row's estimated share of each limit within that limit's most recent window, and its latest turns show each turn's and each call's estimated share of each limit, in place of spend and cost: the calls are priced at API rates and the limit's last reported share is spread over them in proportion. After a window resets the estimate keeps the last reading's rate and says so, and dashed lines mark where the window started and reset.
+A subscription's chart shows each source's or model's estimated usage as a share of its 5-hour or weekly limit, its breakdown shows each row's estimated share of each limit within that limit's most recent window, and its latest turns show each turn's and each call's estimated share of each limit, in place of spend and cost: the calls are priced at API rates and the limit's last reported share is spread over them in proportion. After a window resets the estimate keeps the last reading's rate and says so, and dashed lines mark where the window started and reset.

@@ -54,6 +54,8 @@ export const PERIODIC_REFRESH_MS = 60_000;
 const TURN_CALLS_LIMIT = 500;
 
 export type ChartMetric = "spend" | "tokens" | "usage";
+/** What a section's chart splits its usage by. */
+export type ChartSeries = "source" | "model";
 
 /** The tiles' numbers for some set of calls: the Total row's, or one provider section's. */
 export interface UsageFigures {
@@ -104,10 +106,12 @@ export const STREAM_URL = "/api/usage/stream";
 
 export class DashboardModel {
   windowId: WindowId = "24h";
-  breakdown: BreakdownId = "model";
+  breakdown: BreakdownId = "source";
   filter: Filter | null = null;
   /** The chart each section shows, once its viewer picked one; a section otherwise shows its default. */
   chartMetrics: Record<string, ChartMetric> = {};
+  /** What each section's chart is split by, once its viewer picked; a section otherwise shows it by source. */
+  chartSeries: Record<string, ChartSeries> = {};
   /** Each subscription's usage scales, by its section key: one per limit window that can be estimated. */
   usageScales: Record<string, UsageScale[]> = {};
   /** The limit window each subscription's usage chart is against, once its viewer picked one. */
@@ -192,6 +196,11 @@ export class DashboardModel {
 
   selectChartMetric(sectionKey: string, metric: ChartMetric): void {
     this.chartMetrics = { ...this.chartMetrics, [sectionKey]: metric };
+    this.deps.redraw();
+  }
+
+  selectChartSeries(sectionKey: string, series: ChartSeries): void {
+    this.chartSeries = { ...this.chartSeries, [sectionKey]: series };
     this.deps.redraw();
   }
 

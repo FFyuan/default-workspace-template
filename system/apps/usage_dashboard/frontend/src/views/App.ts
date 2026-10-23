@@ -24,7 +24,14 @@ import {
   type SourceNames,
   sourceLabel,
 } from "../models/breakdown";
-import type { ChartMetric, DashboardData, DashboardModel, SectionFigures, UsageFigures } from "../models/dashboard";
+import type {
+  ChartMetric,
+  ChartSeries,
+  DashboardData,
+  DashboardModel,
+  SectionFigures,
+  UsageFigures,
+} from "../models/dashboard";
 import {
   formatCalls,
   formatCallTime,
@@ -623,7 +630,7 @@ function banners(model: DashboardModel): m.Children {
   ];
 }
 
-/** A set of calls' figures: their tiles, their usage over the window by model, and their breakdown. */
+/** A set of calls' figures: their tiles, their usage over the window by source or by model, and their breakdown. */
 /** Each chart keeps its own colours: a model's and a source's never compete for a slot. */
 interface ChartColors {
   models: SeriesColors;
@@ -668,9 +675,9 @@ function figuresView(
       : metric === "spend"
         ? "Spend"
         : "Tokens";
-  const chart = (title: string, attrs: Pick<ChartAttrs, "rows" | "colors" | "seriesLabel" | "seriesNoun">): m.Vnode =>
-    m("div", { class: "usage-chart-panel flex min-w-0 flex-col gap-2", "data-chart": attrs.seriesNoun }, [
-      m("h4", { class: "type-helper text-secondary" }, title),
+  const series: ChartSeries = model.chartSeries[chartKey] ?? "source";
+  const chart = (attrs: Pick<ChartAttrs, "rows" | "colors" | "seriesLabel" | "seriesNoun">): m.Vnode =>
+    m("div", { class: "usage-chart-panel flex min-w-0 flex-col", "data-chart": attrs.seriesNoun }, [
       m(UsageChart, {
         windowId: data.windowId,
         now,
@@ -710,19 +717,26 @@ function figuresView(
                 onSelect: (choice) => model.selectChartMetric(chartKey, choice),
               })
             : null,
+          m(SegmentedControl<ChartSeries>(), {
+            label: "Split by",
+            segments: [
+              { value: "source", label: "By source" },
+              { value: "model", label: "By model" },
+            ],
+            value: series,
+            onSelect: (choice) => model.selectChartSeries(chartKey, choice),
+          }),
         ]),
       ]),
-      // Side by side where the card is wide enough, one above the other where it is not.
-      m("div", { class: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-x-6 gap-y-4" }, [
-        chart("By source", {
-          rows: figures.sourceChartRows,
-          colors: colors.sources,
-          seriesLabel: (row) =>
-            sourceLabel(row.group.origin_kind ?? null, row.group.origin_id ?? null, model.sourceNames),
-          seriesNoun: "source",
-        }),
-        chart("By model", { rows: figures.chartRows, colors: colors.models, seriesNoun: "model" }),
-      ]),
+      series === "source"
+        ? chart({
+            rows: figures.sourceChartRows,
+            colors: colors.sources,
+            seriesLabel: (row) =>
+              sourceLabel(row.group.origin_kind ?? null, row.group.origin_id ?? null, model.sourceNames),
+            seriesNoun: "source",
+          })
+        : chart({ rows: figures.chartRows, colors: colors.models, seriesNoun: "model" }),
       metric === "usage" && scale !== undefined
         ? m(
             "p",

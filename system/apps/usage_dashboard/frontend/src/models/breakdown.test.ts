@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import { latencyRow, totalsRow } from "../testing/rows";
-import { NO_SOURCE_NAMES, breakdownLines, filterOf, matchesFilter, sourceLabel, withFilterFields } from "./breakdown";
+import {
+  BREAKDOWNS,
+  NO_SOURCE_NAMES,
+  breakdownLines,
+  filterOf,
+  matchesFilter,
+  sourceLabel,
+  withFilterFields,
+} from "./breakdown";
+
+describe("BREAKDOWNS", () => {
+  it("offers source first, then model and billing mode", () => {
+    expect(BREAKDOWNS.map((spec) => spec.id)).toEqual(["source", "model", "billing_mode"]);
+  });
+});
 
 describe("breakdownLines", () => {
   it("keeps spend and a subscription's list price apart within one model", () => {

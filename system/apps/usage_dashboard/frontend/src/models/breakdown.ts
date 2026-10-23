@@ -18,8 +18,8 @@ export interface BreakdownSpec {
 }
 
 export const BREAKDOWNS: readonly BreakdownSpec[] = [
-  { id: "model", label: "Model", fields: ["model"] },
   { id: "source", label: "Source", fields: ["origin_kind", "origin_id"] },
+  { id: "model", label: "Model", fields: ["model"] },
   { id: "billing_mode", label: "Billing mode", fields: ["billing_mode"] },
 ];
 
