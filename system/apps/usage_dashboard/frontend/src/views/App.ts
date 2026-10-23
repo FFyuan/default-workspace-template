@@ -8,7 +8,7 @@ import { bannerClass } from "@imbue/workspace-ui/src/components/banner";
 import { Button } from "@imbue/workspace-ui/src/components/Button";
 import { SegmentedControl } from "@imbue/workspace-ui/src/components/segmentedControl";
 
-import type { LatencyRow, StoredCall } from "../models/api";
+import type { LatencyRow, StoredCall, TotalsRow } from "../models/api";
 import {
   BREAKDOWNS,
   type BreakdownId,
@@ -35,7 +35,7 @@ import { SeriesColors } from "../models/series";
 import { BILLED_MODES, totalTokens } from "../models/summary";
 import { type Route, pathOf } from "../models/routing";
 import { type SectionKind, sectionKeyOf } from "../models/sections";
-import { type UsageScale, chosenScale, formatShare } from "../models/usageEstimate";
+import { type UsageScale, chosenScale, formatShare, limitShares, lineKey } from "../models/usageEstimate";
 import { WINDOWS, type WindowId } from "../models/windows";
 import { type ChartMarker, UsageChart } from "./chart";
 import { providerCard, providerSection } from "./providerCards";
@@ -140,14 +140,25 @@ function latencyTile(data: UsageFigures): m.Vnode {
   );
 }
 
+/** A breakdown column for one limit: its scale and the breakdown rows within its most recent window. */
+interface BreakdownLimit {
+  scale: UsageScale;
+  rows: readonly TotalsRow[];
+}
+
 function breakdownSection(
   model: DashboardModel,
   breakdown: BreakdownId,
   section: SectionFigures,
-  scale?: UsageScale,
+  limits: readonly BreakdownLimit[] = [],
 ): m.Vnode {
   const lines = breakdownLines(breakdown, section.breakdownRows, section.breakdownLatency, model.appNames);
-  const totalTokensAll = lines.reduce((sum, line) => sum + line.tokens, 0);
+  // A subscription's share is of its estimated usage (list price), which weighs models as its limits do;
+  // anything else's is of tokens.
+  const isUsageShare = limits.length > 0;
+  const shareOf = (line: (typeof lines)[number]): number => (isUsageShare ? (line.listPrice ?? 0) : line.tokens);
+  const totalShare = lines.reduce((sum, line) => sum + shareOf(line), 0);
+  const limitColumns = limits.map((limit) => ({ ...limit, shares: limitShares(breakdown, limit.rows, limit.scale) }));
   const activeKey = model.filter === null ? null : filterKey(model.filter);
   return m("div", { class: "flex flex-col gap-3" }, [
     m("div", { class: "flex flex-wrap items-center justify-between gap-2" }, [
@@ -168,18 +179,28 @@ function breakdownSection(
                 m("th", { class: "py-1.5 pr-3 font-normal" }, BREAKDOWNS.find((spec) => spec.id === breakdown)?.label),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Calls"),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Tokens"),
-                m("th", { class: "w-32 py-1.5 pr-3 font-normal" }, "Share"),
+                m(
+                  "th",
+                  {
+                    class: "w-32 py-1.5 pr-3 font-normal",
+                    title: isUsageShare
+                      ? "Share of this subscription's estimated usage in the time window"
+                      : "Share of tokens in the time window",
+                  },
+                  "Share",
+                ),
                 m("th", { class: "py-1.5 pr-3 text-right font-normal" }, "Spend"),
-                scale === undefined
-                  ? null
-                  : m(
-                      "th",
-                      {
-                        class: "py-1.5 pr-3 text-right font-normal",
-                        title: `Estimated share of the ${limitName(scale)} limit`,
-                      },
-                      "Est. usage",
-                    ),
+                limitColumns.map((limit) =>
+                  m(
+                    "th",
+                    {
+                      key: limit.scale.windowKey,
+                      class: "py-1.5 pr-3 text-right font-normal",
+                      title: `Estimated share of the ${limitName(limit.scale)} limit, within its most recent window`,
+                    },
+                    limit.scale.label.replace(" limit", ""),
+                  ),
+                ),
                 m("th", { class: "py-1.5 text-right font-normal" }, "p50"),
               ]),
             ]),
@@ -207,13 +228,13 @@ function breakdownSection(
                         m("div", { class: "h-1.5 flex-1 rounded-full bg-fill-hover" }, [
                           m("div", {
                             class: "h-1.5 rounded-full bg-(--series-1)",
-                            style: { width: `${totalTokensAll === 0 ? 0 : (100 * line.tokens) / totalTokensAll}%` },
+                            style: { width: `${totalShare === 0 ? 0 : (100 * shareOf(line)) / totalShare}%` },
                           }),
                         ]),
                         m(
                           "span",
                           { class: "w-9 text-right type-tag tabular-nums text-faint" },
-                          formatPercent(line.tokens, totalTokensAll),
+                          formatPercent(shareOf(line), totalShare),
                         ),
                       ]),
                     ]),
@@ -227,16 +248,19 @@ function breakdownSection(
                             `≈ ${formatDollars(line.listPrice)} subscription`,
                           ),
                     ]),
-                    scale === undefined
-                      ? null
-                      : m(
-                          "td",
-                          {
-                            class: "breakdown-usage py-2 pr-3 text-right tabular-nums text-secondary",
-                            title: `Estimated share of the ${limitName(scale)} limit, from the row's list price`,
-                          },
-                          line.listPrice === null ? "–" : formatShare(line.listPrice * scale.percentPerDollar),
-                        ),
+                    limitColumns.map((limit) => {
+                      const share = limit.shares.get(lineKey(line.group));
+                      return m(
+                        "td",
+                        {
+                          key: limit.scale.windowKey,
+                          class: "breakdown-usage py-2 pr-3 text-right tabular-nums text-secondary",
+                          "data-limit": limit.scale.windowKey,
+                          title: `Estimated share of the ${limitName(limit.scale)} limit in its most recent window`,
+                        },
+                        share === undefined ? "–" : formatShare(share),
+                      );
+                    }),
                     m(
                       "td",
                       { class: "py-2 text-right tabular-nums text-secondary" },
@@ -572,7 +596,19 @@ function figuresView(
           )
         : null,
     ]),
-    m("section", { class: CARD_CLASS }, breakdownSection(model, data.breakdown, figures, scale)),
+    m(
+      "section",
+      { class: CARD_CLASS },
+      breakdownSection(
+        model,
+        data.breakdown,
+        figures,
+        scales.flatMap((candidate) => {
+          const rows = figures.limitWindowRows?.[candidate.windowKey];
+          return rows === undefined ? [] : [{ scale: candidate, rows }];
+        }),
+      ),
+    ),
   ];
 }
 

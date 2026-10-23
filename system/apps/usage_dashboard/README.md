@@ -50,8 +50,11 @@ billing modes, since percentiles do not add up. What the tiles, charts and break
   prices the provider's subscription calls between the window's start and the
   reading at API rates (weighing an Opus token above a Haiku one, much as the
   limits do) and spreads the reported share over them in proportion. The
-  breakdown and the latest calls show each row's and each call's estimated share
-  the same way. Once a window resets its harness reports nothing for it until the
+  breakdown shows each row's estimated share of each limit within that limit's
+  most recent window (so a 5-hour column adds up to the 5-hour reading, whatever
+  the time window), and its Share column is of the subscription's estimated usage
+  in the time window. The latest calls show each call's estimated share the same
+  way. Once a window resets its harness reports nothing for it until the
   next call, so the estimate keeps the last reading's rate (the account's, which
   a reset does not change) and says so; dashed lines mark where the chosen
   window started and where it reset.

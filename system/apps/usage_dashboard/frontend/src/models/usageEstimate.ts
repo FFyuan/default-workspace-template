@@ -12,6 +12,8 @@
  * it is the account's rate, which a reset does not change, and the page says the estimate rests on it.
  */
 
+import type { Group, TotalsRow } from "./api";
+import { type BreakdownId, breakdownLines } from "./breakdown";
 import type { LimitWindow } from "./providers";
 
 /** The share of one limit window a dollar of list price uses, for one subscription. */
@@ -49,4 +51,25 @@ export function formatShare(percent: number): string {
   if (percent > 0 && percent < 0.01) return "<0.01%";
   if (percent < 1) return `${percent.toFixed(2)}%`;
   return `${percent.toFixed(1)}%`;
+}
+
+/** The key a breakdown line is known by, across answers for different spans of time. */
+export function lineKey(group: Group): string {
+  return JSON.stringify(group);
+}
+
+/**
+ * Each breakdown line's estimated share of a limit within the limit's most recent window, by ``lineKey``: its list
+ * price there times the scale's rate. A line with no subscription calls in that window is left out.
+ */
+export function limitShares(
+  breakdown: BreakdownId,
+  windowRows: readonly TotalsRow[],
+  scale: UsageScale,
+): Map<string, number> {
+  const shares = new Map<string, number>();
+  for (const line of breakdownLines(breakdown, windowRows, [], {})) {
+    if (line.listPrice !== null) shares.set(lineKey(line.group), line.listPrice * scale.percentPerDollar);
+  }
+  return shares;
 }

@@ -60,6 +60,8 @@ export interface SectionFigures extends UsageFigures {
   chartRows: TotalsRow[];
   breakdownRows: TotalsRow[];
   breakdownLatency: LatencyRow[];
+  /** For a subscription: its breakdown rows within each limit's most recent window, by window key. */
+  limitWindowRows?: Record<string, TotalsRow[]>;
 }
 
 /** One provider's details. */
@@ -229,7 +231,7 @@ export class DashboardModel {
               return span === null ? [] : [{ card, window, span }];
             }),
       );
-      const [sectionLatency, calibrationRows] = await Promise.all([
+      const [sectionLatency, calibrationRows, limitWindowRows] = await Promise.all([
         Promise.all(
           specs.map((spec) => {
             const only = { provider: [spec.provider], billing_mode: spec.billingModes };
@@ -239,6 +241,16 @@ export class DashboardModel {
         Promise.all(
           calibrations.map(({ span }) =>
             fetchTotals({ groupBy: ["provider", "billing_mode"], since: span.since, until: span.until }),
+          ),
+        ),
+        // Each limit's most recent window, up to its reset or now, for the breakdown's per-limit columns.
+        Promise.all(
+          calibrations.map(({ window, span }) =>
+            fetchTotals({
+              groupBy: withFilterFields([...breakdownSpec(breakdown).fields, ...SECTION_FIELDS], filter),
+              since: span.since,
+              until: window.readingResetsAt !== null && window.readingResetsAt < now ? window.readingResetsAt : now,
+            }),
           ),
         ),
       ]);
@@ -284,6 +296,11 @@ export class DashboardModel {
           chartRows: within(chartRows, spec),
           breakdownRows: within(breakdownRows, spec),
           breakdownLatency: keep(sectionLatency[index][1]),
+          limitWindowRows: Object.fromEntries(
+            calibrations.flatMap(({ card, window }, calibration) =>
+              card.sectionKey === spec.key ? [[window.key, within(limitWindowRows[calibration], spec)]] : [],
+            ),
+          ),
         })),
         windowId,
         breakdown,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { LimitWindow } from "./providers";
-import { calibrationSpan, chosenScale, formatShare, percentPerDollar } from "./usageEstimate";
+import { totalsRow } from "../testing/rows";
+import { calibrationSpan, chosenScale, formatShare, limitShares, lineKey, percentPerDollar } from "./usageEstimate";
 
 function window(patch: Partial<LimitWindow>): LimitWindow {
   return {
@@ -63,5 +64,29 @@ describe("chosenScale and formatShare", () => {
     expect(formatShare(0.004)).toBe("<0.01%");
     expect(formatShare(0.4213)).toBe("0.42%");
     expect(formatShare(3.14)).toBe("3.1%");
+  });
+});
+
+describe("limitShares", () => {
+  it("prices each line's subscription calls in the window at the scale's rate", () => {
+    const scale = {
+      windowKey: "five_hour",
+      label: "5-hour limit",
+      percentPerDollar: 10,
+      isFromEarlierWindow: false,
+      windowStart: new Date(0),
+      resetsAt: new Date(0),
+    };
+    const rows = [
+      totalsRow({ group: { model: "anthropic/opus", billing_mode: "SUBSCRIPTION" }, cost_usd: "2" }),
+      totalsRow({ group: { model: "anthropic/haiku", billing_mode: "SUBSCRIPTION" }, cost_usd: "0.5" }),
+      totalsRow({ group: { model: "anthropic/sonnet", billing_mode: "SUBSCRIPTION" }, cost_usd: null }),
+    ];
+
+    const shares = limitShares("model", rows, scale);
+
+    expect(shares.get(lineKey({ model: "anthropic/opus" }))).toBe(20);
+    expect(shares.get(lineKey({ model: "anthropic/haiku" }))).toBe(5);
+    expect(shares.has(lineKey({ model: "anthropic/sonnet" }))).toBe(false);
   });
 });
