@@ -3020,9 +3020,24 @@ def test_a_widget_shows_in_its_corner_collapses_moves_opens_its_app_and_hides_fo
                 poll_interval=0.1,
                 error_message="the widget's link never opened its app",
             )
+            # The window moves to another page of its app; the widget's link still raises it rather than opening a
+            # second window at its own path.
+            (opened,) = _windows_of(server.base_url, _WIDGET_APP_NAME)
+            app_handle = page.locator(f'iframe[data-live-page="{opened["id"]}"]').element_handle(timeout=10000)
+            assert app_handle is not None
+            app_page = app_handle.content_frame()
+            assert app_page is not None
+            app_page.wait_for_function("() => window.__handshake !== undefined", timeout=10000)
+            app_page.evaluate("() => window.__navigateTo('/detail')")
+            wait_for(
+                lambda: _windows_of(server.base_url, _WIDGET_APP_NAME)[0]["path"] == "/detail",
+                timeout=10.0,
+                poll_interval=0.1,
+                error_message="the app's window never reported its new page",
+            )
             link.click()
             page.wait_for_timeout(500)
-            assert len(_windows_of(server.base_url, _WIDGET_APP_NAME)) == 1
+            assert [window["path"] for window in _windows_of(server.base_url, _WIDGET_APP_NAME)] == ["/detail"]
 
             _widget(page).locator("[data-widget-grip]").click(button="right")
             menu = page.locator(".widget-menu")

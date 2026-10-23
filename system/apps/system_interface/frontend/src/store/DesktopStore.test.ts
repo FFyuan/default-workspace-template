@@ -2772,6 +2772,25 @@ describe("widgets", () => {
     expect(api.calls).toHaveLength(writes);
   });
 
+  it("raises any window of a widget's app, whatever its page, and opens one only when the app has none", async () => {
+    api.desktops = [
+      desktopRecord("home", { windows: [windowRecord("win-1", "docs", "/a")] }),
+      desktopRecord("work", { windows: [windowRecord("win-7", "gauge", "/p/subscription:anthropic")] }),
+    ];
+    const store = await widgetStore();
+    store.minimizeWindow("win-1");
+
+    await store.openPathFromApp("gauge", "/", "focus");
+
+    // The app's one window is on another desktop, at another page: the client goes there and raises it.
+    expect(store.getState().activeDesktopId).toBe("work");
+    expect(activeFocusedWindowId(store.getState())).toBe("win-7");
+    expect(api.calls.some((call) => call.startsWith("openWindow:"))).toBe(false);
+    // ``new`` still always opens one.
+    await store.openPathFromApp("gauge", "/", "new");
+    expect(api.calls.some((call) => call.startsWith("openWindow:work:gauge:/:new"))).toBe(true);
+  });
+
   it("shows or hides a widget for the whole workspace, and opens its app's page on the active desktop", async () => {
     const store = await widgetStore();
     await store.setWidgetEnabled("gauge", false);

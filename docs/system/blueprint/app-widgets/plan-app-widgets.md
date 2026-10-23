@@ -122,7 +122,8 @@ A press that never travels the threshold is a click on the grip, which does noth
 ### 4.5 Clicking
 
 A click inside the frame is the page's.
-The widget page opens its app by a link to its own origin with `target="_blank"`: under the app contract's link rule (contracts section 7) that is a new-window click on the page's own origin, which sends `shell:open` with `ifPresent: "focus"`, so it raises the app's window at that path on the client's active desktop, opening one only when there is none.
+The widget page opens its app by a link to its own origin with `target="_blank"`: under the app contract's link rule (contracts section 7) that is a new-window click on the page's own origin, which sends `shell:open` with `ifPresent: "focus"`.
+A widget stands for its app, not for one page of it, so from a widget that open raises any window of the app, whatever page it is on: the one this client used last on the active desktop, else the first on another desktop (switching to it); a window is opened at the link's path only when the app has none.
 
 ### 4.6 Menus
 

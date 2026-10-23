@@ -347,7 +347,7 @@ A page no shell has handed a handshake -- an unframed page, or one framed by som
 
 A widget is drawn in its client's corner, stacked with the corner's other widgets in registry order, inset by `--desk-widget-inset` and, in a top corner, a title bar's height more, so a maximized window's controls stay clear of it; on a phone, collapsed in a strip above the bar.
 
-From a widget the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open` (opening on the client's active desktop), `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window.
+From a widget the shell ignores `shell:location`, `shell:focused`, and `shell:capabilities`, and takes `shell:open-link`, `shell:message`, `shell:start-with-text`, and `shell:draft-text` as from a window. A widget's `shell:open` with `ifPresent: "focus"` raises any window of its app, whatever page it is on (this client's most recently used one on the active desktop, else the first on another desktop, switching to it), and opens a window at the path only when the app has none; with `"new"` it opens one on the active desktop.
 
 Following rule: after every `desktops_updated`, for every live page of a window whose stored `path` differs from that page's last reported path, the shell sends `shell:navigate` when the page declared navigation, else reassigns the iframe `src`, and records the stored path as that page's last report at once, so a second broadcast before the page lands does not navigate it again.
 A page's own report never navigates it.

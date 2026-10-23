@@ -96,7 +96,7 @@ import {
   withRoomMadeFor,
 } from "../geometry/grid";
 import type { GridDimensions, PlacedShortcut } from "../geometry/grid";
-import { placementOf } from "../geometry/stack";
+import { mostRecentlyFocusedWindowOfApp, placementOf } from "../geometry/stack";
 import {
   activeDesktop,
   activeFocusedWindowId,
@@ -1491,11 +1491,44 @@ export class DesktopStore {
     void this.setWidgetPresentation(gesture.app, { ...current, corner });
   }
 
-  /** A page of ``app`` that is no window's (a widget's) asked to open a page of its own app: it opens on the
-   *  active desktop, raising the window already there with ``focus``. */
+  /** A page of ``app`` that is no window's (a widget's) asked to open a page of its own app. With ``focus`` a
+   *  widget stands for its app, not one page of it: any window of the app is raised wherever it is (the one this
+   *  client used last on the active desktop, else the first on another desktop, switching to it), and a window is
+   *  opened at ``path`` only when the app has none. With ``new`` a window is always opened. */
   async openPathFromApp(app: string, path: string, ifPresent: IfPresent): Promise<void> {
-    if (ifPresent === "focus") await this.focusOrOpenWindowAt(app, path);
-    else await this.openWindowAt(app, path, ifPresent);
+    if (ifPresent === "new") {
+      await this.openWindowAt(app, path, ifPresent);
+      return;
+    }
+    const window = this.windowOfAppToRaise(app);
+    if (window === null) {
+      await this.openWindowAt(app, path, "focus");
+      return;
+    }
+    if (this.isPhoneLayout()) {
+      this.showOnPhone({ kind: "window", windowId: window.id });
+      return;
+    }
+    const found = findWindow(this.state, window.id);
+    if (found !== null && found.desktop.id !== this.state.activeDesktopId) await this.switchDesktop(found.desktop.id);
+    if (placementOf(this.state.layout, window.id).is_detached) {
+      this.showDetachedWindow(window.id);
+      return;
+    }
+    this.raiseWindow(window.id);
+  }
+
+  /** The window of ``app`` a widget's open raises: this client's most recently used one on the active desktop,
+   *  else the first on any desktop; null when the app has none. */
+  private windowOfAppToRaise(app: string): WindowRecord | null {
+    const desktop = activeDesktop(this.state);
+    const recent = desktop === null ? null : mostRecentlyFocusedWindowOfApp(this.state.layout, desktop, app);
+    if (recent !== null) return recent;
+    for (const candidate of this.state.desktops) {
+      const window = candidate.windows.find((each) => each.app === app);
+      if (window !== undefined) return window;
+    }
+    return null;
   }
 
   handleLayoutOp(event: LayoutOpEvent): void {
