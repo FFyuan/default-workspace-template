@@ -170,7 +170,7 @@ def test_a_store_at_the_libraries_folder_and_a_filled_default_library_refuse_to_
 
     with pytest.raises(
         launcher.DatalibLaunchError,
-        match=f"both {libraries_dir} and the library {data_root} hold a store",
+        match=f"{libraries_dir} holds a store and the library {data_root} is not empty",
     ):
         launcher.move_store_into_library(libraries_dir, data_root)
 
@@ -203,7 +203,7 @@ def test_an_interrupted_move_that_meets_a_filled_default_library_names_the_stagi
 
     with pytest.raises(
         launcher.DatalibLaunchError,
-        match=f"both {staging} and the library {data_root} hold a store",
+        match=f"{staging} holds a store and the library {data_root} is not empty",
     ):
         launcher.move_store_into_library(libraries_dir, data_root)
 

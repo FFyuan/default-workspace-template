@@ -163,7 +163,7 @@ def _remove_empty_library_or_refuse_to_move(library: Path, store_to_move: Path) 
         library.rmdir()
         return
     raise DatalibLaunchError(
-        f"both {store_to_move} and the library {library} hold a store; "
+        f"{store_to_move} holds a store and the library {library} is not empty; "
         "move one of them aside, then start the app again"
     )
 

@@ -81,8 +81,8 @@ moving a library:
   is dropped, since `datalib-dag` writes where that key says; any other value
   is kept;
 - a folder that holds a store of its own *and* a non-empty `Default` is left
-  alone and the launcher refuses to start, naming both, since it cannot tell
-  which one is the user's.
+  alone and the launcher refuses to start, naming both and what it found at
+  each, since it cannot tell which one is the user's.
 
 ## The token
 
