@@ -12,8 +12,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { GestureListener, GestureSource } from "../gestures/pointerGestures";
 import type { DesktopShortcut, WidgetPresentation } from "../model/records";
 import { initEmbedderRelay, resetEmbedderRelayForTesting } from "../relay";
+import { TourController } from "../model/tour";
 import { DesktopStore } from "../store/DesktopStore";
 import { FakeDesktopApi, FakeDesktopSocket, settle } from "../testing/fakeShell";
+import { FakeTourApi } from "../testing/fakeTour";
 import { appRecord, desktopRecord, placementRecord, themeMetricsRecord, windowRecord } from "../testing/records";
 import { App } from "./App";
 
@@ -56,12 +58,22 @@ async function mountApp(): Promise<void> {
     redraw: () => m.redraw(),
     reloadInterface: () => undefined,
     soloWindowId: null,
-    outsideLinks: { openInEmbedder: () => undefined, openInBrowser: () => undefined },
+    outsideLinks: {
+      openInEmbedder: () => undefined,
+      openInBrowser: () => undefined,
+      launchInSystemApp: () => undefined,
+    },
   });
   await store.start(NO_LINK);
   api.apps = [appRecord("docs"), CLOCK, NOTE];
   socket.deliver().onAppsUpdated(api.apps);
-  mountView(() => m(App, { store, gestures, host: "127.0.0.1:8000", protocol: "http:" }));
+  const tour = new TourController({
+    api: new FakeTourApi({ isSeen: true }),
+    highlightChrome: () => undefined,
+    isAutoStartAllowed: () => false,
+    redraw: () => m.redraw(),
+  });
+  mountView(() => m(App, { store, gestures, tour, host: "127.0.0.1:8000", protocol: "http:" }));
   store.setBackdropSize({ width: 1000, height: 800 });
   m.redraw.sync();
 }

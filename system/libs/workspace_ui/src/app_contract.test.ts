@@ -525,6 +525,7 @@ describe("a framed page's link clicks", () => {
     ["a web link", "https://example.com/docs"],
     ["mailto", "mailto:someone@example.com"],
     ["tel", "tel:+15551234567"],
+    ["a custom-scheme link", "slack://channel?id=C1"],
   ])("hands %s to the shell and keeps the page where it is, whatever its target", (_what, href) => {
     const parent = connect();
     click(`<a href="${href}"><span data-click>open</span></a>`);
@@ -666,6 +667,7 @@ describe("a framed page's scripted popups", () => {
     const calls: unknown[][] = [
       ["https://example.com/sign-in", "signin", "popup"],
       ["mailto:someone@example.com"],
+      ["slack://channel?id=C1"],
       ["about:blank"],
       [],
       [""],
@@ -685,6 +687,7 @@ describe("a framed page's scripted popups", () => {
     expect(open("/docs/intro", "_self")).toEqual({ closed: false });
     expect(open("http://localhost:5173/preview", "_SELF")).toBeNull();
     expect(open("https://example.com/docs", "_self")).toBeNull();
+    expect(open("slack://channel?id=C1", "_self")).toBeNull();
     expect(open("http://localhost:5173/preview", "preview")).toEqual({ closed: false });
     expect(open("/docs/intro", "preview")).toEqual({ closed: false });
     expect(nativeOpen.mock.calls).toEqual([
@@ -695,6 +698,7 @@ describe("a framed page's scripted popups", () => {
     expect(sentAfterConnect(parent)).toEqual([
       [{ type: SHELL_OPEN_LINK, url: "http://localhost:5173/preview" }, "*"],
       [{ type: SHELL_OPEN_LINK, url: "https://example.com/docs" }, "*"],
+      [{ type: SHELL_OPEN_LINK, url: "slack://channel?id=C1" }, "*"],
     ]);
     document.body.innerHTML = "";
   });
