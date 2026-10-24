@@ -24,7 +24,8 @@ export const WIDGET_DETAILS = ["less", "standard", "more"] as const;
 export type WidgetDetail = (typeof WIDGET_DETAILS)[number];
 
 /** How the widget is drawn in the taskbar's tray: a ring pair with the name over the 5-hour figure; the ring pair
- *  alone; the name over two bars; the name and the 5-hour figure as text; the 5-hour figure over the weekly one. */
+ *  alone; the name over two bars; the name and the 5-hour figure as text; the name beside the 5-hour figure over the
+ *  weekly one. */
 export const WIDGET_TRAYS = ["rings", "ring", "bars", "numbers", "stacked"] as const;
 export type WidgetTray = (typeof WIDGET_TRAYS)[number];
 

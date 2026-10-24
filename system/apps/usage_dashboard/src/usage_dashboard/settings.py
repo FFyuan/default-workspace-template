@@ -66,7 +66,7 @@ class TrayDesign(LowerCaseStrEnum):
     BARS = auto()
     # The name and the 5-hour figure, as text alone.
     NUMBERS = auto()
-    # The 5-hour figure over the weekly one, each with its colour's dot.
+    # The name beside the 5-hour figure over the weekly one, each with its colour's dot.
     STACKED = auto()
 
 
