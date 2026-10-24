@@ -107,7 +107,10 @@ the collector, listening on 127.0.0.1 only, is reached from outside the
 workspace only through this server. The manifest declares `system = true`, so
 the Share tab lists the app under System with System Monitor.
 An unreachable collector is answered with 503; the page then keeps its last
-numbers under a banner and retries.
+numbers and retries. The collector is almost always up and most outages are
+brief (a restart, or the tunnel answering 502-504 for a moment), so the banner
+shows only once it has stayed unreachable for a minute, and the header keeps
+saying "Live" through a stream drop shorter than that.
 
 ## Frontend
 
