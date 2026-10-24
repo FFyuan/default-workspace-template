@@ -242,6 +242,7 @@ export class WidgetModel {
       this.isCollectorDown = false;
     } catch (error) {
       this.isCollectorDown = isUnreachable(error);
+      if (!this.isCollectorDown) console.warn("[usage] could not read the widget's figures:", error);
     }
     this.look = (await readWidgetLook()) ?? this.look;
     this.deps.redraw();

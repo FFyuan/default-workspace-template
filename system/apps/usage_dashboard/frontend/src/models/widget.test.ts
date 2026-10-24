@@ -148,6 +148,19 @@ describe("WidgetModel", () => {
     expect(widget.isCollectorDown).toBe(true);
     expect(widget.cards).toHaveLength(1);
   });
+
+  it("keeps the last figures and warns when a read fails some other way", async () => {
+    const widget = model();
+    stubCollector([reading({})], false);
+    await widget.refresh();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    stubCollector([], false, 500);
+    await widget.refresh();
+    expect(widget.isCollectorDown).toBe(false);
+    expect(widget.cards).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith("[usage] could not read the widget's figures:", expect.anything());
+    warn.mockRestore();
+  });
 });
 
 describe("widgetRings", () => {
