@@ -144,7 +144,7 @@ def test_the_widget_look_defaults_to_medium_standard_rings_and_is_kept_once_set(
         "widget_size": "medium",
         "widget_detail": "standard",
         "widget_tray": "rings",
-        "widget_taskbar": "tray",
+        "widget_place": "desktop",
         "widget_toolbar": "chip",
     }
 
@@ -153,7 +153,7 @@ def test_the_widget_look_defaults_to_medium_standard_rings_and_is_kept_once_set(
         "widget_size": "large",
         "widget_detail": "more",
         "widget_tray": "stacked",
-        "widget_taskbar": "toolbar",
+        "widget_place": "toolbar",
         "widget_toolbar": "meters",
     }
     written = client.post("/api/settings", json=stored)
@@ -165,7 +165,7 @@ def test_the_widget_look_defaults_to_medium_standard_rings_and_is_kept_once_set(
     assert client.post("/api/settings", json={"widget_variant": "dials"}).status_code == 400
     assert client.post("/api/settings", json={"widget_size": "huge"}).status_code == 400
     assert client.post("/api/settings", json={"widget_tray": "sparkle"}).status_code == 400
-    assert client.post("/api/settings", json={"widget_taskbar": "dock"}).status_code == 400
+    assert client.post("/api/settings", json={"widget_place": "dock"}).status_code == 400
     assert client.post("/api/settings", json={"widget_toolbar": "sparkle"}).status_code == 400
 
 
@@ -180,6 +180,6 @@ def test_an_unreadable_settings_file_reads_as_the_defaults(
         "widget_size": "medium",
         "widget_detail": "standard",
         "widget_tray": "rings",
-        "widget_taskbar": "tray",
+        "widget_place": "desktop",
         "widget_toolbar": "chip",
     }

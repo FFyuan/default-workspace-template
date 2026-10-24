@@ -12,6 +12,6 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 
 - It says when usage is still being indexed, dims while reconnecting, hides itself when there is no usage yet, opens the Usage window when clicked, and can be dragged anywhere on the desktop by a press anywhere on it.
 
-- The widget can also sit in the taskbar's row among the window entries (the toolbar), in one of four designs drawn to match an entry: Chip (the rings as its icon, the name and figure as its title), Meters (upright 5-hour and weekly meters), Inline (one line of text) and Line (name and figure over thin lines). The picker at the foot of the Usage page picks Toolbar or Tray after "Taskbar", then the design for it; picking either moves the widget there.
+- The widget can also sit in the taskbar's row among the window entries (the toolbar), in one of four designs drawn to match an entry: Chip (the rings as its icon, the name and figure as its title), Meters (upright 5-hour and weekly meters), Inline (one line of text) and Line (name and figure over thin lines). They are picked once Toolbar is the widget's place.
 
-- The widget picker sits at the foot of the Usage page, on the left (at the window's bottom edge when the page is short), out of the way of the figures.
+- The widget picker sits at the foot of the Usage page, on the left (at the window's bottom edge when the page is short), out of the way of the figures. Its first choice is where the widget goes (Desktop, Toolbar or Tray), and only that place's choices follow: style, size and detail on the desktop; the design and detail in the toolbar or the tray. Every pick also moves your widget to the picked place.

@@ -91,7 +91,7 @@ collector, which listens on 127.0.0.1:8795 only:
 | `GET /api/apps` | the display name of every registered app |
 | `GET /api/health` | whether the app is up and its page built |
 | `GET /widget` | the Usage widget, which the workspace shell keeps on the desktop; `?variant=rings\|bars`, `?size=small\|medium\|large`, `?detail=less\|standard\|more` `?tray=rings\|ring\|bars\|numbers\|stacked` and `?toolbar=chip\|meters\|inline\|line` show that look on this page alone |
-| `GET /api/settings`, `POST /api/settings` | the app's settings, `{"widget_variant", "widget_size", "widget_detail", "widget_tray", "widget_taskbar", "widget_toolbar"}` (`widget_taskbar` is `toolbar` or `tray`: where in the taskbar the widget goes when picked there); a field left out takes its default |
+| `GET /api/settings`, `POST /api/settings` | the app's settings, `{"widget_variant", "widget_size", "widget_detail", "widget_tray", "widget_place", "widget_toolbar"}` (`widget_place` is `desktop`, `toolbar` or `tray`: where the widget goes); a field left out takes its default |
 
 Who sees usage is the workspace's sharing grants, as for any app: the share
 gateway admits a visitor with a workspace-wide grant or a grant on this app, and
@@ -111,8 +111,10 @@ The manifest declares a `[widget]` at `/widget`, enabled by default
 (`docs/system/blueprint/app-widgets/plan-app-widgets.md`, section 7): a second
 Vite entry (`widget.html`, `src/widget.ts`) that reads the limits, this month's
 totals and the collector's health, and reuses the page's provider cards, so the
-two never disagree. How it looks is picked for the whole workspace from the menus
-beside "Widget" at the foot of the Usage page, on the left, and kept in the app's settings: its
+two never disagree. Where it goes and how it looks are picked for the whole workspace
+beside "Widget" at the foot of the Usage page, on the left, and kept in the app's
+settings: first its place (desktop, the taskbar's row, or its tray), then only that
+place's choices. On the desktop its
 style (rings: concentric rings per subscription, weekly outside and 5-hour inside;
 bars: a row per subscription with a 5-hour bar above a thinner weekly one), its
 size (small, medium, large: `--w-*` lengths in `style.css`) and how much it shows

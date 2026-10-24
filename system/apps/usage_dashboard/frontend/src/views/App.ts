@@ -16,8 +16,8 @@ import {
   WIDGET_DETAIL_LABELS,
   WIDGET_SIZES,
   WIDGET_SIZE_LABELS,
-  WIDGET_TASKBAR_SPOTS,
-  WIDGET_TASKBAR_SPOT_LABELS,
+  WIDGET_PLACES,
+  WIDGET_PLACE_LABELS,
   WIDGET_TOOLBARS,
   WIDGET_TOOLBAR_LABELS,
   WIDGET_TRAYS,
@@ -25,7 +25,7 @@ import {
   WIDGET_VARIANTS,
   WIDGET_VARIANT_LABELS,
 } from "../models/widgetLook";
-import type { WidgetLookPicker, WidgetTaskbarSpot } from "../models/widgetLook";
+import type { WidgetLook, WidgetLookPicker, WidgetPlace } from "../models/widgetLook";
 import {
   BREAKDOWNS,
   type BreakdownId,
@@ -799,11 +799,42 @@ function lookMenu<T extends string>(
   ]);
 }
 
-/** The workspace's pick of how the widget looks -- its style, size and how much it shows on the desktop, where in the
- *  taskbar it goes (the bar's row, the toolbar, or the tray), and its design there -- saved by the Usage app and shown
- *  by its widget at once. Picking where in the taskbar, or a design for there, also puts this client's widget there,
- *  where it is seen. It sits at the foot of every page, on the left, out of the way of the figures: at the window's
- *  bottom edge when the page is shorter than the window. */
+/** The choices that apply where the widget is: its style and size on the desktop, or its design in the toolbar or
+ *  the tray; how much it shows applies in every place. */
+function placeChoices(picker: WidgetLookPicker, look: WidgetLook): m.Children {
+  const detail = lookMenu(WIDGET_DETAILS, WIDGET_DETAIL_LABELS, look.detail, "How much the widget shows", (choice) => {
+    void picker.select({ detail: choice });
+  });
+  switch (look.place) {
+    case "desktop":
+      return [
+        lookMenu(WIDGET_VARIANTS, WIDGET_VARIANT_LABELS, look.variant, "Widget style", (variant) => {
+          void picker.select({ variant });
+        }),
+        lookMenu(WIDGET_SIZES, WIDGET_SIZE_LABELS, look.size, "Widget size", (size) => void picker.select({ size })),
+        detail,
+      ];
+    case "toolbar":
+      return [
+        lookMenu(WIDGET_TOOLBARS, WIDGET_TOOLBAR_LABELS, look.toolbar, "Widget design in the toolbar", (toolbar) => {
+          void picker.select({ toolbar });
+        }),
+        detail,
+      ];
+    case "tray":
+      return [
+        lookMenu(WIDGET_TRAYS, WIDGET_TRAY_LABELS, look.tray, "Widget design in the tray", (tray) => {
+          void picker.select({ tray });
+        }),
+        detail,
+      ];
+  }
+}
+
+/** The workspace's pick of where the widget goes -- the desktop, the taskbar's row (the toolbar) or its tray -- and,
+ *  after it, the choices for that place alone, saved by the Usage app and shown by its widget at once. Every pick also
+ *  puts this client's widget in the picked place, where it is seen. It sits at the foot of every page, on the left,
+ *  out of the way of the figures: at the window's bottom edge when the page is shorter than the window. */
 function widgetLookPicker(picker: WidgetLookPicker): m.Children {
   const look = picker.look;
   if (look === null) return null;
@@ -815,31 +846,17 @@ function widgetLookPicker(picker: WidgetLookPicker): m.Children {
         ? null
         : m("span", { class: "type-helper text-danger", role: "alert" }, picker.errorMessage),
       m("span", { class: "type-helper text-secondary" }, "Widget"),
-      lookMenu(WIDGET_VARIANTS, WIDGET_VARIANT_LABELS, look.variant, "Widget style", (variant) => {
-        void picker.select({ variant });
-      }),
-      lookMenu(WIDGET_SIZES, WIDGET_SIZE_LABELS, look.size, "Widget size", (size) => void picker.select({ size })),
-      lookMenu(WIDGET_DETAILS, WIDGET_DETAIL_LABELS, look.detail, "How much the widget shows", (detail) => {
-        void picker.select({ detail });
-      }),
-      m("span", { class: "type-helper text-secondary" }, "Taskbar"),
-      m(SegmentedControl<WidgetTaskbarSpot>(), {
-        label: "Where the widget goes in the taskbar",
-        segments: WIDGET_TASKBAR_SPOTS.map((spot) => ({
-          value: spot,
-          label: WIDGET_TASKBAR_SPOT_LABELS[spot],
-          attrs: { "data-widget-taskbar": spot },
+      m(SegmentedControl<WidgetPlace>(), {
+        label: "Where the widget goes",
+        segments: WIDGET_PLACES.map((place) => ({
+          value: place,
+          label: WIDGET_PLACE_LABELS[place],
+          attrs: { "data-widget-place": place },
         })),
-        value: look.taskbar,
-        onSelect: (taskbar) => void picker.select({ taskbar }),
+        value: look.place,
+        onSelect: (place) => void picker.select({ place }),
       }),
-      look.taskbar === "toolbar"
-        ? lookMenu(WIDGET_TOOLBARS, WIDGET_TOOLBAR_LABELS, look.toolbar, "Widget design in the toolbar", (toolbar) => {
-            void picker.select({ toolbar });
-          })
-        : lookMenu(WIDGET_TRAYS, WIDGET_TRAY_LABELS, look.tray, "Widget design in the tray", (tray) => {
-            void picker.select({ tray });
-          }),
+      placeChoices(picker, look),
     ],
   );
 }

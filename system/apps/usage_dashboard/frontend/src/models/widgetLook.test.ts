@@ -31,10 +31,17 @@ const STORED = {
   widget_size: "medium",
   widget_detail: "standard",
   widget_tray: "rings",
-  widget_taskbar: "tray",
+  widget_place: "desktop",
   widget_toolbar: "chip",
 };
-const LOOK = { variant: "rings", size: "medium", detail: "standard", tray: "rings", taskbar: "tray", toolbar: "chip" };
+const LOOK = {
+  variant: "rings",
+  size: "medium",
+  detail: "standard",
+  tray: "rings",
+  place: "desktop",
+  toolbar: "chip",
+};
 
 describe("the widget's look", () => {
   it("reads known choices from a query, a message, or the settings, each unknown one taking its default", () => {
@@ -45,15 +52,15 @@ describe("the widget's look", () => {
       toolbar: "meters",
     });
     expect(lookOverrides("?toolbar=sparkle")).toEqual({});
-    expect(asWidgetLook({ ...LOOK, size: "small", taskbar: "toolbar", toolbar: "inline" })).toEqual({
+    expect(asWidgetLook({ ...LOOK, size: "small", place: "toolbar", toolbar: "inline" })).toEqual({
       ...LOOK,
       size: "small",
-      taskbar: "toolbar",
+      place: "toolbar",
       toolbar: "inline",
     });
-    expect(asWidgetLook({ ...LOOK, taskbar: "dock" })).toBeNull();
+    expect(asWidgetLook({ ...LOOK, place: "dock" })).toBeNull();
     expect(asWidgetLook({ variant: "rings", size: "small" })).toBeNull();
-    // An older file, from before the taskbar's row, reads whole with the defaults for the parts it lacks.
+    // An older file, from before the place was picked, reads whole with the defaults for the parts it lacks.
     expect(
       lookOfSettings({
         widget_variant: "bars",
@@ -65,16 +72,16 @@ describe("the widget's look", () => {
   });
 
   it("reads the stored look, and nothing when the settings cannot be read", async () => {
-    stubServer({ ...STORED, widget_variant: "bars", widget_taskbar: "toolbar", widget_toolbar: "line" });
-    expect(await readWidgetLook()).toEqual({ ...LOOK, variant: "bars", taskbar: "toolbar", toolbar: "line" });
+    stubServer({ ...STORED, widget_variant: "bars", widget_place: "toolbar", widget_toolbar: "line" });
+    expect(await readWidgetLook()).toEqual({ ...LOOK, variant: "bars", place: "toolbar", toolbar: "line" });
     stubServer({}, 503);
     expect(await readWidgetLook()).toBeNull();
   });
 
   it("saves a change to one part and announces the whole look, and puts the old one back when refused", async () => {
     const { channel, sent } = recordingChannel();
-    const placeInTaskbar = vi.fn();
-    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeInTaskbar });
+    const placeWidget = vi.fn();
+    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeWidget });
     const posted = stubServer(STORED);
     await picker.load();
     expect(picker.look).toEqual(LOOK);
@@ -83,27 +90,30 @@ describe("the widget's look", () => {
     expect(picker.look).toEqual({ ...LOOK, size: "large" });
     expect(posted).toEqual([{ ...STORED, widget_size: "large" }]);
     expect(sent).toEqual([{ ...LOOK, size: "large" }]);
-    expect(placeInTaskbar).not.toHaveBeenCalled();
 
     stubServer({}, 500);
     await picker.select({ variant: "bars" });
     expect(picker.look?.variant).toBe("rings");
     expect(picker.errorMessage).toContain("Could not change the widget");
     expect(sent).toHaveLength(1);
-    expect(placeInTaskbar).not.toHaveBeenCalled();
+    // A refused pick moves nothing.
+    expect(placeWidget.mock.calls).toEqual([["desktop"]]);
   });
 
-  it("puts this client's widget where in the taskbar was picked, on a pick of the spot or of a design there", async () => {
+  it("puts this client's widget in the picked place on every pick, where the pick is seen", async () => {
     const { channel } = recordingChannel();
-    const placeInTaskbar = vi.fn();
-    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeInTaskbar });
+    const placeWidget = vi.fn();
+    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeWidget });
     stubServer(STORED);
     await picker.load();
+    expect(placeWidget).not.toHaveBeenCalled();
 
+    await picker.select({ place: "tray" });
     await picker.select({ tray: "stacked" });
-    await picker.select({ taskbar: "toolbar" });
+    await picker.select({ place: "toolbar" });
     await picker.select({ toolbar: "meters" });
-    expect(picker.look).toEqual({ ...LOOK, tray: "stacked", taskbar: "toolbar", toolbar: "meters" });
-    expect(placeInTaskbar.mock.calls).toEqual([["tray"], ["toolbar"], ["toolbar"]]);
+    await picker.select({ place: "desktop" });
+    expect(picker.look).toEqual({ ...LOOK, tray: "stacked", toolbar: "meters" });
+    expect(placeWidget.mock.calls).toEqual([["tray"], ["tray"], ["toolbar"], ["toolbar"], ["desktop"]]);
   });
 });

@@ -1,11 +1,12 @@
 /**
- * How the workspace's Usage widget looks (app-widgets plan section 7.8): its style, its size, how much it shows, where
- * in the taskbar it goes (the bar's row, called the toolbar, or the tray), and its design in each.
+ * Where the workspace's Usage widget goes and how it looks there (app-widgets plan section 7.8): its place (the
+ * desktop, the taskbar's row, called the toolbar, or the tray), its style and size on the desktop, its design in each
+ * place in the taskbar, and how much it shows anywhere.
  * A choice the Usage app keeps in its own settings, not a flag. The Usage page picks it; the widget reads it with its
  * figures, and hears at once of a pick made in the same browser through a broadcast channel. ``?variant=``,
  * ``?size=``, ``?detail=``, ``?tray=`` and ``?toolbar=`` on the widget's URL override it for that page alone, so a
- * look can be tried without changing anyone's widget. Picking where in the taskbar, or a design for there, also asks
- * the shell to put this client's widget there.
+ * look can be tried without changing anyone's widget. Every pick also asks the shell to put this client's widget in
+ * the picked place, where the pick is seen.
  */
 
 import { fetchSettings, saveSettings } from "./api";
@@ -27,9 +28,10 @@ export type WidgetDetail = (typeof WIDGET_DETAILS)[number];
 export const WIDGET_TRAYS = ["rings", "ring", "bars", "numbers", "stacked"] as const;
 export type WidgetTray = (typeof WIDGET_TRAYS)[number];
 
-/** Where in the taskbar the widget goes: the bar's row, among the windows' entries, or the tray at its right end. */
-export const WIDGET_TASKBAR_SPOTS = ["toolbar", "tray"] as const;
-export type WidgetTaskbarSpot = (typeof WIDGET_TASKBAR_SPOTS)[number];
+/** Where the widget goes: the desktop; the taskbar's row, among the windows' entries; or its tray at the right end.
+ *  The shell's placement names, so a pick is passed to it as it is. */
+export const WIDGET_PLACES = ["desktop", "toolbar", "tray"] as const;
+export type WidgetPlace = (typeof WIDGET_PLACES)[number];
 
 /** How the widget is drawn in the bar's row: a chip like a window's entry; upright meters; one line of text; the
  *  name and figure over thin lines. */
@@ -41,7 +43,7 @@ export interface WidgetLook {
   readonly size: WidgetSize;
   readonly detail: WidgetDetail;
   readonly tray: WidgetTray;
-  readonly taskbar: WidgetTaskbarSpot;
+  readonly place: WidgetPlace;
   readonly toolbar: WidgetToolbar;
 }
 
@@ -50,7 +52,7 @@ export const DEFAULT_WIDGET_LOOK: WidgetLook = {
   size: "medium",
   detail: "standard",
   tray: "rings",
-  taskbar: "tray",
+  place: "desktop",
   toolbar: "chip",
 };
 
@@ -65,7 +67,11 @@ export const WIDGET_TRAY_LABELS: Record<WidgetTray, string> = {
   numbers: "Numbers",
   stacked: "Stacked",
 };
-export const WIDGET_TASKBAR_SPOT_LABELS: Record<WidgetTaskbarSpot, string> = { toolbar: "Toolbar", tray: "Tray" };
+export const WIDGET_PLACE_LABELS: Record<WidgetPlace, string> = {
+  desktop: "Desktop",
+  toolbar: "Toolbar",
+  tray: "Tray",
+};
 export const WIDGET_TOOLBAR_LABELS: Record<WidgetToolbar, string> = {
   chip: "Chip",
   meters: "Meters",
@@ -88,11 +94,11 @@ export function asWidgetLook(value: unknown): WidgetLook | null {
   const size = oneOf(WIDGET_SIZES, record.size);
   const detail = oneOf(WIDGET_DETAILS, record.detail);
   const tray = oneOf(WIDGET_TRAYS, record.tray);
-  const taskbar = oneOf(WIDGET_TASKBAR_SPOTS, record.taskbar);
+  const place = oneOf(WIDGET_PLACES, record.place);
   const toolbar = oneOf(WIDGET_TOOLBARS, record.toolbar);
-  return variant === null || size === null || detail === null || tray === null || taskbar === null || toolbar === null
+  return variant === null || size === null || detail === null || tray === null || place === null || toolbar === null
     ? null
-    : { variant, size, detail, tray, taskbar, toolbar };
+    : { variant, size, detail, tray, place, toolbar };
 }
 
 /** The settings as a look: a part the settings do not name, or name as an unknown choice, takes its default. */
@@ -102,7 +108,7 @@ export function lookOfSettings(settings: UsageSettings): WidgetLook {
     size: oneOf(WIDGET_SIZES, settings.widget_size) ?? DEFAULT_WIDGET_LOOK.size,
     detail: oneOf(WIDGET_DETAILS, settings.widget_detail) ?? DEFAULT_WIDGET_LOOK.detail,
     tray: oneOf(WIDGET_TRAYS, settings.widget_tray) ?? DEFAULT_WIDGET_LOOK.tray,
-    taskbar: oneOf(WIDGET_TASKBAR_SPOTS, settings.widget_taskbar) ?? DEFAULT_WIDGET_LOOK.taskbar,
+    place: oneOf(WIDGET_PLACES, settings.widget_place) ?? DEFAULT_WIDGET_LOOK.place,
     toolbar: oneOf(WIDGET_TOOLBARS, settings.widget_toolbar) ?? DEFAULT_WIDGET_LOOK.toolbar,
   };
 }
@@ -113,7 +119,7 @@ function settingsOfLook(look: WidgetLook): UsageSettings {
     widget_size: look.size,
     widget_detail: look.detail,
     widget_tray: look.tray,
-    widget_taskbar: look.taskbar,
+    widget_place: look.place,
     widget_toolbar: look.toolbar,
   };
 }
@@ -160,8 +166,8 @@ export interface ChannelLike {
 export interface WidgetLookPickerDeps {
   redraw: () => void;
   openChannel: () => ChannelLike;
-  /** Ask the shell to put this client's Usage widget at ``spot`` in the taskbar. */
-  placeInTaskbar: (spot: WidgetTaskbarSpot) => void;
+  /** Ask the shell to put this client's Usage widget at ``place``. */
+  placeWidget: (place: WidgetPlace) => void;
 }
 
 /** The Usage page's picker: the stored look, and a change to one part of it saved and announced to the widget. */
@@ -193,10 +199,8 @@ export class WidgetLookPicker {
     const channel = this.deps.openChannel();
     channel.postMessage(next);
     channel.close();
-    // A taskbar design is seen only in the taskbar, so picking where there, or a design for there, puts this client's
-    // widget there.
-    if (change.taskbar !== undefined || change.tray !== undefined || change.toolbar !== undefined) {
-      this.deps.placeInTaskbar(next.taskbar);
-    }
+    // The page shows only the picked place's choices, so whatever was picked is seen there: this client's widget goes
+    // there too.
+    this.deps.placeWidget(next.place);
   }
 }

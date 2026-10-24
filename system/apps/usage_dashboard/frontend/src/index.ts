@@ -37,7 +37,7 @@ function bootstrap(): void {
   const widgetStyle = new WidgetLookPicker({
     redraw: () => m.redraw(),
     openChannel: () => new BroadcastChannel(WIDGET_LOOK_CHANNEL),
-    placeInTaskbar: (spot) => connection.placeWidget(spot),
+    placeWidget: (place) => connection.placeWidget(place),
   });
   m.mount(root, { view: () => m(App, { model, widgetStyle, route, now }) });
   model.start();

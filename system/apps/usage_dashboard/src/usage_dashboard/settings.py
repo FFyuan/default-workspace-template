@@ -1,5 +1,5 @@
-"""The Usage app's own settings: how the workspace's Usage widget looks -- its style, size and how much it shows on the
-desktop, and its design in the taskbar's tray.
+"""The Usage app's own settings: where the workspace's Usage widget goes (the desktop, the taskbar's row or its tray)
+and how it looks there -- its style, size and how much it shows on the desktop, and its design in the taskbar.
 
 One small JSON file in the app's data directory (``data/.apps/usage-dashboard/settings.json`` on a live workspace),
 read on every request so an edit from another process lands without a restart, and written whole. A missing or
@@ -68,9 +68,11 @@ class TrayDesign(LowerCaseStrEnum):
     STACKED = auto()
 
 
-class TaskbarSpot(LowerCaseStrEnum):
-    """Where in the taskbar the Usage widget goes when it is picked there."""
+class WidgetPlace(LowerCaseStrEnum):
+    """Where the Usage widget goes: the page picks this first, then shows the choices for that place."""
 
+    # On the desktop, in its style and size.
+    DESKTOP = auto()
     # In the taskbar's row beside the launcher, drawn like a window's entry.
     TOOLBAR = auto()
     # In the tray at the bar's right end.
@@ -97,9 +99,7 @@ class UsageSettings(FrozenModel):
     widget_size: WidgetSize = Field(default=WidgetSize.MEDIUM, description="How large the widget is drawn")
     widget_detail: WidgetDetail = Field(default=WidgetDetail.STANDARD, description="How much the widget shows")
     widget_tray: TrayDesign = Field(default=TrayDesign.RINGS, description="The widget's design in the taskbar's tray")
-    widget_taskbar: TaskbarSpot = Field(
-        default=TaskbarSpot.TRAY, description="Where in the taskbar the widget goes when it is picked there"
-    )
+    widget_place: WidgetPlace = Field(default=WidgetPlace.DESKTOP, description="Where the widget goes")
     widget_toolbar: ToolbarDesign = Field(
         default=ToolbarDesign.CHIP, description="The widget's design in the taskbar's row"
     )

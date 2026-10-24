@@ -281,7 +281,7 @@ The whole widget is one link, `<a href="/" target="_blank">`, so a click raises 
 
 ### 7.8 The look: style, size and detail
 
-How the widget looks is the Usage app's own setting, not a flag and nothing the shell knows of: three fields of `data/.apps/usage-dashboard/settings.json`, read and written through `GET` and `POST /api/settings`, and picked from three menus beside "Widget" in the foot of the Usage page, on the left. The widget reads them with its figures; a pick in the same browser reaches it at once over a `BroadcastChannel`, and one made elsewhere on its next read (within a minute). `?variant=`, `?size=` and `?detail=` on the widget's URL override them for that page alone, to look at a choice without changing anyone's widget. Every style reads the same `WidgetModel`, so adding one is a view and a name.
+How the widget looks is the Usage app's own setting, not a flag and nothing the shell knows of: fields of `data/.apps/usage-dashboard/settings.json`, read and written through `GET` and `POST /api/settings`, and picked beside "Widget" at the foot of the Usage page, on the left. The first pick is where the widget goes (`widget_place`: Desktop, the default, Toolbar or Tray); only that place's choices follow it: on the desktop its style, size and detail; in the toolbar or the tray its design there and its detail. Every pick also asks the shell to put this client's widget in the picked place (`shell:widget-placement`, section 6), where the pick is seen. The widget reads them with its figures; a pick in the same browser reaches it at once over a `BroadcastChannel`, and one made elsewhere on its next read (within a minute). `?variant=`, `?size=` and `?detail=` on the widget's URL override them for that page alone, to look at a choice without changing anyone's widget. Every style reads the same `WidgetModel`, so adding one is a view and a name.
 
 | Style (`widget_variant`) | Expanded | Collapsed |
 |---|---|---|
@@ -294,7 +294,7 @@ How the widget looks is the Usage app's own setting, not a flag and nothing the 
 | `standard` (default) | sections 7.4 and 7.5, and the bars as above |
 | `more` | in view rather than only in tooltips: each limit's reset time (expanded), the reading's time beside each heading (expanded rings), the weekly figure and the 5-hour reset beside a collapsed ring pair, and the weekly figure beside the collapsed bars |
 
-In the taskbar (section 4.10) the widget draws the design the workspace picked for where it is: in the tray the tray design (`widget_tray`), in the bar's row the toolbar design (`widget_toolbar`), whatever size was picked; detail still applies (less: the 5-hour limit alone). The picker at the foot of the Usage page, on the left, picks them after its "Taskbar" label: a Toolbar / Tray choice (`widget_taskbar`, default `tray`), then the design menu for the one chosen. Picking either, or a design, also asks the shell to put this client's widget there (`shell:widget-placement`, section 6), since a taskbar design is seen only there. A click opens the widget expanded in the popover.
+In the taskbar (section 4.10) the widget draws the design the workspace picked for where it is: in the tray the tray design (`widget_tray`), in the bar's row the toolbar design (`widget_toolbar`), whatever size was picked; detail still applies (less: the 5-hour limit alone). They are picked once Toolbar or Tray is the picked place. A click opens the widget expanded in the popover.
 
 | Tray design (`widget_tray`) | Per subscription |
 |---|---|
