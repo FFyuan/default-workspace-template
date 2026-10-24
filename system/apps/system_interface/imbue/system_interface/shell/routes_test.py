@@ -984,8 +984,8 @@ def test_a_clients_widget_presentation_is_written_and_announced_to_that_client_a
     assert drain_messages(second_queue) == []
     listed = {entry["id"]: entry for entry in client.get("/api/clients").get_json()["clients"]}
     assert listed["c2"]["widgets"] == {}
-    # An absent field takes the default; an app declaring no widget, an internal app, a position off the backdrop, an
-    # unknown app, and an unknown client are refused.
+    # An absent field takes the default; a position off the backdrop is refused, and an app declaring no widget, an
+    # internal app, an unknown app, and an unknown client are not found.
     defaulted = client.post("/api/clients/c1/widgets/meter", json={})
     assert defaulted.get_json()["widgets"]["meter"] == {"position": None, "mode": "expanded", "placement": "desktop"}
     # Only a widget whose page draws a tray form goes in the tray.
@@ -996,7 +996,7 @@ def test_a_clients_widget_presentation_is_written_and_announced_to_that_client_a
     assert toolbar.get_json()["widgets"]["gauge"]["placement"] == "toolbar"
     assert client.post("/api/clients/c1/widgets/meter", json={"placement": "toolbar"}).status_code == 400
     for name in ("files", "probe"):
-        assert client.post(f"/api/clients/c1/widgets/{name}", json={}).status_code == 400
+        assert client.post(f"/api/clients/c1/widgets/{name}", json={}).status_code == 404
     assert client.post("/api/clients/c1/widgets/gauge", json={"position": {"x": 1.5, "y": 0.2}}).status_code == 400
     assert client.post("/api/clients/c1/widgets/nope", json={}).status_code == 404
     assert client.post("/api/clients/ghost/widgets/gauge", json={}).status_code == 404
