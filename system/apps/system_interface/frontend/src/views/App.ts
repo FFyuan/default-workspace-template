@@ -275,10 +275,15 @@ export function App(): m.Component<AppAttrs> {
   };
 
   const onDocumentPointerDown = (event: Event): void => {
-    // A tray widget's popover closes on a press anywhere but on it or its slot (whose own click toggles it).
-    if (store !== null && store.getState().trayPopoverApp !== null) {
+    // A taskbar widget's popover closes on a press anywhere but on it or its own slot (whose own click toggles it);
+    // the tray's own items (the desktop switcher, the presence strip) are not its slot.
+    const popoverApp = store?.getState().trayPopoverApp ?? null;
+    if (store !== null && popoverApp !== null) {
       const target = event.target;
-      const own = `[${WIDGET_POPOVER_ATTRIBUTE}], [${TRAY_WIDGET_ATTRIBUTE}], [${TOOLBAR_WIDGET_ATTRIBUTE}]`;
+      const app = CSS.escape(popoverApp);
+      const own =
+        `[${WIDGET_POPOVER_ATTRIBUTE}], [${TRAY_WIDGET_ATTRIBUTE}="${app}"], ` +
+        `[${TOOLBAR_WIDGET_ATTRIBUTE}="${app}"]`;
       if (!(target instanceof Element && target.closest(own) !== null)) {
         store.closeTrayPopover();
         m.redraw();
@@ -851,8 +856,10 @@ export function App(): m.Component<AppAttrs> {
     widgetFrames?.setTrayHost(host);
   }
 
-  /** Open a widget's menu at ``x``, ``y`` in the viewport, from a right-click or a press on ``target``. */
+  /** Open a widget's menu at ``x``, ``y`` in the viewport, from a right-click or a press on ``target``. Not on a phone,
+   *  whose layout draws no such menu: one opened there would show only once the client is back on the desktop. */
   function openWidgetMenuAt(current: DesktopStore, app: string, x: number, y: number, target: Element): void {
+    if (current.isPhoneLayout()) return;
     openMenuAt({ kind: "widget", app, referenceRows: referenceRowsFor(current, target, x, y) }, anchorForPoint(x, y));
   }
 

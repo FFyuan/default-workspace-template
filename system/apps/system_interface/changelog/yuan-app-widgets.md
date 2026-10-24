@@ -29,3 +29,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - On a phone, a widget's menu no longer offers Collapse or Expand, which the phone's always-collapsed strip ignored.
 
 - Showing or hiding a widget for a name no app can have answers 404, as for an unknown app, rather than failing with a server error.
+
+- Fixed: pressing the desktop switcher or the presence strip now closes an open tray widget popover, and a widget page's right-click on a phone no longer opens a menu that only appeared later, back on the desktop.
