@@ -177,8 +177,12 @@ export class WidgetLookPicker {
 
   constructor(private readonly deps: WidgetLookPickerDeps) {}
 
+  /** Read the stored look. One that cannot be read leaves ``look`` null, so nothing is offered to pick: a pick saves
+   *  the whole look, and saving the defaults for the parts not picked would overwrite the workspace's choices. */
   async load(): Promise<void> {
-    this.look = (await readWidgetLook()) ?? DEFAULT_WIDGET_LOOK;
+    const look = await readWidgetLook();
+    this.look = look;
+    this.errorMessage = look === null ? "Could not read the widget's settings" : null;
     this.deps.redraw();
   }
 

@@ -100,6 +100,19 @@ describe("the widget's look", () => {
     expect(placeWidget.mock.calls).toEqual([["desktop"]]);
   });
 
+  it("offers nothing to pick when the stored look cannot be read, so no pick overwrites it", async () => {
+    const { channel } = recordingChannel();
+    const picker = new WidgetLookPicker({ redraw: () => undefined, openChannel: () => channel, placeWidget: vi.fn() });
+    stubServer({}, 503);
+    await picker.load();
+    expect(picker.look).toBeNull();
+    expect(picker.errorMessage).toContain("Could not read");
+    stubServer(STORED);
+    await picker.load();
+    expect(picker.look).toEqual(LOOK);
+    expect(picker.errorMessage).toBeNull();
+  });
+
   it("puts this client's widget in the picked place on every pick, where the pick is seen", async () => {
     const { channel } = recordingChannel();
     const placeWidget = vi.fn();

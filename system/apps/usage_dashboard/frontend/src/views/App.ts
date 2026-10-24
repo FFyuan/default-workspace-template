@@ -969,7 +969,13 @@ function placeChoices(picker: WidgetLookPicker, look: WidgetLook): m.Children {
  *  out of the way of the figures: at the window's bottom edge when the page is shorter than the window. */
 function widgetLookPicker(picker: WidgetLookPicker): m.Children {
   const look = picker.look;
-  if (look === null) return null;
+  if (look === null) {
+    return picker.errorMessage === null
+      ? null
+      : m("footer", { class: "widget-style mt-auto border-t border-default pt-3" }, [
+          m("span", { class: "type-helper text-danger", role: "alert" }, picker.errorMessage),
+        ]);
+  }
   return m(
     "footer",
     { class: "widget-style mt-auto flex flex-wrap items-center gap-2 border-t border-default pt-3" },
