@@ -1191,7 +1191,7 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
 
 export interface AppAttrs {
   model: DashboardModel;
-  widgetStyle: WidgetLookPicker;
+  lookPicker: WidgetLookPicker;
   route: Route;
   now: () => Date;
 }
@@ -1199,14 +1199,14 @@ export interface AppAttrs {
 export function App(): m.Component<AppAttrs> {
   const colors: ChartColors = { models: new SeriesColors(), sources: new SeriesColors() };
   return {
-    view({ attrs: { model, widgetStyle, route, now } }) {
+    view({ attrs: { model, lookPicker, route, now } }) {
       const current = now();
       return m(
         "div",
         { class: "h-screen overflow-y-auto" },
         m("main", { class: "mx-auto flex min-h-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6" }, [
           route.page === "home" ? homePage(model, current) : detailPage(model, route, current, colors),
-          widgetLookPicker(widgetStyle),
+          widgetLookPicker(lookPicker),
         ]),
       );
     },

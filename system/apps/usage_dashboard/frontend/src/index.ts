@@ -35,14 +35,14 @@ function bootstrap(): void {
     redraw: () => m.redraw(),
     openStream: (url) => new EventSource(url),
   });
-  const widgetStyle = new WidgetLookPicker({
+  const lookPicker = new WidgetLookPicker({
     redraw: () => m.redraw(),
     openChannel: () => new BroadcastChannel(WIDGET_LOOK_CHANNEL),
     placeWidget: (place) => connection.placeWidget(place),
   });
-  m.mount(root, { view: () => m(App, { model, widgetStyle, route, now }) });
+  m.mount(root, { view: () => m(App, { model, lookPicker, route, now }) });
   model.start();
-  void widgetStyle.load();
+  void lookPicker.load();
 }
 
 window.addEventListener("load", bootstrap);
