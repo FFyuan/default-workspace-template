@@ -27,3 +27,5 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 - The widget says it has nothing to show again each time the desktop tells it how it is drawn, so a report made before the desktop greeted it is not lost.
 
 - A third desktop style, Rings · Minimal: the ring pairs alone with the 5-hour figure in each, and nothing else in view (the names, resets and weekly figure are in the tooltips; with more, the weekly figure sits under each pair). Collapsed, the same rings a size smaller.
+
+- The Usage README names the tray and toolbar designs the widget picker offers, and says a click on the widget in the taskbar opens its popover.

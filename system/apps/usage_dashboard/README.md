@@ -128,12 +128,15 @@ totals and the collector's health, and reuses the page's provider cards, so the
 two never disagree. Where it goes and how it looks are picked for the whole workspace
 beside "Widget" at the foot of the Usage page, on the left, and kept in the app's
 settings: first its place (desktop, the taskbar's row, or its tray), then only that
-place's choices. On the desktop its
+place's choices. On the desktop they are its
 style (rings: concentric rings per subscription, weekly outside and 5-hour inside;
 minimal: those rings alone, with the 5-hour figure in each and nothing else in view;
 bars: a row per subscription with a 5-hour bar above a thinner weekly one), its
 size (small, medium, large: `--w-*` lengths in `style.css`) and how much it shows
-(less, standard, more). Its detail is in tooltips (`data-widget-tooltip`), which
+(less, standard, more). In the tray they are its tray design (rings, ring only, bars,
+numbers, stacked: `views/widgetTray.ts`), and in the taskbar's row its toolbar design
+(chip, meters, inline, line: `views/widgetToolbar.ts`), each with how much it shows.
+Its detail is in tooltips (`data-widget-tooltip`), which
 the shell shows outside the widget's frame. A pick in the same browser reaches the
 widget at once over a broadcast channel. Adding a style is a view in `views/`, a
 name in `models/widgetLook.ts`, and a member of `WidgetVariant` in
@@ -141,5 +144,6 @@ name in `models/widgetLook.ts`, and a member of `WidgetVariant` in
 against. With no
 subscription, the collapsed widget is the month's spend. It reports its size to the
 shell after every change, hides itself while there is no usage, and opens the
-Usage window when clicked. While the widget is enabled the shell keeps this app
+Usage window when clicked on the desktop; in the taskbar a click opens it expanded
+in a popover above the bar. While the widget is enabled the shell keeps this app
 running, though it declares `stop_when_no_windows`.
