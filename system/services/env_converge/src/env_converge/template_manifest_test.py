@@ -1,5 +1,6 @@
 import ast
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -7,11 +8,12 @@ import pytest
 
 from env_converge import template_manifest
 from env_converge.template_manifest import (
-    AdaptationRequirement,
     CURRENT_MANIFEST_FORMAT,
     MANIFEST_MARKDOWN_NAME,
     MANIFEST_THUMBNAIL_NAME,
     MANIFEST_TOML_NAME,
+    SUPERVISORD_DROPIN_DIRECTORY,
+    AdaptationRequirement,
     Requirements,
     TemplateManifest,
     TemplateManifestNotFoundError,
@@ -24,6 +26,8 @@ from env_converge.template_manifest import (
     load_template_manifest,
     validate_template_tree,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 
 _MINIMAL_TOML = """
 format = "v2"
@@ -696,13 +700,26 @@ def test_a_secret_requirement_names_a_file_with_variables_or_a_legacy_bare_name(
             _manifest(_MINIMAL_TOML + bad, tmp_path)
 
 
-def test_a_program_running_under_an_undeclared_secret_file_is_flagged(
+_WIDGET_DROPIN = "system/supervisord.conf.d/widget.conf"
+_TOML_INCLUDING_WIDGET = _MINIMAL_TOML.replace(
+    'include = ["system/apps/slack_inbox"]',
+    f'include = ["system/apps/slack_inbox", "{_WIDGET_DROPIN}", "mcp-servers.json"]',
+)
+
+
+def _write_dropin(root: Path, relative: str, text: str) -> None:
+    (root / relative).parent.mkdir(parents=True, exist_ok=True)
+    (root / relative).write_text(text)
+
+
+def test_an_included_program_or_mcp_server_under_an_undeclared_secret_file_is_flagged(
     tmp_path: Path,
 ) -> None:
-    _write_tree(tmp_path)
-    (tmp_path / "system/supervisord.conf.d").mkdir(parents=True)
-    (tmp_path / "system/supervisord.conf.d/widget.conf").write_text(
-        'command=bash -c "python3 system/scripts/with_secrets.py data/.secrets/widget.env -- widget"\n'
+    _write_tree(tmp_path, toml_text=_TOML_INCLUDING_WIDGET)
+    _write_dropin(
+        tmp_path,
+        _WIDGET_DROPIN,
+        '[program:widget]\ncommand=bash -c "python3 system/scripts/with_secrets.py data/.secrets/widget.env -- widget"\n',
     )
     (tmp_path / "mcp-servers.json").write_text(
         '{"mcpServers": {"m": {"args": ["/home/user/workspace/data/.secrets/mailer.env"]}}}'
@@ -721,9 +738,74 @@ def test_a_program_running_under_an_undeclared_secret_file_is_flagged(
 
     (tmp_path / "declared").mkdir()
     declared = _manifest(
-        _MINIMAL_TOML
+        _TOML_INCLUDING_WIDGET
         + '\n[[requirements.secret]]\nfile = "widget"\nvariables = ["A"]\n'
         + '\n[[requirements.secret]]\nfile = "mailer"\nvariables = ["B"]\n',
         tmp_path / "declared",
     )
     assert check_secret_references(tmp_path, declared) == ()
+
+
+def test_the_stock_workspace_programs_need_no_template_secret(tmp_path: Path) -> None:
+    """Every snapshot carries the base's own programs, whatever it includes.
+
+    Those programs run under files Imbue Studio provides, not anything a template
+    could declare, so the template's own include set is all that is checked. Copies
+    the real drop-ins so a new base program or a reworded comment is covered too.
+    """
+    _write_tree(tmp_path)
+    shutil.copytree(
+        _REPO_ROOT / SUPERVISORD_DROPIN_DIRECTORY,
+        tmp_path / SUPERVISORD_DROPIN_DIRECTORY,
+    )
+
+    assert validate_template_tree(tmp_path, is_unfinished_allowed=True) == ()
+
+
+def test_a_base_program_outside_the_include_set_is_not_checked(tmp_path: Path) -> None:
+    _write_tree(tmp_path, toml_text=_TOML_INCLUDING_WIDGET)
+    _write_dropin(
+        tmp_path,
+        "system/supervisord.conf.d/host-backup.conf",
+        "[program:host-backup]\ncommand=python3 system/scripts/with_secrets.py data/.secrets/restic.env -- host-backup\n",
+    )
+
+    assert (
+        check_secret_references(tmp_path, _manifest(_TOML_INCLUDING_WIDGET, tmp_path))
+        == ()
+    )
+
+
+def test_a_secret_file_named_only_in_a_supervisord_comment_is_not_a_reference(
+    tmp_path: Path,
+) -> None:
+    """Supervisord reads `#`/`;` lines and whitespace-preceded inline `;`/`#` as comments."""
+    _write_tree(tmp_path, toml_text=_TOML_INCLUDING_WIDGET)
+    _write_dropin(
+        tmp_path,
+        _WIDGET_DROPIN,
+        "# idles watching data/.secrets/share.env\n"
+        "; data/.secrets/restic.env is injected by Imbue Studio\n"
+        "[program:widget]\n"
+        "command=widget-app ; reads data/.secrets/inline-semicolon.env\n"
+        "directory=/home/user/workspace # data/.secrets/inline-hash.env\n",
+    )
+
+    assert (
+        check_secret_references(tmp_path, _manifest(_TOML_INCLUDING_WIDGET, tmp_path))
+        == ()
+    )
+
+
+def test_an_unparseable_included_program_is_reported_rather_than_raised(
+    tmp_path: Path,
+) -> None:
+    _write_tree(tmp_path, toml_text=_TOML_INCLUDING_WIDGET)
+    _write_dropin(tmp_path, _WIDGET_DROPIN, "command=x data/.secrets/ghost.env\n")
+
+    problems = check_secret_references(
+        tmp_path, _manifest(_TOML_INCLUDING_WIDGET, tmp_path)
+    )
+
+    assert len(problems) == 1
+    assert "widget.conf" in problems[0]
