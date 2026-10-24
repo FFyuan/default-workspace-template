@@ -373,7 +373,7 @@ End to end, with a stub app declaring a widget whose page reports a size per mod
 
 ## 11. Delivery
 
-This is one pull request on `yuan/app-widgets`, stacked on `yuan/usage-dashboard`, merged after it.
+This is one pull request on `yuan/app-widgets`, stacked on `yuan/usage-tracking`, merged after it.
 A suggested commit order, each commit leaving the repository green:
 
 1. The manifest table, the registry and inventory fields, `widgets.json`, and its routes.
