@@ -312,7 +312,10 @@ def test_a_stale_lower_share_of_the_same_window_does_not_replace_a_higher_one(
 
     [reading] = store.limits(NOW - timedelta(days=7))
 
-    assert (reading.used_percentage, reading.observed_at) == (90, NOW - timedelta(minutes=4))
+    assert (reading.used_percentage, reading.observed_at) == (
+        90,
+        NOW - timedelta(minutes=4),
+    )
 
 
 def test_a_higher_share_of_the_same_window_wins_even_when_stamped_earlier(
@@ -358,7 +361,11 @@ def test_a_window_keeps_its_lowest_share_at_the_earliest_time_it_was_seen(
 
     [reading] = store.limits(NOW - timedelta(days=7))
 
-    assert (reading.used_percentage, reading.first_used_percentage, reading.first_observed_at) == (
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
         41,
         26,
         NOW - timedelta(minutes=50),
@@ -374,7 +381,11 @@ def test_a_later_window_starts_its_first_reading_over(store: UsageStore) -> None
 
     [reading] = store.limits(NOW - timedelta(days=7))
 
-    assert (reading.used_percentage, reading.first_used_percentage, reading.first_observed_at) == (
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
         7,
         3,
         NOW - timedelta(minutes=5),
@@ -391,7 +402,11 @@ def test_a_reading_dated_before_its_window_opened_is_never_its_first(
 
     [reading] = store.limits(NOW - timedelta(days=7))
 
-    assert (reading.used_percentage, reading.first_used_percentage, reading.first_observed_at) == (
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
         12,
         9,
         NOW - timedelta(minutes=60),
@@ -406,7 +421,9 @@ def test_a_database_from_before_first_readings_gains_them(tmp_path: Path) -> Non
             "used_percentage REAL, resets_at REAL, window_seconds INTEGER, observed_at REAL NOT NULL, "
             "PRIMARY KEY (source, window))"
         )
-        connection.execute("INSERT INTO limit_window VALUES ('claude', 'five_hour', NULL, 12, NULL, 18000, 0)")
+        connection.execute(
+            "INSERT INTO limit_window VALUES ('claude', 'five_hour', NULL, 12, NULL, 18000, 0)"
+        )
 
     reopened = UsageStore(path)
     try:

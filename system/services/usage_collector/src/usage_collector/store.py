@@ -260,7 +260,9 @@ def _add_first_reading_columns(connection: sqlite3.Connection) -> None:
         row["name"] for row in connection.execute("PRAGMA table_info(limit_window)")
     }
     if "first_used_percentage" not in columns:
-        connection.execute("ALTER TABLE limit_window ADD COLUMN first_used_percentage REAL")
+        connection.execute(
+            "ALTER TABLE limit_window ADD COLUMN first_used_percentage REAL"
+        )
         connection.execute("ALTER TABLE limit_window ADD COLUMN first_observed_at REAL")
 
 
@@ -394,7 +396,9 @@ class UsageStore:
                 "window": reading.window,
                 "label": reading.label,
                 "used": reading.used_percentage,
-                "resets_at": reading.resets_at.timestamp() if reading.resets_at is not None else None,
+                "resets_at": reading.resets_at.timestamp()
+                if reading.resets_at is not None
+                else None,
                 "window_seconds": reading.window_seconds,
                 "observed_at": reading.observed_at.timestamp(),
             }
@@ -402,9 +406,7 @@ class UsageStore:
         ]
         # A reading dated before its window opened was stamped onto an older call after the fact (a writer catching
         # up on old session logs stamps them with the reading it holds now), so it cannot say where the window began.
-        is_in_window = (
-            "(:resets_at IS NULL OR :window_seconds IS NULL OR :observed_at >= :resets_at - :window_seconds)"
-        )
+        is_in_window = "(:resets_at IS NULL OR :window_seconds IS NULL OR :observed_at >= :resets_at - :window_seconds)"
         with self._lock:
             # Before the kept reading moves, so a reading is weighed against the window as it stood.
             self._connection.executemany(
