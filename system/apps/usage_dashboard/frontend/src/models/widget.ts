@@ -3,15 +3,14 @@
  * from the same cards the page opens on (``providerCards``), so the widget and the page can never disagree on a
  * limit's level or on whether a window has reset since its reading.
  *
- * Expanded, the widget is one row per provider with data: a subscription's shortest window (the 5-hour limit) as a
- * bar and its longest (the weekly one) as a figure beside it; a pay-as-you-go provider's spend this month. Collapsed,
- * it is a pair of concentric rings per subscription, the longest window outside and the shortest inside; with no
- * subscription, one pill of the month's total spend.
+ * It derives what every look draws from: a row per provider with data (a subscription's shortest window, the 5-hour
+ * limit, and its longest, the weekly one; a pay-as-you-go provider's spend this month), a ring pair per subscription
+ * (the longest window outside, the shortest inside), and, with no subscription, one pill of the month's total spend.
+ * The views draw them in the look the workspace picked (``widgetLook.ts``).
  *
  * The model reads only what those need (the limit readings, this month's totals, the collector's health, and which
- * look the workspace picked for the widget), again
- * shortly after every new call on the collector's stream and every minute, since a reset time passing changes what a
- * row shows with no call at all.
+ * look the workspace picked for the widget), again shortly after every new call on the collector's stream and every
+ * minute, since a reset time passing changes what a row shows with no call at all.
  */
 
 import { ReconnectBackoff } from "@imbue/workspace-ui/src/models/backoff";

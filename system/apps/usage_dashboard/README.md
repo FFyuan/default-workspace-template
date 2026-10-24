@@ -101,7 +101,7 @@ collector, which listens on 127.0.0.1:8795 only:
 | `GET /api/usage/stream` | the collector's server-sent events, relayed |
 | `GET /api/apps` | the display name of every registered app |
 | `GET /api/health` | whether the app is up and its page built |
-| `GET /widget` | the Usage widget, which the workspace shell keeps on the desktop; `?variant=rings\|bars`, `?size=small\|medium\|large`, `?detail=less\|standard\|more` `?tray=rings\|ring\|bars\|numbers\|stacked` and `?toolbar=chip\|meters\|inline\|line` show that look on this page alone |
+| `GET /widget` | the Usage widget, which the workspace shell keeps on the desktop; `?variant=rings\|bars`, `?size=small\|medium\|large`, `?detail=less\|standard\|more`, `?tray=rings\|ring\|bars\|numbers\|stacked` and `?toolbar=chip\|meters\|inline\|line` show that look on this page alone |
 | `GET /api/settings`, `POST /api/settings` | the app's settings, `{"widget_variant", "widget_size", "widget_detail", "widget_tray", "widget_place", "widget_toolbar"}` (`widget_place` is `desktop`, `toolbar` or `tray`: where the widget goes); a field left out takes its default |
 
 Who sees usage is the workspace's sharing grants, as for any app: the share

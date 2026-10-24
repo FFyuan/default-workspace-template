@@ -1,7 +1,8 @@
 /**
  * The Usage page's root. Framed by the workspace shell, it reports where it is (``shell:location``) and installs
  * the element context menu, then hands the page to the dashboard model, which reads the collector through this
- * app's server and keeps the page current from its stream, and its header's widget style to the variant picker.
+ * app's server and keeps the page current from its stream, and its foot to the widget picker, which keeps where the
+ * workspace's widget goes and how it looks there.
  */
 
 import m from "mithril";

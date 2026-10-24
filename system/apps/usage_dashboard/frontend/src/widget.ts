@@ -1,9 +1,9 @@
 /**
  * The Usage widget's root (app-widgets plan section 7): the page the workspace shell keeps on the
  * desktop. Framed as a widget, it draws the mode the shell tells it in the look the workspace picked (or the parts
- * its URL's ``?variant=``, ``?size=`` and ``?detail=`` name), reports the size of what it drew after every change, and says it has nothing
- * to show while no usage exists yet. A pick on the Usage page in this browser reaches it at once over the variant
- * channel; one made elsewhere on its next read.
+ * its URL's ``?variant=``, ``?size=``, ``?detail=``, ``?tray=`` and ``?toolbar=`` name), reports the size of what it
+ * drew after every change, and says it has nothing to show while no usage exists yet. A pick on the Usage page in
+ * this browser reaches it at once over the look's broadcast channel; one made elsewhere on its next read.
  */
 
 import m from "mithril";
