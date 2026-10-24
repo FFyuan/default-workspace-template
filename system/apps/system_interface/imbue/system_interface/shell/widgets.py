@@ -12,15 +12,14 @@ from typing import Final
 
 from app_manifest.primitives import AppName
 from app_manifest.registry import RegistryRow
-from loguru import logger
 from pydantic import Field
-from pydantic import ValidationError
 from workspace_layout.answers import WidgetState
 
 from imbue.imbue_common.frozen_model import FrozenModel
 from imbue.imbue_common.mutable_model import MutableModel
 from imbue.imbue_common.pure import pure
 from imbue.system_interface.shell.state_files import STATE_FILES_LOCK
+from imbue.system_interface.shell.state_files import parse_versioned_document
 from imbue.system_interface.shell.state_files import read_json_object
 from imbue.system_interface.shell.state_files import write_json_atomic
 
@@ -79,19 +78,9 @@ class WidgetsStore(MutableModel):
         return self.state_directory / WIDGETS_FILENAME
 
     def _read_unlocked(self) -> _WidgetsDocument:
-        raw = read_json_object(self._path())
-        empty = _WidgetsDocument(version=WIDGETS_FILE_VERSION)
-        if raw is None:
-            return empty
-        try:
-            document = _WidgetsDocument.model_validate(raw)
-        except ValidationError as e:
-            logger.warning("Ignored unreadable widget choices at {}: {}", self._path(), e.errors()[0]["msg"])
-            return empty
-        if document.version != WIDGETS_FILE_VERSION:
-            logger.warning("Ignored widget choices of version {!r} at {}", document.version, self._path())
-            return empty
-        return document
+        path = self._path()
+        document = parse_versioned_document(read_json_object(path), _WidgetsDocument, WIDGETS_FILE_VERSION, path)
+        return document if document is not None else _WidgetsDocument(version=WIDGETS_FILE_VERSION)
 
     def read(self) -> dict[str, bool]:
         """Every stored choice, by app name; empty when nothing usable is stored (logged)."""
