@@ -2911,4 +2911,65 @@ describe("widgets", () => {
     await store.openPathFromApp("gauge", "/", "focus");
     expect(api.calls.some((call) => call.startsWith("openWindow:home:gauge:/"))).toBe(true);
   });
+
+  it("keeps a widget's switch and says so when the shell refuses to show or hide it", async () => {
+    const store = await widgetStore();
+    api.refusal = "no such widget";
+    await store.setWidgetEnabled("gauge", false);
+    expect(notices()).toEqual(["Could not hide the widget: no such widget"]);
+    expect(shownWidgets(store.getState()).map((widget) => widget.app.name)).toEqual(["gauge"]);
+  });
+
+  it("redraws nothing when a page reports the size it last reported", async () => {
+    api.apps = [appRecord("docs"), gauge];
+    api.widgetSwitches = [{ app: "gauge", is_enabled: true }];
+    let redraws = 0;
+    const store = await startedStore(() => void (redraws += 1));
+    store.reportWidgetSize("gauge", { width: 180, height: 64 });
+    store.reportWidgetSize("gauge", { width: 60, height: 24 }, true);
+    const before = redraws;
+    store.reportWidgetSize("gauge", { width: 180, height: 64 });
+    store.reportWidgetSize("gauge", { width: 60, height: 24 }, true);
+    expect(redraws).toBe(before);
+    store.reportWidgetSize("gauge", { width: 181, height: 64 });
+    expect(redraws).toBeGreaterThan(before);
+  });
+
+  it("on a phone, shows the window of a widget's app rather than raise it on the desktop", async () => {
+    api.desktops = [
+      desktopRecord("home", { windows: [windowRecord("win-1", "docs", "/a"), windowRecord("win-7", "gauge", "/")] }),
+      desktopRecord("work"),
+    ];
+    const store = await widgetStore();
+    store.setThemeMetrics(METRICS, { isPhone: true, isTouch: false });
+    await store.openPathFromApp("gauge", "/", "focus");
+    expect(store.getState().phone.shown).toEqual({ kind: "window", windowId: "win-7" });
+    expect(api.calls.some((call) => call.startsWith("openWindow:"))).toBe(false);
+  });
+
+  it("asks the chrome to show a widget's app's pulled-out window instead of raising it in the desktop", async () => {
+    api.apps = [appRecord("docs"), gauge];
+    api.widgetSwitches = [{ app: "gauge", is_enabled: true }];
+    api.desktops = [
+      desktopRecord("home", { windows: [windowRecord("win-1", "docs", "/a"), windowRecord("win-7", "gauge", "/")] }),
+      desktopRecord("work"),
+    ];
+    api.writeLayout("home", CLIENT, {
+      updated_at: null,
+      placements: [placementRecord("win-7", { is_detached: true }), placementRecord("win-1")],
+    });
+    const requests: unknown[] = [];
+    const popOut: PopOutBridge = {
+      requestPopOut: (request) => void requests.push(request),
+      beginWindowDrag: () => undefined,
+      endWindowDrag: () => undefined,
+      reportDetachedWindows: () => undefined,
+    };
+    const store = makeStore(() => undefined, { popOut });
+    await store.start(NO_LINK);
+    await store.openPathFromApp("gauge", "/", "focus");
+    expect(requests).toEqual([expect.objectContaining({ windowId: "win-7", title: "Gauge" })]);
+    expect(activeFocusedWindowId(store.getState())).toBe("win-1");
+    expect(placementOf(store.getState().layout, "win-7").is_detached).toBe(true);
+  });
 });

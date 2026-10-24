@@ -330,4 +330,31 @@ describe("the tray's widgets", () => {
     (taskbar.querySelector('[data-toolbar-widget="meter"]') as HTMLElement).click();
     expect(onWidgetPress.mock.calls).toEqual([["gauge"], ["meter"]]);
   });
+
+  it("asks for a widget's menu on a right-click on its bare slot, where it was made, and takes no other button as a press", () => {
+    const onWidgetPress = vi.fn();
+    const onWidgetContextMenu = vi.fn();
+    const taskbar = render({
+      tray: {
+        desktops: [desktopRecord("home")],
+        activeDesktopId: "home",
+        isDesktopsMenuOpen: false,
+        onSwitchDesktop: vi.fn(),
+        onOpenDesktopsMenu: vi.fn(),
+        onDesktopContextMenu: vi.fn(),
+        widgets: [{ app: gauge, size: { width: 64, height: 24 } }],
+        widgetPopoverApp: null,
+        onWidgetPress,
+        onWidgetContextMenu,
+      },
+    });
+
+    const slot = taskbar.querySelector('[data-tray-widget="gauge"]') as HTMLElement;
+    slot.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 1 }));
+    expect(onWidgetPress).not.toHaveBeenCalled();
+    const click = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 900, clientY: 820 });
+    slot.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(onWidgetContextMenu).toHaveBeenCalledWith("gauge", 900, 820, slot);
+  });
 });

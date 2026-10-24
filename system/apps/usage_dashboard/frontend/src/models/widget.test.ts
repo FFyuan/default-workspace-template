@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { RECONNECT_CAP_MS } from "@imbue/workspace-ui/src/models/backoff";
 
 import type { LimitReading } from "./api";
 import { totalsRow } from "../testing/rows";
+import { EVENT_DEBOUNCE_MS, STREAM_URL } from "./dashboard";
+import type { StreamLike } from "./dashboard";
 import { providerCards } from "./providers";
-import { WidgetModel, ringFraction, widgetPill, widgetRings, widgetRows } from "./widget";
+import { WIDGET_REFRESH_MS, WidgetModel, ringFraction, widgetPill, widgetRings, widgetRows } from "./widget";
 import { DEFAULT_WIDGET_LOOK } from "./widgetLook";
 
 const NOW = new Date("2026-10-22T20:00:00Z");
@@ -205,5 +209,137 @@ describe("widgetRings", () => {
     const [full] = widgetRings(providerCards([reading({ used_percentage: 130 })], [], NOW));
     expect(ringFraction(full.inner)).toBe(1);
     expect(widgetRings(providerCards([], [API_SPEND], NOW))).toEqual([]);
+  });
+});
+
+describe("WidgetModel's stream and timers", () => {
+  class FakeStream implements StreamLike {
+    onopen: ((event: Event) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+    isClosed = false;
+    private readonly listeners: Record<string, ((event: MessageEvent<string>) => void)[]> = {};
+    addEventListener(type: string, listener: (event: MessageEvent<string>) => void): void {
+      (this.listeners[type] ??= []).push(listener);
+    }
+    emit(type: string): void {
+      for (const listener of this.listeners[type] ?? []) listener(new MessageEvent(type, { data: "{}" }));
+    }
+    close(): void {
+      this.isClosed = true;
+    }
+  }
+
+  let reads: string[];
+  let streams: FakeStream[];
+  let redraws: number;
+
+  /** A started model over a collector that counts its limit reads (one per refresh). */
+  function started(): WidgetModel {
+    reads = [];
+    streams = [];
+    redraws = 0;
+    vi.stubGlobal("fetch", async (url: string) => {
+      reads.push(url);
+      const answer = url.includes("/limits")
+        ? { limits: [reading({})] }
+        : url.includes("/totals")
+          ? { rows: [] }
+          : url.includes("/settings")
+            ? {}
+            : { status: "ok", catching_up: false };
+      return new Response(JSON.stringify(answer), { status: 200 });
+    });
+    const widget = new WidgetModel({
+      now: () => NOW,
+      redraw: () => (redraws += 1),
+      openStream: (url) => {
+        expect(url).toBe(STREAM_URL);
+        const stream = new FakeStream();
+        streams.push(stream);
+        return stream;
+      },
+    });
+    widget.start();
+    return widget;
+  }
+
+  const refreshes = (): number => reads.filter((url) => url.includes("/limits")).length;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("reads at once, again every minute, and is live once its stream opens", async () => {
+    const widget = started();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refreshes()).toBe(1);
+    expect(widget.isLive).toBe(false);
+
+    const before = redraws;
+    streams[0].onopen?.(new Event("open"));
+    expect(widget.isLive).toBe(true);
+    expect(redraws).toBe(before + 1);
+
+    await vi.advanceTimersByTimeAsync(WIDGET_REFRESH_MS - 1);
+    expect(refreshes()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(refreshes()).toBe(2);
+    widget.stop();
+  });
+
+  it("reads once shortly after a burst of calls on the stream, not once per call", async () => {
+    const widget = started();
+    await vi.advanceTimersByTimeAsync(0);
+    streams[0].emit("model_call");
+    streams[0].emit("model_call");
+    await vi.advanceTimersByTimeAsync(EVENT_DEBOUNCE_MS - 1);
+    streams[0].emit("model_call");
+    expect(refreshes()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(refreshes()).toBe(2);
+    // A call after that read schedules the next one.
+    streams[0].emit("model_call");
+    await vi.advanceTimersByTimeAsync(EVENT_DEBOUNCE_MS);
+    expect(refreshes()).toBe(3);
+    widget.stop();
+  });
+
+  it("dims when its stream drops, and opens a new one after a backoff", async () => {
+    const widget = started();
+    streams[0].onopen?.(new Event("open"));
+    const before = redraws;
+
+    streams[0].onerror?.(new Event("error"));
+    expect([widget.isLive, streams[0].isClosed, redraws]).toEqual([false, true, before + 1]);
+    expect(streams).toHaveLength(1);
+
+    // The first retry waits a second, give or take a fifth.
+    await vi.advanceTimersByTimeAsync(1_200);
+    expect(streams).toHaveLength(2);
+    streams[1].onopen?.(new Event("open"));
+    expect(widget.isLive).toBe(true);
+    widget.stop();
+  });
+
+  it("stops reading and closes its stream when stopped, and ignores the closed stream's late error", async () => {
+    const widget = started();
+    await vi.advanceTimersByTimeAsync(0);
+    streams[0].emit("model_call");
+    widget.stop();
+    expect(streams[0].isClosed).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(WIDGET_REFRESH_MS * 3);
+    expect(refreshes()).toBe(1);
+
+    const before = redraws;
+    streams[0].onerror?.(new Event("error"));
+    await vi.advanceTimersByTimeAsync(RECONNECT_CAP_MS);
+    expect(streams).toHaveLength(1);
+    expect(redraws).toBe(before);
   });
 });

@@ -178,6 +178,12 @@ describe("the bars version", () => {
     const more = rendered(BOTH, "collapsed", { variant: "bars", detail: "more" });
     expect(texts(more, "[data-widget-percent]")).toEqual(["80%", "34%"]);
   });
+
+  it("collapses to the month's spend with no subscription", () => {
+    const root = rendered([], "collapsed", { variant: "bars" });
+    expect(root.querySelector("[data-widget-row]")).toBeNull();
+    expect(texts(root, "[data-widget-pill]")).toEqual(["$9.50"]);
+  });
 });
 
 describe("the widget's size", () => {
