@@ -16,12 +16,9 @@ import type { LimitWindow } from "../models/providers";
 import type { WidgetModel } from "../models/widget";
 import type { WidgetDetail, WidgetTray } from "../models/widgetLook";
 import { barsTray } from "./widgetBars";
-import { figure, perSubscription, tooltip, windowColour } from "./widgetParts";
+import { TRAY_NAME_CLASS, figure, perSubscription, tooltip, windowColour } from "./widgetParts";
 import type { WindowRole } from "./widgetParts";
 import { ringsTray, ringsView } from "./widgetRings";
-
-const NAME_CLASS =
-  "text-[0.7em] leading-none font-semibold tracking-wider whitespace-nowrap text-(--widget-muted) uppercase";
 
 function ringOnly(model: WidgetModel, detail: WidgetDetail): m.Children {
   return perSubscription(model, (pair) =>
@@ -34,7 +31,7 @@ function ringOnly(model: WidgetModel, detail: WidgetDetail): m.Children {
 function numbers(model: WidgetModel, detail: WidgetDetail): m.Children {
   return perSubscription(model, (pair) =>
     m("span", { key: pair.key, "data-widget-rings": pair.key, class: "flex items-baseline gap-1 whitespace-nowrap" }, [
-      m("span", { "data-ring-name": "", class: NAME_CLASS, ...tooltip(pair.tooltip) }, pair.name),
+      m("span", { "data-ring-name": "", class: TRAY_NAME_CLASS, ...tooltip(pair.tooltip) }, pair.name),
       figure(pair.inner, "short", "font-semibold"),
       detail === "more" && pair.outer !== null
         ? figure(pair.outer, "long", "text-[0.82em] text-(--widget-muted)")
@@ -54,7 +51,7 @@ function stackedLine(window: LimitWindow, role: WindowRole): m.Vnode {
 function stacked(model: WidgetModel, detail: WidgetDetail): m.Children {
   return perSubscription(model, (pair) =>
     m("span", { key: pair.key, "data-widget-rings": pair.key, class: "flex items-center gap-1.5" }, [
-      m("span", { "data-ring-name": "", class: NAME_CLASS, ...tooltip(pair.tooltip) }, pair.name),
+      m("span", { "data-ring-name": "", class: TRAY_NAME_CLASS, ...tooltip(pair.tooltip) }, pair.name),
       m("span", { class: "flex flex-col gap-1" }, [
         stackedLine(pair.inner, "short"),
         detail === "less" || pair.outer === null ? null : stackedLine(pair.outer, "long"),

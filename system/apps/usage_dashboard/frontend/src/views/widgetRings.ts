@@ -24,7 +24,15 @@ import type { LimitWindow } from "../models/providers";
 import { resetText, ringFraction, widgetRings, widgetRows, windowName, windowText } from "../models/widget";
 import type { LimitRow, RingPair, SpendRow, WidgetModel } from "../models/widget";
 import type { WidgetDetail } from "../models/widgetLook";
-import { percentText, pillView, sectionHeading, spendSectionView, tooltip, windowColour } from "./widgetParts";
+import {
+  TRAY_NAME_CLASS,
+  percentText,
+  pillView,
+  sectionHeading,
+  spendSectionView,
+  tooltip,
+  windowColour,
+} from "./widgetParts";
 import type { WindowRole } from "./widgetParts";
 
 // The rings' drawing, in the units of its own view box: two circles about one centre, a stroke's width apart.
@@ -220,7 +228,7 @@ export function ringsTray(model: WidgetModel, detail: WidgetDetail): m.Children 
     m("span", { key: pair.key, "data-widget-rings": pair.key, class: "flex items-center gap-1" }, [
       ringsView(pair.inner, detail === "less" ? null : pair.outer, pair.tooltip, false),
       m("span", { class: "flex flex-col gap-px whitespace-nowrap tabular-nums leading-none" }, [
-        m("span", { "data-ring-name": "", class: `${NAME_CLASS} text-[0.7em]`, ...tooltip(pair.tooltip) }, pair.name),
+        m("span", { "data-ring-name": "", class: TRAY_NAME_CLASS, ...tooltip(pair.tooltip) }, pair.name),
         m("span", { class: "flex items-baseline gap-1" }, [
           m(
             "span",

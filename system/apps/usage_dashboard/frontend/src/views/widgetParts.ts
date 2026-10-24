@@ -37,6 +37,10 @@ export function tooltip(text: string): Record<string, string> {
   return { [WIDGET_TOOLTIP_ATTRIBUTE]: text };
 }
 
+/** A subscription's name in the taskbar's tray: small capitals, on one line, within the tray's height. */
+export const TRAY_NAME_CLASS =
+  "text-[0.7em] leading-none font-semibold tracking-wider whitespace-nowrap text-(--widget-muted) uppercase";
+
 export function sectionHeading(name: string, attrs: Record<string, string> = {}): m.Vnode {
   return m(
     "span",

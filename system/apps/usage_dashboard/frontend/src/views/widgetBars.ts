@@ -13,7 +13,7 @@ import type { LimitWindow } from "../models/providers";
 import { resetText, ringFraction, widgetRows, windowText } from "../models/widget";
 import type { LimitRow, SpendRow, WidgetModel } from "../models/widget";
 import type { WidgetDetail } from "../models/widgetLook";
-import { percentText, pillView, spendSectionView, tooltip, windowColour } from "./widgetParts";
+import { TRAY_NAME_CLASS, percentText, pillView, spendSectionView, tooltip, windowColour } from "./widgetParts";
 import type { WindowRole } from "./widgetParts";
 
 const BAR_HEIGHT: Record<WindowRole, string> = { short: "h-(--w-bar-short)", long: "h-(--w-bar-long)" };
@@ -145,15 +145,7 @@ export function barsTray(model: WidgetModel, detail: WidgetDetail): m.Children {
     const secondary = detail === "less" ? null : row.secondary;
     return m("div", { key: row.key, "data-widget-row": row.key, class: "flex items-center gap-1" }, [
       m("div", { class: "flex w-max min-w-(--w-bar) flex-col" }, [
-        m(
-          "span",
-          {
-            class:
-              "text-[0.7em] leading-none font-semibold tracking-wider whitespace-nowrap text-(--widget-muted) uppercase",
-            ...tooltip(row.tooltip),
-          },
-          row.name,
-        ),
+        m("span", { class: TRAY_NAME_CLASS, ...tooltip(row.tooltip) }, row.name),
         bar(row.primary, "short"),
         secondary === null ? null : bar(secondary, "long"),
       ]),
