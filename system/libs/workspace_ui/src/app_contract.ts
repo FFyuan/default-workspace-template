@@ -89,8 +89,11 @@ export const SHELL_MESSAGE = "shell:message";
  *  ``<label>.localhost`` host or registered port it is, else the workspace's browser), the file in Files, an
  *  external link in the app registered for it or else outside the workspace, or says why it cannot. */
 export const SHELL_OPEN_LINK = "shell:open-link";
+/** Shell to app, to a widget only: how the client draws it (``WidgetMode``), after every handshake and on a change. */
 export const SHELL_WIDGET_MODE = "shell:widget-mode";
+/** App to shell, from a widget only: the CSS pixel size of its content in its current mode. */
 export const SHELL_WIDGET_SIZE = "shell:widget-size";
+/** App to shell, from a widget only: whether it has nothing to show, so the shell draws nothing for it. */
 export const SHELL_WIDGET_HIDDEN = "shell:widget-hidden";
 /** App to shell, from a widget only: a press on the page is dragging the widget (see the module docs). */
 export const SHELL_WIDGET_DRAG = "shell:widget-drag";
@@ -153,11 +156,6 @@ export function hasWorkspaceCoordinate(host: string): boolean {
   return host.split(".").some((label) => WORKSPACE_COORDINATE_LABEL.test(label));
 }
 
-/**
- * What the shell says about the frame it created: the client, the window, its desktop, the app
- * the window belongs to, and the path the window is at (desktop-interface contracts.md section
- * 7). The client id is required; a field the shell does not send, a page reads as "".
- */
 /** What frames the page: a window, or a widget on the desktop (app-widgets plan section 6). */
 export type ShellSurface = "window" | "widget";
 
@@ -169,6 +167,12 @@ export type WidgetMode = "expanded" | "collapsed" | "tray" | "toolbar";
 /** Where a client draws an app's widget: on the desktop, in the taskbar's tray, or in the taskbar's row. */
 export type WidgetPlacement = "desktop" | "tray" | "toolbar";
 
+/**
+ * What the shell says about the frame it created: the client, the window, its desktop, the app
+ * the window belongs to, and the path the window is at (desktop-interface contracts.md section
+ * 7). The client id is required; a field the shell does not send, a page reads as "".
+ * ``surface`` says whether that frame is a window or a widget.
+ */
 export interface ShellHandshake {
   clientId: string;
   /** The window's id; empty for a widget, which has none. */
@@ -601,7 +605,6 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
     },
   });
 
-  // In the capture phase, so a swallowed click never reaches the page's handlers or the link rule.
   const isWidget = (): boolean => hasShell && surface === "widget";
   const isInTaskbar = (): boolean => isWidget() && (widgetMode === "tray" || widgetMode === "toolbar");
   const dragListeners = widgetDragTracker(() => isWidget() && !isInTaskbar(), send);
@@ -612,6 +615,7 @@ export function connectToShell(handlers: ShellConnectionHandlers): ShellConnecti
   if (isFramed) {
     boundWindow.addEventListener("click", onLinkClick);
     boundWindow.addEventListener("auxclick", onLinkClick);
+    // In the capture phase, so a swallowed click never reaches the page's handlers or the link rule.
     for (const [type, listener] of Object.entries(dragListeners)) boundWindow.addEventListener(type, listener, true);
     for (const listeners of [tooltipListeners, pressListeners]) {
       for (const [type, listener] of Object.entries(listeners)) boundWindow.addEventListener(type, listener, true);
