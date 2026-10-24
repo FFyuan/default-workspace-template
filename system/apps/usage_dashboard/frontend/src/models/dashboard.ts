@@ -51,6 +51,12 @@ import { type WindowId, windowSpec, windowStart } from "./windows";
 export const EVENT_DEBOUNCE_MS = 2_000;
 export const SLOW_REFRESH_MS = 30_000;
 export const PERIODIC_REFRESH_MS = 60_000;
+/**
+ * How long the collector may stay unreachable, or the live stream down, before the page says so. The collector is
+ * almost always up, and what breaks the line is usually brief (a restart, or the tunnel to the workspace answering
+ * 502-504 for a moment), so until then reads are retried quietly and the page keeps its numbers as they are.
+ */
+export const OUTAGE_GRACE_MS = 60_000;
 // More calls than one turn makes in practice; the collector answers up to 500.
 const TURN_CALLS_LIMIT = 500;
 
@@ -150,6 +156,10 @@ export class DashboardModel {
   private eventRefresh: ReturnType<typeof setTimeout> | null = null;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private periodic: ReturnType<typeof setInterval> | null = null;
+  /** When reads began failing to reach the collector, while they still are. */
+  private unreachableSince: number | null = null;
+  /** Shows the stream as down once it has stayed down for the grace period. */
+  private streamDownTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly deps: DashboardDeps) {}
 
@@ -178,7 +188,9 @@ export class DashboardModel {
   stop(): void {
     this.stream?.close();
     this.stream = null;
-    for (const timer of [this.eventRefresh, this.retry, this.turnsReload]) if (timer !== null) clearTimeout(timer);
+    for (const timer of [this.eventRefresh, this.retry, this.turnsReload, this.streamDownTimer]) {
+      if (timer !== null) clearTimeout(timer);
+    }
     if (this.periodic !== null) clearInterval(this.periodic);
   }
 
@@ -360,6 +372,7 @@ export class DashboardModel {
       };
       this.isCatchingUp = health.catching_up;
       this.isCollectorDown = false;
+      this.unreachableSince = null;
       this.errorMessage = null;
       this.retryBackoff.reset();
     } catch (error) {
@@ -463,10 +476,15 @@ export class DashboardModel {
     return combinedFilters(scopeFilters(this.deps.route), filter?.values ?? null);
   }
 
-  /** Record why a read failed: a collector that is down (retried with backoff), or anything else. */
+  /**
+   * Record why a read failed: a collector that cannot be reached (retried with backoff, and called down only once it
+   * has stayed unreachable for the grace period), or anything else.
+   */
   private noteFailure(error: unknown, retry: () => void): void {
     if (isUnreachable(error)) {
-      this.isCollectorDown = true;
+      const now = this.deps.now().getTime();
+      this.unreachableSince ??= now;
+      this.isCollectorDown = now - this.unreachableSince >= OUTAGE_GRACE_MS;
       if (this.retry === null) {
         this.retry = setTimeout(() => {
           this.retry = null;
@@ -503,6 +521,8 @@ export class DashboardModel {
     const stream = this.deps.openStream(STREAM_URL);
     this.stream = stream;
     stream.onopen = () => {
+      if (this.streamDownTimer !== null) clearTimeout(this.streamDownTimer);
+      this.streamDownTimer = null;
       this.isLive = true;
       this.streamBackoff.reset();
       if (this.wasDisconnected) {
@@ -518,9 +538,15 @@ export class DashboardModel {
       stream.close();
       if (this.stream !== stream) return;
       this.stream = null;
-      this.isLive = false;
       this.wasDisconnected = true;
-      this.deps.redraw();
+      // "Live" stays up through a brief drop; the gap is filled from the collector once the stream is back.
+      if (this.isLive && this.streamDownTimer === null) {
+        this.streamDownTimer = setTimeout(() => {
+          this.streamDownTimer = null;
+          this.isLive = false;
+          this.deps.redraw();
+        }, OUTAGE_GRACE_MS);
+      }
       setTimeout(() => this.connectStream(), this.streamBackoff.nextDelay());
     };
   }

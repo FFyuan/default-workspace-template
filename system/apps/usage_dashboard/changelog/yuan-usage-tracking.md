@@ -10,7 +10,7 @@ Below the cards, a Total row of tiles across every provider has the time window 
 
 - the latest turns as they happen (each a user message and every call it led to; a call with no turn is a turn of its own), in numbered pages of 10, 20, 50 or 100 rows with a box to jump to a page, each opening to its calls and each call to its raw event.
 
-It stores nothing of its own, reconnects to the collector's live stream after an outage, keeps its last numbers under a banner while the collector is down, and says when the collector is still indexing past usage.
+It stores nothing of its own, reconnects to the collector's live stream after an outage, keeps its last numbers under a banner once the collector has been unreachable for a minute (a briefer outage, such as a restart, is retried quietly and the header stays "Live"), and says when the collector is still indexing past usage.
 
 Who sees it follows the workspace's sharing grants, like any app: a visitor with a workspace-wide grant or a grant on Usage sees the same numbers as the owner. The Share tab lists it under System.
 
