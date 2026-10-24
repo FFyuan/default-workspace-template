@@ -392,6 +392,30 @@ def test_a_later_window_starts_its_first_reading_over(store: UsageStore) -> None
     )
 
 
+def test_readings_of_one_window_in_one_batch_are_weighed_one_after_another(
+    store: UsageStore,
+) -> None:
+    store.record_limits([_reading(90, minutes_ago=30, resets_in_minutes=-10)])
+    store.record_limits(
+        [
+            _reading(3, minutes_ago=5, resets_in_minutes=290),
+            _reading(5, minutes_ago=3, resets_in_minutes=290),
+        ]
+    )
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
+        5,
+        3,
+        NOW - timedelta(minutes=5),
+    )
+
+
 def test_a_reading_dated_before_its_window_opened_is_never_its_first(
     store: UsageStore,
 ) -> None:

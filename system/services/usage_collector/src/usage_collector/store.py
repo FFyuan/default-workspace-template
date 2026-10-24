@@ -407,39 +407,47 @@ class UsageStore:
         # A reading dated before its window opened was stamped onto an older call after the fact (a writer catching
         # up on old session logs stamps them with the reading it holds now), so it cannot say where the window began.
         is_in_window = "(:resets_at IS NULL OR :window_seconds IS NULL OR :observed_at >= :resets_at - :window_seconds)"
+        # Run before the upsert, so a reading is weighed against the window as it stood.
+        update_first = (
+            "UPDATE limit_window SET "
+            f"first_used_percentage = CASE WHEN {is_in_window} THEN :used END, "
+            f"first_observed_at = CASE WHEN {is_in_window} THEN :observed_at END "
+            "WHERE source = :source AND window = :window AND CASE "
+            "WHEN :resets_at IS NULL OR resets_at IS NULL THEN :observed_at >= observed_at "
+            "WHEN :resets_at != resets_at THEN :resets_at > resets_at "
+            f"WHEN :used IS NULL OR NOT {is_in_window} THEN 0 "
+            "ELSE first_used_percentage IS NULL OR :used < first_used_percentage "
+            "OR (:used = first_used_percentage AND :observed_at < first_observed_at) "
+            "END"
+        )
+        upsert = (
+            "INSERT INTO limit_window VALUES "
+            "(:source, :window, :label, :used, :resets_at, :window_seconds, :observed_at, "
+            f"CASE WHEN {is_in_window} THEN :used END, CASE WHEN {is_in_window} THEN :observed_at END) "
+            "ON CONFLICT (source, window) DO UPDATE SET label = excluded.label, "
+            "used_percentage = excluded.used_percentage, resets_at = excluded.resets_at, "
+            "window_seconds = excluded.window_seconds, observed_at = excluded.observed_at "
+            "WHERE CASE "
+            "WHEN excluded.resets_at IS NULL OR limit_window.resets_at IS NULL "
+            "THEN excluded.observed_at >= limit_window.observed_at "
+            "WHEN excluded.resets_at != limit_window.resets_at "
+            "THEN excluded.resets_at > limit_window.resets_at "
+            "WHEN excluded.used_percentage IS limit_window.used_percentage "
+            "THEN excluded.observed_at >= limit_window.observed_at "
+            "ELSE COALESCE(excluded.used_percentage, -1) > COALESCE(limit_window.used_percentage, -1) "
+            "END"
+        )
+        # One reading at a time, so a later reading of the same window in this batch sees what the earlier one left.
         with self._lock:
-            # Before the kept reading moves, so a reading is weighed against the window as it stood.
-            self._connection.executemany(
-                "UPDATE limit_window SET "
-                f"first_used_percentage = CASE WHEN {is_in_window} THEN :used END, "
-                f"first_observed_at = CASE WHEN {is_in_window} THEN :observed_at END "
-                "WHERE source = :source AND window = :window AND CASE "
-                "WHEN :resets_at IS NULL OR resets_at IS NULL THEN :observed_at >= observed_at "
-                "WHEN :resets_at != resets_at THEN :resets_at > resets_at "
-                f"WHEN :used IS NULL OR NOT {is_in_window} THEN 0 "
-                "ELSE first_used_percentage IS NULL OR :used < first_used_percentage "
-                "OR (:used = first_used_percentage AND :observed_at < first_observed_at) "
-                "END",
-                rows,
-            )
-            self._connection.executemany(
-                "INSERT INTO limit_window VALUES "
-                "(:source, :window, :label, :used, :resets_at, :window_seconds, :observed_at, "
-                f"CASE WHEN {is_in_window} THEN :used END, CASE WHEN {is_in_window} THEN :observed_at END) "
-                "ON CONFLICT (source, window) DO UPDATE SET label = excluded.label, "
-                "used_percentage = excluded.used_percentage, resets_at = excluded.resets_at, "
-                "window_seconds = excluded.window_seconds, observed_at = excluded.observed_at "
-                "WHERE CASE "
-                "WHEN excluded.resets_at IS NULL OR limit_window.resets_at IS NULL "
-                "THEN excluded.observed_at >= limit_window.observed_at "
-                "WHEN excluded.resets_at != limit_window.resets_at "
-                "THEN excluded.resets_at > limit_window.resets_at "
-                "WHEN excluded.used_percentage IS limit_window.used_percentage "
-                "THEN excluded.observed_at >= limit_window.observed_at "
-                "ELSE COALESCE(excluded.used_percentage, -1) > COALESCE(limit_window.used_percentage, -1) "
-                "END",
-                rows,
-            )
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                for row in rows:
+                    self._connection.execute(update_first, row)
+                    self._connection.execute(upsert, row)
+                self._connection.execute("COMMIT")
+            except sqlite3.Error:
+                self._connection.execute("ROLLBACK")
+                raise
 
     def limits(self, since: datetime) -> list[LimitReading]:
         """The freshest reading of every window reported since ``since``, by source and then window length."""
