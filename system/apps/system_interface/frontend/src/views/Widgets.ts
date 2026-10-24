@@ -42,7 +42,7 @@ export const Widgets: m.Component<WidgetsAttrs> = {
               key: app.name,
               [WIDGET_ATTRIBUTE]: app.name,
               [WIDGET_GRIP_ATTRIBUTE]: app.name,
-              "aria-label": `${app.display_name} widget: drag its edge to move it, double-click to resize it`,
+              "aria-label": `${app.display_name} widget: drag its edge to move it, double-click to collapse or expand it`,
               "data-widget-moved": presentation.position === null ? "false" : "true",
               "data-widget-mode": presentation.mode,
               class:
