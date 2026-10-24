@@ -26,6 +26,7 @@ import type { LimitRow, RingPair, SpendRow, WidgetModel } from "../models/widget
 import type { WidgetDetail } from "../models/widgetLook";
 import {
   TRAY_NAME_CLASS,
+  figure,
   percentText,
   perSubscription,
   pillView,
@@ -228,21 +229,9 @@ export function ringsTray(model: WidgetModel, detail: WidgetDetail): m.Children 
       m("span", { class: "flex flex-col gap-px whitespace-nowrap tabular-nums leading-none" }, [
         m("span", { "data-ring-name": "", class: TRAY_NAME_CLASS, ...tooltip(pair.tooltip) }, pair.name),
         m("span", { class: "flex items-baseline gap-1" }, [
-          m(
-            "span",
-            { "data-widget-percent": pair.inner.level, class: "font-semibold", ...tooltip(windowText(pair.inner)) },
-            percentText(pair.inner),
-          ),
+          figure(pair.inner, "short", "font-semibold"),
           detail === "more" && pair.outer !== null
-            ? m(
-                "span",
-                {
-                  "data-widget-percent": pair.outer.level,
-                  class: "text-[0.82em] text-(--widget-muted)",
-                  ...tooltip(windowText(pair.outer)),
-                },
-                percentText(pair.outer),
-              )
+            ? figure(pair.outer, "long", "text-[0.82em] text-(--widget-muted)")
             : null,
         ]),
       ]),

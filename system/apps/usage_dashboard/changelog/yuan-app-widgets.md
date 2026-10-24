@@ -29,3 +29,5 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 - A third desktop style, Rings · Minimal: the ring pairs alone with the 5-hour figure in each, and nothing else in view (the names, resets and weekly figure are in the tooltips; with more, the weekly figure sits under each pair). Collapsed, the same rings a size smaller.
 
 - The Usage README names the tray and toolbar designs the widget picker offers, and says a click on the widget in the taskbar opens its popover.
+
+- In the tray's Rings design a figure near its limit takes the limit's warning colour, as in the other taskbar designs.
