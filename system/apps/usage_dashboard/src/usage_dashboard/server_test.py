@@ -12,6 +12,15 @@ from usage_dashboard.settings import UsageSettingsStore
 from usage_dashboard.settings import WidgetVariant
 
 _VISITOR = json.dumps({"owner": False, "user_id": "u-2"})
+# What GET /api/settings answers while nothing usable is stored.
+_DEFAULT_SETTINGS = {
+    "widget_variant": "rings",
+    "widget_size": "medium",
+    "widget_detail": "standard",
+    "widget_tray": "rings",
+    "widget_place": "desktop",
+    "widget_toolbar": "chip",
+}
 
 
 def test_totals_pass_through_with_their_query(client: FlaskClient, ingestor: Ingestor) -> None:
@@ -140,14 +149,7 @@ def test_the_detail_pages_serve_the_same_document(client: FlaskClient) -> None:
 def test_the_widget_look_defaults_to_medium_standard_rings_and_is_kept_once_set(
     client: FlaskClient, settings_store: UsageSettingsStore
 ) -> None:
-    assert client.get("/api/settings").get_json() == {
-        "widget_variant": "rings",
-        "widget_size": "medium",
-        "widget_detail": "standard",
-        "widget_tray": "rings",
-        "widget_place": "desktop",
-        "widget_toolbar": "chip",
-    }
+    assert client.get("/api/settings").get_json() == _DEFAULT_SETTINGS
 
     stored = {
         "widget_variant": "bars",
@@ -177,11 +179,4 @@ def test_an_unreadable_or_unfitting_settings_file_reads_as_the_defaults(
     settings_store.path.parent.mkdir(parents=True)
     settings_store.path.write_text(content)
 
-    assert client.get("/api/settings").get_json() == {
-        "widget_variant": "rings",
-        "widget_size": "medium",
-        "widget_detail": "standard",
-        "widget_tray": "rings",
-        "widget_place": "desktop",
-        "widget_toolbar": "chip",
-    }
+    assert client.get("/api/settings").get_json() == _DEFAULT_SETTINGS
