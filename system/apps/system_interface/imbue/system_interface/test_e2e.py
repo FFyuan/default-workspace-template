@@ -2953,8 +2953,8 @@ def test_a_widget_shows_top_right_collapses_moves_anywhere_opens_its_app_and_hid
 ) -> None:
     """An app declaring a widget is drawn top right once its page reports a size, over every window; a double-click on
     its rim collapses it to the size the page reports for that mode; a drag of its rim, or of its page, leaves it
-    wherever it is let go, kept on the client record across a reload, and a drag opens nothing; its link raises one window of its app however often it is clicked; and its
-    menu hides it for the whole workspace."""
+    wherever it is let go, kept on the client record across a reload, and a drag opens nothing; its link raises one
+    window of its app however often it is clicked; and its menu hides it for the whole workspace."""
     shell: dict[str, str] = {}
     with serve_app(_widget_app(shell)) as widget_served:
         widget_row = registry_row_toml(
