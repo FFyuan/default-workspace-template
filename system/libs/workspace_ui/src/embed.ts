@@ -87,14 +87,20 @@ export const PROVIDER_SIGN_IN_END: "minds:provider-sign-in-end" =
 // Embedder -> workspace (contract v8, the workspace link routing plan): a popup (or an external page replacing a
 // frame) a page of this workspace asked for, which Imbue Studio turned away from a window of its own; the workspace
 // opens it where it belongs. Payload: { url }. Sent only to a workspace that announced ``opensLinks`` with
-// WORKSPACE_READY, and a custom-scheme URL (contract v9) only to one that announced ``opensCustomSchemeLinks`` too.
+// WORKSPACE_READY, and a custom-scheme URL (contract v10) only to one that announced ``opensCustomSchemeLinks`` too.
 export const OPEN_LINK: "minds:open-link" = "OPEN_LINK" in embedContract ? embedContract.OPEN_LINK : "minds:open-link";
-// Workspace -> embedder (contract v8): open an external web, mailto, tel or (contract v9) custom-scheme link outside
+// Workspace -> embedder (contract v8): open an external web, mailto, tel or (contract v10) custom-scheme link outside
 // the workspace, which no app of it takes. Payload: { url }. Sent only to an embedder that said ``opensExternalLinks``
 // with EMBEDDER_CAPABILITIES (and, for a custom-scheme link, ``opensCustomSchemeLinks``), or for an external link that
 // embedder handed over with OPEN_LINK.
 export const OPEN_EXTERNAL: "minds:open-external" =
   "OPEN_EXTERNAL" in embedContract ? embedContract.OPEN_EXTERNAL : "minds:open-external";
+// Workspace -> embedder: ring one of the Imbue Studio chrome's own controls while the
+// workspace's tour talks about it, or clear the ring. Payload: { anchor }, one of the
+// chrome's anchor names ("share", "help", ...) or null. Fire-and-forget; a chrome that does
+// not know the type ignores it, and the tour's words never depend on the ring.
+export const HIGHLIGHT_CHROME: "minds:highlight-chrome" =
+  "HIGHLIGHT_CHROME" in embedContract ? embedContract.HIGHLIGHT_CHROME : "minds:highlight-chrome";
 
 type EmbedderMessageHandler = (message: ContractMessage) => void;
 

@@ -81,13 +81,25 @@ supervisord from the repo root) listens on `http://127.0.0.1:8000` and serves:
   the page.
 - Presence (`/api/presence`, `/api/presence/heartbeat`): who is connected
   right now, with their identity and profile (see "Who is here").
+- The show-around tour's record (`GET` and `POST /api/tour`, `{"is_seen",
+  "resume_index"}`): whether the tour of the desktop
+  (`frontend/src/model/tourCards.ts`) has run in this workspace, and the card it
+  resumes at. A fresh workspace runs it by itself the first time its agent goes
+  to work (so the owner learns the product while waiting for a reply; the page's
+  `tour_start_ms` query parameter makes it wait for a task that is taking a
+  while instead); the agent answering interrupts it, and the next time the
+  agent works it resumes from the card that would have come next. The
+  launcher's "Show me around" row runs it again from the first card any time.
+  A card about a control of the Imbue Studio chrome asks the chrome to ring it
+  (`minds:highlight-chrome`); the chat card's Next snaps the pinned chat to the
+  right half of the desktop, revealing the shortcuts.
 - The WebSocket (`/api/ws`): `apps_updated`, `desktops_updated`,
   `presence_updated`, `placements_updated`, `active_desktop_changed`,
   `client_entries_changed`, `avatar_status`, `avatar_selection_changed`, and
   `layout_op` (contracts section 6); it accepts each client's `client_state`
   report.
 
-Its state lives under `data/.state/system_interface/`: `desktops.json`,
+Its state lives under `data/.state/system_interface/`: `desktops.json`, `tour.json` (whether the tour has run, and where it resumes),
 `default_shortcuts_offered.json` (the apps whose default shortcut the shell
 has offered), `placements/<desktop>/<client>.json`,
 `window_paths/<client>.json` (a client's own paths for independent windows),
@@ -490,7 +502,7 @@ python3 .agents/skills/update-self/scripts/update_self.py apply \
     --merge-ref "mngr/update-<slug>" \
     --worker-bundle "system_interface=<work_dir>/system/apps/system_interface/imbue/system_interface/static" \
     --worker-bundle "chat=<work_dir>/system/apps/chat/imbue/chat/static" \
-    --keep-rollback-point
+    --keep-rollback-point --pass-scope "data/.tasks/harden/update-<slug>/pass-scope.json"
 ```
 
 The apply merges the worker's branch, classifies what changed and does only
@@ -646,8 +658,11 @@ informs only; acting on it stays with the agent.
 The careful flow's apply (`update_self.py apply --keep-rollback-point`, see
 "Updating the running UI") does not discard its snapshots on success: it leaves
 `data/.state/update-apply/last-good.json`, a record of the merge it landed, the
-copies it kept, and the critical apps and supervisord programs included in rollback.
-A frontend apply includes both chat and shell (the critical bundle owners), even if only
+copies it kept, and the apps and supervisord programs included in rollback: each critical
+app whose program or bundle the apply changed, and every other app and service of
+the harden pass it landed (`--pass-scope`), with the programs that pass's scope
+names for them. A frontend apply includes
+both chat and shell (the critical bundle owners), even if only
 one app's source changed, because one build replaces every bundle. The shell turns that
 record into a notice only a person closes (`shell/update_notice.py`):
 one top banner beside the staleness one, naming every app the record names (or
