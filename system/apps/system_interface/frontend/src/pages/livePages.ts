@@ -615,10 +615,12 @@ export class LivePagesLayer implements PageDriver {
 
   /** ``shell:focused`` from a page: its window is raised. A page that is not shown (minimized, pulled out into the
    *  chrome's own window, or being pulled out) cannot have been chosen by the user, and a raise would bring its
-   *  window back onto the desktop. */
+   *  window back onto the desktop. A taskbar widget's open popover closes: the press that focused the page was one
+   *  elsewhere, which the shell's document never hears. */
   private takeFocused(frame: HTMLIFrameElement): void {
     const page = this.pageOfFrame(frame);
     if (page === undefined || !this.isShown(page)) return;
+    if (this.store.getState().trayPopoverApp !== null) this.store.closeTrayPopover();
     this.store.raiseWindow(page.windowId);
   }
 

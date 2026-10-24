@@ -23,3 +23,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - A taskbar widget's open popover closes when the widget leaves the taskbar some other way (hidden for the workspace, moved by another window of the same client, or withdrawn), so it no longer reopens unseen when the widget comes back.
 
 - A click on a taskbar widget's slot while its popover is open closes the popover again.
+
+- A taskbar widget's open popover closes on a click into a window's page as well as on one elsewhere in the shell.

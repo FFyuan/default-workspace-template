@@ -642,6 +642,13 @@ describe("the contract", () => {
     expect(activeFocusedWindowId(store.getState())).toBe("win-1");
   });
 
+  it("closes a taskbar widget's open popover when a page says it took focus", () => {
+    store.toggleTrayPopover("gauge");
+    expect(store.getState().trayPopoverApp).toBe("gauge");
+    messageFromPage("win-1", { type: SHELL_FOCUSED });
+    expect(store.getState().trayPopoverApp).toBeNull();
+  });
+
   it("ignores a focus report from a hidden page, so a pulled-out or minimized window is not brought back by it", async () => {
     // Minimized: its page is hidden, and the browser can still restore focus to it.
     store.minimizeWindow("win-1");
