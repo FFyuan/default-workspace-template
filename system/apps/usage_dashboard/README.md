@@ -131,8 +131,10 @@ bars: a row per subscription with a 5-hour bar above a thinner weekly one), its
 size (small, medium, large: `--w-*` lengths in `style.css`) and how much it shows
 (less, standard, more). Its detail is in tooltips (`data-widget-tooltip`), which
 the shell shows outside the widget's frame. A pick in the same browser reaches the
-widget at once over a broadcast channel. Adding a style is a view in `views/` and
-a name in `models/widgetLook.ts`. With no
+widget at once over a broadcast channel. Adding a style is a view in `views/`, a
+name in `models/widgetLook.ts`, and a member of `WidgetVariant` in
+`src/usage_dashboard/settings.py`, which the settings route checks every pick
+against. With no
 subscription, the collapsed widget is the month's spend. It reports its size to the
 shell after every change, hides itself while there is no usage, and opens the
 Usage window when clicked. While the widget is enabled the shell keeps this app
