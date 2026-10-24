@@ -90,7 +90,7 @@ class ToolbarDesign(LowerCaseStrEnum):
     METERS = auto()
     # The names and 5-hour figures as one line of text, like a window's title.
     INLINE = auto()
-    # The name and the 5-hour figure over a thin line filled to the 5-hour share.
+    # The name and the 5-hour figure over a thin line per window, each filled to its share.
     LINE = auto()
 
 
