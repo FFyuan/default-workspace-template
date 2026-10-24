@@ -55,9 +55,10 @@ import { PINNED_ENTRY_ATTRIBUTE, SHORTCUT_ATTRIBUTE } from "../gestures/pointerG
 import type { GestureListener, GestureSource } from "../gestures/pointerGestures";
 import { LivePagesLayer, WINDOW_ID_ATTRIBUTE } from "../pages/livePages";
 import type { MountPolicy } from "../pages/livePages";
-import { WIDGET_ATTRIBUTE, WidgetFramesLayer } from "../pages/widgetFrames";
+import { WIDGET_ATTRIBUTE, WIDGET_POPOVER_ATTRIBUTE, WidgetFramesLayer } from "../pages/widgetFrames";
 import type { ViewportPoint, WidgetDragStep } from "../pages/widgetFrames";
 import { clampedWidgetSize } from "../geometry/widgets";
+import { TOOLBAR_WIDGET_ATTRIBUTE, TRAY_WIDGET_ATTRIBUTE } from "./TrayWidgets";
 import type { TrayWidget, TrayWidgetPopoverAttrs } from "./TrayWidgets";
 import type { DesktopStore } from "../store/DesktopStore";
 import { AVATAR_DESIGN_PROMPT, AvatarChooserDialog } from "./AvatarChooserDialog";
@@ -277,7 +278,7 @@ export function App(): m.Component<AppAttrs> {
     // A tray widget's popover closes on a press anywhere but on it or its slot (whose own click toggles it).
     if (store !== null && store.getState().trayPopoverApp !== null) {
       const target = event.target;
-      const own = "[data-widget-popover], [data-tray-widget], [data-toolbar-widget]";
+      const own = `[${WIDGET_POPOVER_ATTRIBUTE}], [${TRAY_WIDGET_ATTRIBUTE}], [${TOOLBAR_WIDGET_ATTRIBUTE}]`;
       if (!(target instanceof Element && target.closest(own) !== null)) {
         store.closeTrayPopover();
         m.redraw();

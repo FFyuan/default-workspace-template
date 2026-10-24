@@ -14,6 +14,11 @@ import type { AppRecord } from "../model/records";
 import type { TaskbarSpot } from "../reducers/desktopState";
 import { WIDGET_ATTRIBUTE, WIDGET_CONTENT_ATTRIBUTE, WIDGET_POPOVER_ATTRIBUTE } from "../pages/widgetFrames";
 
+/** A widget's slot in the taskbar's tray, which carries its app. */
+export const TRAY_WIDGET_ATTRIBUTE = "data-tray-widget";
+/** A widget's slot in the taskbar's row, which carries its app. */
+export const TOOLBAR_WIDGET_ATTRIBUTE = "data-toolbar-widget";
+
 /** One widget in the taskbar: its app and the size its page reported for its form there. */
 export interface TrayWidget {
   readonly app: AppRecord;
@@ -40,7 +45,7 @@ export const TrayWidgetSlots: m.Component<TrayWidgetSlotsAttrs> = {
         {
           key: app.name,
           [WIDGET_ATTRIBUTE]: app.name,
-          [spot === "tray" ? "data-tray-widget" : "data-toolbar-widget"]: app.name,
+          [spot === "tray" ? TRAY_WIDGET_ATTRIBUTE : TOOLBAR_WIDGET_ATTRIBUTE]: app.name,
           "data-popover-open": isOpen(app.name) ? "true" : "false",
           class:
             (spot === "tray"
