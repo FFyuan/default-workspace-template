@@ -10,6 +10,7 @@ import pytest
 
 from imbue.mngr.utils.polling import wait_for
 from imbue.system_interface.shell.app_lifecycle import AppLifecycleManager
+from imbue.system_interface.shell.app_lifecycle import EnabledWidgetsReader
 from imbue.system_interface.shell.app_lifecycle import IDLE_SWEEP_INTERVAL_SECONDS
 from imbue.system_interface.shell.app_lifecycle import NO_WINDOWS_GRACE_SECONDS
 from imbue.system_interface.shell.app_lifecycle import ProgramAction
@@ -17,7 +18,6 @@ from imbue.system_interface.shell.app_lifecycle import ProgramStatesReader
 from imbue.system_interface.shell.app_lifecycle import TRANSITION_SWEEP_INTERVAL_SECONDS
 from imbue.system_interface.shell.app_lifecycle import WAKE_BUDGET_COUNT
 from imbue.system_interface.shell.app_lifecycle import WAKE_BUDGET_WINDOW_SECONDS
-from imbue.system_interface.shell.app_lifecycle import EnabledWidgetsReader
 from imbue.system_interface.shell.app_lifecycle import WindowCountsReader
 from imbue.system_interface.shell.app_lifecycle import recent_wake_times
 from imbue.system_interface.shell.errors import AppLifecycleRefusedError
