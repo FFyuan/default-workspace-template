@@ -2,6 +2,7 @@ import json
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
 from flask.testing import FlaskClient
 
 from usage_collector.ingest import Ingestor
@@ -169,11 +170,12 @@ def test_the_widget_look_defaults_to_medium_standard_rings_and_is_kept_once_set(
     assert client.post("/api/settings", json={"widget_toolbar": "sparkle"}).status_code == 400
 
 
-def test_an_unreadable_settings_file_reads_as_the_defaults(
-    client: FlaskClient, settings_store: UsageSettingsStore
+@pytest.mark.parametrize("content", ["{not json", '{"widget_place": "dock"}'], ids=["not-json", "unknown-choice"])
+def test_an_unreadable_or_unfitting_settings_file_reads_as_the_defaults(
+    client: FlaskClient, settings_store: UsageSettingsStore, content: str
 ) -> None:
     settings_store.path.parent.mkdir(parents=True)
-    settings_store.path.write_text("{not json")
+    settings_store.path.write_text(content)
 
     assert client.get("/api/settings").get_json() == {
         "widget_variant": "rings",

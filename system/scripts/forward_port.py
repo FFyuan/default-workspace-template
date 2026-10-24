@@ -687,9 +687,9 @@ def _copied_pin(pin: Any, path: Path) -> tuple[dict[str, object] | None, str | N
 
 
 def _copied_widget(widget: Any, path: Path) -> tuple[dict[str, object] | None, str | None]:
-    """The manifest's ``[widget]`` table as the registry row carries it: ``path``, and ``default_enabled`` and
-    ``tray`` and ``toolbar`` when the manifest wrote them. Returns ``(copied, None)``, or ``(None, error)`` when the value is not shaped as the
-    manifest requires."""
+    """The manifest's ``[widget]`` table as the registry row carries it: ``path``, and ``default_enabled``, ``tray``
+    and ``toolbar`` when the manifest wrote them. Returns ``(copied, None)``, or ``(None, error)`` when the value is
+    not shaped as the manifest requires."""
     if not (isinstance(widget, dict) and isinstance(widget.get("path"), str)):
         return None, f"manifest {str(path)!r}: widget must be a table with a string 'path'"
     copied: dict[str, object] = {"path": widget["path"]}
