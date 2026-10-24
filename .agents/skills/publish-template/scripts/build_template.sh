@@ -481,10 +481,9 @@ manifest_toml_args+=(--repo-root "$REPO" --workspace-dir "$data_source" --secret
 # `uv run --no-project` (no workspace resolution, so none of the cold-base
 # fragility the smoke check warns about) rather than a bare python3: the writer
 # reads the previous manifest with tomllib, which is 3.11+, and the host's
-# python3 is not guaranteed to be that new. uv supplies a managed interpreter,
-# which makes this work the same everywhere instead of failing only on older
-# machines.
-if ! uv run --no-project python "$SCAN_TOOLS_DIR/write_template_manifest.py" "${manifest_toml_args[@]}"; then
+# python3 is not guaranteed to be that new. pydantic is for the snapshotted schema
+# module, whose secret-reference scan the writer shares with the validator.
+if ! uv run --no-project --with 'pydantic>=2' python "$SCAN_TOOLS_DIR/write_template_manifest.py" "${manifest_toml_args[@]}"; then
     echo "build_template.sh: could not generate ${MANIFEST_TOML}" >&2
     exit 6
 fi

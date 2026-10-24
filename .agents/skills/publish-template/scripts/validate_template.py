@@ -101,7 +101,7 @@ def _schema_module_candidates(script_path: Path) -> tuple[Path, ...]:
     return tuple(candidates)
 
 
-def _load_schema_module(script_path: Path) -> ModuleType:
+def load_schema_module(script_path: Path) -> ModuleType:
     """Load the shared schema module from the snapshot dir or this script's repo."""
     candidates = _schema_module_candidates(script_path)
     for candidate in candidates:
@@ -174,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()
-    schema = _load_schema_module(Path(__file__).resolve())
+    schema = load_schema_module(Path(__file__).resolve())
 
     manifest_path = repo_root / schema.MANIFEST_TOML_NAME
     if not manifest_path.is_file():
