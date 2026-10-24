@@ -16,6 +16,7 @@ def _write_session(config_dir: Path, request_ids: list[str]) -> Path:
             {
                 "type": "user",
                 "sessionId": _SESSION,
+                "promptId": f"prompt-{index}",
                 "timestamp": f"2026-10-22T12:00:0{index * 2}Z",
             }
         )
@@ -74,6 +75,7 @@ def test_a_one_shots_calls_are_read_from_its_log_and_recorded_then_the_log_is_de
         "harness": "claude",
         "purpose": "CHAT_TITLE",
         "session_id": _SESSION,
+        "turn_id": "prompt-0",
         "call_source": "MAIN",
     }
 

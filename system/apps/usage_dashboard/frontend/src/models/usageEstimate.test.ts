@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { LimitWindow } from "./providers";
 import { totalsRow } from "../testing/rows";
-import { calibrationSpan, chosenScale, formatShare, limitShares, lineKey, percentPerDollar } from "./usageEstimate";
+import {
+  calibrationSpan,
+  chosenScale,
+  formatShare,
+  limitShares,
+  limitWindowStart,
+  lineKey,
+  percentPerDollar,
+} from "./usageEstimate";
 
 function window(patch: Partial<LimitWindow>): LimitWindow {
   return {
@@ -16,34 +24,62 @@ function window(patch: Partial<LimitWindow>): LimitWindow {
     observedAt: new Date("2026-10-22T20:00:00Z"),
     readingPercent: 34,
     readingResetsAt: new Date("2026-10-27T00:00:00Z"),
+    firstPercent: 30,
+    firstObservedAt: new Date("2026-10-22T12:00:00Z"),
     ...patch,
   };
 }
 
 describe("calibrationSpan", () => {
-  it("runs from the window's start to the reading", () => {
+  it("runs from just after the window's first reading to just after its latest, over the share it rose", () => {
     expect(calibrationSpan(window({}))).toEqual({
-      since: new Date("2026-10-20T00:00:00Z"),
-      until: new Date("2026-10-22T20:00:00Z"),
+      since: new Date("2026-10-22T12:00:00.001Z"),
+      until: new Date("2026-10-22T20:00:00.001Z"),
+      rise: 4,
     });
+  });
+
+  it("leaves out the first reading's call and keeps the latest one's, as each reading already counts its own", () => {
+    // The collector dates a reading to its call's end (here to the microsecond, which a Date truncates) and keeps
+    // calls that ended in [since, until).
+    const firstCall = Date.parse("2026-10-22T12:00:00.250Z") + 0.4;
+    const latestCall = Date.parse("2026-10-22T20:00:00.130Z") + 0.649;
+    const span = calibrationSpan(
+      window({
+        firstObservedAt: new Date("2026-10-22T12:00:00.250400Z"),
+        observedAt: new Date("2026-10-22T20:00:00.130649Z"),
+      }),
+    );
+
+    expect(span).not.toBeNull();
+    expect(firstCall).toBeLessThan(span!.since.getTime());
+    expect(latestCall).toBeLessThan(span!.until.getTime());
   });
 
   it("keeps the last reading's span once its window has reset", () => {
     const reset = window({ isResetSinceReading: true, usedPercent: 0, resetsAt: null });
 
-    expect(calibrationSpan(reset)?.since).toEqual(new Date("2026-10-20T00:00:00Z"));
+    expect(calibrationSpan(reset)?.rise).toBe(4);
   });
 
-  it("has nothing to calibrate on for an unused or open-ended window", () => {
-    expect(calibrationSpan(window({ readingPercent: 0 }))).toBeNull();
-    expect(calibrationSpan(window({ windowSeconds: null }))).toBeNull();
+  it("has nothing to measure until the window has risen, or without a first reading", () => {
+    expect(calibrationSpan(window({ firstPercent: 34 }))).toBeNull();
+    expect(calibrationSpan(window({ firstPercent: null, firstObservedAt: null }))).toBeNull();
+    expect(calibrationSpan(window({ firstObservedAt: new Date("2026-10-22T20:00:00Z") }))).toBeNull();
+  });
+});
+
+describe("limitWindowStart", () => {
+  it("is the reading's reset less the window's length", () => {
+    expect(limitWindowStart(window({}))).toEqual(new Date("2026-10-20T00:00:00Z"));
+    expect(limitWindowStart(window({ windowSeconds: null }))).toBeNull();
   });
 });
 
 describe("percentPerDollar", () => {
-  it("spreads the reported share over the window's list price", () => {
-    expect(percentPerDollar(34, 85)).toBeCloseTo(0.4);
-    expect(percentPerDollar(34, 0)).toBeNull();
+  it("divides the window's rise by the list price of the calls it rose across", () => {
+    expect(percentPerDollar(4, 20)).toBeCloseTo(0.2);
+    expect(percentPerDollar(4, 0)).toBeNull();
   });
 });
 

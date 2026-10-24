@@ -8,6 +8,7 @@ retention from the store (they stay in the files). It serves the query API on
 
 import itertools
 import os
+import sqlite3
 import threading
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -59,15 +60,30 @@ def run_maintenance(
     status: IngestStatus,
     stop: threading.Event,
 ) -> None:
-    """Run a pass about once a second, and prune hourly, until ``stop`` is set."""
+    """Run a pass about once a second, and prune hourly, until ``stop`` is set.
+
+    A pass that fails on the store, the disk or a bad value (a full disk, a
+    corrupt store, an unreadable timestamp) counts as incomplete, so
+    ``/health`` stops reporting the store as caught up, and the next pass
+    retries. A lasting failure is logged once, and again only after it clears.
+    """
+    last_failure: str | None = None
     for passes in itertools.count():
-        status.record_pass(run_pass(ingestor, store, environ).is_complete)
-        if passes % _PRUNE_EVERY_PASSES == 0:
-            pruned = store.prune(datetime.now(timezone.utc))
-            if pruned:
-                logger.info(
-                    "Pruned {} raw events past retention from the store", pruned
-                )
+        try:
+            status.record_pass(run_pass(ingestor, store, environ).is_complete)
+            if passes % _PRUNE_EVERY_PASSES == 0:
+                pruned = store.prune(datetime.now(timezone.utc))
+                if pruned:
+                    logger.info(
+                        "Pruned {} raw events past retention from the store", pruned
+                    )
+            last_failure = None
+        except (sqlite3.Error, OSError, ValueError) as e:
+            status.record_pass(False)
+            failure = f"{type(e).__name__}: {e}"
+            if failure != last_failure:
+                logger.exception("A usage-collector pass failed; retrying each pass")
+            last_failure = failure
         if stop.wait(_PASS_SECONDS):
             return
 

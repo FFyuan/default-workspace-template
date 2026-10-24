@@ -356,6 +356,59 @@ function activityCells(cells: ActivityCells, now: Date, columns: UsageColumns, l
   ];
 }
 
+/**
+ * The same row as two lines, for a screen too narrow for the table: what it was and what it used on the first
+ * (its source, and its share of each limit or its cost), the rest muted on the second, its status only when a
+ * call failed. A turn's call leads with its time instead: its source is the turn's, already on the line above.
+ */
+function activityLines(
+  cells: ActivityCells,
+  now: Date,
+  columns: UsageColumns,
+  lead: m.Children,
+  heading: "source" | "time",
+): m.Children {
+  const usage =
+    columns.length === 0
+      ? [m("span", { class: "activity-usage" }, cells.cost)]
+      : columns.map((limit, index) => {
+          const share = cells.shares[index] ?? null;
+          return m(
+            "span",
+            { class: "activity-usage", "data-limit": limit.scale.windowKey },
+            `${share === null ? "–" : formatShare(share)} ${limitName(limit.scale)}`,
+          );
+        });
+  const time = formatCallTime(cells.endedAt, now);
+  const details = [
+    ...(heading === "source" ? [time] : []),
+    cells.model,
+    ...(cells.calls === null ? [] : [`${formatCount(cells.calls)} ${cells.calls === 1 ? "call" : "calls"}`]),
+    `${formatCount(cells.tokens)} tokens`,
+    ...(cells.durationMs > 0 ? [formatDuration(cells.durationMs)] : []),
+  ];
+  return [
+    m("div", { class: "flex items-baseline gap-2" }, [
+      lead,
+      m(
+        "span",
+        { class: "min-w-0 flex-1 truncate tabular-nums text-primary" },
+        heading === "source" ? cells.source : time,
+      ),
+      m(
+        "span",
+        { class: "flex shrink-0 gap-2 tabular-nums text-secondary" },
+        usage.flatMap((part, index) => (index === 0 ? [part] : [m("span", { class: "text-faint" }, "·"), part])),
+      ),
+    ]),
+    // Under the first line's text: past the lead's w-6 and the gap-2 after it.
+    m("div", { class: "flex flex-wrap gap-x-2 pl-8 type-helper tabular-nums text-faint", title: cells.modelTitle }, [
+      details.join(" · "),
+      cells.status.isOk ? null : m("span", { class: "text-danger" }, cells.status.text),
+    ]),
+  ];
+}
+
 function turnCells(turn: TurnRow, model: DashboardModel, columns: UsageColumns): ActivityCells {
   const subscription = turn.subscription_cost_usd === null ? null : Number(turn.subscription_cost_usd);
   const [first, ...rest] = turn.models;
@@ -448,6 +501,82 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
       return rows;
     });
   };
+  // Below md the same turns and calls as stacked two-line items, since the table needs about twice the width.
+  const callItems = (turn: TurnRow): m.Vnode[] => {
+    const calls = model.expandedTurnCalls;
+    if (calls === null) {
+      return [
+        m("div", { key: `${turnKey(turn)}:loading`, class: "py-2 pl-6 type-helper text-faint" }, "Loading calls…"),
+      ];
+    }
+    return calls.flatMap((call) => {
+      const event = call.event;
+      const isOpen = model.expandedCallId === event.event_id;
+      return [
+        m(
+          "div",
+          {
+            key: event.event_id,
+            class:
+              "call-item cursor-pointer border-b border-subtle bg-surface-secondary py-2 pl-6 hover:bg-fill-hover",
+            "data-call": event.event_id,
+            title: isOpen ? "Hide the raw event" : "Show the raw event",
+            onclick: () => model.toggleCall(event.event_id),
+          },
+          activityLines(
+            callCells(call, model, columns),
+            now,
+            columns,
+            m("span", { class: "inline-block w-6 shrink-0" }),
+            "time",
+          ),
+        ),
+        ...(isOpen
+          ? [
+              m(
+                "div",
+                { key: `${event.event_id}:raw`, class: "border-b border-subtle bg-surface-secondary py-2 pl-6" },
+                [
+                  m(
+                    "pre",
+                    {
+                      class:
+                        "call-raw max-h-80 overflow-auto rounded-md bg-surface p-3 font-mono type-helper text-secondary",
+                    },
+                    JSON.stringify(event, null, 2),
+                  ),
+                ],
+              ),
+            ]
+          : []),
+      ];
+    });
+  };
+  const turnItems = model.turns.flatMap((turn) => {
+    const key = turnKey(turn);
+    const isOpen = model.expandedTurnKey === key;
+    return [
+      m(
+        "div",
+        {
+          key,
+          class: "turn-item cursor-pointer border-b border-subtle py-2 hover:bg-fill-hover",
+          "data-turn": key,
+          "aria-expanded": isOpen ? "true" : "false",
+          title: isOpen ? "Hide its calls" : "Show its calls",
+          onclick: () => model.toggleTurn(turn),
+        },
+        activityLines(
+          turnCells(turn, model, columns),
+          now,
+          columns,
+          m("span", { class: "inline-block w-6 shrink-0 text-faint", "aria-hidden": "true" }, isOpen ? "▾" : "▸"),
+          "source",
+        ),
+      ),
+      ...(isOpen ? callItems(turn) : []),
+    ];
+  });
   return m("section", { class: `${CARD_CLASS} flex flex-col gap-3` }, [
     m("div", { class: "flex items-center justify-between gap-2" }, [
       cardTitle("Latest turns"),
@@ -455,7 +584,10 @@ function turnsSection(model: DashboardModel, now: Date, columns: UsageColumns): 
     ]),
     model.turns.length === 0
       ? m("div", { class: "type-helper text-faint" }, "No turns yet.")
-      : m("div", { class: "overflow-x-auto" }, [
+      : m("div", { class: "turns-list flex flex-col type-body md:hidden" }, turnItems),
+    model.turns.length === 0
+      ? null
+      : m("div", { class: "hidden overflow-x-auto md:block" }, [
           m("table", { class: "turns-table w-full border-collapse type-body" }, [
             m("thead", [
               m("tr", { class: "border-b border-default text-left type-tag uppercase tracking-wide text-faint" }, [
@@ -763,7 +895,7 @@ function figuresView(
             { class: "usage-estimate-note type-helper text-faint" },
             scale.isFromEarlierWindow
               ? `Estimated at the rate of the ${limitName(scale)} window that reset at ${formatClock(scale.resetsAt)}: each call's tokens are priced at API rates.`
-              : "Estimated: each call's tokens are priced at API rates, then scaled so the limit window adds up to its last reading.",
+              : "Estimated: each call's tokens are priced at API rates, at the rate this workspace's own calls have moved the limit.",
           )
         : null,
     ]),
@@ -861,7 +993,11 @@ function widgetLookPicker(picker: WidgetLookPicker): m.Children {
   );
 }
 
-function pageHeader(model: DashboardModel, back: boolean): m.Vnode {
+/**
+ * The page's header. A detail page passes the name of what it shows, which heads the page on a narrow screen,
+ * where the list of providers is no longer a column beside it saying which one is open.
+ */
+function pageHeader(model: DashboardModel, back: boolean, title?: string): m.Vnode {
   return m("header", { class: "flex flex-wrap items-center gap-3" }, [
     back
       ? m(
@@ -873,7 +1009,12 @@ function pageHeader(model: DashboardModel, back: boolean): m.Vnode {
           "‹ Back",
         )
       : null,
-    m("h1", { class: "type-heading text-primary" }, "Usage"),
+    title === undefined
+      ? m("h1", { class: "type-heading text-primary" }, "Usage")
+      : m("h1", { class: "page-title min-w-0 truncate type-heading text-primary" }, [
+          m("span", { class: "hidden md:inline" }, "Usage"),
+          m("span", { class: "md:hidden" }, title),
+        ]),
     liveIndicator(model),
   ]);
 }
@@ -978,12 +1119,16 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
         })
       : [];
   return [
-    pageHeader(model, true),
+    pageHeader(model, true, selected?.title ?? (route.page === "all" ? "All usage" : "Unknown provider")),
     banners(model),
     m("div", { class: "detail-layout grid gap-4 md:grid-cols-[15rem_minmax(0,1fr)]" }, [
       m(
         "nav",
-        { class: "detail-nav flex gap-1 overflow-x-auto md:flex-col md:overflow-visible", "aria-label": "Providers" },
+        {
+          // On a narrow screen the header names the open item, so a list with nothing else to open is left out.
+          class: `detail-nav ${items.length > 1 ? "flex" : "hidden md:flex"} gap-1 overflow-x-auto md:flex-col md:overflow-visible`,
+          "aria-label": "Providers",
+        },
         items.map((item) => {
           const isSelected = item.key === selectedKey;
           return m(
@@ -1007,11 +1152,11 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
         }),
       ),
       m("div", { class: `detail-content flex min-w-0 flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
-        // A card names its provider itself; without one the item needs a heading.
+        // A card names its provider itself; without one the item needs a heading, which below md the h1 already is.
         card === undefined
           ? m(
               "h2",
-              { class: "type-heading text-primary" },
+              { class: "hidden type-heading text-primary md:block" },
               selected?.title ?? (route.page === "all" ? "All usage" : "Unknown provider"),
             )
           : null,

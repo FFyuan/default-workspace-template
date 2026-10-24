@@ -62,8 +62,16 @@ was already pruned to the rollups a second time.
 - `GET /v1/limits?since=7d`: the freshest subscription limit reading of every
   window, per source (claude, codex, ...): the share used, when it resets, the
   window's length and when the reading was taken. Readings come from any event
-  that carries `rate_limits`, an agent's snapshot or a model_call, and the
-  freshest wins, since a window is an account-level counter.
+  that carries `rate_limits`, an agent's snapshot or a model_call. A window is
+  an account-level counter that every agent on the account reports, so within
+  one window (the same reset time) the higher share wins, however recently a
+  lower one was stamped; a later reset time starts a new window and wins, and
+  without a reset time the freshest wins. Each window also carries its first
+  reading (`first_used_percentage`, `first_observed_at`): the lowest share seen
+  in it, at the earliest time that share was seen (never a reading dated before
+  its window opened), so the rise from there to the
+  latest reading is what this workspace's calls in between added (the Usage
+  app's estimate of each call's share is calibrated on it).
 - `GET /v1/stream`: server-sent events, one `model_call` message per newly
   stored event.
 - `GET /health`: `catching_up` is true until a pass has read every event file

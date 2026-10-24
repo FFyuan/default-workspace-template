@@ -1,12 +1,14 @@
 /**
  * An estimate of how much of a subscription's limit each call used, from its tokens.
  *
- * A harness reports only each limit window's total share used, not what each call took. The calls in a window
- * are priced at their models' API rates (the list price the collector already puts on subscription calls), which
- * weighs an Opus token above a Haiku one much as the limits do, and the window's reported share is spread over
- * them in proportion: the reading's share divided by the list price of the provider's subscription calls between
- * the window's start and the reading gives a share per dollar, and a call's estimated share is its list price
- * times that. It is an estimate: the providers do not publish how their limits are counted.
+ * A harness reports only each limit window's share used, for the whole account: it counts the account's use
+ * everywhere it is signed in, not only this workspace's. So the reported share is not spread over this
+ * workspace's calls. What they added is measured instead: the rise in the window's share from its first reading
+ * here (the lowest the collector saw in it) to its latest, divided by the list price of this workspace's
+ * subscription calls between the two (the collector's API-rate price, which weighs an Opus token above a Haiku
+ * one much as the limits do), gives a share per dollar, and a call's estimated share is its list price times that.
+ * It is an estimate: the providers do not publish how their limits are counted, the shares come in whole percents,
+ * and use elsewhere between the two readings still lands in the rise.
  *
  * Once a window resets its harness reports nothing for it until the next call, so the last reading's rate is kept:
  * it is the account's rate, which a reset does not change, and the page says the estimate rests on it.
@@ -28,17 +30,46 @@ export interface UsageScale {
   resetsAt: Date;
 }
 
-/** The span a window's reading covers, from the window's start to the reading, whether or not it has reset since. */
-export function calibrationSpan(window: LimitWindow): { since: Date; until: Date } | null {
-  if (window.readingResetsAt === null || window.windowSeconds === null) return null;
-  if (window.readingPercent === null || window.readingPercent <= 0) return null;
-  const since = new Date(window.readingResetsAt.getTime() - window.windowSeconds * 1000);
-  return since < window.observedAt ? { since, until: window.observedAt } : null;
+/**
+ * How far past a reading a span's edge sits. A reading that rides on a call is dated to that call's end and
+ * already counts it, and the collector keeps calls that ended in ``[since, until)`` (dated to the microsecond,
+ * which a ``Date`` truncates to the millisecond), so an edge just after a reading puts its call on the reading's
+ * side: out of a span that starts there, in a span that ends there.
+ */
+const READING_INCLUDES_MS = 1;
+
+/** The calls a window's rise is measured over, and how much it rose across them. */
+export interface CalibrationSpan {
+  since: Date;
+  until: Date;
+  /** The rise in share from the window's first reading to its latest, in percentage points. */
+  rise: number;
 }
 
-/** The share per dollar of list price, or null when the window's calls had no list price to spread it over. */
-export function percentPerDollar(usedPercent: number, listPrice: number): number | null {
-  return listPrice > 0 ? usedPercent / listPrice : null;
+/**
+ * The span from just after a window's first reading to just after its latest, whether or not it has reset since,
+ * and the share the window rose by across it; null while it has not risen, since there is nothing to measure yet.
+ */
+export function calibrationSpan(window: LimitWindow): CalibrationSpan | null {
+  if (window.readingPercent === null || window.firstPercent === null || window.firstObservedAt === null) return null;
+  const rise = window.readingPercent - window.firstPercent;
+  if (rise <= 0 || window.firstObservedAt >= window.observedAt) return null;
+  return {
+    since: new Date(window.firstObservedAt.getTime() + READING_INCLUDES_MS),
+    until: new Date(window.observedAt.getTime() + READING_INCLUDES_MS),
+    rise,
+  };
+}
+
+/** When the window of a limit's last reading started, or null for a window with no length or reset time. */
+export function limitWindowStart(window: LimitWindow): Date | null {
+  if (window.readingResetsAt === null || window.windowSeconds === null) return null;
+  return new Date(window.readingResetsAt.getTime() - window.windowSeconds * 1000);
+}
+
+/** The share per dollar of list price, or null when the span's calls had no list price to spread it over. */
+export function percentPerDollar(rise: number, listPrice: number): number | null {
+  return listPrice > 0 ? rise / listPrice : null;
 }
 
 /** The scale a subscription's usage is shown against: the window its viewer picked, else its shortest. */

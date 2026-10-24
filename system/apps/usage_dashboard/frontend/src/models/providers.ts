@@ -30,6 +30,9 @@ export interface LimitWindow {
   /** The reading as taken, before a reset since it is applied: its share used and when its window reset. */
   readingPercent: number | null;
   readingResetsAt: Date | null;
+  /** The window's first reading: the lowest share seen in it and when, which its rise is measured from. */
+  firstPercent: number | null;
+  firstObservedAt: Date | null;
 }
 
 export interface SubscriptionCard {
@@ -149,6 +152,8 @@ function subscriptionCards(
           observedAt: new Date(reading.observed_at),
           readingPercent: reading.used_percentage,
           readingResetsAt: resetsAt,
+          firstPercent: reading.first_used_percentage ?? null,
+          firstObservedAt: reading.first_observed_at ? new Date(reading.first_observed_at) : null,
         };
       });
     const provider = SOURCE_PROVIDERS[source];

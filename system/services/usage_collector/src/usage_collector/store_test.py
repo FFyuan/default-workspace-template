@@ -274,11 +274,19 @@ def test_totals_group_by_cost_provenance(store: UsageStore) -> None:
     assert rows == {"ESTIMATED": 1, "REPORTED": 1}
 
 
-def _reading(used: float, minutes_ago: int, window: str = "five_hour") -> LimitReading:
+def _reading(
+    used: float,
+    minutes_ago: int,
+    window: str = "five_hour",
+    resets_in_minutes: int | None = None,
+) -> LimitReading:
     return LimitReading(
         source="claude",
         window=window,
         used_percentage=used,
+        resets_at=NOW + timedelta(minutes=resets_in_minutes)
+        if resets_in_minutes is not None
+        else None,
         window_seconds=18000 if window == "five_hour" else 604800,
         observed_at=NOW - timedelta(minutes=minutes_ago),
     )
@@ -293,6 +301,162 @@ def test_the_freshest_limit_reading_wins_whatever_order_it_arrives_in(
     [reading] = store.limits(NOW - timedelta(days=7))
 
     assert reading.used_percentage == 40
+
+
+def test_a_stale_lower_share_of_the_same_window_does_not_replace_a_higher_one(
+    store: UsageStore,
+) -> None:
+    # Two agents on one account: one saw 90%, an idle one keeps restamping its earlier 26%.
+    store.record_limits([_reading(90, minutes_ago=4, resets_in_minutes=20)])
+    store.record_limits([_reading(26, minutes_ago=0, resets_in_minutes=20)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert (reading.used_percentage, reading.observed_at) == (
+        90,
+        NOW - timedelta(minutes=4),
+    )
+
+
+def test_a_higher_share_of_the_same_window_wins_even_when_stamped_earlier(
+    store: UsageStore,
+) -> None:
+    store.record_limits([_reading(26, minutes_ago=0, resets_in_minutes=20)])
+    store.record_limits([_reading(90, minutes_ago=4, resets_in_minutes=20)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert reading.used_percentage == 90
+
+
+def test_the_same_share_seen_again_moves_the_reading_forward(store: UsageStore) -> None:
+    store.record_limits([_reading(90, minutes_ago=4, resets_in_minutes=20)])
+    store.record_limits([_reading(90, minutes_ago=1, resets_in_minutes=20)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert reading.observed_at == NOW - timedelta(minutes=1)
+
+
+def test_a_later_window_replaces_an_earlier_one_and_not_the_other_way(
+    store: UsageStore,
+) -> None:
+    store.record_limits([_reading(90, minutes_ago=30, resets_in_minutes=-10)])
+    store.record_limits([_reading(3, minutes_ago=1, resets_in_minutes=290)])
+    store.record_limits([_reading(95, minutes_ago=0, resets_in_minutes=-10)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert reading.used_percentage == 3
+
+
+def test_a_window_keeps_its_lowest_share_at_the_earliest_time_it_was_seen(
+    store: UsageStore,
+) -> None:
+    store.record_limits([_reading(30, minutes_ago=40, resets_in_minutes=20)])
+    store.record_limits([_reading(26, minutes_ago=50, resets_in_minutes=20)])
+    # An idle agent restamping the old share later must not move where the window's rise began.
+    store.record_limits([_reading(26, minutes_ago=0, resets_in_minutes=20)])
+    store.record_limits([_reading(41, minutes_ago=2, resets_in_minutes=20)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
+        41,
+        26,
+        NOW - timedelta(minutes=50),
+    )
+
+
+def test_a_later_window_starts_its_first_reading_over(store: UsageStore) -> None:
+    store.record_limits([_reading(90, minutes_ago=30, resets_in_minutes=-10)])
+    store.record_limits([_reading(3, minutes_ago=5, resets_in_minutes=290)])
+    store.record_limits([_reading(7, minutes_ago=1, resets_in_minutes=290)])
+    # A late reading of the earlier window changes nothing.
+    store.record_limits([_reading(1, minutes_ago=0, resets_in_minutes=-10)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
+        7,
+        3,
+        NOW - timedelta(minutes=5),
+    )
+
+
+def test_readings_of_one_window_in_one_batch_are_weighed_one_after_another(
+    store: UsageStore,
+) -> None:
+    store.record_limits([_reading(90, minutes_ago=30, resets_in_minutes=-10)])
+    store.record_limits(
+        [
+            _reading(3, minutes_ago=5, resets_in_minutes=290),
+            _reading(5, minutes_ago=3, resets_in_minutes=290),
+        ]
+    )
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
+        5,
+        3,
+        NOW - timedelta(minutes=5),
+    )
+
+
+def test_a_reading_dated_before_its_window_opened_is_never_its_first(
+    store: UsageStore,
+) -> None:
+    # A writer catching up on old session logs stamps a day-old call with the reading it holds now.
+    store.record_limits([_reading(6, minutes_ago=24 * 60, resets_in_minutes=180)])
+    store.record_limits([_reading(9, minutes_ago=60, resets_in_minutes=180)])
+    store.record_limits([_reading(12, minutes_ago=1, resets_in_minutes=180)])
+
+    [reading] = store.limits(NOW - timedelta(days=7))
+
+    assert (
+        reading.used_percentage,
+        reading.first_used_percentage,
+        reading.first_observed_at,
+    ) == (
+        12,
+        9,
+        NOW - timedelta(minutes=60),
+    )
+
+
+def test_a_database_from_before_first_readings_gains_them(tmp_path: Path) -> None:
+    path = tmp_path / "old.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE limit_window (source TEXT NOT NULL, window TEXT NOT NULL, label TEXT, "
+            "used_percentage REAL, resets_at REAL, window_seconds INTEGER, observed_at REAL NOT NULL, "
+            "PRIMARY KEY (source, window))"
+        )
+        connection.execute(
+            "INSERT INTO limit_window VALUES ('claude', 'five_hour', NULL, 12, NULL, 18000, 0)"
+        )
+
+    reopened = UsageStore(path)
+    try:
+        reopened.record_limits([_reading(15, minutes_ago=1)])
+
+        [reading] = reopened.limits(NOW - timedelta(days=7))
+        assert (reading.used_percentage, reading.first_used_percentage) == (15, 15)
+    finally:
+        reopened.close()
 
 
 def test_limits_come_shortest_window_first_and_old_ones_drop_out(

@@ -15,6 +15,8 @@ function reading(patch: Partial<LimitReading>): LimitReading {
     resets_at: "2026-10-22T22:30:00Z",
     window_seconds: 18_000,
     observed_at: "2026-10-22T19:45:00Z",
+    first_used_percentage: 20,
+    first_observed_at: "2026-10-22T18:30:00Z",
     ...patch,
   };
 }
@@ -42,6 +44,18 @@ describe("providerCards", () => {
 
     if (card.kind !== "subscription") throw new Error("expected a subscription card");
     expect(card.windows[0]).toMatchObject({ usedPercent: 0, isResetSinceReading: true, level: "ok" });
+  });
+
+  it("carries each window's first reading, and none from a collector that kept none", () => {
+    const [card] = providerCards([reading({})], [], NOW);
+    const [older] = providerCards([reading({ first_used_percentage: null, first_observed_at: null })], [], NOW);
+
+    if (card.kind !== "subscription" || older.kind !== "subscription") throw new Error("expected subscription cards");
+    expect(card.windows[0]).toMatchObject({
+      firstPercent: 20,
+      firstObservedAt: new Date("2026-10-22T18:30:00Z"),
+    });
+    expect(older.windows[0]).toMatchObject({ firstPercent: null, firstObservedAt: null });
   });
 
   it("drops a source whose last reading is over a week old", () => {
@@ -114,6 +128,8 @@ function limitWindow(overrides: Partial<LimitWindow>): LimitWindow {
     observedAt: NOW,
     readingPercent: 10,
     readingResetsAt: new Date("2026-10-22T23:00:00Z"),
+    firstPercent: 4,
+    firstObservedAt: new Date("2026-10-22T19:00:00Z"),
     ...overrides,
   };
 }

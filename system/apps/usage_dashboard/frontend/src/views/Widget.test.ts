@@ -23,6 +23,8 @@ function reading(patch: Partial<LimitReading>): LimitReading {
     resets_at: "2026-10-22T22:30:00Z",
     window_seconds: 18_000,
     observed_at: "2026-10-22T19:45:00Z",
+    first_used_percentage: null,
+    first_observed_at: null,
     ...patch,
   };
 }
