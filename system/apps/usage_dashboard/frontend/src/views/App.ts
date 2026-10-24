@@ -1056,11 +1056,11 @@ function detailPage(model: DashboardModel, route: Route, now: Date, colors: Char
         }),
       ),
       m("div", { class: `detail-content flex min-w-0 flex-col gap-4 ${model.isCollectorDown ? "opacity-60" : ""}` }, [
-        // A card names its provider itself; without one the item needs a heading.
+        // A card names its provider itself; without one the item needs a heading, which below md the h1 already is.
         card === undefined
           ? m(
               "h2",
-              { class: "type-heading text-primary" },
+              { class: "hidden type-heading text-primary md:block" },
               selected?.title ?? (route.page === "all" ? "All usage" : "Unknown provider"),
             )
           : null,
