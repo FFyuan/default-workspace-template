@@ -152,7 +152,8 @@ export function lookOverrides(search: string): Partial<WidgetLook> {
 export async function readWidgetLook(): Promise<WidgetLook | null> {
   try {
     return lookOfSettings(await fetchSettings());
-  } catch {
+  } catch (error) {
+    console.warn("[usage] could not read the widget's settings:", error);
     return null;
   }
 }
