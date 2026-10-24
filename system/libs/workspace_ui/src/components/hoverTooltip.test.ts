@@ -336,6 +336,18 @@ describe("showTooltipAtRect", () => {
     expect(shownTooltipText()).toBeNull();
   });
 
+  it("moves to another element of the same source that offers the same text", () => {
+    vi.useFakeTimers();
+    showTooltipAtRect("widget:gauge", { left: 400, top: 300, bottom: 320, width: 40 }, "Claude · 5-hour limit");
+    vi.runAllTimers();
+    expect(shownTooltipText()).toBe("Claude · 5-hour limit");
+
+    showTooltipAtRect("widget:gauge", { left: 450, top: 400, bottom: 420, width: 40 }, "Claude · 5-hour limit");
+    vi.runAllTimers();
+    expect(shownTooltipText()).toBe("Claude · 5-hour limit");
+    expect(document.querySelector<HTMLElement>(".hover-tooltip")?.style.top).toBe("426px");
+  });
+
   it("is dropped by a click in the document, like every tooltip", () => {
     vi.useFakeTimers();
     showTooltipAtRect("widget:gauge", { left: 10, top: 10, bottom: 20, width: 40 }, "Weekly limit");

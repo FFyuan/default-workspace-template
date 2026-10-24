@@ -182,7 +182,7 @@ let pendingTimer: number | null = null;
 let pendingFor: Element | null = null;
 let shownFor: Element | null = null;
 // The trigger a scheduled or visible bubble shown by rectangle belongs to (``showTooltipAtRect``), as a key of its
-// source and text, so a repeat of the same one does not restart the delay.
+// source, text and rectangle, so a repeat of the same one does not restart the delay.
 let rectKey: string | null = null;
 let isWired = false;
 // Watches a SHOWN bubble's trigger, and only then: the trigger can lose its
@@ -400,7 +400,7 @@ function wireListeners(): void {
  */
 export function showTooltipAtRect(source: string, anchor: TooltipAnchor, text: string): void {
   wireListeners();
-  const key = `${source}\n${text}`;
+  const key = `${source}\n${text}\n${anchor.left},${anchor.top},${anchor.bottom},${anchor.width}`;
   if (key === rectKey) return;
   dropTooltip();
   rectKey = key;

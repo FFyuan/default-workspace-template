@@ -9,3 +9,5 @@ The app contract gains mode `tray` for a widget page whose manifest declares a t
 `connection.placeWidget(placement)` lets any page of an app that declares a widget ask the shell to put the app's widget on the desktop or in the taskbar's tray for this client (`shell:widget-placement`).
 
 The contract gains mode and placement `toolbar`, the taskbar's row beside the launcher, for a widget page whose manifest declares a toolbar form; in it, as in the tray, a click is a press and the widget does not drag.
+
+A tooltip shown by rectangle moves to another element of the same widget that offers the same text, rather than staying under the first.
