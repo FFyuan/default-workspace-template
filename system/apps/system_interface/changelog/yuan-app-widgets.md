@@ -19,3 +19,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - A widget whose page draws a toolbar form can also sit in the taskbar's own row, right after the launcher and before the window entries, as tall as an entry and tinted like one; its popover opens above that end of the bar. The widget's menu offers each place it is not: "Move to desktop", "Move to toolbar", "Move to tray" (the last was "Move to taskbar").
 
 - Writing a client's presentation of a widget for an app that declares none answers 404, as showing or hiding that widget does.
+
+- A taskbar widget's open popover closes when the widget leaves the taskbar some other way (hidden for the workspace, moved by another window of the same client, or withdrawn), so it no longer reopens unseen when the widget comes back.

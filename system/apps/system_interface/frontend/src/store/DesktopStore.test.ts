@@ -2827,6 +2827,20 @@ describe("widgets", () => {
     expect(store.getState().trayPopoverApp).toBeNull();
     expect(store.widgetRects().has("gauge")).toBe(true);
 
+    // A popover whose widget leaves the taskbar by a push, hidden for the workspace or moved by another window of
+    // this client, closes with it rather than reopen when the widget comes back.
+    await store.setWidgetPlacement("gauge", "tray");
+    store.toggleTrayPopover("gauge");
+    socket.deliver().onWidgetsUpdated([{ app: "gauge", is_enabled: false }]);
+    expect(store.getState().trayPopoverApp).toBeNull();
+    socket.deliver().onWidgetsUpdated([{ app: "gauge", is_enabled: true }]);
+    store.toggleTrayPopover("gauge");
+    socket.deliver().onClientWidgetsChanged({
+      clientId: CLIENT,
+      widgets: { gauge: { position: null, mode: "expanded", placement: "desktop" } },
+    });
+    expect(store.getState().trayPopoverApp).toBeNull();
+
     // In the bar's row, it is out of the desktop's geometry too.
     await store.setWidgetPlacement("gauge", "toolbar");
     expect(store.widgetRects().has("gauge")).toBe(false);

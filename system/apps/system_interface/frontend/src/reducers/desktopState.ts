@@ -342,7 +342,7 @@ function withWindowLocationReported(state: DesktopState, desktopId: string, wind
 export function reduceDesktopState(state: DesktopState, event: DesktopEvent): DesktopState {
   switch (event.type) {
     case "apps_updated":
-      return { ...state, apps: event.apps, isAppsLoaded: true };
+      return withTrayPopoverInTaskbar({ ...state, apps: event.apps, isAppsLoaded: true });
     case "desktops_updated":
       return withDesktopsUpdated(state, event.desktops);
     case "desktop_activated":
@@ -393,9 +393,9 @@ export function reduceDesktopState(state: DesktopState, event: DesktopEvent): De
     case "entries_updated":
       return { ...state, entries: event.entries };
     case "widget_switches_updated":
-      return { ...state, widgetSwitches: event.switches };
+      return withTrayPopoverInTaskbar({ ...state, widgetSwitches: event.switches });
     case "widgets_updated":
-      return { ...state, widgets: event.widgets };
+      return withTrayPopoverInTaskbar({ ...state, widgets: event.widgets });
     case "widget_size_reported":
       return withWidgetReport(state, event.app, event.isTray ? { traySize: event.size } : { size: event.size });
     case "tray_popover_set":
@@ -430,6 +430,15 @@ export function reduceDesktopState(state: DesktopState, event: DesktopEvent): De
       if (state.phone.sheet === event.sheet) return state;
       return { ...state, phone: { ...state.phone, sheet: event.sheet } };
   }
+}
+
+/** The state with its open popover closed unless its widget is still drawn in the taskbar: a widget hidden for the
+ *  workspace, moved out of the taskbar by another window of this client, or withdrawn takes its popover with it. */
+function withTrayPopoverInTaskbar(state: DesktopState): DesktopState {
+  const app = state.trayPopoverApp;
+  if (app === null) return state;
+  const isInBar = shownWidgets(state).some((widget) => widget.app.name === app && isInTaskbar(widget));
+  return isInBar ? state : { ...state, trayPopoverApp: null };
 }
 
 function withWidgetReport(state: DesktopState, app: string, change: Partial<WidgetReport>): DesktopState {
