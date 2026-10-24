@@ -23,3 +23,5 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 - The README says a new widget style is also named in the server's settings, which refuse a style they do not list.
 
 - Fixed: after switching from a narrower look, a widget could stay squeezed in a frame too narrow for it (a Bars widget then drew no bar at all). The widget now always reports its own width.
+
+- The widget says it has nothing to show again each time the desktop tells it how it is drawn, so a report made before the desktop greeted it is not lost.

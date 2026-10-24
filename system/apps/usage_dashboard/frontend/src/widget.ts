@@ -24,6 +24,9 @@ function bootstrap(): void {
   const connection = connectToShell({
     onWidgetMode: (next) => {
       mode = next;
+      // A mode follows every handshake; whether there is anything to show is said again, since a report made before
+      // the handshake never reached the shell.
+      wasEmpty = null;
       m.redraw();
     },
   });
