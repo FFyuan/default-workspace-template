@@ -756,10 +756,12 @@ Flags:
   may draw in the bar or floating above the windows; almost no app wants
   one (the chat's root window is the case it exists for), so leave it out
   unless the user asked for an always-present window. A `[widget]` table
-  (`path`, and optionally `default_enabled = true | false` and `tray = true`
-  when the page also draws a tray form for mode `tray`) has the shell keep
-  that page of the app on every client's desktop, above the windows, or in a
-  client's taskbar tray (`docs/system/blueprint/app-widgets/plan-app-widgets.md`); the page
+  (`path`, and optionally `default_enabled = true | false`, `tray = true`
+  when the page also draws a tray form for mode `tray`, and `toolbar = true`
+  when it draws a toolbar form for mode `toolbar`) has the shell keep that
+  page of the app on every client's desktop, above the windows, or in a
+  client's taskbar tray or taskbar row
+  (`docs/system/blueprint/app-widgets/plan-app-widgets.md`); the page
   reports its size through the app contract's `widgetSize` and is loaded by
   every client and kept up while enabled (it holds the app running as a
   window does), so it must be small and cheap to answer. `--name` may accompany it and
