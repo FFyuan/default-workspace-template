@@ -1,7 +1,7 @@
 /**
  * What every version of the Usage widget draws alike (app-widgets plan section 7): the colour a window is shown in,
- * its figure, a tooltip, a section's heading, a pay-as-you-go row, and the one figure of the month's spend a collapsed
- * widget falls back to with no subscription.
+ * its figure, a tooltip, a section's heading, a pay-as-you-go row, the one figure of the month's spend a collapsed
+ * widget falls back to with no subscription, and a mark per subscription for the taskbar's designs (else that figure).
  *
  * A tooltip is a ``data-widget-tooltip`` attribute, which the page's app contract hands to the shell to show as the
  * workspace's own tooltip outside the widget's small frame; nothing in the widget changes under the pointer. Sizes
@@ -12,8 +12,8 @@
 import m from "mithril";
 import { WIDGET_TOOLTIP_ATTRIBUTE } from "@imbue/workspace-ui/src/app_contract";
 import type { LimitWindow, ProviderCard } from "../models/providers";
-import { widgetPill } from "../models/widget";
-import type { SpendRow } from "../models/widget";
+import { widgetPill, widgetRings, windowText } from "../models/widget";
+import type { RingPair, SpendRow, WidgetModel } from "../models/widget";
 
 /** Which of a subscription's windows a mark stands for: the shortest (5-hour) inside or above, the longest outside or
  *  below. */
@@ -78,4 +78,25 @@ export function pillView(cards: readonly ProviderCard[]): m.Vnode {
     },
     pill?.text ?? "",
   );
+}
+
+/** A window's figure, in its level's colour once it nears the cap. */
+export function figure(window: LimitWindow, role: WindowRole, extra: string): m.Vnode {
+  return m(
+    "span",
+    {
+      "data-widget-percent": window.isResetSinceReading ? "reset" : window.level,
+      class: `tabular-nums ${extra}`,
+      style: window.level === "ok" ? {} : { color: windowColour(window, role) },
+      ...tooltip(windowText(window)),
+    },
+    percentText(window),
+  );
+}
+
+/** A mark per subscription, or with none the month's spend. */
+export function perSubscription(model: WidgetModel, draw: (pair: RingPair) => m.Vnode): m.Children {
+  const cards = model.cards ?? [];
+  const pairs = widgetRings(cards);
+  return pairs.length === 0 ? pillView(cards) : pairs.map(draw);
 }

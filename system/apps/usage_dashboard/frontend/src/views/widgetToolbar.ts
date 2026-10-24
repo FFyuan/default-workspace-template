@@ -16,10 +16,9 @@ import type { LimitWindow } from "../models/providers";
 import { ringFraction, windowText } from "../models/widget";
 import type { RingPair, WidgetModel } from "../models/widget";
 import type { WidgetDetail, WidgetToolbar } from "../models/widgetLook";
-import { tooltip, windowColour } from "./widgetParts";
+import { figure, perSubscription, tooltip, windowColour } from "./widgetParts";
 import type { WindowRole } from "./widgetParts";
 import { ringsView } from "./widgetRings";
-import { figure, perSubscription } from "./widgetTray";
 
 /** The weekly window, unless the detail pick leaves it out. */
 function weeklyOf(pair: RingPair, detail: WidgetDetail): LimitWindow | null {

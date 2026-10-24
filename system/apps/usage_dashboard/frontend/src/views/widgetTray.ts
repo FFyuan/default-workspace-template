@@ -13,37 +13,15 @@
 
 import m from "mithril";
 import type { LimitWindow } from "../models/providers";
-import { widgetRings, windowText } from "../models/widget";
-import type { RingPair, WidgetModel } from "../models/widget";
+import type { WidgetModel } from "../models/widget";
 import type { WidgetDetail, WidgetTray } from "../models/widgetLook";
 import { barsTray } from "./widgetBars";
-import { percentText, pillView, tooltip, windowColour } from "./widgetParts";
+import { figure, perSubscription, tooltip, windowColour } from "./widgetParts";
 import type { WindowRole } from "./widgetParts";
 import { ringsTray, ringsView } from "./widgetRings";
 
 const NAME_CLASS =
   "text-[0.7em] leading-none font-semibold tracking-wider whitespace-nowrap text-(--widget-muted) uppercase";
-
-/** A window's figure, in its level's colour once it nears the cap. */
-export function figure(window: LimitWindow, role: WindowRole, extra: string): m.Vnode {
-  return m(
-    "span",
-    {
-      "data-widget-percent": window.isResetSinceReading ? "reset" : window.level,
-      class: `tabular-nums ${extra}`,
-      style: window.level === "ok" ? {} : { color: windowColour(window, role) },
-      ...tooltip(windowText(window)),
-    },
-    percentText(window),
-  );
-}
-
-/** A mark per subscription, or with none the month's spend. */
-export function perSubscription(model: WidgetModel, draw: (pair: RingPair) => m.Vnode): m.Children {
-  const cards = model.cards ?? [];
-  const pairs = widgetRings(cards);
-  return pairs.length === 0 ? pillView(cards) : pairs.map(draw);
-}
 
 function ringOnly(model: WidgetModel, detail: WidgetDetail): m.Children {
   return perSubscription(model, (pair) =>
