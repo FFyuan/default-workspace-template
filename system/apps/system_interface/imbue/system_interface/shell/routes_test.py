@@ -952,8 +952,8 @@ def test_the_widget_switches_default_from_the_manifests_are_written_for_everyone
     for client_queue in (first_queue, second_queue):
         assert drain_messages(client_queue) == [{"type": "widgets_updated", "widgets": shown}]
     assert client.get("/api/widgets").get_json() == {"widgets": shown}
-    # An app declaring no widget, an internal app's widget, and an unknown app are refused.
-    for name in ("files", "probe", "nope"):
+    # An app declaring no widget, an internal app's widget, an unknown app, and a name no app can have are refused.
+    for name in ("files", "probe", "nope", "Not-An-App"):
         assert client.post(f"/api/widgets/{name}", json={"is_enabled": True}).status_code == 404
     assert client.post("/api/widgets/gauge", json={"is_enabled": "yes"}).status_code == 400
 

@@ -321,6 +321,7 @@ def set_widget_enabled(app: str) -> ResponseReturnValue:
     """Show or hide one app's widget for the whole workspace; answers every widget's switch. 404 for an app that
     declares no widget."""
     body = parse_request_body(WidgetEnabledRequest)
+    _entry_or_raise(app)
     return model_response(WidgetsListing(widgets=_shell().set_widget_enabled(AppName(app), body.is_enabled)))
 
 
