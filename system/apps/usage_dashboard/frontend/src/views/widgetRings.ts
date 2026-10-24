@@ -27,6 +27,7 @@ import type { WidgetDetail } from "../models/widgetLook";
 import {
   TRAY_NAME_CLASS,
   percentText,
+  perSubscription,
   pillView,
   sectionHeading,
   spendSectionView,
@@ -221,10 +222,7 @@ export function ringsMinimal(model: WidgetModel, detail: WidgetDetail): m.Childr
 }
 
 export function ringsTray(model: WidgetModel, detail: WidgetDetail): m.Children {
-  const cards = model.cards ?? [];
-  const rings = widgetRings(cards);
-  if (rings.length === 0) return pillView(cards);
-  return rings.map((pair) =>
+  return perSubscription(model, (pair) =>
     m("span", { key: pair.key, "data-widget-rings": pair.key, class: "flex items-center gap-1" }, [
       ringsView(pair.inner, detail === "less" ? null : pair.outer, pair.tooltip, false),
       m("span", { class: "flex flex-col gap-px whitespace-nowrap tabular-nums leading-none" }, [
