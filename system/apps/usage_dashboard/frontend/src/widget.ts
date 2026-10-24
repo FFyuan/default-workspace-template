@@ -40,9 +40,7 @@ function bootstrap(): void {
   const channel = new BroadcastChannel(WIDGET_LOOK_CHANNEL);
   channel.onmessage = (event: MessageEvent) => {
     const look = asWidgetLook(event.data);
-    if (look === null) return;
-    model.look = look;
-    m.redraw();
+    if (look !== null) model.takeLook(look);
   };
 
   const reportSize = (element: Element): void => {

@@ -31,3 +31,5 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 - The Usage README names the tray and toolbar designs the widget picker offers, and says a click on the widget in the taskbar opens its popover.
 
 - In the tray's Rings design a figure near its limit takes the limit's warning colour, as in the other taskbar designs.
+
+- A look picked on the Usage page while the widget is reading its figures stays, rather than giving way to the look the widget read.

@@ -139,6 +139,17 @@ describe("WidgetModel", () => {
     expect(widget.look.variant).toBe("bars");
   });
 
+  it("keeps a pick heard while a read was in flight over the read's older look", async () => {
+    const widget = model();
+    stubCollector([reading({})], false, null, "bars");
+    const read = widget.refresh();
+    widget.takeLook({ ...DEFAULT_WIDGET_LOOK, variant: "minimal" });
+    await read;
+    expect(widget.look.variant).toBe("minimal");
+    await widget.refresh();
+    expect(widget.look.variant).toBe("bars");
+  });
+
   it("keeps the last figures when the collector cannot be reached", async () => {
     const widget = model();
     stubCollector([reading({})], false);

@@ -208,6 +208,8 @@ export class WidgetModel {
   private readonly streamBackoff = new ReconnectBackoff();
   private eventRefresh: ReturnType<typeof setTimeout> | null = null;
   private periodic: ReturnType<typeof setInterval> | null = null;
+  /** How many picks have been heard over the look's channel: a read begun before one keeps its older look out. */
+  private lookPushes = 0;
 
   constructor(private readonly deps: WidgetDeps) {}
 
@@ -229,8 +231,16 @@ export class WidgetModel {
     return this.cards !== null && this.cards.length === 0 && !this.isCatchingUp;
   }
 
+  /** A pick made on the Usage page in this browser, heard over the look's channel. */
+  takeLook(look: WidgetLook): void {
+    this.lookPushes += 1;
+    this.look = look;
+    this.deps.redraw();
+  }
+
   async refresh(): Promise<void> {
     const now = this.deps.now();
+    const lookPushesBefore = this.lookPushes;
     try {
       const [limits, monthRows, health] = await Promise.all([
         fetchLimits(new Date(now.getTime() - LIMITS_LOOKBACK_MS)),
@@ -244,7 +254,8 @@ export class WidgetModel {
       this.isCollectorDown = isUnreachable(error);
       if (!this.isCollectorDown) console.warn("[usage] could not read the widget's figures:", error);
     }
-    this.look = (await readWidgetLook()) ?? this.look;
+    const look = await readWidgetLook();
+    if (look !== null && this.lookPushes === lookPushesBefore) this.look = look;
     this.deps.redraw();
   }
 
