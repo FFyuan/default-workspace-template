@@ -21,3 +21,5 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 - The Usage manifest, its README and its settings route say what the settings hold: where the widget goes and how it looks, not only which version it is.
 
 - The README says a new widget style is also named in the server's settings, which refuse a style they do not list.
+
+- Fixed: after switching from a narrower look, a widget could stay squeezed in a frame too narrow for it (a Bars widget then drew no bar at all). The widget now always reports its own width.

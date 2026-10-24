@@ -103,8 +103,14 @@ body.usage-widget-body {
 }
 
 /* The widget is the root's flex item, not an inline box on a line of the page's own text, which would push a widget
-   shorter than that line (the tray form) down inside its frame. */
+   shorter than that line (the tray form) down inside its frame. It never shrinks to the frame: the frame is sized from
+   what the widget reports, so a widget squeezed into a frame still at an earlier, narrower look's width would report
+   that width and stay there. */
 body.usage-widget-body #app {
   display: flex;
   align-items: flex-start;
+}
+
+body.usage-widget-body #app > * {
+  flex-shrink: 0;
 }
