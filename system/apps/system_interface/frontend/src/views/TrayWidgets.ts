@@ -29,6 +29,8 @@ export interface TrayWidgetSlotsAttrs {
   readonly spot: TaskbarSpot;
   readonly widgets: readonly TrayWidget[];
   readonly popoverApp: string | null;
+  /** A click on a slot its page does not cover (while its popover is open): its popover closes. */
+  readonly onPress: (app: string) => void;
   /** A right-click on a slot its page does not cover (while its popover is open): the widget's menu. */
   readonly onContextMenu: (app: string, x: number, y: number, target: Element) => void;
 }
@@ -37,7 +39,7 @@ export interface TrayWidgetSlotsAttrs {
  *  height and its tints. */
 export const TrayWidgetSlots: m.Component<TrayWidgetSlotsAttrs> = {
   view(vnode) {
-    const { spot, widgets, popoverApp, onContextMenu } = vnode.attrs;
+    const { spot, widgets, popoverApp, onPress, onContextMenu } = vnode.attrs;
     const isOpen = (app: string): boolean => popoverApp === app;
     return widgets.map(({ app, size }) =>
       m(
@@ -55,6 +57,9 @@ export const TrayWidgetSlots: m.Component<TrayWidgetSlotsAttrs> = {
                 (isOpen(app.name) ? "bg-fill-active " : "hover:bg-fill-hover ")) +
             "flex shrink-0 overflow-hidden rounded-md",
           style: { width: `${size.width}px`, height: `${size.height}px` },
+          onclick: (event: MouseEvent) => {
+            if (event.button === 0) onPress(app.name);
+          },
           oncontextmenu: (event: MouseEvent) => {
             event.preventDefault();
             onContextMenu(app.name, event.clientX, event.clientY, event.target as Element);

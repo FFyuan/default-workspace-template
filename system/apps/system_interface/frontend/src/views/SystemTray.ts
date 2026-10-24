@@ -22,6 +22,8 @@ export interface SystemTrayAttrs {
   /** The app widgets in the tray, and the one whose popover is open. */
   readonly widgets: readonly TrayWidget[];
   readonly widgetPopoverApp: string | null;
+  /** A click on a taskbar widget's slot while its popover is open, which covers no page then. */
+  readonly onWidgetPress: (app: string) => void;
   readonly onWidgetContextMenu: (app: string, x: number, y: number, target: Element) => void;
 }
 
@@ -33,6 +35,7 @@ export const SystemTray: m.Component<SystemTrayAttrs> = {
         spot: "tray",
         widgets: attrs.widgets,
         popoverApp: attrs.widgetPopoverApp,
+        onPress: attrs.onWidgetPress,
         onContextMenu: attrs.onWidgetContextMenu,
       }),
       m(PresenceStrip),

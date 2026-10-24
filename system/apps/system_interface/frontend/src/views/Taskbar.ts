@@ -60,6 +60,7 @@ export const Taskbar: m.Component<TaskbarAttrs> = {
                   spot: "toolbar",
                   widgets: attrs.toolbarWidgets,
                   popoverApp: attrs.widgetPopover?.app ?? null,
+                  onPress: attrs.tray.onWidgetPress,
                   onContextMenu: attrs.tray.onWidgetContextMenu,
                 }),
                 attrs.widgetPopover?.spot === "toolbar" ? m(TrayWidgetPopover, attrs.widgetPopover) : null,

@@ -70,6 +70,7 @@ function render(overrides: Partial<TaskbarAttrs> = {}): HTMLElement {
       onDesktopContextMenu: vi.fn(),
       widgets: [],
       widgetPopoverApp: null,
+      onWidgetPress: vi.fn(),
       onWidgetContextMenu: vi.fn(),
     },
     toolbarWidgets: [],
@@ -199,6 +200,7 @@ describe("Taskbar", () => {
         onDesktopContextMenu: vi.fn(),
         widgets: [],
         widgetPopoverApp: null,
+        onWidgetPress: vi.fn(),
         onWidgetContextMenu: vi.fn(),
       },
     });
@@ -268,6 +270,7 @@ describe("the tray's widgets", () => {
       onDesktopContextMenu: vi.fn(),
       widgets: [{ app: gauge, size: { width: 64, height: 24 } }],
       widgetPopoverApp: "gauge",
+      onWidgetPress: vi.fn(),
       onWidgetContextMenu: vi.fn(),
     };
     const taskbar = render({ tray, widgetPopover: { app: "gauge", spot: "tray", size: { width: 180, height: 90 } } });
@@ -300,5 +303,31 @@ describe("the tray's widgets", () => {
     expect(slot.getAttribute("data-popover-open")).toBe("true");
     expect(group.querySelector('[data-widget-popover="gauge"] [data-widget-content]')).not.toBeNull();
     expect(taskbar.querySelector('[data-tray-widget="gauge"]')).toBeNull();
+  });
+
+  it("reports a click on a bare slot in the tray or the row as the widget's press", () => {
+    const onWidgetPress = vi.fn();
+    const meter = appRecord("meter", {
+      widget: { path: "/widget", default_enabled: true, tray: true, toolbar: true },
+    });
+    const taskbar = render({
+      tray: {
+        desktops: [desktopRecord("home")],
+        activeDesktopId: "home",
+        isDesktopsMenuOpen: false,
+        onSwitchDesktop: vi.fn(),
+        onOpenDesktopsMenu: vi.fn(),
+        onDesktopContextMenu: vi.fn(),
+        widgets: [{ app: gauge, size: { width: 64, height: 24 } }],
+        widgetPopoverApp: "gauge",
+        onWidgetPress,
+        onWidgetContextMenu: vi.fn(),
+      },
+      toolbarWidgets: [{ app: meter, size: { width: 120, height: 28 } }],
+    });
+
+    (taskbar.querySelector('[data-tray-widget="gauge"]') as HTMLElement).click();
+    (taskbar.querySelector('[data-toolbar-widget="meter"]') as HTMLElement).click();
+    expect(onWidgetPress.mock.calls).toEqual([["gauge"], ["meter"]]);
   });
 });

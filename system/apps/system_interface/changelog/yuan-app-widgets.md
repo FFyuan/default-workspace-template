@@ -21,3 +21,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - Writing a client's presentation of a widget for an app that declares none answers 404, as showing or hiding that widget does.
 
 - A taskbar widget's open popover closes when the widget leaves the taskbar some other way (hidden for the workspace, moved by another window of the same client, or withdrawn), so it no longer reopens unseen when the widget comes back.
+
+- A click on a taskbar widget's slot while its popover is open closes the popover again.

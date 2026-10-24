@@ -1383,6 +1383,7 @@ export function App(): m.Component<AppAttrs> {
             tray: {
               widgets: taskbarWidgetsOf(current, "tray"),
               widgetPopoverApp: state.trayPopoverApp,
+              onWidgetPress: (app) => current.toggleTrayPopover(app),
               onWidgetContextMenu: (app, x, y, target) => {
                 openMenuAt(
                   { kind: "widget", app, referenceRows: referenceRowsFor(current, target, x, y) },
