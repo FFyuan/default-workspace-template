@@ -2769,6 +2769,14 @@ describe("widgets", () => {
     expect(store.getState().widgets.gauge.mode).toBe("collapsed");
   });
 
+  it("toggles a widget between collapsed and expanded", async () => {
+    const store = await widgetStore();
+    await store.toggleWidgetMode("gauge");
+    expect(store.getState().widgets.gauge.mode).toBe("collapsed");
+    await store.toggleWidgetMode("gauge");
+    expect(store.getState().widgets.gauge.mode).toBe("expanded");
+  });
+
   it("drags a widget by its rim and leaves it where it is let go, anchored by its corner nearest the edges", async () => {
     const store = await widgetStore();
     store.reportWidgetSize("gauge", { width: 180, height: 64 });

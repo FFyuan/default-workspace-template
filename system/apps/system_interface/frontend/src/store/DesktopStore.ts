@@ -1408,6 +1408,11 @@ export class DesktopStore {
     return this.setWidgetPresentation(app, { ...this.widgetPresentationOf(app), mode });
   }
 
+  /** Collapse an expanded widget, or expand a collapsed one. */
+  toggleWidgetMode(app: string): Promise<void> {
+    return this.setWidgetMode(app, this.widgetPresentationOf(app).mode === "collapsed" ? "expanded" : "collapsed");
+  }
+
   /** Put a widget on the desktop, in the taskbar's tray or in its row; its popover, if open, closes. */
   setWidgetPlacement(app: string, placement: WidgetPlacement): Promise<void> {
     if (this.state.trayPopoverApp === app) this.closeTrayPopover();

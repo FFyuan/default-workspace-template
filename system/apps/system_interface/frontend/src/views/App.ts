@@ -355,10 +355,7 @@ export function App(): m.Component<AppAttrs> {
       protocol: attrs.protocol,
       onDrag: (app, step) => followWidgetDrag(current, app, step),
       onMenu: (app, point, frame) => {
-        openMenuAt(
-          { kind: "widget", app, referenceRows: referenceRowsFor(current, frame, point.x, point.y) },
-          anchorForPoint(point.x, point.y),
-        );
+        openWidgetMenuAt(current, app, point.x, point.y, frame);
         m.redraw();
       },
     });
@@ -854,6 +851,11 @@ export function App(): m.Component<AppAttrs> {
     widgetFrames?.setTrayHost(host);
   }
 
+  /** Open a widget's menu at ``x``, ``y`` in the viewport, from a right-click or a press on ``target``. */
+  function openWidgetMenuAt(current: DesktopStore, app: string, x: number, y: number, target: Element): void {
+    openMenuAt({ kind: "widget", app, referenceRows: referenceRowsFor(current, target, x, y) }, anchorForPoint(x, y));
+  }
+
   /** A widget's menu: collapse or expand it and move it to each other place its page draws a form for (the desktop,
    *  the taskbar's tray, the bar's row), neither on a phone, which draws every widget collapsed in its strip; open
    *  its app, or hide it for the whole workspace. */
@@ -869,7 +871,7 @@ export function App(): m.Component<AppAttrs> {
         kind: "action",
         key: isCollapsed ? "widget-expand" : "widget-collapse",
         label: isCollapsed ? "Expand" : "Collapse",
-        onSelect: () => void current.setWidgetMode(appName, isCollapsed ? "expanded" : "collapsed"),
+        onSelect: () => void current.toggleWidgetMode(appName),
       });
     }
     if (!current.isPhoneLayout()) {
@@ -1317,20 +1319,8 @@ export function App(): m.Component<AppAttrs> {
                     widgets: shownWidgets(state),
                     widgetRects: current.widgetRects(),
                     openWidgetMenuApp: openMenu?.kind === "widget" ? openMenu.app : null,
-                    onWidgetToggleMode: (app) => {
-                      const shown = shownWidgets(current.getState()).find((widget) => widget.app.name === app);
-                      if (shown === undefined) return;
-                      void current.setWidgetMode(
-                        app,
-                        shown.presentation.mode === "collapsed" ? "expanded" : "collapsed",
-                      );
-                    },
-                    onWidgetContextMenu: (app, x, y, target) => {
-                      openMenuAt(
-                        { kind: "widget", app, referenceRows: referenceRowsFor(current, target, x, y) },
-                        anchorForPoint(x, y),
-                      );
-                    },
+                    onWidgetToggleMode: (app) => void current.toggleWidgetMode(app),
+                    onWidgetContextMenu: (app, x, y, target) => openWidgetMenuAt(current, app, x, y, target),
                     onWidgetFramesHostCreated: (host) => startWidgetFramesLayer(current, host, vnode.attrs),
                     onWidgetFramesHostRemoved: (host) => stopWidgetFramesLayer(host),
                   }),
@@ -1385,12 +1375,7 @@ export function App(): m.Component<AppAttrs> {
               widgets: taskbarWidgetsOf(current, "tray"),
               widgetPopoverApp: state.trayPopoverApp,
               onWidgetPress: (app) => current.toggleTrayPopover(app),
-              onWidgetContextMenu: (app, x, y, target) => {
-                openMenuAt(
-                  { kind: "widget", app, referenceRows: referenceRowsFor(current, target, x, y) },
-                  anchorForPoint(x, y),
-                );
-              },
+              onWidgetContextMenu: (app, x, y, target) => openWidgetMenuAt(current, app, x, y, target),
               desktops: state.desktops,
               activeDesktopId: state.activeDesktopId,
               isDesktopsMenuOpen: openMenu?.kind === "desktops",
