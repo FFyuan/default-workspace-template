@@ -187,6 +187,14 @@ describe("the widget's size", () => {
       expect(root.querySelector("#usage-widget")?.getAttribute("data-widget-size")).toBe(size);
     }
   });
+
+  it("lays its root out in one direction per mode: a column on the desktop, a row in the taskbar", () => {
+    const directions = (["expanded", "collapsed", "tray", "toolbar"] as const).map((mode) => {
+      const classes = rendered(BOTH, mode).querySelector("#usage-widget")?.classList;
+      return ["flex-col", "flex-row"].filter((direction) => classes?.contains(direction) === true);
+    });
+    expect(directions).toEqual([["flex-col"], ["flex-col"], ["flex-row"], ["flex-row"]]);
+  });
 });
 
 describe("the tray form", () => {

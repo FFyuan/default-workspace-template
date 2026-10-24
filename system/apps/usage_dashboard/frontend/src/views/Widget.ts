@@ -56,14 +56,14 @@ export const Widget: m.Component<WidgetAttrs> = {
         "data-widget-toolbar": look.toolbar,
         "data-live": model.isLive ? "true" : "false",
         class:
-          "usage-widget inline-flex flex-col text-(--widget-text) no-underline " +
+          "usage-widget inline-flex text-(--widget-text) no-underline " +
           (mode === "tray"
             ? "flex-row items-center gap-2.5 px-1 "
             : mode === "toolbar"
               ? "flex-row items-center gap-3 px-2 "
               : isCollapsed
-                ? "gap-1 p-1 "
-                : "w-(--w-width) gap-2 p-1.5 ") +
+                ? "flex-col gap-1 p-1 "
+                : "w-(--w-width) flex-col gap-2 p-1.5 ") +
           (model.isLive ? "" : "opacity-60"),
       },
       [
