@@ -3087,7 +3087,7 @@ def test_a_widget_shows_top_right_collapses_moves_anywhere_opens_its_app_and_hid
 def test_a_widget_moves_to_the_tray_from_its_menu_and_a_click_opens_its_popover_until_escape(
     tmp_path: Path, page: Page
 ) -> None:
-    """A right-click on a widget's page opens its menu; "Move to taskbar" puts a widget whose page draws a tray form in
+    """A right-click on a widget's page opens its menu; "Move to tray" puts a widget whose page draws a tray form in
     the tray, told mode tray, at the size its page reports for that; a click on it opens its popover, the same page
     told expanded, opening no window; Escape on the page closes it; and the tray's menu moves it back."""
     shell: dict[str, str] = {}
