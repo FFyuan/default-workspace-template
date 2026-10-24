@@ -769,10 +769,13 @@ resumes), and how to honor a rollback request are in
   update changed): check it, and carry any breakage into the results message.
 - **`Dockerfile`** -- apply the live-applicable hunks the report calls out
   (version pins live in `setup_system.sh`, already re-run; keep
-  `agent_types.claude.version` in `.mngr/settings.toml` in sync). Any
-  image-level hunk needs a manual workspace rebuild -- say so.
-- **Rebuild-only flags** -- surface as needing a workspace recreate; never
-  imply they are live.
+  `agent_types.claude.version` in `.mngr/settings.toml` in sync). An
+  image-level hunk the report marks *pending recreate* is a results-message
+  caveat naming what the workspace lacks until a recreate; one marked
+  *covered live* changes nothing a recreate would fix, so leave it out.
+- **Rebuild-only flags** -- surface each as needing a workspace recreate,
+  saying what the running workspace lacks until then; never imply they are
+  live.
 - **User apps without `stop_when_no_windows`** -- the shell stops an app
   whose manifest declares `stop_when_no_windows = true` a minute after its
   last window closes and starts it again on the next request (the build-app
@@ -857,8 +860,8 @@ until 5b's retry judgment is spent, but release the leases either way.
 
 Record the success verdict -- `UPDATED`, or `UPDATED_WITH_REBUILD_ITEMS` when
 §5c left something the user must actually do or decide. A purely-deferred item
-with nothing observable to act on (a rebuild-only flag that changes nothing
-until the workspace is someday recreated) is a results-message caveat under a
+with nothing observable to act on (a pending-recreate item whose difference
+the user would not notice) is at most a results-message caveat under a
 plain `UPDATED`, not a reason for this verdict -- the app renders it as "left
 something for you", and there must really be something. When you do record it,
 the `--detail` line names that something in the user's terms:
