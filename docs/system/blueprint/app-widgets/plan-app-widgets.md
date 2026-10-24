@@ -286,6 +286,7 @@ How the widget looks is the Usage app's own setting, not a flag and nothing the 
 | Style (`widget_variant`) | Expanded | Collapsed |
 |---|---|---|
 | `rings` (default) | section 7.4 | section 7.5 |
+| `minimal` | the ring pairs alone in a row, the 5-hour figure in each; nothing else in view (less: the 5-hour ring alone; more: the weekly figure under each pair); the panel fits them rather than taking the expanded width | the same, the rings a size smaller |
 | `bars` | a row per subscription: its name, the 5-hour bar above a thinner weekly bar, and their shares used (the 5-hour one in bold); then the API spend | the short name, both bars, and the 5-hour share |
 
 | Detail (`widget_detail`) | What it adds or takes away |

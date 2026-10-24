@@ -30,6 +30,8 @@ class WidgetVariant(LowerCaseStrEnum):
 
     # Concentric rings per subscription: the weekly limit outside, the 5-hour limit inside.
     RINGS = auto()
+    # The ring pairs alone, the 5-hour figure in each, with nothing else in view.
+    MINIMAL = auto()
     # A row of horizontal bars per subscription: the 5-hour limit above the weekly one.
     BARS = auto()
 

@@ -12,7 +12,7 @@
 import { fetchSettings, saveSettings } from "./api";
 import type { UsageSettings } from "./api";
 
-export const WIDGET_VARIANTS = ["rings", "bars"] as const;
+export const WIDGET_VARIANTS = ["rings", "minimal", "bars"] as const;
 export type WidgetVariant = (typeof WIDGET_VARIANTS)[number];
 
 export const WIDGET_SIZES = ["small", "medium", "large"] as const;
@@ -57,7 +57,11 @@ export const DEFAULT_WIDGET_LOOK: WidgetLook = {
 };
 
 /** What each choice is called where it is picked. */
-export const WIDGET_VARIANT_LABELS: Record<WidgetVariant, string> = { rings: "Rings", bars: "Bars" };
+export const WIDGET_VARIANT_LABELS: Record<WidgetVariant, string> = {
+  rings: "Rings",
+  minimal: "Rings · Minimal",
+  bars: "Bars",
+};
 export const WIDGET_SIZE_LABELS: Record<WidgetSize, string> = { small: "Small", medium: "Medium", large: "Large" };
 export const WIDGET_DETAIL_LABELS: Record<WidgetDetail, string> = { less: "Less", standard: "Standard", more: "More" };
 export const WIDGET_TRAY_LABELS: Record<WidgetTray, string> = {

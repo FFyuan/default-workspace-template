@@ -12,6 +12,10 @@
  * - In the taskbar's tray: per subscription a small ring pair beside its name in small capitals over the 5-hour
  *   figure (and the weekly one with more), all within the tray's height.
  *
+ * The minimal style is the ring pairs alone, the 5-hour figure in each, in a row with nothing else in view: with
+ * less, the 5-hour ring alone; with more, the weekly figure under each pair. Collapsed, the same a size smaller
+ * (``style.css``).
+ *
  * The rest is in tooltips: the pair's says both windows, a row's its window, a heading the whole subscription.
  */
 
@@ -176,6 +180,36 @@ export function ringsCollapsed(model: WidgetModel, detail: WidgetDetail): m.Chil
     );
   }
   return pillView(cards);
+}
+
+/** A minimal ring pair: the rings and the 5-hour figure, and with more the weekly figure beneath. */
+function minimalPairView(pair: RingPair, detail: WidgetDetail): m.Vnode {
+  return m("span", { key: pair.key, "data-widget-rings": pair.key, class: "flex flex-col items-center gap-0.5" }, [
+    ringsView(pair.inner, detail === "less" ? null : pair.outer, pair.tooltip),
+    detail === "more" && pair.outer !== null
+      ? m(
+          "span",
+          {
+            "data-ring-more": "long",
+            class: "text-[0.75em] leading-none tabular-nums text-(--widget-muted)",
+            ...tooltip(windowText(pair.outer)),
+          },
+          `wk ${percentText(pair.outer)}`,
+        )
+      : null,
+  ]);
+}
+
+/** The minimal style, expanded or collapsed alike: a row of ring pairs, or with no subscription the month's spend. */
+export function ringsMinimal(model: WidgetModel, detail: WidgetDetail): m.Children {
+  const cards = model.cards ?? [];
+  const rings = widgetRings(cards);
+  if (rings.length === 0) return pillView(cards);
+  return m(
+    "span",
+    { class: "flex items-start gap-2" },
+    rings.map((pair) => minimalPairView(pair, detail)),
+  );
 }
 
 export function ringsTray(model: WidgetModel, detail: WidgetDetail): m.Children {

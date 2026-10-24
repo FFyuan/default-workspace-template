@@ -74,6 +74,20 @@
   --w-width: 284px;
 }
 
+/* The minimal rings collapsed: the same rings a size smaller. */
+.usage-widget[data-widget-variant="minimal"][data-widget-mode="collapsed"][data-widget-size="small"] {
+  --w-ring: 26px;
+  --w-ring-figure: 7px;
+}
+.usage-widget[data-widget-variant="minimal"][data-widget-mode="collapsed"][data-widget-size="medium"] {
+  --w-ring: 32px;
+  --w-ring-figure: 8px;
+}
+.usage-widget[data-widget-variant="minimal"][data-widget-mode="collapsed"][data-widget-size="large"] {
+  --w-ring: 44px;
+  --w-ring-figure: 11px;
+}
+
 /* In the taskbar's tray the widget takes the tray's own size, whatever size the workspace picked. */
 .usage-widget[data-widget-mode="tray"] {
   --w-font: 11px;

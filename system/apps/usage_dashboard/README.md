@@ -127,6 +127,7 @@ beside "Widget" at the foot of the Usage page, on the left, and kept in the app'
 settings: first its place (desktop, the taskbar's row, or its tray), then only that
 place's choices. On the desktop its
 style (rings: concentric rings per subscription, weekly outside and 5-hour inside;
+minimal: those rings alone, with the 5-hour figure in each and nothing else in view;
 bars: a row per subscription with a 5-hour bar above a thinner weekly one), its
 size (small, medium, large: `--w-*` lengths in `style.css`) and how much it shows
 (less, standard, more). Its detail is in tooltips (`data-widget-tooltip`), which

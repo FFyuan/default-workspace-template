@@ -14,7 +14,7 @@ import type { WidgetMode } from "@imbue/workspace-ui/src/app_contract";
 import type { WidgetModel } from "../models/widget";
 import type { WidgetDetail, WidgetLook, WidgetVariant } from "../models/widgetLook";
 import { barsCollapsed, barsExpanded } from "./widgetBars";
-import { ringsCollapsed, ringsExpanded } from "./widgetRings";
+import { ringsCollapsed, ringsExpanded, ringsMinimal } from "./widgetRings";
 import { TOOLBAR_DESIGNS } from "./widgetToolbar";
 import { TRAY_DESIGNS } from "./widgetTray";
 
@@ -22,6 +22,7 @@ type DesktopMode = Exclude<WidgetMode, "tray" | "toolbar">;
 
 const STYLES: Record<WidgetVariant, Record<DesktopMode, (model: WidgetModel, detail: WidgetDetail) => m.Children>> = {
   rings: { expanded: ringsExpanded, collapsed: ringsCollapsed },
+  minimal: { expanded: ringsMinimal, collapsed: ringsMinimal },
   bars: { expanded: barsExpanded, collapsed: barsCollapsed },
 };
 
@@ -63,7 +64,9 @@ export const Widget: m.Component<WidgetAttrs> = {
               ? "flex-row items-center gap-3 px-2 "
               : isCollapsed
                 ? "flex-col gap-1 p-1 "
-                : "w-(--w-width) flex-col gap-2 p-1.5 ") +
+                : look.variant === "minimal"
+                  ? "flex-col gap-2 p-1.5 "
+                  : "w-(--w-width) flex-col gap-2 p-1.5 ") +
           (model.isLive ? "" : "opacity-60"),
       },
       [

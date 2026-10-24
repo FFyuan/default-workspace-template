@@ -165,6 +165,7 @@ def test_the_widget_look_defaults_to_medium_standard_rings_and_is_kept_once_set(
     assert written.get_json() == stored
     assert client.get("/api/settings").get_json() == stored
     assert settings_store.read().widget_variant is WidgetVariant.BARS
+    assert client.post("/api/settings", json={"widget_variant": "minimal"}).get_json()["widget_variant"] == "minimal"
     assert client.post("/api/settings", json={"widget_variant": "dials"}).status_code == 400
     assert client.post("/api/settings", json={"widget_size": "huge"}).status_code == 400
     assert client.post("/api/settings", json={"widget_tray": "sparkle"}).status_code == 400

@@ -301,3 +301,31 @@ describe("the toolbar designs", () => {
     expect(less.querySelector('[data-widget-bar="long"]')).toBeNull();
   });
 });
+
+describe("the minimal rings", () => {
+  it("draws the ring pairs alone with the 5-hour figure in each, at the expanded widget's own width", () => {
+    const root = rendered(BOTH, "expanded", { variant: "minimal" });
+    const widget = root.querySelector("#usage-widget");
+    expect(widget?.getAttribute("data-widget-variant")).toBe("minimal");
+    expect(widget?.className).not.toContain("w-(--w-width)");
+    const pair = root.querySelector('[data-widget-rings="subscription:claude"]');
+    expect(pair?.querySelector('[data-ring="outer"]')).not.toBeNull();
+    expect(texts(pair, "[data-ring-figure]")).toEqual(["80%"]);
+    // No names, rows, spend or reset text in view; the detail is in the pair's tooltip.
+    expect(root.querySelector("[data-ring-name], [data-widget-window], [data-widget-reset]")).toBeNull();
+    expect(root.textContent).not.toContain("$9.50");
+    expect(tooltips(pair, "[data-widget-tooltip]")[0]).toContain("5-hour limit: 80% used");
+  });
+
+  it("drops the weekly ring with less, adds the weekly figure with more, and draws the same when collapsed", () => {
+    expect(
+      rendered(BOTH, "expanded", { variant: "minimal", detail: "less" }).querySelector('[data-ring="outer"]'),
+    ).toBeNull();
+    const more = rendered(BOTH, "expanded", { variant: "minimal", detail: "more" });
+    expect(texts(more, '[data-ring-more="long"]')).toEqual(["wk 34%"]);
+    const collapsed = rendered(BOTH, "collapsed", { variant: "minimal" });
+    expect(collapsed.querySelector("#usage-widget")?.getAttribute("data-widget-mode")).toBe("collapsed");
+    expect(texts(collapsed, "[data-ring-figure]")).toEqual(["80%"]);
+    expect(collapsed.querySelector("[data-ring-name]")).toBeNull();
+  });
+});
