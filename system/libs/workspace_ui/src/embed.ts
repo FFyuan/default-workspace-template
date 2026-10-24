@@ -92,12 +92,21 @@ export const OPEN_LINK: "minds:open-link" = "OPEN_LINK" in embedContract ? embed
 // for an external link that embedder handed over with OPEN_LINK.
 export const OPEN_EXTERNAL: "minds:open-external" =
   "OPEN_EXTERNAL" in embedContract ? embedContract.OPEN_EXTERNAL : "minds:open-external";
+// Workspace -> embedder: ring one of the Imbue Studio chrome's own controls while the
+// workspace's tour talks about it, or clear the ring. Payload: { anchor }, one of the
+// chrome's anchor names ("share", "help", ...) or null. Fire-and-forget; a chrome that does
+// not know the type ignores it, and the tour's words never depend on the ring.
+export const HIGHLIGHT_CHROME: "minds:highlight-chrome" =
+  "HIGHLIGHT_CHROME" in embedContract ? embedContract.HIGHLIGHT_CHROME : "minds:highlight-chrome";
 
 type EmbedderMessageHandler = (message: ContractMessage) => void;
 
 // Every embedder->workspace type the contract defines: the endpoint dispatches
 // only the types it is handed a handler for, and each of these reaches its own
-// handler and then the observer.
+// handler and then the observer. A type outside this list the endpoint drops
+// (the contract's tolerant policy), so an app message the chrome posts beside
+// the contract's own (a notification's destination, `minds:show-routine`, say)
+// never reaches the observer: the shell's relay.ts hands those on itself.
 const EMBEDDER_TO_WORKSPACE_TYPES: readonly string[] = [
   CLOSE_ACTIVE_TAB,
   OPEN_AI_KEYS_ACK,
@@ -155,11 +164,18 @@ export function setEmbedderMessageHandler(type: string, handler: EmbedderMessage
   handlerByType[type] = handler;
 }
 
-/** Observe every embedder->workspace message, whatever its type, after its
- * type's own handler (replaces any prior observer). */
+/** Observe every embedder->workspace message of a type the contract defines,
+ * after its type's own handler (replaces any prior observer). */
 export function setEmbedderMessageObserver(observer: EmbedderMessageHandler): void {
   getEndpoint();
   messageObserver = observer;
+}
+
+/** Whether `type` is an embedder->workspace type the contract defines, which the
+ * endpoint dispatches (and the observer sees); any other type from the chrome
+ * the endpoint drops. */
+export function isContractEmbedderMessageType(type: string): boolean {
+  return EMBEDDER_TO_WORKSPACE_TYPES.includes(type);
 }
 
 /** What a page says it handles when it announces itself ready. */

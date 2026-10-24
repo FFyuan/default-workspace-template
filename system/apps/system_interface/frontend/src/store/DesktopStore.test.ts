@@ -1309,6 +1309,11 @@ describe("pinned entries", () => {
     expect(activePlacements(store.getState()).find((placement) => placement.window_id === "win-9")?.is_minimized).toBe(
       false,
     );
+    // A text not about the window's page is launched without it, so the app drafts it where such a text goes.
+    expect(await store.draftIntoPinnedWindow("Draw me", false)).toBe(true);
+    expect(last(api.calls.filter((call) => call.startsWith("launch")))).toBe(
+      `launch:home:buddy:draft:{"message":"Draw me"}:window:win-9:without-page`,
+    );
     // A desktop with no pinned app taking a draft has nowhere to put one.
     socket.deliver().onAppsUpdated([appRecord("docs"), appRecord("buddy")]);
     expect(await store.draftIntoPinnedWindow("Draw me")).toBe(false);
@@ -1345,7 +1350,7 @@ describe("pinned entries", () => {
 
   it("restores a pinned window the client never placed at the frame the shell answered, not the cascade", async () => {
     const store = await pinnedStore();
-    expect(store.windowRect("win-9")).toEqual({ x: 460, y: 40, width: 500, height: 720 });
+    expect(store.windowRect("win-9")).toEqual({ x: 50, y: 40, width: 900, height: 720 });
     store.toggleTaskbarEntry("win-9");
     expect(activePlacements(store.getState()).find((placement) => placement.window_id === "win-9")).toMatchObject({
       frame: PINNED_WINDOW_FRAME,
