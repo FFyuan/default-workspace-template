@@ -25,3 +25,5 @@ App widgets: an app can declare a `[widget]` page that the desktop keeps on scre
 - A click on a taskbar widget's slot while its popover is open closes the popover again.
 
 - A taskbar widget's open popover closes on a click into a window's page as well as on one elsewhere in the shell.
+
+- On a phone, a widget's menu no longer offers Collapse or Expand, which the phone's always-collapsed strip ignored.

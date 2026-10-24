@@ -854,8 +854,9 @@ export function App(): m.Component<AppAttrs> {
     widgetFrames?.setTrayHost(host);
   }
 
-  /** A widget's menu: collapse or expand it (on the desktop), move it to each other place its page draws a form for
-   *  (the desktop, the taskbar's tray, the bar's row), open its app, or hide it for the whole workspace. */
+  /** A widget's menu: collapse or expand it and move it to each other place its page draws a form for (the desktop,
+   *  the taskbar's tray, the bar's row), neither on a phone, which draws every widget collapsed in its strip; open
+   *  its app, or hide it for the whole workspace. */
   function rowsOfWidgetMenu(current: DesktopStore, appName: string): MenuRow[] | null {
     const state = current.getState();
     const shown = shownWidgets(state).find((widget) => widget.app.name === appName);
@@ -863,7 +864,7 @@ export function App(): m.Component<AppAttrs> {
     const isCollapsed = shown.presentation.mode === "collapsed";
     const spot = taskbarSpotOf(shown);
     const rows: MenuRow[] = [];
-    if (spot === null) {
+    if (spot === null && !current.isPhoneLayout()) {
       rows.push({
         kind: "action",
         key: isCollapsed ? "widget-expand" : "widget-collapse",
