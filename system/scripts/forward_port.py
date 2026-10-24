@@ -25,7 +25,9 @@ and copies its static fields onto the row: ``display_name``, ``description``, ``
 ``default_shortcut`` (launch and mode), ``launch_paths`` (id, label, path,
 the names of the params, and ``method``, ``presets``, ``text_param``, and
 ``draft_param`` when given), ``pin`` (path, and style, scope, and
-default_mode when given), ``widget`` (path, and default_enabled when given), ``window_closed_path``, and ``message_handlers`` (type, and path or show and showing);
+default_mode when given), ``widget`` (path, and default_enabled, tray, and
+toolbar when given), ``window_closed_path``, and ``message_handlers`` (type,
+and path or show and showing);
 the icon is read from the file the manifest names, relative to the manifest. Every manifest
 field is authoritative on every call, so a re-registration with a changed manifest updates the row.
 Only what is copied from files is checked here (the name rule, the icon markup,
@@ -927,8 +929,8 @@ def main() -> None:
         help=(
             "Path to the app's app.toml. Its name, icon, and static fields (display_name, "
             "critical, priority, program, internal, system, launcher_rank, default_shortcut, "
-            "launch_paths with their text_param, pin, widget, window_closed_path, message_handlers) are copied onto the row on "
-            "every call."
+            "launch_paths with their text_param, pin, widget, window_closed_path, message_handlers) are copied onto "
+            "the row on every call."
         ),
     )
     parser.add_argument(
