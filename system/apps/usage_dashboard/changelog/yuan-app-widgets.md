@@ -18,4 +18,4 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 
 - When the Usage page cannot read the widget's settings, it says so at its foot instead of offering the picker with the defaults, so a pick can no longer overwrite the workspace's other choices with them.
 
-- The Usage manifest and its settings route say what the settings hold: where the widget goes and how it looks, not only which version it is.
+- The Usage manifest, its README and its settings route say what the settings hold: where the widget goes and how it looks, not only which version it is.

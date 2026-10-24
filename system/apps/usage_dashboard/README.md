@@ -2,8 +2,8 @@
 
 The Usage app: one window over the workspace's model usage. It is the user's view
 of the usage collector (`system/services/usage_collector`), which indexes every
-model call made in the workspace. All the app stores of its own is how its widget
-looks (`data/.apps/usage-dashboard/settings.json`).
+model call made in the workspace. All the app stores of its own is where its widget
+goes and how it looks (`data/.apps/usage-dashboard/settings.json`).
 
 The app has three kinds of page, one document reading its path:
 
