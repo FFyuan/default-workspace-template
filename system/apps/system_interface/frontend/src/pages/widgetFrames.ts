@@ -6,23 +6,22 @@
  *
  * A frame lives in one of two hosts: the backdrop's, for a widget on the desktop (and every widget on a phone), and
  * the taskbar's, for a widget this client put in the taskbar's tray or its row. A widget moved between the hosts is
- * framed anew in the other. In the taskbar the page is told mode ``tray`` or ``toolbar`` and laid over its slot;
- * while its popover is open the same frame is told ``expanded`` and laid over the popover's box instead, so opening
- * it reloads nothing. A taskbar page's click
- * (``shell:widget-press``) opens or closes its popover, and any widget page's right-click (``shell:widget-menu``)
- * asks for its menu through ``onMenu``.
+ * framed anew in the other. In the taskbar the page is told mode ``tray`` or ``toolbar`` and laid over its slot; while
+ * its popover is open the same frame is told ``expanded`` and laid over the popover's box instead, so opening it
+ * reloads nothing. A taskbar page's click (``shell:widget-press``) opens or closes its popover, and any widget page's
+ * right-click (``shell:widget-menu``) asks for its menu through ``onMenu``.
  *
  * A widget is not drawn until its page reports a size, so a frame the chrome has no box for yet is kept loaded
  * but out of sight, at the largest size a widget may take, where its page can lay itself out and measure.
  *
- * The shell side of the app contract for a widget lives here: the handshake after every load and on a desktop
- * change (``surface: "widget"``, no window), the mode after every handshake and on every change, and the page's
- * own ``shell:widget-size``, ``shell:widget-hidden``, ``shell:widget-drag`` and ``shell:widget-tooltip``, the last shown
- * as the workspace's own tooltip under the element's place in the frame, where the small frame cannot clip it. A drag's points arrive in screen
- * pixels, which stay true while the frame moves under the pointer; the layer turns them into the shell's viewport
- * pixels by where the press was in the frame, and hands each step to ``onDrag``. The rest of what a widget's page may send (an open, a
- * message, a link) the live pages layer takes, asking ``appOfFrame`` whose frame it is. Messages cross through
- * ``relay.ts``.
+ * The shell side of the app contract for a widget lives here: the handshake after every load and on a desktop change
+ * (``surface: "widget"``, no window), the mode after every handshake and on every change, and the page's own
+ * ``shell:widget-size``, ``shell:widget-hidden``, ``shell:widget-drag`` and ``shell:widget-tooltip``, the last shown
+ * as the workspace's own tooltip under the element's place in the frame, where the small frame cannot clip it. A
+ * drag's points arrive in screen pixels, which stay true while the frame moves under the pointer; the layer turns them
+ * into the shell's viewport pixels by where the press was in the frame, and hands each step to ``onDrag``. The rest of
+ * what a widget's page may send (an open, a message, a link) the live pages layer takes, asking ``appOfFrame`` whose
+ * frame it is. Messages cross through ``relay.ts``.
  */
 
 import {

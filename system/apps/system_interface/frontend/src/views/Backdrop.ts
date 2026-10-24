@@ -1,10 +1,10 @@
 /**
- * The backdrop (concepts.md section 2.4): over the active desktop's wallpaper, its shortcut grid
- * fitted to the current backdrop at render time, its windows in stacking order (each over the
- * live page the pages layer positions for it), the floating pinned entries and the widgets above them (each
- * widget's page laid over its chrome by the widget frames layer), and the snap preview. A shortcut being dragged needs no layer of its own: the icon carries its own lift, and the
- * store's placement carries the room made for it. Every pixel comes from the store's geometry; nothing
- * here measures the DOM or listens for gestures.
+ * The backdrop (concepts.md section 2.4): over the active desktop's wallpaper, its shortcut grid fitted to the current
+ * backdrop at render time, its windows in stacking order (each over the live page the pages layer positions for it),
+ * the floating pinned entries and the widgets above them (each widget's page laid over its chrome by the widget frames
+ * layer), and the snap preview. A shortcut being dragged needs no layer of its own: the icon carries its own lift, and
+ * the store's placement carries the room made for it. Every pixel comes from the store's geometry; nothing here
+ * measures the DOM or listens for gestures.
  */
 
 import m from "mithril";

@@ -38,10 +38,10 @@ import {
   SHELL_MESSAGE,
   SHELL_NAVIGATE,
   SHELL_OPEN,
-  SHELL_WIDGET_PLACEMENT,
   SHELL_OPEN_LINK,
   SHELL_SHOWN,
   SHELL_START_WITH_TEXT,
+  SHELL_WIDGET_PLACEMENT,
 } from "@imbue/workspace-ui/src/app_contract";
 import { requestFrameFocus } from "@imbue/workspace-ui/src/terminalFocus";
 import { windowPageZIndex } from "../geometry/stacking";
