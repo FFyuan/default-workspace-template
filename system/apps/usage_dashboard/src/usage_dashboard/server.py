@@ -204,7 +204,7 @@ def create_app(
 
     @app.get("/api/settings")
     def read_settings() -> ResponseReturnValue:
-        """The app's settings: which version of the widget the workspace shows."""
+        """The app's settings: where the workspace's widget goes and how it looks there."""
         return model_response(settings.read())
 
     @app.post("/api/settings")

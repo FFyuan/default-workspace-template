@@ -17,3 +17,5 @@ Usage widget: the Usage app declares a `[widget]` at `/widget`, so the desktop s
 - The widget picker sits at the foot of the Usage page, on the left (at the window's bottom edge when the page is short), out of the way of the figures. Its first choice is where the widget goes (Desktop, Toolbar or Tray), and only that place's choices follow: style, size and detail on the desktop; the design and detail in the toolbar or the tray. Every pick also moves your widget to the picked place.
 
 - When the Usage page cannot read the widget's settings, it says so at its foot instead of offering the picker with the defaults, so a pick can no longer overwrite the workspace's other choices with them.
+
+- The Usage manifest and its settings route say what the settings hold: where the widget goes and how it looks, not only which version it is.
